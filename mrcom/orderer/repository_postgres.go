@@ -134,7 +134,7 @@ func (re *repository) UpdateNode(ctx context.Context, row *EntityNode) error {
 
     re.meta.ForEachCond(func (cond any) { query = query.Where(cond) } )
 
-    err := re.client.QueryUpdate(ctx, query)
+    err := re.client.SqUpdate(ctx, query)
 
     if err != nil {
         return mrcore.FactoryErrInternalNoticeDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): row.Id})
