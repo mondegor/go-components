@@ -1,6 +1,8 @@
 package mrcom
 
-type ItemStatusFlow map[ItemStatus][]ItemStatus
+type (
+    ItemStatusFlow map[ItemStatus][]ItemStatus
+)
 
 var (
     ItemStatusFlowDefault = ItemStatusFlow{

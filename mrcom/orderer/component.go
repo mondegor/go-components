@@ -12,10 +12,12 @@ const (
     orderFieldStep mrentity.Int64 = 1024 * 1024
 )
 
-type component struct {
-    storage Storage
-    eventBox mrcore.EventBox
-}
+type (
+    component struct {
+        storage Storage
+        eventBox mrcore.EventBox
+    }
+)
 
 func NewComponent(storage Storage,
                   eventBox mrcore.EventBox) *component {

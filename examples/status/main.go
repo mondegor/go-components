@@ -11,6 +11,6 @@ func main() {
 
     fmt.Printf("STATUS: %s\n", status.String())
 
-    fmt.Printf("check: %v\n", mrcom.ItemStatusFlowDefault.Check(mrcom.ItemStatusEnabled, mrcom.ItemStatusDisabled))
-    fmt.Printf("check: %v\n", mrcom.ItemStatusFlowDefault.Check(mrcom.ItemStatusRemoved, mrcom.ItemStatusDisabled))
+    fmt.Printf("check: %#v\n", mrcom.ItemStatusFlowDefault.Check(mrcom.ItemStatusEnabled, mrcom.ItemStatusDisabled))
+    fmt.Printf("check: %#v\n", mrcom.ItemStatusFlowDefault.Check(mrcom.ItemStatusRemoved, mrcom.ItemStatusDisabled))
 }

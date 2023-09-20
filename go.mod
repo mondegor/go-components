@@ -4,9 +4,9 @@ go 1.20
 
 require (
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/mondegor/go-storage v0.3.5
-	github.com/mondegor/go-sysmess v0.3.2
-	github.com/mondegor/go-webcore v0.5.5
+	github.com/mondegor/go-storage v0.4.0
+	github.com/mondegor/go-sysmess v0.3.3
+	github.com/mondegor/go-webcore v0.5.6
 )
 
 require (

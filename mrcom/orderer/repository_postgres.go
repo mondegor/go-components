@@ -5,22 +5,24 @@ import (
 
     "github.com/Masterminds/squirrel"
     "github.com/mondegor/go-storage/mrentity"
-    "github.com/mondegor/go-storage/mrpostgres"
+    "github.com/mondegor/go-storage/mrstorage"
     "github.com/mondegor/go-sysmess/mrerr"
     "github.com/mondegor/go-webcore/mrcore"
 )
 
 // go get -u github.com/Masterminds/squirrel
 
-type repository struct {
-    client *mrpostgres.ConnAdapter
-    builder squirrel.StatementBuilderType
-    meta EntityMeta
-}
+type (
+    repository struct {
+        client mrstorage.DbConn
+        builder squirrel.StatementBuilderType
+        meta EntityMeta
+    }
+)
 
 // NewRepository -
-func NewRepository(client *mrpostgres.ConnAdapter,
-                    queryBuilder squirrel.StatementBuilderType) *repository {
+func NewRepository(client mrstorage.DbConn,
+                   queryBuilder squirrel.StatementBuilderType) *repository {
     return &repository{
         client: client,
         builder: queryBuilder,
@@ -134,7 +136,7 @@ func (re *repository) UpdateNode(ctx context.Context, row *EntityNode) error {
 
     re.meta.ForEachCond(func (cond any) { query = query.Where(cond) } )
 
-    err := re.client.SqUpdate(ctx, query)
+    err := re.client.SqExec(ctx, query)
 
     if err != nil {
         return mrcore.FactoryErrInternalNoticeDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): row.Id})
@@ -156,7 +158,7 @@ func (re *repository) UpdateNodePrevId(ctx context.Context, id mrentity.KeyInt32
 
     re.meta.ForEachCond(func (cond any) { query = query.Where(cond) } )
 
-    err := re.client.SqUpdate(ctx, query)
+    err := re.client.SqExec(ctx, query)
 
     if err != nil {
         return mrcore.FactoryErrInternalNoticeDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): id})
@@ -178,7 +180,7 @@ func (re *repository) UpdateNodeNextId(ctx context.Context, id mrentity.KeyInt32
 
     re.meta.ForEachCond(func (cond any) { query = query.Where(cond) } )
 
-    err := re.client.SqUpdate(ctx, query)
+    err := re.client.SqExec(ctx, query)
 
     if err != nil {
         return mrcore.FactoryErrInternalNoticeDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): id})
@@ -200,7 +202,7 @@ func (re *repository) RecalcOrderField(ctx context.Context, minBorder mrentity.I
 
     re.meta.ForEachCond(func (cond any) { query = query.Where(cond) } )
 
-    return re.client.SqUpdate(ctx, query)
+    return re.client.SqExec(ctx, query)
 }
 
 func (re *repository) loadNodeByOrderField(ctx context.Context, row *EntityNode) error {

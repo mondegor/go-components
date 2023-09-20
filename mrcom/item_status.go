@@ -6,14 +6,16 @@ import (
     "github.com/mondegor/go-webcore/mrcore"
 )
 
-type ItemStatus uint8
-
 const (
     _ ItemStatus = iota
     ItemStatusDraft
     ItemStatusEnabled
     ItemStatusDisabled
     ItemStatusRemoved
+)
+
+type (
+    ItemStatus uint8
 )
 
 var (

@@ -1,6 +1,12 @@
 # GoStorage Changelog
 Все изменения библиотеки GoComponents будут документироваться на этой странице.
 
+## 2023-09-20
+### Changed
+- Заменён адаптер *mrpostgres.ConnAdapter на интерфейс mrstorage.DbConn;
+- Обновлены зависимости библиотеки;
+- Заменены tabs на пробелы в коде;
+
 ## 2023-09-16
 ### Add
 - Добавлена модель ChangeItemStatusRequest;
