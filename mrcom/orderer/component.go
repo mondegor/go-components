@@ -19,8 +19,10 @@ type (
     }
 )
 
-func NewComponent(storage Storage,
-                  eventBox mrcore.EventBox) *component {
+func NewComponent(
+    storage Storage,
+    eventBox mrcore.EventBox,
+) *component {
     return &component{
         storage: storage,
         eventBox: eventBox,

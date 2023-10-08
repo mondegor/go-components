@@ -1,4 +1,4 @@
-package mrcom
+package mrcom_status
 
 import (
     "encoding/json"
@@ -12,6 +12,8 @@ const (
     ItemStatusEnabled
     ItemStatusDisabled
     ItemStatusRemoved
+
+    enumNameItemStatus = "ItemStatus"
 )
 
 type (
@@ -32,6 +34,23 @@ var (
         "DISABLED": ItemStatusDisabled,
         "REMOVED": ItemStatusRemoved,
     }
+
+    ItemStatusFlow = StatusFlow{
+        ItemStatusDraft: {
+            ItemStatusEnabled,
+            ItemStatusDisabled,
+            ItemStatusRemoved,
+        },
+        ItemStatusEnabled: {
+            ItemStatusDisabled,
+            ItemStatusRemoved,
+        },
+        ItemStatusDisabled: {
+            ItemStatusEnabled,
+            ItemStatusRemoved,
+        },
+        ItemStatusRemoved: {},
+    }
 )
 
 func (e *ItemStatus) ParseAndSet(value string) error {
@@ -40,7 +59,7 @@ func (e *ItemStatus) ParseAndSet(value string) error {
         return nil
     }
 
-    return mrcore.FactoryErrInternalMapValueNotFound.New(value, "ItemStatus")
+    return mrcore.FactoryErrInternalMapValueNotFound.New(value, enumNameItemStatus)
 }
 
 func (e ItemStatus) String() string {
@@ -53,9 +72,8 @@ func (e ItemStatus) MarshalJSON() ([]byte, error) {
 
 func (e *ItemStatus) UnmarshalJSON(data []byte) error {
     var value string
-    err := json.Unmarshal(data, &value)
 
-    if err != nil {
+    if err := json.Unmarshal(data, &value); err != nil {
         return err
     }
 
@@ -68,5 +86,24 @@ func (e *ItemStatus) Scan(value any) error {
         return e.ParseAndSet(val)
     }
 
-    return mrcore.FactoryErrInternalTypeAssertion.New("ItemStatus", value)
+    return mrcore.FactoryErrInternalTypeAssertion.New(enumNameItemStatus, value)
+}
+
+func ParseItemStatusList(items []string) ([]ItemStatus, error) {
+    var tmp ItemStatus
+    var list []ItemStatus
+
+    for _, item := range items {
+        if err := tmp.ParseAndSet(item); err != nil {
+            return nil, err
+        }
+
+        if tmp == ItemStatusRemoved {
+            continue
+        }
+
+        list = append(list, tmp)
+    }
+
+    return list, nil
 }

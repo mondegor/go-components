@@ -1,6 +1,17 @@
 # GoStorage Changelog
 Все изменения библиотеки GoComponents будут документироваться на этой странице.
 
+## 2023-10-08
+### Added
+- Добавлен статус OnlyRemoveStatus;
+- Добавлен фильтр ParseFilterItemStatusList;
+- Добавлен StatusFlow;
+
+### Changed
+- Перенос объектов "статус" из mrcom в mrcom_orderer;
+- Обновлены зависимости библиотеки;
+- Обработка ошибок приведена к более компактному виду;
+
 ## 2023-09-20
 ### Changed
 - Заменён адаптер *mrpostgres.ConnAdapter на интерфейс mrstorage.DbConn;

@@ -21,8 +21,10 @@ type (
 )
 
 // NewRepository -
-func NewRepository(client mrstorage.DbConn,
-                   queryBuilder squirrel.StatementBuilderType) *repository {
+func NewRepository(
+    client mrstorage.DbConn,
+    queryBuilder squirrel.StatementBuilderType,
+) *repository {
     return &repository{
         client: client,
         builder: queryBuilder,
