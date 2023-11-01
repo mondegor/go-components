@@ -1,8 +1,10 @@
-package mrcom_orderer
+package mrorderer
 
 import "github.com/mondegor/go-storage/mrentity"
 
-const ModelNameEntityOrderer = "EntityOrderer"
+const (
+	ModelNameEntityOrderer = "EntityOrderer"
+)
 
 type (
     EntityNode struct {

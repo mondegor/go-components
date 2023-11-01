@@ -1,16 +1,17 @@
-package mrcom_orderer
+package mrorderer
 
 import (
     "context"
 
     "github.com/mondegor/go-storage/mrentity"
+    "github.com/mondegor/go-storage/mrstorage"
 )
 
 type (
     EntityMeta interface {
         TableName() string
         PrimaryName() string
-        ForEachCond(func (cond any))
+        Where() mrstorage.SqlBuilderPart
     }
 
     Component interface {

@@ -1,4 +1,4 @@
-package mrcom_orderer
+package mrorderer
 
 import (
     "context"
