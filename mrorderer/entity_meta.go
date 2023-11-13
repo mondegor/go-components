@@ -12,7 +12,7 @@ type (
     }
 )
 
-func NewEntityMeta(tableName string, primaryName string, where mrstorage.SqlBuilderPart) *entityMeta {
+func NewEntityMeta(tableName, primaryName string, where mrstorage.SqlBuilderPart) *entityMeta {
     return &entityMeta{
         tableName: tableName,
         primaryName: primaryName,

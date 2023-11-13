@@ -8,18 +8,19 @@ import (
     "github.com/mondegor/go-storage/mrstorage"
     "github.com/mondegor/go-sysmess/mrerr"
     "github.com/mondegor/go-webcore/mrcore"
+    "github.com/mondegor/go-webcore/mrtype"
 )
 
 type (
     repository struct {
-        client mrstorage.DbConn
+        client mrstorage.DBConn
         meta EntityMeta
     }
 )
 
 // NewRepository -
 func NewRepository(
-    client mrstorage.DbConn,
+    client mrstorage.DBConn,
 ) *repository {
     return &repository{
         client: client,
@@ -41,7 +42,7 @@ func (re *repository) LoadNode(ctx context.Context, row *EntityNode) error {
     }
 
     args := []any{
-        row.Id,
+        row.ID,
     }
 
     whereStr, whereArgs, err := re.where(" AND ", len(args) + 1)
@@ -57,15 +58,17 @@ func (re *repository) LoadNode(ctx context.Context, row *EntityNode) error {
             order_field
         FROM
             ` + re.meta.TableName() + `
-        WHERE ` + re.meta.PrimaryName() + ` = $1` + whereStr + `;`
+        WHERE
+            ` + re.meta.PrimaryName() + ` = $1` + whereStr + `
+        LIMIT 1;`
 
     return re.client.QueryRow(
         ctx,
         sql,
         mrsql.MergeArgs(args, whereArgs)...,
     ).Scan(
-        &row.PrevId,
-        &row.NextId,
+        &row.PrevID,
+        &row.NextID,
         &row.OrderField,
     )
 }
@@ -82,7 +85,8 @@ func (re *repository) LoadFirstNode(ctx context.Context, row *EntityNode) error 
         SELECT
             MIN(order_field)
         FROM
-            ` + re.meta.TableName() + whereStr + `;`
+            ` + re.meta.TableName() + whereStr + `
+        LIMIT 1;`
 
     err = re.client.QueryRow(
         ctx,
@@ -100,8 +104,8 @@ func (re *repository) LoadFirstNode(ctx context.Context, row *EntityNode) error 
         return err
     }
 
-    if row.PrevId > 0 {
-        return mrcore.FactoryErrStorageFetchedInvalidData.New(mrerr.Arg{"row.Id": row.Id, "row.PrevId": row.PrevId})
+    if row.PrevID > 0 {
+        return mrcore.FactoryErrStorageFetchedInvalidData.New(mrerr.Arg{"row.Id": row.ID, "row.PrevId": row.PrevID})
     }
 
     return nil
@@ -119,7 +123,8 @@ func (re *repository) LoadLastNode(ctx context.Context, row *EntityNode) error {
         SELECT
             MAX(order_field)
         FROM
-            ` + re.meta.TableName() + whereStr + `;`
+            ` + re.meta.TableName() + whereStr + `
+        LIMIT 1;`
 
     err = re.client.QueryRow(
         ctx,
@@ -133,12 +138,16 @@ func (re *repository) LoadLastNode(ctx context.Context, row *EntityNode) error {
         return err
     }
 
+    if row.OrderField == 0 {
+        return nil
+    }
+
     if err = re.loadNodeByOrderField(ctx, row); err != nil {
         return err
     }
 
-    if row.NextId > 0 {
-        return mrcore.FactoryErrStorageFetchedInvalidData.New(mrerr.Arg{"row.Id": row.Id, "row.NextId": row.NextId})
+    if row.NextID > 0 {
+        return mrcore.FactoryErrStorageFetchedInvalidData.New(mrerr.Arg{"row.Id": row.ID, "row.NextId": row.NextID})
     }
 
     return nil
@@ -147,9 +156,9 @@ func (re *repository) LoadLastNode(ctx context.Context, row *EntityNode) error {
 // UpdateNode -
 func (re *repository) UpdateNode(ctx context.Context, row *EntityNode) error {
     args := []any{
-        row.Id,
-        row.PrevId,
-        row.NextId,
+        row.ID,
+        row.PrevID,
+        row.NextID,
         row.OrderField,
     }
 
@@ -160,7 +169,8 @@ func (re *repository) UpdateNode(ctx context.Context, row *EntityNode) error {
     }
 
     sql := `
-        UPDATE ` + re.meta.TableName() + `
+        UPDATE
+            ` + re.meta.TableName() + `
         SET
             prev_field_id = $2,
             next_field_id = $3,
@@ -175,17 +185,17 @@ func (re *repository) UpdateNode(ctx context.Context, row *EntityNode) error {
     )
 
     if err != nil {
-        return mrcore.FactoryErrInternalNoticeDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): row.Id})
+        return mrcore.FactoryErrInternalNoticeDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): row.ID})
     }
 
     return err
 }
 
-// UpdateNodePrevId -
-func (re *repository) UpdateNodePrevId(ctx context.Context, id mrentity.KeyInt32, prevId mrentity.ZeronullInt32) error {
+// UpdateNodePrevID -
+func (re *repository) UpdateNodePrevID(ctx context.Context, id mrtype.KeyInt32, prevID mrentity.ZeronullInt32) error {
     args := []any{
         id,
-        prevId,
+        prevID,
     }
 
     whereStr, whereArgs, err := re.where(" AND ", len(args) + 1)
@@ -195,7 +205,8 @@ func (re *repository) UpdateNodePrevId(ctx context.Context, id mrentity.KeyInt32
     }
 
     sql := `
-        UPDATE ` + re.meta.TableName() + `
+        UPDATE
+            ` + re.meta.TableName() + `
         SET
             prev_field_id = $2
         WHERE
@@ -214,11 +225,11 @@ func (re *repository) UpdateNodePrevId(ctx context.Context, id mrentity.KeyInt32
     return nil
 }
 
-// UpdateNodeNextId -
-func (re *repository) UpdateNodeNextId(ctx context.Context, id mrentity.KeyInt32, nextId mrentity.ZeronullInt32) error {
+// UpdateNodeNextID -
+func (re *repository) UpdateNodeNextID(ctx context.Context, id mrtype.KeyInt32, nextID mrentity.ZeronullInt32) error {
     args := []any{
         id,
-        nextId,
+        nextID,
     }
 
     whereStr, whereArgs, err := re.where(" AND ", len(args) + 1)
@@ -228,7 +239,8 @@ func (re *repository) UpdateNodeNextId(ctx context.Context, id mrentity.KeyInt32
     }
 
     sql := `
-        UPDATE ` + re.meta.TableName() + `
+        UPDATE
+            ` + re.meta.TableName() + `
         SET
             next_field_id = $2
         WHERE
@@ -248,7 +260,7 @@ func (re *repository) UpdateNodeNextId(ctx context.Context, id mrentity.KeyInt32
 }
 
 // RecalcOrderField -
-func (re *repository) RecalcOrderField(ctx context.Context, minBorder mrentity.Int64, step mrentity.Int64) error {
+func (re *repository) RecalcOrderField(ctx context.Context, minBorder, step int64) error {
     args := []any{
         minBorder,
         step,
@@ -261,7 +273,8 @@ func (re *repository) RecalcOrderField(ctx context.Context, minBorder mrentity.I
     }
 
     sql := `
-        UPDATE ` + re.meta.TableName() + `
+        UPDATE
+            ` + re.meta.TableName() + `
         SET
             order_field = order_field + $2
         WHERE
@@ -275,7 +288,11 @@ func (re *repository) RecalcOrderField(ctx context.Context, minBorder mrentity.I
 }
 
 func (re *repository) loadNodeByOrderField(ctx context.Context, row *EntityNode) error {
-    whereStr, whereArgs, err := re.where(" AND ", 1)
+    args := []any{
+        row.OrderField,
+    }
+
+    whereStr, whereArgs, err := re.where(" AND ", len(args) + 1)
 
     if err != nil {
         return err
@@ -283,22 +300,25 @@ func (re *repository) loadNodeByOrderField(ctx context.Context, row *EntityNode)
 
     sql := `
         SELECT
-            ` + re.meta.PrimaryName() + `
+            ` + re.meta.PrimaryName() + `,
             prev_field_id,
             next_field_id
         FROM
             ` + re.meta.TableName() + `
-        WHERE order_field = $1` + whereStr + `
-        FETCH FIRST 1 ROWS ONLY;`
+        WHERE
+            order_field = $1` + whereStr + `
+        ORDER BY
+            ` + re.meta.PrimaryName() + ` ASC
+        LIMIT 1;`
 
     return re.client.QueryRow(
         ctx,
         sql,
-        mrsql.MergeArgs([]any{row.OrderField}, whereArgs)...,
+        mrsql.MergeArgs(args, whereArgs)...,
     ).Scan(
-        &row.Id,
-        &row.PrevId,
-        &row.NextId,
+        &row.ID,
+        &row.PrevID,
+        &row.NextID,
     )
 }
 

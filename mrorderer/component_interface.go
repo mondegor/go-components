@@ -5,6 +5,7 @@ import (
 
     "github.com/mondegor/go-storage/mrentity"
     "github.com/mondegor/go-storage/mrstorage"
+    "github.com/mondegor/go-webcore/mrtype"
 )
 
 type (
@@ -16,12 +17,12 @@ type (
 
     Component interface {
         WithMetaData(meta EntityMeta) Component
-        InsertToFirst(ctx context.Context, nodeId mrentity.KeyInt32) error
-        InsertToLast(ctx context.Context, nodeId mrentity.KeyInt32) error
-        MoveToLast(ctx context.Context, nodeId mrentity.KeyInt32) error
-        MoveToFirst(ctx context.Context, nodeId mrentity.KeyInt32) error
-        MoveAfterId(ctx context.Context, nodeId mrentity.KeyInt32, afterNodeId mrentity.KeyInt32) error
-        Unlink(ctx context.Context, nodeId mrentity.KeyInt32) error
+        InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error
+        InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) error
+        MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) error
+        MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error
+        MoveAfterID(ctx context.Context, nodeID mrtype.KeyInt32, afterNodeID mrtype.KeyInt32) error
+        Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error
     }
 
     Storage interface {
@@ -30,8 +31,8 @@ type (
         LoadFirstNode(ctx context.Context, row *EntityNode) error
         LoadLastNode(ctx context.Context, row *EntityNode) error
         UpdateNode(ctx context.Context, row *EntityNode) error
-        UpdateNodePrevId(ctx context.Context, id mrentity.KeyInt32, prevId mrentity.ZeronullInt32) error
-        UpdateNodeNextId(ctx context.Context, id mrentity.KeyInt32, nextId mrentity.ZeronullInt32) error
-        RecalcOrderField(ctx context.Context, minBorder mrentity.Int64, step mrentity.Int64) error
+        UpdateNodePrevID(ctx context.Context, id mrtype.KeyInt32, prevID mrentity.ZeronullInt32) error
+        UpdateNodeNextID(ctx context.Context, id mrtype.KeyInt32, nextID mrentity.ZeronullInt32) error
+        RecalcOrderField(ctx context.Context, minBorder, step int64) error
     }
 )

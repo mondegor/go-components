@@ -3,9 +3,9 @@ module github.com/mondegor/go-components
 go 1.20
 
 require (
-	github.com/mondegor/go-storage v0.5.0
-	github.com/mondegor/go-sysmess v0.3.5
-	github.com/mondegor/go-webcore v0.6.0
+	github.com/mondegor/go-storage v0.6.1
+	github.com/mondegor/go-sysmess v0.3.7
+	github.com/mondegor/go-webcore v0.7.1
 )
 
 require (
