@@ -6,17 +6,17 @@ import (
 
 type (
 	entityMeta struct {
-		tableName string
+		tableName   string
 		primaryName string
-		where mrstorage.SqlBuilderPart
+		where       mrstorage.SqlBuilderPart
 	}
 )
 
 func NewEntityMeta(tableName, primaryName string, where mrstorage.SqlBuilderPart) *entityMeta {
 	return &entityMeta{
-		tableName: tableName,
+		tableName:   tableName,
 		primaryName: primaryName,
-		where: where,
+		where:       where,
 	}
 }
 

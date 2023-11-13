@@ -11,9 +11,9 @@ const (
 
 type (
 	EntityNode struct {
-		ID	 mrtype.KeyInt32
-		PrevID mrentity.ZeronullInt32
-		NextID mrentity.ZeronullInt32
+		ID         mrtype.KeyInt32
+		PrevID     mrentity.ZeronullInt32
+		NextID     mrentity.ZeronullInt32
 		OrderField mrentity.ZeronullInt64
 	}
 )

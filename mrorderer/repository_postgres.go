@@ -14,7 +14,7 @@ import (
 type (
 	repository struct {
 		client mrstorage.DBConn
-		meta EntityMeta
+		meta   EntityMeta
 	}
 )
 
@@ -30,8 +30,8 @@ func NewRepository(
 // WithMetaData -
 func (re *repository) WithMetaData(meta EntityMeta) Storage {
 	return &repository{
-		client:  re.client,
-		meta:	meta,
+		client: re.client,
+		meta:   meta,
 	}
 }
 
@@ -45,7 +45,7 @@ func (re *repository) LoadNode(ctx context.Context, row *EntityNode) error {
 		row.ID,
 	}
 
-	whereStr, whereArgs, err := re.where(" AND ", len(args) + 1)
+	whereStr, whereArgs, err := re.where(" AND ", len(args)+1)
 
 	if err != nil {
 		return err
@@ -162,7 +162,7 @@ func (re *repository) UpdateNode(ctx context.Context, row *EntityNode) error {
 		row.OrderField,
 	}
 
-	whereStr, whereArgs, err := re.where(" AND ", len(args) + 1)
+	whereStr, whereArgs, err := re.where(" AND ", len(args)+1)
 
 	if err != nil {
 		return err
@@ -181,7 +181,7 @@ func (re *repository) UpdateNode(ctx context.Context, row *EntityNode) error {
 	err = re.client.Exec(
 		ctx,
 		sql,
-		mrsql.MergeArgs(args, whereArgs)...
+		mrsql.MergeArgs(args, whereArgs)...,
 	)
 
 	if err != nil {
@@ -198,7 +198,7 @@ func (re *repository) UpdateNodePrevID(ctx context.Context, id mrtype.KeyInt32, 
 		prevID,
 	}
 
-	whereStr, whereArgs, err := re.where(" AND ", len(args) + 1)
+	whereStr, whereArgs, err := re.where(" AND ", len(args)+1)
 
 	if err != nil {
 		return err
@@ -215,7 +215,7 @@ func (re *repository) UpdateNodePrevID(ctx context.Context, id mrtype.KeyInt32, 
 	err = re.client.Exec(
 		ctx,
 		sql,
-		mrsql.MergeArgs(args, whereArgs)...
+		mrsql.MergeArgs(args, whereArgs)...,
 	)
 
 	if err != nil {
@@ -232,7 +232,7 @@ func (re *repository) UpdateNodeNextID(ctx context.Context, id mrtype.KeyInt32, 
 		nextID,
 	}
 
-	whereStr, whereArgs, err := re.where(" AND ", len(args) + 1)
+	whereStr, whereArgs, err := re.where(" AND ", len(args)+1)
 
 	if err != nil {
 		return err
@@ -249,7 +249,7 @@ func (re *repository) UpdateNodeNextID(ctx context.Context, id mrtype.KeyInt32, 
 	err = re.client.Exec(
 		ctx,
 		sql,
-		mrsql.MergeArgs(args, whereArgs)...
+		mrsql.MergeArgs(args, whereArgs)...,
 	)
 
 	if err != nil {
@@ -266,7 +266,7 @@ func (re *repository) RecalcOrderField(ctx context.Context, minBorder, step int6
 		step,
 	}
 
-	whereStr, whereArgs, err := re.where(" AND ", len(args) + 1)
+	whereStr, whereArgs, err := re.where(" AND ", len(args)+1)
 
 	if err != nil {
 		return err
@@ -283,7 +283,7 @@ func (re *repository) RecalcOrderField(ctx context.Context, minBorder, step int6
 	return re.client.Exec(
 		ctx,
 		sql,
-		mrsql.MergeArgs(args, whereArgs)...
+		mrsql.MergeArgs(args, whereArgs)...,
 	)
 }
 
@@ -292,7 +292,7 @@ func (re *repository) loadNodeByOrderField(ctx context.Context, row *EntityNode)
 		row.OrderField,
 	}
 
-	whereStr, whereArgs, err := re.where(" AND ", len(args) + 1)
+	whereStr, whereArgs, err := re.where(" AND ", len(args)+1)
 
 	if err != nil {
 		return err

@@ -15,7 +15,7 @@ const (
 
 type (
 	component struct {
-		storage Storage
+		storage  Storage
 		eventBox mrcore.EventBox
 	}
 )
@@ -25,14 +25,14 @@ func NewComponent(
 	eventBox mrcore.EventBox,
 ) *component {
 	return &component{
-		storage: storage,
+		storage:  storage,
 		eventBox: eventBox,
 	}
 }
 
 func (co *component) WithMetaData(meta EntityMeta) Component {
 	return &component{
-		storage: co.storage.WithMetaData(meta),
+		storage:  co.storage.WithMetaData(meta),
 		eventBox: co.eventBox,
 	}
 }
@@ -60,14 +60,14 @@ func (co *component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) 
 	}
 
 	currentNode := EntityNode{
-		ID:		 nodeID,
-		PrevID:	 0,
-		NextID:	 mrentity.ZeronullInt32(firstNode.ID),
+		ID:         nodeID,
+		PrevID:     0,
+		NextID:     mrentity.ZeronullInt32(firstNode.ID),
 		OrderField: firstNode.OrderField / 2,
 	}
 
 	if currentNode.OrderField < 1 {
-		err = co.storage.RecalcOrderField(ctx, 0, 2 * orderFieldStep)
+		err = co.storage.RecalcOrderField(ctx, 0, 2*orderFieldStep)
 
 		if err != nil {
 			return err
@@ -114,9 +114,9 @@ func (co *component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) e
 	}
 
 	currentNode := EntityNode{
-		ID:		 nodeID,
-		PrevID:	 mrentity.ZeronullInt32(lastNode.ID),
-		NextID:	 0,
+		ID:         nodeID,
+		PrevID:     mrentity.ZeronullInt32(lastNode.ID),
+		NextID:     0,
 		OrderField: lastNode.OrderField + mrentity.ZeronullInt64(orderFieldStep),
 	}
 
@@ -199,7 +199,7 @@ func (co *component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 	currentNode.OrderField = firstNode.OrderField / 2
 
 	if currentNode.OrderField < 1 {
-		err = co.storage.RecalcOrderField(ctx, 0, 2 * orderFieldStep)
+		err = co.storage.RecalcOrderField(ctx, 0, 2*orderFieldStep)
 
 		if err != nil {
 			return err
@@ -380,7 +380,7 @@ func (co *component) MoveAfterID(ctx context.Context, nodeID mrtype.KeyInt32, af
 
 	if currentNode.OrderField <= afterNode.OrderField {
 		if afterNextNode.ID > 0 {
-			err = co.storage.RecalcOrderField(ctx, int64(afterNode.OrderField), 2 * orderFieldStep)
+			err = co.storage.RecalcOrderField(ctx, int64(afterNode.OrderField), 2*orderFieldStep)
 
 			if err != nil {
 				return err
