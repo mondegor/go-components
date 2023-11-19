@@ -49,8 +49,8 @@ func (co *component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) 
 		return err
 	}
 
-	if firstNode.ID == nodeID {
-		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId": nodeID})
+	if nodeID == firstNode.ID {
+		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId=firstNode.Id": nodeID})
 	}
 
 	err = co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullInt32(nodeID))
@@ -103,8 +103,8 @@ func (co *component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) e
 		return err
 	}
 
-	if lastNode.ID == nodeID {
-		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId": nodeID})
+	if nodeID == lastNode.ID {
+		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId=lastNode.Id": nodeID})
 	}
 
 	err = co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullInt32(nodeID))
@@ -169,7 +169,7 @@ func (co *component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 	}
 
 	if mrtype.KeyInt32(currentNode.NextID) == firstNode.ID {
-		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"currentNode.Id": currentNode.ID, "currentNode.NextId": currentNode.NextID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"currentNode.Id": currentNode.ID, "currentNode.NextId=firstNode.Id": currentNode.NextID})
 	}
 
 	err = co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullInt32(currentNode.ID))
@@ -258,7 +258,7 @@ func (co *component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) err
 
 	if lastNode.ID > 0 {
 		if mrtype.KeyInt32(currentNode.PrevID) == lastNode.ID {
-			return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"currentNode.Id": currentNode.ID, "currentNode.PrevId": currentNode.PrevID})
+			return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"currentNode.Id": currentNode.ID, "currentNode.PrevId=lastNode.Id": currentNode.PrevID})
 		}
 
 		err = co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullInt32(currentNode.ID))
@@ -313,7 +313,7 @@ func (co *component) MoveAfterID(ctx context.Context, nodeID mrtype.KeyInt32, af
 	}
 
 	if nodeID == afterNodeID {
-		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId": nodeID, "afterNodeId": afterNodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId=afterNodeId": nodeID})
 	}
 
 	currentNode := EntityNode{ID: nodeID}
