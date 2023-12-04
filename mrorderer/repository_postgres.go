@@ -185,7 +185,7 @@ func (re *repository) UpdateNode(ctx context.Context, row *EntityNode) error {
 	)
 
 	if err != nil {
-		return mrcore.FactoryErrInternalNoticeDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): row.ID})
+		return mrcore.FactoryErrStorageQueryDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): row.ID})
 	}
 
 	return err
@@ -219,7 +219,7 @@ func (re *repository) UpdateNodePrevID(ctx context.Context, id mrtype.KeyInt32, 
 	)
 
 	if err != nil {
-		return mrcore.FactoryErrInternalNoticeDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): id})
+		return mrcore.FactoryErrStorageQueryDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): id})
 	}
 
 	return nil
@@ -253,7 +253,7 @@ func (re *repository) UpdateNodeNextID(ctx context.Context, id mrtype.KeyInt32, 
 	)
 
 	if err != nil {
-		return mrcore.FactoryErrInternalNoticeDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): id})
+		return mrcore.FactoryErrStorageQueryDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): id})
 	}
 
 	return nil
