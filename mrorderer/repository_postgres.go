@@ -62,7 +62,7 @@ func (re *repository) LoadNode(ctx context.Context, row *EntityNode) error {
 			` + re.meta.PrimaryName() + ` = $1` + whereStr + `
 		LIMIT 1;`
 
-	return re.client.QueryRow(
+	err = re.client.QueryRow(
 		ctx,
 		sql,
 		mrsql.MergeArgs(args, whereArgs)...,
@@ -71,6 +71,12 @@ func (re *repository) LoadNode(ctx context.Context, row *EntityNode) error {
 		&row.NextID,
 		&row.OrderField,
 	)
+
+	if err != nil {
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrerr.Arg{re.meta.PrimaryName(): row.ID})
+	}
+
+	return nil
 }
 
 // LoadFirstNode -
@@ -97,7 +103,7 @@ func (re *repository) LoadFirstNode(ctx context.Context, row *EntityNode) error 
 	)
 
 	if err != nil {
-		return err
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), "MIN(order_field)")
 	}
 
 	if err = re.loadNodeByOrderField(ctx, row); err != nil {
@@ -105,7 +111,7 @@ func (re *repository) LoadFirstNode(ctx context.Context, row *EntityNode) error 
 	}
 
 	if row.PrevID > 0 {
-		return mrcore.FactoryErrStorageFetchedInvalidData.New(mrerr.Arg{"row.Id": row.ID, "row.PrevId": row.PrevID})
+		return mrcore.FactoryErrInternalWithData.New(re.meta.TableName(), mrerr.Arg{"row.Id": row.ID, "row.PrevId": row.PrevID})
 	}
 
 	return nil
@@ -135,7 +141,7 @@ func (re *repository) LoadLastNode(ctx context.Context, row *EntityNode) error {
 	)
 
 	if err != nil {
-		return err
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), "MAX(order_field)")
 	}
 
 	if row.OrderField == 0 {
@@ -147,7 +153,7 @@ func (re *repository) LoadLastNode(ctx context.Context, row *EntityNode) error {
 	}
 
 	if row.NextID > 0 {
-		return mrcore.FactoryErrStorageFetchedInvalidData.New(mrerr.Arg{"row.Id": row.ID, "row.NextId": row.NextID})
+		return mrcore.FactoryErrInternalWithData.New(re.meta.TableName(), mrerr.Arg{"row.Id": row.ID, "row.NextId": row.NextID})
 	}
 
 	return nil
@@ -185,7 +191,7 @@ func (re *repository) UpdateNode(ctx context.Context, row *EntityNode) error {
 	)
 
 	if err != nil {
-		return mrcore.FactoryErrStorageQueryDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): row.ID})
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrerr.Arg{re.meta.PrimaryName(): row.ID})
 	}
 
 	return err
@@ -219,7 +225,7 @@ func (re *repository) UpdateNodePrevID(ctx context.Context, id mrtype.KeyInt32, 
 	)
 
 	if err != nil {
-		return mrcore.FactoryErrStorageQueryDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): id})
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrerr.Arg{re.meta.PrimaryName(): id})
 	}
 
 	return nil
@@ -253,7 +259,7 @@ func (re *repository) UpdateNodeNextID(ctx context.Context, id mrtype.KeyInt32, 
 	)
 
 	if err != nil {
-		return mrcore.FactoryErrStorageQueryDataContainer.Wrap(err, mrerr.Arg{re.meta.PrimaryName(): id})
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrerr.Arg{re.meta.PrimaryName(): id})
 	}
 
 	return nil
@@ -280,11 +286,17 @@ func (re *repository) RecalcOrderField(ctx context.Context, minBorder, step int6
 		WHERE
 			order_field > $1` + whereStr + `;`
 
-	return re.client.Exec(
+	err = re.client.Exec(
 		ctx,
 		sql,
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
+
+	if err != nil {
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrerr.Arg{"order_field": minBorder, "step": step})
+	}
+
+	return nil
 }
 
 func (re *repository) loadNodeByOrderField(ctx context.Context, row *EntityNode) error {
@@ -311,7 +323,7 @@ func (re *repository) loadNodeByOrderField(ctx context.Context, row *EntityNode)
 			` + re.meta.PrimaryName() + ` ASC
 		LIMIT 1;`
 
-	return re.client.QueryRow(
+	err = re.client.QueryRow(
 		ctx,
 		sql,
 		mrsql.MergeArgs(args, whereArgs)...,
@@ -320,6 +332,12 @@ func (re *repository) loadNodeByOrderField(ctx context.Context, row *EntityNode)
 		&row.PrevID,
 		&row.NextID,
 	)
+
+	if err != nil {
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrerr.Arg{"order_field": row.OrderField})
+	}
+
+	return nil
 }
 
 func (re *repository) where(prefix string, paramNumber int) (string, []any, error) {

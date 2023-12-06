@@ -39,24 +39,21 @@ func (co *component) WithMetaData(meta EntityMeta) Component {
 
 func (co *component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
-		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId": nodeID})
 	}
 
 	firstNode := EntityNode{}
-	err := co.storage.LoadFirstNode(ctx, &firstNode)
 
-	if err != nil {
-		return err
+	if err := co.storage.LoadFirstNode(ctx, &firstNode); err != nil {
+		return co.wrapErrorMustLoad(err)
 	}
 
 	if nodeID == firstNode.ID {
-		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId=firstNode.Id": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId=firstNode.Id": nodeID})
 	}
 
-	err = co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullInt32(nodeID))
-
-	if err != nil {
-		return err
+	if err := co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullInt32(nodeID)); err != nil {
+		return co.wrapErrorMustStore(err)
 	}
 
 	currentNode := EntityNode{
@@ -67,19 +64,15 @@ func (co *component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) 
 	}
 
 	if currentNode.OrderField < 1 {
-		err = co.storage.RecalcOrderField(ctx, 0, 2*orderFieldStep)
-
-		if err != nil {
-			return err
+		if err := co.storage.RecalcOrderField(ctx, 0, 2*orderFieldStep); err != nil {
+			return co.wrapErrorMustStore(err)
 		}
 
 		currentNode.OrderField = mrentity.ZeronullInt64(orderFieldStep)
 	}
 
-	err = co.storage.UpdateNode(ctx, &currentNode)
-
-	if err != nil {
-		return err
+	if err := co.storage.UpdateNode(ctx, &currentNode); err != nil {
+		return co.wrapErrorNotFound(err)
 	}
 
 	co.eventBox.Emit(
@@ -93,24 +86,21 @@ func (co *component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) 
 
 func (co *component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
-		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId": nodeID})
 	}
 
 	lastNode := EntityNode{}
-	err := co.storage.LoadLastNode(ctx, &lastNode)
 
-	if err != nil {
-		return err
+	if err := co.storage.LoadLastNode(ctx, &lastNode); err != nil {
+		return co.wrapErrorMustLoad(err)
 	}
 
 	if nodeID == lastNode.ID {
-		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId=lastNode.Id": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId=lastNode.Id": nodeID})
 	}
 
-	err = co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullInt32(nodeID))
-
-	if err != nil {
-		return err
+	if err := co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullInt32(nodeID)); err != nil {
+		return co.wrapErrorMustStore(err)
 	}
 
 	currentNode := EntityNode{
@@ -120,10 +110,8 @@ func (co *component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) e
 		OrderField: lastNode.OrderField + mrentity.ZeronullInt64(orderFieldStep),
 	}
 
-	err = co.storage.UpdateNode(ctx, &currentNode)
-
-	if err != nil {
-		return err
+	if err := co.storage.UpdateNode(ctx, &currentNode); err != nil {
+		return co.wrapErrorNotFound(err)
 	}
 
 	co.eventBox.Emit(
@@ -137,60 +125,56 @@ func (co *component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) e
 
 func (co *component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
-		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId": nodeID})
 	}
 
 	currentNode := EntityNode{ID: nodeID}
 
 	firstNode := EntityNode{}
-	err := co.storage.LoadFirstNode(ctx, &firstNode)
 
-	if err != nil {
-		return err
+	if err := co.storage.LoadFirstNode(ctx, &firstNode); err != nil {
+		return co.wrapErrorMustLoad(err)
 	}
 
 	if firstNode.ID == currentNode.ID {
 		if firstNode.OrderField == 0 {
 			currentNode.OrderField = mrentity.ZeronullInt64(orderFieldStep)
-			err = co.storage.UpdateNode(ctx, &currentNode)
 
-			if err != nil {
-				return err
+			if err := co.storage.UpdateNode(ctx, &currentNode); err != nil {
+				return co.wrapErrorMustStore(err)
 			}
 		}
 
 		return nil
 	}
 
-	err = co.storage.LoadNode(ctx, &currentNode)
-
-	if err != nil {
-		return err
+	if err := co.storage.LoadNode(ctx, &currentNode); err != nil {
+		return co.wrapErrorNotFound(err)
 	}
 
 	if mrtype.KeyInt32(currentNode.NextID) == firstNode.ID {
-		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"currentNode.Id": currentNode.ID, "currentNode.NextId=firstNode.Id": currentNode.NextID})
+		return mrcore.FactoryErrInternalWithData.New(
+			"node",
+			mrerr.Arg{
+				"currentNode.Id":                  currentNode.ID,
+				"currentNode.NextId=firstNode.Id": currentNode.NextID,
+			},
+		)
 	}
 
-	err = co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullInt32(currentNode.ID))
-
-	if err != nil {
-		return err
+	if err := co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullInt32(currentNode.ID)); err != nil {
+		return co.wrapErrorMustStore(err)
 	}
 
 	if currentNode.PrevID > 0 {
-		err = co.storage.UpdateNodeNextID(ctx, mrtype.KeyInt32(currentNode.PrevID), currentNode.NextID)
-
-		if err != nil {
-			return err
+		if err := co.storage.UpdateNodeNextID(ctx, mrtype.KeyInt32(currentNode.PrevID), currentNode.NextID); err != nil {
+			return co.wrapErrorMustStore(err)
 		}
 	}
 
 	if currentNode.NextID > 0 {
-		err = co.storage.UpdateNodePrevID(ctx, mrtype.KeyInt32(currentNode.NextID), currentNode.PrevID)
-
-		if err != nil {
-			return err
+		if err := co.storage.UpdateNodePrevID(ctx, mrtype.KeyInt32(currentNode.NextID), currentNode.PrevID); err != nil {
+			return co.wrapErrorMustStore(err)
 		}
 	}
 
@@ -199,19 +183,15 @@ func (co *component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 	currentNode.OrderField = firstNode.OrderField / 2
 
 	if currentNode.OrderField < 1 {
-		err = co.storage.RecalcOrderField(ctx, 0, 2*orderFieldStep)
-
-		if err != nil {
-			return err
+		if err := co.storage.RecalcOrderField(ctx, 0, 2*orderFieldStep); err != nil {
+			return co.wrapErrorMustStore(err)
 		}
 
 		currentNode.OrderField = mrentity.ZeronullInt64(orderFieldStep)
 	}
 
-	err = co.storage.UpdateNode(ctx, &currentNode)
-
-	if err != nil {
-		return err
+	if err := co.storage.UpdateNode(ctx, &currentNode); err != nil {
+		return co.wrapErrorMustStore(err)
 	}
 
 	co.eventBox.Emit(
@@ -225,62 +205,58 @@ func (co *component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 
 func (co *component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
-		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId": nodeID})
 	}
 
 	currentNode := EntityNode{ID: nodeID}
 
 	lastNode := EntityNode{}
-	err := co.storage.LoadLastNode(ctx, &lastNode)
 
-	if err != nil {
-		return err
+	if err := co.storage.LoadLastNode(ctx, &lastNode); err != nil {
+		return co.wrapErrorMustLoad(err)
 	}
 
 	if lastNode.ID == currentNode.ID {
 		if lastNode.OrderField == 0 {
 			currentNode.OrderField = mrentity.ZeronullInt64(orderFieldStep)
-			err = co.storage.UpdateNode(ctx, &currentNode)
 
-			if err != nil {
-				return err
+			if err := co.storage.UpdateNode(ctx, &currentNode); err != nil {
+				return co.wrapErrorMustStore(err)
 			}
 		}
 
 		return nil
 	}
 
-	err = co.storage.LoadNode(ctx, &currentNode)
-
-	if err != nil {
-		return err
+	if err := co.storage.LoadNode(ctx, &currentNode); err != nil {
+		return co.wrapErrorNotFound(err)
 	}
 
 	if lastNode.ID > 0 {
 		if mrtype.KeyInt32(currentNode.PrevID) == lastNode.ID {
-			return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"currentNode.Id": currentNode.ID, "currentNode.PrevId=lastNode.Id": currentNode.PrevID})
+			return mrcore.FactoryErrInternalWithData.New(
+				"node",
+				mrerr.Arg{
+					"currentNode.Id":                 currentNode.ID,
+					"currentNode.PrevId=lastNode.Id": currentNode.PrevID,
+				},
+			)
 		}
 
-		err = co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullInt32(currentNode.ID))
-
-		if err != nil {
-			return err
+		if err := co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullInt32(currentNode.ID)); err != nil {
+			return co.wrapErrorMustStore(err)
 		}
 	}
 
 	if currentNode.PrevID > 0 {
-		err = co.storage.UpdateNodeNextID(ctx, mrtype.KeyInt32(currentNode.PrevID), currentNode.NextID)
-
-		if err != nil {
-			return err
+		if err := co.storage.UpdateNodeNextID(ctx, mrtype.KeyInt32(currentNode.PrevID), currentNode.NextID); err != nil {
+			return co.wrapErrorMustStore(err)
 		}
 	}
 
 	if currentNode.NextID > 0 {
-		err = co.storage.UpdateNodePrevID(ctx, mrtype.KeyInt32(currentNode.NextID), currentNode.PrevID)
-
-		if err != nil {
-			return err
+		if err := co.storage.UpdateNodePrevID(ctx, mrtype.KeyInt32(currentNode.NextID), currentNode.PrevID); err != nil {
+			return co.wrapErrorMustStore(err)
 		}
 	}
 
@@ -288,10 +264,8 @@ func (co *component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) err
 	currentNode.NextID = 0
 	currentNode.OrderField = lastNode.OrderField + mrentity.ZeronullInt64(orderFieldStep)
 
-	err = co.storage.UpdateNode(ctx, &currentNode)
-
-	if err != nil {
-		return err
+	if err := co.storage.UpdateNode(ctx, &currentNode); err != nil {
+		return co.wrapErrorMustStore(err)
 	}
 
 	co.eventBox.Emit(
@@ -309,18 +283,17 @@ func (co *component) MoveAfterID(ctx context.Context, nodeID mrtype.KeyInt32, af
 	}
 
 	if nodeID < 1 {
-		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId": nodeID})
 	}
 
 	if nodeID == afterNodeID {
-		return mrcore.FactoryErrServiceIncorrectInputData.New(mrerr.Arg{"nodeId=afterNodeId": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId=afterNodeId": nodeID})
 	}
 
 	currentNode := EntityNode{ID: nodeID}
-	err := co.storage.LoadNode(ctx, &currentNode)
 
-	if err != nil {
-		return err
+	if err := co.storage.LoadNode(ctx, &currentNode); err != nil {
+		return co.wrapErrorNotFound(err)
 	}
 
 	if mrtype.KeyInt32(currentNode.PrevID) == afterNodeID {
@@ -328,49 +301,38 @@ func (co *component) MoveAfterID(ctx context.Context, nodeID mrtype.KeyInt32, af
 	}
 
 	afterNode := EntityNode{ID: afterNodeID}
-	err = co.storage.LoadNode(ctx, &afterNode)
 
-	if err != nil {
-		return err
+	if err := co.storage.LoadNode(ctx, &afterNode); err != nil {
+		return co.wrapErrorAfterNodeNotFound(err, afterNode.ID)
 	}
 
 	afterNextNode := EntityNode{ID: mrtype.KeyInt32(afterNode.NextID)}
 
 	if afterNextNode.ID > 0 {
-		err = co.storage.LoadNode(ctx, &afterNextNode)
-
-		if err != nil {
-			return err
+		if err := co.storage.LoadNode(ctx, &afterNextNode); err != nil {
+			return co.wrapErrorMustLoad(err)
 		}
 	}
 
-	err = co.storage.UpdateNodeNextID(ctx, afterNode.ID, mrentity.ZeronullInt32(currentNode.ID))
-
-	if err != nil {
-		return err
+	if err := co.storage.UpdateNodeNextID(ctx, afterNode.ID, mrentity.ZeronullInt32(currentNode.ID)); err != nil {
+		return co.wrapErrorMustStore(err)
 	}
 
 	if afterNextNode.ID > 0 {
-		err = co.storage.UpdateNodePrevID(ctx, afterNextNode.ID, mrentity.ZeronullInt32(currentNode.ID))
-
-		if err != nil {
-			return err
+		if err := co.storage.UpdateNodePrevID(ctx, afterNextNode.ID, mrentity.ZeronullInt32(currentNode.ID)); err != nil {
+			return co.wrapErrorMustStore(err)
 		}
 	}
 
 	if currentNode.PrevID > 0 {
-		err = co.storage.UpdateNodeNextID(ctx, mrtype.KeyInt32(currentNode.PrevID), currentNode.NextID)
-
-		if err != nil {
-			return err
+		if err := co.storage.UpdateNodeNextID(ctx, mrtype.KeyInt32(currentNode.PrevID), currentNode.NextID); err != nil {
+			return co.wrapErrorMustStore(err)
 		}
 	}
 
 	if currentNode.NextID > 0 {
-		err = co.storage.UpdateNodePrevID(ctx, mrtype.KeyInt32(currentNode.NextID), currentNode.PrevID)
-
-		if err != nil {
-			return err
+		if err := co.storage.UpdateNodePrevID(ctx, mrtype.KeyInt32(currentNode.NextID), currentNode.PrevID); err != nil {
+			return co.wrapErrorMustStore(err)
 		}
 	}
 
@@ -380,20 +342,16 @@ func (co *component) MoveAfterID(ctx context.Context, nodeID mrtype.KeyInt32, af
 
 	if currentNode.OrderField <= afterNode.OrderField {
 		if afterNextNode.ID > 0 {
-			err = co.storage.RecalcOrderField(ctx, int64(afterNode.OrderField), 2*orderFieldStep)
-
-			if err != nil {
-				return err
+			if err := co.storage.RecalcOrderField(ctx, int64(afterNode.OrderField), 2*orderFieldStep); err != nil {
+				return co.wrapErrorMustStore(err)
 			}
 		}
 
 		currentNode.OrderField = afterNode.OrderField + mrentity.ZeronullInt64(orderFieldStep)
 	}
 
-	err = co.storage.UpdateNode(ctx, &currentNode)
-
-	if err != nil {
-		return err
+	if err := co.storage.UpdateNode(ctx, &currentNode); err != nil {
+		return co.wrapErrorMustStore(err)
 	}
 
 	co.eventBox.Emit(
@@ -412,10 +370,9 @@ func (co *component) Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	}
 
 	currentNode := EntityNode{ID: nodeID}
-	err := co.storage.LoadNode(ctx, &currentNode)
 
-	if err != nil {
-		return err
+	if err := co.storage.LoadNode(ctx, &currentNode); err != nil {
+		return co.wrapErrorNotFound(err)
 	}
 
 	if currentNode.PrevID == 0 &&
@@ -425,18 +382,14 @@ func (co *component) Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	}
 
 	if currentNode.PrevID > 0 {
-		err = co.storage.UpdateNodeNextID(ctx, mrtype.KeyInt32(currentNode.PrevID), currentNode.NextID)
-
-		if err != nil {
-			return err
+		if err := co.storage.UpdateNodeNextID(ctx, mrtype.KeyInt32(currentNode.PrevID), currentNode.NextID); err != nil {
+			return co.wrapErrorMustStore(err)
 		}
 	}
 
 	if currentNode.NextID > 0 {
-		err = co.storage.UpdateNodePrevID(ctx, mrtype.KeyInt32(currentNode.NextID), currentNode.PrevID)
-
-		if err != nil {
-			return err
+		if err := co.storage.UpdateNodePrevID(ctx, mrtype.KeyInt32(currentNode.NextID), currentNode.PrevID); err != nil {
+			return co.wrapErrorMustStore(err)
 		}
 	}
 
@@ -444,10 +397,8 @@ func (co *component) Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	currentNode.NextID = 0
 	currentNode.OrderField = 0
 
-	err = co.storage.UpdateNode(ctx, &currentNode)
-
-	if err != nil {
-		return err
+	if err := co.storage.UpdateNode(ctx, &currentNode); err != nil {
+		return co.wrapErrorMustStore(err)
 	}
 
 	co.eventBox.Emit(
@@ -457,4 +408,46 @@ func (co *component) Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	)
 
 	return nil
+}
+
+func (co *component) wrapErrorNotFound(err error) error {
+	if mrcore.FactoryErrStorageNoRowFound.Is(err) ||
+		mrcore.FactoryErrStorageRowsNotAffected.Is(err) {
+		return mrcore.FactoryErrServiceEntityNotFound.Wrap(err)
+	}
+
+	return co.wrapErrorFailed(err)
+}
+
+func (co *component) wrapErrorAfterNodeNotFound(err error, afterNodeID mrtype.KeyInt32) error {
+	if mrcore.FactoryErrStorageNoRowFound.Is(err) {
+		return FactoryErrAfterNodeNotFound.Wrap(err, afterNodeID)
+	}
+
+	return co.wrapErrorFailed(err)
+}
+
+func (co *component) wrapErrorMustLoad(err error) error {
+	if mrcore.FactoryErrStorageNoRowFound.Is(err) {
+		return mrcore.FactoryErrInternal.Caller(1).Wrap(err)
+	}
+
+	return co.wrapErrorFailed(err)
+}
+
+func (co *component) wrapErrorMustStore(err error) error {
+	if mrcore.FactoryErrStorageNoRowFound.Is(err) ||
+		mrcore.FactoryErrStorageRowsNotAffected.Is(err) {
+		return mrcore.FactoryErrInternal.Caller(1).Wrap(err)
+	}
+
+	return co.wrapErrorFailed(err)
+}
+
+func (co *component) wrapErrorFailed(err error) error {
+	if mrcore.FactoryErrStorageQueryFailed.Is(err) {
+		return mrcore.FactoryErrServiceOperationFailed.Wrap(err)
+	}
+
+	return mrcore.FactoryErrServiceTemporarilyUnavailable.Caller(2).Wrap(err)
 }
