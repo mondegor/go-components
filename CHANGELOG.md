@@ -5,6 +5,7 @@
 ### Changed
 - Заменён `mrerr.Arg` -> `mrmsg.Data`;
 - Доработана логика копирования объектов в `mrorderer.repository.WithMetaData`;
+- Обновлены зависимости библиотеки;
 
 ## 2023-12-06
 ### Changed
