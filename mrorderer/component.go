@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/mondegor/go-storage/mrentity"
-	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/mrmsg"
 	"github.com/mondegor/go-webcore/mrcore"
 	"github.com/mondegor/go-webcore/mrtype"
 )
@@ -39,7 +39,7 @@ func (co *component) WithMetaData(meta EntityMeta) Component {
 
 func (co *component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
-		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
 	}
 
 	firstNode := EntityNode{}
@@ -49,7 +49,7 @@ func (co *component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) 
 	}
 
 	if nodeID == firstNode.ID {
-		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId=firstNode.Id": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrmsg.Data{"nodeId=firstNode.Id": nodeID})
 	}
 
 	if err := co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullInt32(nodeID)); err != nil {
@@ -86,7 +86,7 @@ func (co *component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) 
 
 func (co *component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
-		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
 	}
 
 	lastNode := EntityNode{}
@@ -96,7 +96,7 @@ func (co *component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) e
 	}
 
 	if nodeID == lastNode.ID {
-		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId=lastNode.Id": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrmsg.Data{"nodeId=lastNode.Id": nodeID})
 	}
 
 	if err := co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullInt32(nodeID)); err != nil {
@@ -125,7 +125,7 @@ func (co *component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) e
 
 func (co *component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
-		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
 	}
 
 	currentNode := EntityNode{ID: nodeID}
@@ -155,7 +155,7 @@ func (co *component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 	if mrtype.KeyInt32(currentNode.NextID) == firstNode.ID {
 		return mrcore.FactoryErrInternalWithData.New(
 			"node",
-			mrerr.Arg{
+			mrmsg.Data{
 				"currentNode.Id":                  currentNode.ID,
 				"currentNode.NextId=firstNode.Id": currentNode.NextID,
 			},
@@ -205,7 +205,7 @@ func (co *component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 
 func (co *component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
-		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
 	}
 
 	currentNode := EntityNode{ID: nodeID}
@@ -236,7 +236,7 @@ func (co *component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) err
 		if mrtype.KeyInt32(currentNode.PrevID) == lastNode.ID {
 			return mrcore.FactoryErrInternalWithData.New(
 				"node",
-				mrerr.Arg{
+				mrmsg.Data{
 					"currentNode.Id":                 currentNode.ID,
 					"currentNode.PrevId=lastNode.Id": currentNode.PrevID,
 				},
@@ -283,11 +283,11 @@ func (co *component) MoveAfterID(ctx context.Context, nodeID mrtype.KeyInt32, af
 	}
 
 	if nodeID < 1 {
-		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
 	}
 
 	if nodeID == afterNodeID {
-		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrerr.Arg{"nodeId=afterNodeId": nodeID})
+		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrmsg.Data{"nodeId=afterNodeId": nodeID})
 	}
 
 	currentNode := EntityNode{ID: nodeID}
