@@ -15,8 +15,8 @@ type (
 		Where() mrstorage.SqlBuilderPart
 	}
 
-	Component interface {
-		WithMetaData(meta EntityMeta) Component
+	API interface {
+		WithMetaData(meta EntityMeta) API
 		InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error
 		InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) error
 		MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) error

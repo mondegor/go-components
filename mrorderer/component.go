@@ -14,7 +14,7 @@ const (
 )
 
 type (
-	component struct {
+	Component struct {
 		storage  Storage
 		eventBox mrcore.EventBox
 	}
@@ -23,21 +23,21 @@ type (
 func NewComponent(
 	storage Storage,
 	eventBox mrcore.EventBox,
-) *component {
-	return &component{
+) *Component {
+	return &Component{
 		storage:  storage,
 		eventBox: eventBox,
 	}
 }
 
-func (co *component) WithMetaData(meta EntityMeta) Component {
-	return &component{
+func (co *Component) WithMetaData(meta EntityMeta) API {
+	return &Component{
 		storage:  co.storage.WithMetaData(meta),
 		eventBox: co.eventBox,
 	}
 }
 
-func (co *component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error {
+func (co *Component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
 		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
 	}
@@ -84,7 +84,7 @@ func (co *component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) 
 	return nil
 }
 
-func (co *component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) error {
+func (co *Component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
 		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
 	}
@@ -123,7 +123,7 @@ func (co *component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) e
 	return nil
 }
 
-func (co *component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error {
+func (co *Component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
 		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
 	}
@@ -203,7 +203,7 @@ func (co *component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 	return nil
 }
 
-func (co *component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) error {
+func (co *Component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
 		return mrcore.FactoryErrServiceIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
 	}
@@ -277,7 +277,7 @@ func (co *component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) err
 	return nil
 }
 
-func (co *component) MoveAfterID(ctx context.Context, nodeID mrtype.KeyInt32, afterNodeID mrtype.KeyInt32) error {
+func (co *Component) MoveAfterID(ctx context.Context, nodeID mrtype.KeyInt32, afterNodeID mrtype.KeyInt32) error {
 	if afterNodeID < 1 {
 		return co.MoveToFirst(ctx, nodeID)
 	}
@@ -364,7 +364,7 @@ func (co *component) MoveAfterID(ctx context.Context, nodeID mrtype.KeyInt32, af
 	return nil
 }
 
-func (co *component) Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error {
+func (co *Component) Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
 		return co.MoveToFirst(ctx, nodeID)
 	}
@@ -410,7 +410,7 @@ func (co *component) Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	return nil
 }
 
-func (co *component) wrapErrorNotFound(err error) error {
+func (co *Component) wrapErrorNotFound(err error) error {
 	if mrcore.FactoryErrStorageNoRowFound.Is(err) ||
 		mrcore.FactoryErrStorageRowsNotAffected.Is(err) {
 		return mrcore.FactoryErrServiceEntityNotFound.Wrap(err)
@@ -419,7 +419,7 @@ func (co *component) wrapErrorNotFound(err error) error {
 	return co.wrapErrorFailed(err)
 }
 
-func (co *component) wrapErrorAfterNodeNotFound(err error, afterNodeID mrtype.KeyInt32) error {
+func (co *Component) wrapErrorAfterNodeNotFound(err error, afterNodeID mrtype.KeyInt32) error {
 	if mrcore.FactoryErrStorageNoRowFound.Is(err) {
 		return FactoryErrAfterNodeNotFound.Wrap(err, afterNodeID)
 	}
@@ -427,7 +427,7 @@ func (co *component) wrapErrorAfterNodeNotFound(err error, afterNodeID mrtype.Ke
 	return co.wrapErrorFailed(err)
 }
 
-func (co *component) wrapErrorMustLoad(err error) error {
+func (co *Component) wrapErrorMustLoad(err error) error {
 	if mrcore.FactoryErrStorageNoRowFound.Is(err) {
 		return mrcore.FactoryErrInternal.Caller(1).Wrap(err)
 	}
@@ -435,7 +435,7 @@ func (co *component) wrapErrorMustLoad(err error) error {
 	return co.wrapErrorFailed(err)
 }
 
-func (co *component) wrapErrorMustStore(err error) error {
+func (co *Component) wrapErrorMustStore(err error) error {
 	if mrcore.FactoryErrStorageNoRowFound.Is(err) ||
 		mrcore.FactoryErrStorageRowsNotAffected.Is(err) {
 		return mrcore.FactoryErrInternal.Caller(1).Wrap(err)
@@ -444,7 +444,7 @@ func (co *component) wrapErrorMustStore(err error) error {
 	return co.wrapErrorFailed(err)
 }
 
-func (co *component) wrapErrorFailed(err error) error {
+func (co *Component) wrapErrorFailed(err error) error {
 	if mrcore.FactoryErrStorageQueryFailed.Is(err) {
 		return mrcore.FactoryErrServiceOperationFailed.Wrap(err)
 	}
