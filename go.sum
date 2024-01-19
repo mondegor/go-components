@@ -1,11 +1,11 @@
 github.com/kr/pretty v0.3.0 h1:WgNl7dwNpEZ6jJ9k1snq4pZsg7DOEN8hP9Xw0Tsjwk0=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
-github.com/mondegor/go-storage v0.6.14 h1:7KJDY3rq81iVndtwSmMnyOUe751U5xX4uUky8NRGcrQ=
-github.com/mondegor/go-storage v0.6.14/go.mod h1:goRwpoFZoOPKMdNdGW/BFwRzTep8Pltty4Z+7GvNndQ=
-github.com/mondegor/go-sysmess v0.6.0 h1:DLgZ5jv5N3+VMhWc09YNBPzyVeRM9MV1Pyus1soB1yc=
-github.com/mondegor/go-sysmess v0.6.0/go.mod h1:2m5N56AJectptnLAigrLZwjvEQuzJ/a1G7fPqQwzk2c=
-github.com/mondegor/go-webcore v0.9.6 h1:y191t6IKPjY2yV6Dstnc7JYYR/kJKRCEEaridZuxFok=
-github.com/mondegor/go-webcore v0.9.6/go.mod h1:Dp5TXKZbQYn9IYQlyd3ctSs5PGX4qDC0Aai24Hy1kSM=
+github.com/mondegor/go-storage v0.6.16 h1:IMrFZNb50ADyEqOT3wSiGV3p/oZZi23syBmhwfJzn4s=
+github.com/mondegor/go-storage v0.6.16/go.mod h1:+CC5dtJIZMv+L02wTnJ6E31J7jJeeD+X9RH/9vZrOo8=
+github.com/mondegor/go-sysmess v0.6.1 h1:eWnAzQFhkj8HW4q7CFuI2xvKikhtKTI8enAvT8J9SLE=
+github.com/mondegor/go-sysmess v0.6.1/go.mod h1:2m5N56AJectptnLAigrLZwjvEQuzJ/a1G7fPqQwzk2c=
+github.com/mondegor/go-webcore v0.9.8 h1:gBEwBVldmrAswQyIwbcwFCfwYIIpnsVW+zTDJMWe4ZY=
+github.com/mondegor/go-webcore v0.9.8/go.mod h1:/ApgINSVW4Www8u95PdXK/ELx/1tuH/V9jemCXbAmbs=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=
