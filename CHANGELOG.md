@@ -1,9 +1,10 @@
 # GoStorage Changelog
 Все изменения библиотеки GoComponents будут документироваться на этой странице.
 
-## 2024-01-19
+## 2024-01-22
 ### Changed
 - Обновлены зависимости библиотеки;
+- `FactoryErrInternalWithData` было заменено на `FactoryErrInternal.WithAttr(...)`;
 
 ## 2024-01-16
 ### Changed

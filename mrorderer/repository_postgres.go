@@ -111,7 +111,7 @@ func (re *repository) LoadFirstNode(ctx context.Context, row *EntityNode) error 
 	}
 
 	if row.PrevID > 0 {
-		return mrcore.FactoryErrInternalWithData.New(re.meta.TableName(), mrmsg.Data{"row.Id": row.ID, "row.PrevId": row.PrevID})
+		return mrcore.FactoryErrInternal.WithAttr(re.meta.TableName(), mrmsg.Data{"row.Id": row.ID, "row.PrevId": row.PrevID}).New()
 	}
 
 	return nil
@@ -153,7 +153,7 @@ func (re *repository) LoadLastNode(ctx context.Context, row *EntityNode) error {
 	}
 
 	if row.NextID > 0 {
-		return mrcore.FactoryErrInternalWithData.New(re.meta.TableName(), mrmsg.Data{"row.Id": row.ID, "row.NextId": row.NextID})
+		return mrcore.FactoryErrInternal.WithAttr(re.meta.TableName(), mrmsg.Data{"row.Id": row.ID, "row.NextId": row.NextID}).New()
 	}
 
 	return nil

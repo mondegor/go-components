@@ -153,13 +153,13 @@ func (co *Component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 	}
 
 	if mrtype.KeyInt32(currentNode.NextID) == firstNode.ID {
-		return mrcore.FactoryErrInternalWithData.New(
+		return mrcore.FactoryErrInternal.WithAttr(
 			"node",
 			mrmsg.Data{
 				"currentNode.Id":                  currentNode.ID,
 				"currentNode.NextId=firstNode.Id": currentNode.NextID,
 			},
-		)
+		).New()
 	}
 
 	if err := co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullInt32(currentNode.ID)); err != nil {
@@ -234,13 +234,13 @@ func (co *Component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) err
 
 	if lastNode.ID > 0 {
 		if mrtype.KeyInt32(currentNode.PrevID) == lastNode.ID {
-			return mrcore.FactoryErrInternalWithData.New(
+			return mrcore.FactoryErrInternal.WithAttr(
 				"node",
 				mrmsg.Data{
 					"currentNode.Id":                 currentNode.ID,
 					"currentNode.PrevId=lastNode.Id": currentNode.PrevID,
 				},
-			)
+			).New()
 		}
 
 		if err := co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullInt32(currentNode.ID)); err != nil {
