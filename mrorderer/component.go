@@ -6,6 +6,7 @@ import (
 	"github.com/mondegor/go-storage/mrentity"
 	"github.com/mondegor/go-sysmess/mrmsg"
 	"github.com/mondegor/go-webcore/mrcore"
+	"github.com/mondegor/go-webcore/mrsender"
 	"github.com/mondegor/go-webcore/mrtype"
 )
 
@@ -15,25 +16,25 @@ const (
 
 type (
 	Component struct {
-		storage  Storage
-		eventBox mrcore.EventBox
+		storage      Storage
+		eventEmitter mrsender.EventEmitter
 	}
 )
 
 func NewComponent(
 	storage Storage,
-	eventBox mrcore.EventBox,
+	eventEmitter mrsender.EventEmitter,
 ) *Component {
 	return &Component{
-		storage:  storage,
-		eventBox: eventBox,
+		storage:      storage,
+		eventEmitter: eventEmitter,
 	}
 }
 
 func (co *Component) WithMetaData(meta EntityMeta) API {
 	return &Component{
-		storage:  co.storage.WithMetaData(meta),
-		eventBox: co.eventBox,
+		storage:      co.storage.WithMetaData(meta),
+		eventEmitter: co.eventEmitter,
 	}
 }
 
@@ -75,11 +76,7 @@ func (co *Component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) 
 		return co.wrapErrorNotFound(err)
 	}
 
-	co.eventBox.Emit(
-		"%s::InsertToFirst: id=%d",
-		ModelNameEntityOrderer,
-		nodeID,
-	)
+	co.emitEvent(ctx, "InsertToFirst", mrmsg.Data{"id": nodeID})
 
 	return nil
 }
@@ -114,11 +111,7 @@ func (co *Component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) e
 		return co.wrapErrorNotFound(err)
 	}
 
-	co.eventBox.Emit(
-		"%s::InsertToLast: id=%d",
-		ModelNameEntityOrderer,
-		nodeID,
-	)
+	co.emitEvent(ctx, "InsertToLast", mrmsg.Data{"id": nodeID})
 
 	return nil
 }
@@ -194,11 +187,7 @@ func (co *Component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 		return co.wrapErrorMustStore(err)
 	}
 
-	co.eventBox.Emit(
-		"%s::MoveToFirst: id=%d",
-		ModelNameEntityOrderer,
-		nodeID,
-	)
+	co.emitEvent(ctx, "MoveToFirst", mrmsg.Data{"id": nodeID})
 
 	return nil
 }
@@ -268,11 +257,7 @@ func (co *Component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) err
 		return co.wrapErrorMustStore(err)
 	}
 
-	co.eventBox.Emit(
-		"%s::MoveToLast: id=%d",
-		ModelNameEntityOrderer,
-		nodeID,
-	)
+	co.emitEvent(ctx, "MoveToLast", mrmsg.Data{"id": nodeID})
 
 	return nil
 }
@@ -354,12 +339,7 @@ func (co *Component) MoveAfterID(ctx context.Context, nodeID mrtype.KeyInt32, af
 		return co.wrapErrorMustStore(err)
 	}
 
-	co.eventBox.Emit(
-		"%s::MoveAfterId: id=%d, afterId=%d",
-		ModelNameEntityOrderer,
-		nodeID,
-		afterNodeID,
-	)
+	co.emitEvent(ctx, "MoveAfterId", mrmsg.Data{"id": nodeID, "afterId": afterNodeID})
 
 	return nil
 }
@@ -401,11 +381,7 @@ func (co *Component) Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error {
 		return co.wrapErrorMustStore(err)
 	}
 
-	co.eventBox.Emit(
-		"%s::Unlink: id=%d",
-		ModelNameEntityOrderer,
-		nodeID,
-	)
+	co.emitEvent(ctx, "Unlink", mrmsg.Data{"id": nodeID})
 
 	return nil
 }
@@ -450,4 +426,13 @@ func (co *Component) wrapErrorFailed(err error) error {
 	}
 
 	return mrcore.FactoryErrServiceTemporarilyUnavailable.Caller(2).Wrap(err)
+}
+
+func (co *Component) emitEvent(ctx context.Context, eventName string, object mrmsg.Data) {
+	co.eventEmitter.EmitWithSource(
+		ctx,
+		eventName,
+		ModelNameEntityOrderer,
+		object,
+	)
 }
