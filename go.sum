@@ -1,6 +1,6 @@
-github.com/mondegor/go-storage v0.8.0 h1:eAgcSQoZs1SBxHcWEZAYaY4bwWIEjx5NHJKuocw6ESI=
-github.com/mondegor/go-storage v0.8.0/go.mod h1:2Eyva0g71rkxhphsM+ACY7S7ocCrHP+SnilUGVaSOGU=
+github.com/mondegor/go-storage v0.8.1 h1:TuV1QQrBKM/qKgyvDI7ERH60fevSmAMbolF4sR60S1k=
+github.com/mondegor/go-storage v0.8.1/go.mod h1:lX/H41Xq7k8Pf2UkCVdI4OruTJYknrK0yepM6BiPa3c=
 github.com/mondegor/go-sysmess v0.7.1 h1:1Rmic/pkms3O65ngXln/NyHW8QacoOLP3KUB9P/HcdU=
 github.com/mondegor/go-sysmess v0.7.1/go.mod h1:2m5N56AJectptnLAigrLZwjvEQuzJ/a1G7fPqQwzk2c=
-github.com/mondegor/go-webcore v0.13.1 h1:932YTc0uQVUmmq6iHgQCHR0ns1LTiI3B078+JFus5G4=
-github.com/mondegor/go-webcore v0.13.1/go.mod h1:2fetuxELFs8wXX1dY7G7NQEFNHrulJYVhiggH/mOy00=
+github.com/mondegor/go-webcore v0.13.2 h1:EZ7WI0NdHsGtyHhdN2zfPX4v7JrTA9tr6o5aQGICtL8=
+github.com/mondegor/go-webcore v0.13.2/go.mod h1:2fetuxELFs8wXX1dY7G7NQEFNHrulJYVhiggH/mOy00=

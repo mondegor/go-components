@@ -1,4 +1,4 @@
-# Описание GoComponents v0.4.0
+# Описание GoComponents v0.4.1
 Этот репозиторий содержит описание библиотеки GoComponents.
 
 ## Статус библиотеки
@@ -9,4 +9,4 @@
 - компонент сортировки записей в БД с помощью вспомогательных полей;
 
 ## Подключение библиотеки
-go get github.com/mondegor/go-components
+`go get github.com/mondegor/go-components`

@@ -1,6 +1,10 @@
 # GoStorage Changelog
 Все изменения библиотеки GoComponents будут документироваться на этой странице.
 
+## 2024-02-01
+### Fixed
+- Исправление оформления в файле README.md;
+
 ## 2024-01-30
 ### Changed
 - Заменён устаревший интерфейс `mrcore.EventBox` на `mrsender.EventEmitter`;
