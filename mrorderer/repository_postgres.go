@@ -55,7 +55,7 @@ func (re *repository) LoadNode(ctx context.Context, row *EntityNode) error {
 		SELECT
 			prev_field_id,
 			next_field_id,
-			order_field
+			order_index
 		FROM
 			` + re.meta.TableName() + `
 		WHERE
@@ -69,7 +69,7 @@ func (re *repository) LoadNode(ctx context.Context, row *EntityNode) error {
 	).Scan(
 		&row.PrevID,
 		&row.NextID,
-		&row.OrderField,
+		&row.OrderIndex,
 	)
 
 	if err != nil {
@@ -89,7 +89,7 @@ func (re *repository) LoadFirstNode(ctx context.Context, row *EntityNode) error 
 
 	sql := `
 		SELECT
-			MIN(order_field)
+			MIN(order_index)
 		FROM
 			` + re.meta.TableName() + whereStr + `
 		LIMIT 1;`
@@ -99,14 +99,14 @@ func (re *repository) LoadFirstNode(ctx context.Context, row *EntityNode) error 
 		sql,
 		whereArgs...,
 	).Scan(
-		&row.OrderField,
+		&row.OrderIndex,
 	)
 
 	if err != nil {
-		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), "MIN(order_field)")
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), "MIN(order_index)")
 	}
 
-	if err = re.loadNodeByOrderField(ctx, row); err != nil {
+	if err = re.loadNodeByOrderIndex(ctx, row); err != nil {
 		return err
 	}
 
@@ -127,7 +127,7 @@ func (re *repository) LoadLastNode(ctx context.Context, row *EntityNode) error {
 
 	sql := `
 		SELECT
-			MAX(order_field)
+			MAX(order_index)
 		FROM
 			` + re.meta.TableName() + whereStr + `
 		LIMIT 1;`
@@ -137,18 +137,18 @@ func (re *repository) LoadLastNode(ctx context.Context, row *EntityNode) error {
 		sql,
 		whereArgs...,
 	).Scan(
-		&row.OrderField,
+		&row.OrderIndex,
 	)
 
 	if err != nil {
-		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), "MAX(order_field)")
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), "MAX(order_index)")
 	}
 
-	if row.OrderField == 0 {
+	if row.OrderIndex == 0 {
 		return nil
 	}
 
-	if err = re.loadNodeByOrderField(ctx, row); err != nil {
+	if err = re.loadNodeByOrderIndex(ctx, row); err != nil {
 		return err
 	}
 
@@ -165,7 +165,7 @@ func (re *repository) UpdateNode(ctx context.Context, row *EntityNode) error {
 		row.ID,
 		row.PrevID,
 		row.NextID,
-		row.OrderField,
+		row.OrderIndex,
 	}
 
 	whereStr, whereArgs, err := re.where(" AND ", len(args)+1)
@@ -180,7 +180,7 @@ func (re *repository) UpdateNode(ctx context.Context, row *EntityNode) error {
 		SET
 			prev_field_id = $2,
 			next_field_id = $3,
-			order_field = $4
+			order_index = $4
 		WHERE
 			` + re.meta.PrimaryName() + ` = $1` + whereStr + `;`
 
@@ -198,9 +198,9 @@ func (re *repository) UpdateNode(ctx context.Context, row *EntityNode) error {
 }
 
 // UpdateNodePrevID -
-func (re *repository) UpdateNodePrevID(ctx context.Context, id mrtype.KeyInt32, prevID mrentity.ZeronullInt32) error {
+func (re *repository) UpdateNodePrevID(ctx context.Context, rowID mrtype.KeyInt32, prevID mrentity.ZeronullInt32) error {
 	args := []any{
-		id,
+		rowID,
 		prevID,
 	}
 
@@ -225,16 +225,16 @@ func (re *repository) UpdateNodePrevID(ctx context.Context, id mrtype.KeyInt32, 
 	)
 
 	if err != nil {
-		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrmsg.Data{re.meta.PrimaryName(): id})
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrmsg.Data{re.meta.PrimaryName(): rowID})
 	}
 
 	return nil
 }
 
 // UpdateNodeNextID -
-func (re *repository) UpdateNodeNextID(ctx context.Context, id mrtype.KeyInt32, nextID mrentity.ZeronullInt32) error {
+func (re *repository) UpdateNodeNextID(ctx context.Context, rowID mrtype.KeyInt32, nextID mrentity.ZeronullInt32) error {
 	args := []any{
-		id,
+		rowID,
 		nextID,
 	}
 
@@ -259,14 +259,14 @@ func (re *repository) UpdateNodeNextID(ctx context.Context, id mrtype.KeyInt32, 
 	)
 
 	if err != nil {
-		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrmsg.Data{re.meta.PrimaryName(): id})
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrmsg.Data{re.meta.PrimaryName(): rowID})
 	}
 
 	return nil
 }
 
-// RecalcOrderField -
-func (re *repository) RecalcOrderField(ctx context.Context, minBorder, step int64) error {
+// RecalcOrderIndex -
+func (re *repository) RecalcOrderIndex(ctx context.Context, minBorder, step int64) error {
 	args := []any{
 		minBorder,
 		step,
@@ -282,9 +282,9 @@ func (re *repository) RecalcOrderField(ctx context.Context, minBorder, step int6
 		UPDATE
 			` + re.meta.TableName() + `
 		SET
-			order_field = order_field + $2
+			order_index = order_index + $2
 		WHERE
-			order_field > $1` + whereStr + `;`
+			order_index > $1` + whereStr + `;`
 
 	err = re.client.Exec(
 		ctx,
@@ -293,15 +293,15 @@ func (re *repository) RecalcOrderField(ctx context.Context, minBorder, step int6
 	)
 
 	if err != nil {
-		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrmsg.Data{"order_field": minBorder, "step": step})
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrmsg.Data{"order_index": minBorder, "step": step})
 	}
 
 	return nil
 }
 
-func (re *repository) loadNodeByOrderField(ctx context.Context, row *EntityNode) error {
+func (re *repository) loadNodeByOrderIndex(ctx context.Context, row *EntityNode) error {
 	args := []any{
-		row.OrderField,
+		row.OrderIndex,
 	}
 
 	whereStr, whereArgs, err := re.where(" AND ", len(args)+1)
@@ -318,7 +318,7 @@ func (re *repository) loadNodeByOrderField(ctx context.Context, row *EntityNode)
 		FROM
 			` + re.meta.TableName() + `
 		WHERE
-			order_field = $1` + whereStr + `
+			order_index = $1` + whereStr + `
 		ORDER BY
 			` + re.meta.PrimaryName() + ` ASC
 		LIMIT 1;`
@@ -334,7 +334,7 @@ func (re *repository) loadNodeByOrderField(ctx context.Context, row *EntityNode)
 	)
 
 	if err != nil {
-		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrmsg.Data{"order_field": row.OrderField})
+		return mrcore.FactoryErrWithData.Wrap(err, re.meta.TableName(), mrmsg.Data{"order_index": row.OrderIndex})
 	}
 
 	return nil

@@ -31,8 +31,8 @@ type (
 		LoadFirstNode(ctx context.Context, row *EntityNode) error
 		LoadLastNode(ctx context.Context, row *EntityNode) error
 		UpdateNode(ctx context.Context, row *EntityNode) error
-		UpdateNodePrevID(ctx context.Context, id mrtype.KeyInt32, prevID mrentity.ZeronullInt32) error
-		UpdateNodeNextID(ctx context.Context, id mrtype.KeyInt32, nextID mrentity.ZeronullInt32) error
-		RecalcOrderField(ctx context.Context, minBorder, step int64) error
+		UpdateNodePrevID(ctx context.Context, rowID mrtype.KeyInt32, prevID mrentity.ZeronullInt32) error
+		UpdateNodeNextID(ctx context.Context, rowID mrtype.KeyInt32, nextID mrentity.ZeronullInt32) error
+		RecalcOrderIndex(ctx context.Context, minBorder, step int64) error
 	}
 )

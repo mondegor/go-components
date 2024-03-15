@@ -14,6 +14,6 @@ type (
 		ID         mrtype.KeyInt32
 		PrevID     mrentity.ZeronullInt32
 		NextID     mrentity.ZeronullInt32
-		OrderField mrentity.ZeronullInt64
+		OrderIndex mrentity.ZeronullInt64
 	}
 )
