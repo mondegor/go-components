@@ -1,6 +1,10 @@
 # GoStorage Changelog
 Все изменения библиотеки GoComponents будут документироваться на этой странице.
 
+## 2024-03-18
+### Changed
+- Внедрена новая версия библиотеки `go-sysmess`, заменены `.Caller() -> .WithCaller()`;
+
 ## 2024-03-15
 ### Changed
 - Заменено `OrderField` -> `orderField` и `order_field` -> `order_index`;

@@ -405,7 +405,7 @@ func (co *Component) wrapErrorAfterNodeNotFound(err error, afterNodeID mrtype.Ke
 
 func (co *Component) wrapErrorMustLoad(err error) error {
 	if mrcore.FactoryErrStorageNoRowFound.Is(err) {
-		return mrcore.FactoryErrInternal.Caller(1).Wrap(err)
+		return mrcore.FactoryErrInternal.WithCaller(1).Wrap(err)
 	}
 
 	return co.wrapErrorFailed(err)
@@ -414,7 +414,7 @@ func (co *Component) wrapErrorMustLoad(err error) error {
 func (co *Component) wrapErrorMustStore(err error) error {
 	if mrcore.FactoryErrStorageNoRowFound.Is(err) ||
 		mrcore.FactoryErrStorageRowsNotAffected.Is(err) {
-		return mrcore.FactoryErrInternal.Caller(1).Wrap(err)
+		return mrcore.FactoryErrInternal.WithCaller(1).Wrap(err)
 	}
 
 	return co.wrapErrorFailed(err)
@@ -422,10 +422,10 @@ func (co *Component) wrapErrorMustStore(err error) error {
 
 func (co *Component) wrapErrorFailed(err error) error {
 	if mrcore.FactoryErrStorageQueryFailed.Is(err) {
-		return mrcore.FactoryErrUseCaseOperationFailed.Wrap(err)
+		return mrcore.FactoryErrUseCaseOperationFailed.WithCaller(2).Wrap(err)
 	}
 
-	return mrcore.FactoryErrUseCaseTemporarilyUnavailable.Caller(2).Wrap(err)
+	return mrcore.FactoryErrUseCaseTemporarilyUnavailable.WithCaller(2).Wrap(err)
 }
 
 func (co *Component) emitEvent(ctx context.Context, eventName string, object mrmsg.Data) {
