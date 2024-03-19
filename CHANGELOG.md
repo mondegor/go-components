@@ -1,13 +1,17 @@
 # GoStorage Changelog
 Все изменения библиотеки GoComponents будут документироваться на этой странице.
 
+## 2024-03-19
+### Changed
+- Поправлено форматирование документации;
+
 ## 2024-03-18
 ### Changed
 - Внедрена новая версия библиотеки `go-sysmess`, заменены `.Caller() -> .WithCaller()`;
 
 ## 2024-03-15
 ### Changed
-- Заменено `OrderField` -> `orderField` и `order_field` -> `order_index`;
+- Заменено `OrderField -> orderField` и `order_field -> order_index`;
 
 ## 2024-02-01
 ### Fixed
@@ -23,11 +27,11 @@
 
 ## 2024-01-16
 ### Changed
-- Переименован интерфейс `mrorderer.Component` -> `mrorderer.API`;
+- Переименован интерфейс `mrorderer.Component -> mrorderer.API`;
 
 ## 2023-12-10
 ### Changed
-- Заменён `mrerr.Arg` -> `mrmsg.Data`;
+- Заменён `mrerr.Arg -> mrmsg.Data`;
 - Доработана логика копирования объектов в `mrorderer.repository.WithMetaData`;
 
 ## 2023-12-06
@@ -46,7 +50,7 @@
 
 ## 2023-11-01
 ### Changed
-- Переименован пакет `mrcom_orderer` -> `mrorderer`;
+- Переименован пакет `mrcom_orderer -> mrorderer`;
 - В `EntityMeta` заменён метод `ForEachCond` на `Where` с логикой `SqlBuilder` из библиотеки `go-webcore`;
 
 ### Removed
@@ -80,4 +84,4 @@
 - Добавлено описание статусов элемента и описаны варианты возможных переключений между ними;
 
 ### Fixed
-- `QueryUpdate` -> `SqUpdate`;
+- `QueryUpdate -> SqUpdate`;
