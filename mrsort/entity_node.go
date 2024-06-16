@@ -1,4 +1,4 @@
-package mrorderer
+package mrsort
 
 import (
 	"github.com/mondegor/go-storage/mrentity"
@@ -6,10 +6,11 @@ import (
 )
 
 const (
-	ModelNameEntityOrderer = "EntityOrderer"
+	ModelNameEntityOrderer = "EntityOrderer" // ModelNameEntityOrderer - название сущности
 )
 
 type (
+	// EntityNode - элемент двусвязного списка участвующий в сортировке.
 	EntityNode struct {
 		ID         mrtype.KeyInt32
 		PrevID     mrentity.ZeronullInt32
