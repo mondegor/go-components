@@ -2,7 +2,6 @@ package factory
 
 import (
 	"github.com/mondegor/go-storage/mrpostgres"
-	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-webcore/mrcore"
 	"github.com/mondegor/go-webcore/mrsender"
@@ -15,22 +14,20 @@ import (
 type (
 	// ComponentSetterOptions - опции для создания ComponentGetter.
 	ComponentSetterOptions struct {
-		ValueMaxLen       uint64 // optional
-		ListItemSeparator string // optional
-		DBClient          mrstorage.DBConnManager
-		DBMeta            mrstorage.MetaGetter          // optional
-		DBCondition       mrstorage.SQLBuilderCondition // optional
-		EventEmitter      mrsender.EventEmitter
-		ErrorWrapper      mrcore.UsecaseErrorWrapper
+		ValueMaxLen       uint64
+		ListItemSeparator string
+		DBCondition       mrstorage.SQLBuilderCondition
 	}
 )
 
 // NewComponentSetter - создаёт объект setter.Component.
-func NewComponentSetter(opts ComponentSetterOptions) *setter.Component {
-	if opts.DBMeta == nil {
-		opts.DBMeta = mrsql.NewEntityMeta("sample_catalog.settings", "setting_name", nil)
-	}
-
+func NewComponentSetter(
+	client mrstorage.DBConnManager,
+	meta mrstorage.MetaGetter,
+	eventEmitter mrsender.EventEmitter,
+	errorWrapper mrcore.UsecaseErrorWrapper,
+	opts ComponentSetterOptions,
+) *setter.Component {
 	if opts.DBCondition == nil {
 		opts.DBCondition = mrpostgres.NewSQLBuilderCondition(mrpostgres.NewSQLBuilderWhere())
 	}
@@ -42,12 +39,8 @@ func NewComponentSetter(opts ComponentSetterOptions) *setter.Component {
 				ListItemSeparator: opts.ListItemSeparator,
 			},
 		),
-		repository.New(
-			opts.DBClient,
-			opts.DBMeta,
-			opts.DBCondition,
-		),
-		opts.EventEmitter,
-		opts.ErrorWrapper,
+		repository.New(client, meta, opts.DBCondition),
+		eventEmitter,
+		errorWrapper,
 	)
 }

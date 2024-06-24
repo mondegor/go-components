@@ -106,20 +106,20 @@ func (co *Component) GetBool(_ context.Context, id mrtype.KeyInt32) (bool, error
 }
 
 // Reload - comment method.
-func (co *Component) Reload(ctx context.Context) error {
+func (co *Component) Reload(ctx context.Context) (count uint64, err error) {
 	if !co.reloadMu.TryLock() {
-		return nil
+		return 0, nil
 	}
 	defer co.reloadMu.Unlock()
 
 	items, err := co.storage.Fetch(ctx, co.lastUpdated)
 	if err != nil {
-		return co.errorWrapper.WrapErrorFailed(err, mrsettings.ModelNameEntitySetting)
+		return 0, co.errorWrapper.WrapErrorFailed(err, mrsettings.ModelNameEntitySetting)
 	}
 
 	// обновления не требуется
 	if len(items) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	settings := make([]mrsettings.CachedSettingWithID, 0, len(items))
@@ -141,7 +141,7 @@ func (co *Component) Reload(ctx context.Context) error {
 
 	// все обновления оказались с ошибками
 	if len(settings) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	// обновление заранее подготовленных настроек
@@ -151,7 +151,7 @@ func (co *Component) Reload(ctx context.Context) error {
 	}
 	co.settingsMu.Unlock()
 
-	return nil
+	return uint64(len(settings)), nil
 }
 
 func (co *Component) makeItem(item mrsettings.EntitySetting) (setting mrsettings.CachedSettingWithID, err error) {

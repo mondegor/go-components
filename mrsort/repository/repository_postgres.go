@@ -30,7 +30,7 @@ func NewRepository(client mrstorage.DBConnManager) *Repository {
 }
 
 // WithMetaData - comment method.
-func (re *Repository) WithMetaData(meta mrstorage.MetaGetter) mrsort.Storage { //nolint:ireturn
+func (re *Repository) WithMetaData(meta mrstorage.MetaGetter) mrsort.Storage {
 	c := *re
 	c.meta = meta
 

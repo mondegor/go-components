@@ -34,7 +34,7 @@ func New(client mrstorage.DBConnManager, meta mrstorage.MetaGetter, condition mr
 // Fetch - comment method.
 func (re *Repository) Fetch(ctx context.Context, lastUpdated time.Time) ([]mrsettings.EntitySetting, error) {
 	whereLastUpdated := re.condition.Where(func(w mrstorage.SQLBuilderWhere) mrstorage.SQLBuilderPartFunc {
-		return w.GreaterOrEqual("updated_at", lastUpdated)
+		return w.Greater("updated_at", lastUpdated)
 	})
 
 	whereStr, whereArgs, err := re.where(whereLastUpdated, 1)

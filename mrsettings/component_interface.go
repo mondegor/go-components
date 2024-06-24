@@ -37,7 +37,7 @@ type (
 
 	// Loader - comment interface.
 	Loader interface {
-		Reload(ctx context.Context) error
+		Reload(ctx context.Context) (count uint64, err error)
 	}
 
 	// ValueParser - comment interface.

@@ -39,7 +39,7 @@ func New(storage mrsort.Storage, eventEmitter mrsender.EventEmitter, errorWrappe
 }
 
 // WithMetaData - comment func.
-func (co *Component) WithMetaData(meta mrstorage.MetaGetter) mrsort.Orderer { //nolint:ireturn
+func (co *Component) WithMetaData(meta mrstorage.MetaGetter) mrsort.Orderer {
 	return &Component{
 		storage:      co.storage.WithMetaData(meta),
 		eventEmitter: co.eventEmitter,

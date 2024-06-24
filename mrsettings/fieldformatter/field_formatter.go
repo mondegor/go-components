@@ -23,8 +23,8 @@ type (
 
 	// DBFieldFormatterOptions - опции для создания DBFieldFormatter.
 	DBFieldFormatterOptions struct {
-		ValueMaxLen       uint64 // optional
-		ListItemSeparator string // optional
+		ValueMaxLen       uint64
+		ListItemSeparator string
 	}
 )
 
