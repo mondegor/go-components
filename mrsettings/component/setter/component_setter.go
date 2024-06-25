@@ -9,6 +9,8 @@ import (
 	"github.com/mondegor/go-webcore/mrtype"
 
 	"github.com/mondegor/go-components/mrsettings"
+	"github.com/mondegor/go-components/mrsettings/entity"
+	"github.com/mondegor/go-components/mrsettings/enum"
 )
 
 type (
@@ -43,7 +45,7 @@ func (co *Component) Set(ctx context.Context, id mrtype.KeyInt32, value string) 
 		return err
 	}
 
-	if err = co.setValue(ctx, id, formattedValue, mrsettings.SettingTypeString); err != nil {
+	if err = co.setValue(ctx, id, formattedValue, enum.SettingTypeString); err != nil {
 		return err
 	}
 
@@ -59,7 +61,7 @@ func (co *Component) SetList(ctx context.Context, id mrtype.KeyInt32, value []st
 		return err
 	}
 
-	if err = co.setValue(ctx, id, formattedValue, mrsettings.SettingTypeIntegerList); err != nil {
+	if err = co.setValue(ctx, id, formattedValue, enum.SettingTypeIntegerList); err != nil {
 		return err
 	}
 
@@ -75,7 +77,7 @@ func (co *Component) SetInt64(ctx context.Context, id mrtype.KeyInt32, value int
 		return err
 	}
 
-	if err = co.setValue(ctx, id, formattedValue, mrsettings.SettingTypeInteger); err != nil {
+	if err = co.setValue(ctx, id, formattedValue, enum.SettingTypeInteger); err != nil {
 		return err
 	}
 
@@ -91,7 +93,7 @@ func (co *Component) SetInt64List(ctx context.Context, id mrtype.KeyInt32, value
 		return err
 	}
 
-	if err = co.setValue(ctx, id, formattedValue, mrsettings.SettingTypeIntegerList); err != nil {
+	if err = co.setValue(ctx, id, formattedValue, enum.SettingTypeIntegerList); err != nil {
 		return err
 	}
 
@@ -107,7 +109,7 @@ func (co *Component) SetBool(ctx context.Context, id mrtype.KeyInt32, value bool
 		return err
 	}
 
-	if err = co.setValue(ctx, id, formattedValue, mrsettings.SettingTypeBoolean); err != nil {
+	if err = co.setValue(ctx, id, formattedValue, enum.SettingTypeBoolean); err != nil {
 		return err
 	}
 
@@ -116,15 +118,15 @@ func (co *Component) SetBool(ctx context.Context, id mrtype.KeyInt32, value bool
 	return nil
 }
 
-func (co *Component) setValue(ctx context.Context, id mrtype.KeyInt32, value string, rowType mrsettings.SettingType) error {
-	row := mrsettings.EntitySetting{
+func (co *Component) setValue(ctx context.Context, id mrtype.KeyInt32, value string, rowType enum.SettingType) error {
+	row := entity.Setting{
 		ID:    id,
 		Type:  rowType,
 		Value: value,
 	}
 
 	if err := co.storage.Update(ctx, row); err != nil {
-		return co.errorWrapper.WrapErrorEntityFailed(err, mrsettings.ModelNameEntitySetting, mrmsg.Data{"id": id})
+		return co.errorWrapper.WrapErrorEntityFailed(err, entity.ModelNameSetting, mrmsg.Data{"id": id})
 	}
 
 	return nil
@@ -134,7 +136,7 @@ func (co *Component) emitEvent(ctx context.Context, eventName string, object mrm
 	co.eventEmitter.EmitWithSource(
 		ctx,
 		"mrsettings.setter."+eventName,
-		mrsettings.ModelNameEntitySetting,
+		entity.ModelNameSetting,
 		object,
 	)
 }

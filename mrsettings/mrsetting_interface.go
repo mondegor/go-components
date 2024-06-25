@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/mondegor/go-webcore/mrtype"
+
+	"github.com/mondegor/go-components/mrsettings/entity"
 )
 
 type (
@@ -66,12 +68,12 @@ type (
 
 	// StorageLoader - comment interface.
 	StorageLoader interface {
-		Fetch(ctx context.Context, lastUpdated time.Time) ([]EntitySetting, error)
+		Fetch(ctx context.Context, lastUpdated time.Time) ([]entity.Setting, error)
 	}
 
 	// Storage - comment interface.
 	Storage interface {
-		FetchOne(ctx context.Context, id mrtype.KeyInt32) (EntitySetting, error)
-		Update(ctx context.Context, row EntitySetting) error
+		FetchOne(ctx context.Context, id mrtype.KeyInt32) (entity.Setting, error)
+		Update(ctx context.Context, row entity.Setting) error
 	}
 )

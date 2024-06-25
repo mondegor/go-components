@@ -8,6 +8,8 @@ import (
 	"github.com/mondegor/go-webcore/mrtype"
 
 	"github.com/mondegor/go-components/mrsettings"
+	"github.com/mondegor/go-components/mrsettings/entity"
+	"github.com/mondegor/go-components/mrsettings/enum"
 )
 
 type (
@@ -31,7 +33,7 @@ func New(parser mrsettings.ValueParser, storage mrsettings.Storage, errorWrapper
 
 // Get - comment method.
 func (co *Component) Get(ctx context.Context, id mrtype.KeyInt32) (string, error) {
-	value, err := co.getValue(ctx, id, mrsettings.SettingTypeString)
+	value, err := co.getValue(ctx, id, enum.SettingTypeString)
 	if err != nil {
 		return "", err
 	}
@@ -46,7 +48,7 @@ func (co *Component) Get(ctx context.Context, id mrtype.KeyInt32) (string, error
 
 // GetList - comment method.
 func (co *Component) GetList(ctx context.Context, id mrtype.KeyInt32) ([]string, error) {
-	value, err := co.getValue(ctx, id, mrsettings.SettingTypeStringList)
+	value, err := co.getValue(ctx, id, enum.SettingTypeStringList)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +63,7 @@ func (co *Component) GetList(ctx context.Context, id mrtype.KeyInt32) ([]string,
 
 // GetInt64 - comment method.
 func (co *Component) GetInt64(ctx context.Context, id mrtype.KeyInt32) (int64, error) {
-	value, err := co.getValue(ctx, id, mrsettings.SettingTypeInteger)
+	value, err := co.getValue(ctx, id, enum.SettingTypeInteger)
 	if err != nil {
 		return 0, err
 	}
@@ -76,7 +78,7 @@ func (co *Component) GetInt64(ctx context.Context, id mrtype.KeyInt32) (int64, e
 
 // GetInt64List - comment method.
 func (co *Component) GetInt64List(ctx context.Context, id mrtype.KeyInt32) ([]int64, error) {
-	value, err := co.getValue(ctx, id, mrsettings.SettingTypeIntegerList)
+	value, err := co.getValue(ctx, id, enum.SettingTypeIntegerList)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +93,7 @@ func (co *Component) GetInt64List(ctx context.Context, id mrtype.KeyInt32) ([]in
 
 // GetBool - comment method.
 func (co *Component) GetBool(ctx context.Context, id mrtype.KeyInt32) (bool, error) {
-	value, err := co.getValue(ctx, id, mrsettings.SettingTypeBoolean)
+	value, err := co.getValue(ctx, id, enum.SettingTypeBoolean)
 	if err != nil {
 		return false, err
 	}
@@ -104,13 +106,13 @@ func (co *Component) GetBool(ctx context.Context, id mrtype.KeyInt32) (bool, err
 	return parsedValue, nil
 }
 
-func (co *Component) getValue(ctx context.Context, id mrtype.KeyInt32, rowType mrsettings.SettingType) (string, error) {
+func (co *Component) getValue(ctx context.Context, id mrtype.KeyInt32, rowType enum.SettingType) (string, error) {
 	row, err := co.storage.FetchOne(ctx, id)
 	if err != nil {
-		return "", co.errorWrapper.WrapErrorEntityNotFoundOrFailed(err, mrsettings.ModelNameEntitySetting, mrmsg.Data{"id": id})
+		return "", co.errorWrapper.WrapErrorEntityNotFoundOrFailed(err, entity.ModelNameSetting, mrmsg.Data{"id": id})
 	}
 
-	if row.Type != rowType && rowType != mrsettings.SettingTypeString {
+	if row.Type != rowType && rowType != enum.SettingTypeString {
 		return "", mrcore.ErrInternalInvalidType.New(rowType, row.Type)
 	}
 

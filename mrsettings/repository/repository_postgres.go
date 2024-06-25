@@ -10,7 +10,7 @@ import (
 	"github.com/mondegor/go-webcore/mrcore"
 	"github.com/mondegor/go-webcore/mrtype"
 
-	"github.com/mondegor/go-components/mrsettings"
+	"github.com/mondegor/go-components/mrsettings/entity"
 )
 
 type (
@@ -32,7 +32,7 @@ func New(client mrstorage.DBConnManager, meta mrstorage.MetaGetter, condition mr
 }
 
 // Fetch - comment method.
-func (re *Repository) Fetch(ctx context.Context, lastUpdated time.Time) ([]mrsettings.EntitySetting, error) {
+func (re *Repository) Fetch(ctx context.Context, lastUpdated time.Time) ([]entity.Setting, error) {
 	whereLastUpdated := re.condition.Where(func(w mrstorage.SQLBuilderWhere) mrstorage.SQLBuilderPartFunc {
 		return w.Greater("updated_at", lastUpdated)
 	})
@@ -66,10 +66,10 @@ func (re *Repository) Fetch(ctx context.Context, lastUpdated time.Time) ([]mrset
 
 	defer cursor.Close()
 
-	rows := make([]mrsettings.EntitySetting, 0)
+	rows := make([]entity.Setting, 0)
 
 	for cursor.Next() {
-		var row mrsettings.EntitySetting
+		var row entity.Setting
 
 		err = cursor.Scan(
 			&row.ID,
@@ -90,14 +90,14 @@ func (re *Repository) Fetch(ctx context.Context, lastUpdated time.Time) ([]mrset
 }
 
 // FetchOne - comment method.
-func (re *Repository) FetchOne(ctx context.Context, id mrtype.KeyInt32) (mrsettings.EntitySetting, error) {
+func (re *Repository) FetchOne(ctx context.Context, id mrtype.KeyInt32) (entity.Setting, error) {
 	args := []any{
 		id,
 	}
 
 	whereStr, whereArgs, err := re.whereMeta(" AND ", len(args)+1)
 	if err != nil {
-		return mrsettings.EntitySetting{}, err
+		return entity.Setting{}, err
 	}
 
 	sql := `
@@ -111,7 +111,7 @@ func (re *Repository) FetchOne(ctx context.Context, id mrtype.KeyInt32) (mrsetti
 			` + re.meta.PrimaryName() + ` = $1` + whereStr + `
 		LIMIT 1;`
 
-	row := mrsettings.EntitySetting{
+	row := entity.Setting{
 		ID: id,
 	}
 
@@ -125,14 +125,14 @@ func (re *Repository) FetchOne(ctx context.Context, id mrtype.KeyInt32) (mrsetti
 		&row.Value,
 	)
 	if err != nil {
-		return mrsettings.EntitySetting{}, re.wrapError(err, re.meta.TableName(), mrmsg.Data{re.meta.PrimaryName(): id})
+		return entity.Setting{}, re.wrapError(err, re.meta.TableName(), mrmsg.Data{re.meta.PrimaryName(): id})
 	}
 
 	return row, nil
 }
 
 // Update - comment method.
-func (re *Repository) Update(ctx context.Context, row mrsettings.EntitySetting) error {
+func (re *Repository) Update(ctx context.Context, row entity.Setting) error {
 	args := []any{
 		row.Name,
 		row.Type,

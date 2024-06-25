@@ -11,6 +11,7 @@ import (
 	"github.com/mondegor/go-webcore/mrtype"
 
 	"github.com/mondegor/go-components/mrsort"
+	"github.com/mondegor/go-components/mrsort/entity"
 )
 
 type (
@@ -38,14 +39,14 @@ func (re *Repository) WithMetaData(meta mrstorage.MetaGetter) mrsort.Storage {
 }
 
 // FetchNode - comment method.
-func (re *Repository) FetchNode(ctx context.Context, nodeID mrtype.KeyInt32) (mrsort.EntityNode, error) {
+func (re *Repository) FetchNode(ctx context.Context, nodeID mrtype.KeyInt32) (entity.Node, error) {
 	args := []any{
 		nodeID,
 	}
 
 	whereStr, whereArgs, err := re.where(" AND ", len(args)+1)
 	if err != nil {
-		return mrsort.EntityNode{}, err
+		return entity.Node{}, err
 	}
 
 	sql := `
@@ -59,7 +60,7 @@ func (re *Repository) FetchNode(ctx context.Context, nodeID mrtype.KeyInt32) (mr
 			` + re.meta.PrimaryName() + ` = $1` + whereStr + `
 		LIMIT 1;`
 
-	row := mrsort.EntityNode{
+	row := entity.Node{
 		ID: nodeID,
 	}
 
@@ -73,17 +74,17 @@ func (re *Repository) FetchNode(ctx context.Context, nodeID mrtype.KeyInt32) (mr
 		&row.OrderIndex,
 	)
 	if err != nil {
-		return mrsort.EntityNode{}, re.wrapError(err, re.meta.TableName(), mrmsg.Data{re.meta.PrimaryName(): row.ID})
+		return entity.Node{}, re.wrapError(err, re.meta.TableName(), mrmsg.Data{re.meta.PrimaryName(): row.ID})
 	}
 
 	return row, nil
 }
 
 // FetchFirstNode - comment method.
-func (re *Repository) FetchFirstNode(ctx context.Context) (mrsort.EntityNode, error) {
+func (re *Repository) FetchFirstNode(ctx context.Context) (entity.Node, error) {
 	whereStr, whereArgs, err := re.where(" WHERE ", 1)
 	if err != nil {
-		return mrsort.EntityNode{}, err
+		return entity.Node{}, err
 	}
 
 	sql := `
@@ -93,7 +94,7 @@ func (re *Repository) FetchFirstNode(ctx context.Context) (mrsort.EntityNode, er
 			` + re.meta.TableName() + whereStr + `
 		LIMIT 1;`
 
-	row := mrsort.EntityNode{}
+	row := entity.Node{}
 
 	err = re.client.Conn(ctx).QueryRow(
 		ctx,
@@ -103,25 +104,25 @@ func (re *Repository) FetchFirstNode(ctx context.Context) (mrsort.EntityNode, er
 		&row.OrderIndex,
 	)
 	if err != nil {
-		return mrsort.EntityNode{}, re.wrapError(err, re.meta.TableName(), "MIN(order_index)")
+		return entity.Node{}, re.wrapError(err, re.meta.TableName(), "MIN(order_index)")
 	}
 
 	if err = re.loadNodeByOrderIndex(ctx, &row); err != nil {
-		return mrsort.EntityNode{}, err
+		return entity.Node{}, err
 	}
 
 	if row.PrevID > 0 {
-		return mrsort.EntityNode{}, mrcore.ErrInternal.New().WithAttr(re.meta.TableName(), mrmsg.Data{"row.Id": row.ID, "row.PrevId": row.PrevID})
+		return entity.Node{}, mrcore.ErrInternal.New().WithAttr(re.meta.TableName(), mrmsg.Data{"row.Id": row.ID, "row.PrevId": row.PrevID})
 	}
 
 	return row, nil
 }
 
 // FetchLastNode - comment method.
-func (re *Repository) FetchLastNode(ctx context.Context) (mrsort.EntityNode, error) {
+func (re *Repository) FetchLastNode(ctx context.Context) (entity.Node, error) {
 	whereStr, whereArgs, err := re.where(" WHERE ", 1)
 	if err != nil {
-		return mrsort.EntityNode{}, err
+		return entity.Node{}, err
 	}
 
 	sql := `
@@ -131,7 +132,7 @@ func (re *Repository) FetchLastNode(ctx context.Context) (mrsort.EntityNode, err
 			` + re.meta.TableName() + whereStr + `
 		LIMIT 1;`
 
-	row := mrsort.EntityNode{}
+	row := entity.Node{}
 
 	err = re.client.Conn(ctx).QueryRow(
 		ctx,
@@ -141,26 +142,26 @@ func (re *Repository) FetchLastNode(ctx context.Context) (mrsort.EntityNode, err
 		&row.OrderIndex,
 	)
 	if err != nil {
-		return mrsort.EntityNode{}, re.wrapError(err, re.meta.TableName(), "MAX(order_index)")
+		return entity.Node{}, re.wrapError(err, re.meta.TableName(), "MAX(order_index)")
 	}
 
 	if row.OrderIndex == 0 {
-		return mrsort.EntityNode{}, nil
+		return entity.Node{}, nil
 	}
 
 	if err = re.loadNodeByOrderIndex(ctx, &row); err != nil {
-		return mrsort.EntityNode{}, err
+		return entity.Node{}, err
 	}
 
 	if row.NextID > 0 {
-		return mrsort.EntityNode{}, mrcore.ErrInternal.New().WithAttr(re.meta.TableName(), mrmsg.Data{"row.Id": row.ID, "row.NextId": row.NextID})
+		return entity.Node{}, mrcore.ErrInternal.New().WithAttr(re.meta.TableName(), mrmsg.Data{"row.Id": row.ID, "row.NextId": row.NextID})
 	}
 
 	return row, nil
 }
 
 // UpdateNode - comment method.
-func (re *Repository) UpdateNode(ctx context.Context, row mrsort.EntityNode) error {
+func (re *Repository) UpdateNode(ctx context.Context, row entity.Node) error {
 	args := []any{
 		row.ID,
 		row.PrevID,
@@ -237,7 +238,7 @@ func (re *Repository) RecalcOrderIndex(ctx context.Context, minBorder, step int6
 	return nil
 }
 
-func (re *Repository) loadNodeByOrderIndex(ctx context.Context, row *mrsort.EntityNode) error {
+func (re *Repository) loadNodeByOrderIndex(ctx context.Context, row *entity.Node) error {
 	args := []any{
 		row.OrderIndex,
 	}

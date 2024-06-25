@@ -1,4 +1,4 @@
-package factory
+package mrsettings
 
 import (
 	"github.com/mondegor/go-storage/mrpostgres"
@@ -6,9 +6,9 @@ import (
 	"github.com/mondegor/go-webcore/mrcore"
 	"github.com/mondegor/go-webcore/mrsender"
 
-	"github.com/mondegor/go-components/mrsettings/fieldformatter"
+	"github.com/mondegor/go-components/mrsettings/component/setter"
+	"github.com/mondegor/go-components/mrsettings/features/fieldformatter"
 	"github.com/mondegor/go-components/mrsettings/repository"
-	"github.com/mondegor/go-components/mrsettings/setter"
 )
 
 type (

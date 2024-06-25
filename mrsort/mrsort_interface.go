@@ -6,6 +6,8 @@ import (
 	"github.com/mondegor/go-storage/mrentity"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-webcore/mrtype"
+
+	"github.com/mondegor/go-components/mrsort/entity"
 )
 
 type (
@@ -23,10 +25,10 @@ type (
 	// Storage - comment interface.
 	Storage interface {
 		WithMetaData(meta mrstorage.MetaGetter) Storage
-		FetchNode(ctx context.Context, nodeID mrtype.KeyInt32) (EntityNode, error)
-		FetchFirstNode(ctx context.Context) (EntityNode, error)
-		FetchLastNode(ctx context.Context) (EntityNode, error)
-		UpdateNode(ctx context.Context, row EntityNode) error
+		FetchNode(ctx context.Context, nodeID mrtype.KeyInt32) (entity.Node, error)
+		FetchFirstNode(ctx context.Context) (entity.Node, error)
+		FetchLastNode(ctx context.Context) (entity.Node, error)
+		UpdateNode(ctx context.Context, row entity.Node) error
 		UpdateNodePrevID(ctx context.Context, rowID mrtype.KeyInt32, prevID mrentity.ZeronullInt32) error
 		UpdateNodeNextID(ctx context.Context, rowID mrtype.KeyInt32, nextID mrentity.ZeronullInt32) error
 		RecalcOrderIndex(ctx context.Context, minBorder, step int64) error

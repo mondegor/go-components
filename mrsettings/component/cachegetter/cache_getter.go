@@ -10,6 +10,8 @@ import (
 	"github.com/mondegor/go-webcore/mrtype"
 
 	"github.com/mondegor/go-components/mrsettings"
+	"github.com/mondegor/go-components/mrsettings/entity"
+	"github.com/mondegor/go-components/mrsettings/enum"
 )
 
 const (
@@ -26,7 +28,7 @@ type (
 		reloadMu     sync.Mutex
 		lastUpdated  time.Time
 		settingsMu   sync.RWMutex
-		settings     map[mrtype.KeyInt32]mrsettings.CachedSetting
+		settings     map[mrtype.KeyInt32]entity.CachedSetting
 	}
 )
 
@@ -36,7 +38,7 @@ func New(parser mrsettings.ValueParser, storage mrsettings.StorageLoader, errorW
 		parser:       parser,
 		storage:      storage,
 		errorWrapper: errorWrapper,
-		settings:     make(map[mrtype.KeyInt32]mrsettings.CachedSetting, 0),
+		settings:     make(map[mrtype.KeyInt32]entity.CachedSetting, 0),
 	}
 }
 
@@ -59,7 +61,7 @@ func (co *Component) GetList(_ context.Context, id mrtype.KeyInt32) ([]string, e
 	value, ok := co.settings[id]
 	co.settingsMu.RUnlock()
 
-	if ok && value.Type == mrsettings.SettingTypeIntegerList {
+	if ok && value.Type == enum.SettingTypeIntegerList {
 		return value.ValueStringList, nil
 	}
 
@@ -72,7 +74,7 @@ func (co *Component) GetInt64(_ context.Context, id mrtype.KeyInt32) (int64, err
 	value, ok := co.settings[id]
 	co.settingsMu.RUnlock()
 
-	if ok && value.Type == mrsettings.SettingTypeInteger {
+	if ok && value.Type == enum.SettingTypeInteger {
 		return value.ValueInt64, nil
 	}
 
@@ -85,7 +87,7 @@ func (co *Component) GetInt64List(_ context.Context, id mrtype.KeyInt32) ([]int6
 	value, ok := co.settings[id]
 	co.settingsMu.RUnlock()
 
-	if ok && value.Type == mrsettings.SettingTypeIntegerList {
+	if ok && value.Type == enum.SettingTypeIntegerList {
 		return value.ValueInt64List, nil
 	}
 
@@ -98,7 +100,7 @@ func (co *Component) GetBool(_ context.Context, id mrtype.KeyInt32) (bool, error
 	value, ok := co.settings[id]
 	co.settingsMu.RUnlock()
 
-	if ok && value.Type == mrsettings.SettingTypeBoolean {
+	if ok && value.Type == enum.SettingTypeBoolean {
 		return value.ValueInt64 > 0, nil
 	}
 
@@ -114,7 +116,7 @@ func (co *Component) Reload(ctx context.Context) (count uint64, err error) {
 
 	items, err := co.storage.Fetch(ctx, co.lastUpdated)
 	if err != nil {
-		return 0, co.errorWrapper.WrapErrorFailed(err, mrsettings.ModelNameEntitySetting)
+		return 0, co.errorWrapper.WrapErrorFailed(err, entity.ModelNameSetting)
 	}
 
 	// обновления не требуется
@@ -122,7 +124,7 @@ func (co *Component) Reload(ctx context.Context) (count uint64, err error) {
 		return 0, nil
 	}
 
-	settings := make([]mrsettings.CachedSettingWithID, 0, len(items))
+	settings := make([]entity.CachedSettingWithID, 0, len(items))
 
 	for _, item := range items {
 		setting, err := co.makeItem(item)
@@ -154,15 +156,15 @@ func (co *Component) Reload(ctx context.Context) (count uint64, err error) {
 	return uint64(len(settings)), nil
 }
 
-func (co *Component) makeItem(item mrsettings.EntitySetting) (setting mrsettings.CachedSettingWithID, err error) {
+func (co *Component) makeItem(item entity.Setting) (setting entity.CachedSettingWithID, err error) {
 	valueString, err := co.parser.ParseString(item.Value)
 	if err != nil {
-		return mrsettings.CachedSettingWithID{}, err
+		return entity.CachedSettingWithID{}, err
 	}
 
-	setting = mrsettings.CachedSettingWithID{
+	setting = entity.CachedSettingWithID{
 		ID: item.ID,
-		CachedSetting: mrsettings.CachedSetting{
+		CachedSetting: entity.CachedSetting{
 			Name:        item.Name,
 			Type:        item.Type,
 			ValueString: valueString, // строковое значение присутствует для всех типов
@@ -170,20 +172,20 @@ func (co *Component) makeItem(item mrsettings.EntitySetting) (setting mrsettings
 	}
 
 	switch item.Type {
-	case mrsettings.SettingTypeStringList:
+	case enum.SettingTypeStringList:
 		setting.ValueStringList, err = co.parser.ParseStringList(item.Value)
-	case mrsettings.SettingTypeInteger:
+	case enum.SettingTypeInteger:
 		setting.ValueInt64, err = co.parser.ParseInt64(item.Value)
-	case mrsettings.SettingTypeIntegerList:
+	case enum.SettingTypeIntegerList:
 		setting.ValueInt64List, err = co.parser.ParseInt64List(item.Value)
-	case mrsettings.SettingTypeBoolean:
+	case enum.SettingTypeBoolean:
 		var boolValue bool
 		boolValue, err = co.parser.ParseBool(item.Value)
 		setting.ValueInt64 = mrtype.BoolToInt64(boolValue)
 	}
 
 	if err != nil {
-		return mrsettings.CachedSettingWithID{}, err
+		return entity.CachedSettingWithID{}, err
 	}
 
 	return setting, nil

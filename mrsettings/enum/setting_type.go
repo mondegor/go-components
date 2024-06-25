@@ -1,4 +1,4 @@
-package mrsettings
+package enum
 
 import (
 	"database/sql/driver"
@@ -25,7 +25,7 @@ type (
 )
 
 var (
-	settingTypeName = map[SettingType]string{
+	settingTypeName = map[SettingType]string{ //nolint:gochecknoglobals
 		SettingTypeString:      "STRING",
 		SettingTypeStringList:  "STRING_LIST",
 		SettingTypeInteger:     "INTEGER",
@@ -33,7 +33,7 @@ var (
 		SettingTypeBoolean:     "BOOLEAN",
 	}
 
-	settingTypeValue = map[string]SettingType{
+	settingTypeValue = map[string]SettingType{ //nolint:gochecknoglobals
 		"STRING":       SettingTypeString,
 		"STRING_LIST":  SettingTypeStringList,
 		"INTEGER":      SettingTypeInteger,

@@ -12,6 +12,7 @@ import (
 	"github.com/mondegor/go-webcore/mrtype"
 
 	"github.com/mondegor/go-components/mrsort"
+	"github.com/mondegor/go-components/mrsort/entity"
 )
 
 const (
@@ -65,7 +66,7 @@ func (co *Component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) 
 		return co.wrapErrorMustStore(err)
 	}
 
-	currentNode := mrsort.EntityNode{
+	currentNode := entity.Node{
 		ID:         nodeID,
 		PrevID:     0,
 		NextID:     mrentity.ZeronullInt32(firstNode.ID),
@@ -81,7 +82,7 @@ func (co *Component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) 
 	}
 
 	if err = co.storage.UpdateNode(ctx, currentNode); err != nil {
-		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, mrsort.ModelNameEntityOrderer)
+		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, entity.ModelNameNode)
 	}
 
 	co.emitEvent(ctx, "InsertToFirst", mrmsg.Data{"id": nodeID})
@@ -108,7 +109,7 @@ func (co *Component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) e
 		return co.wrapErrorMustStore(err)
 	}
 
-	currentNode := mrsort.EntityNode{
+	currentNode := entity.Node{
 		ID:         nodeID,
 		PrevID:     mrentity.ZeronullInt32(lastNode.ID),
 		NextID:     0,
@@ -116,7 +117,7 @@ func (co *Component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) e
 	}
 
 	if err = co.storage.UpdateNode(ctx, currentNode); err != nil {
-		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, mrsort.ModelNameEntityOrderer)
+		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, entity.ModelNameNode)
 	}
 
 	co.emitEvent(ctx, "InsertToLast", mrmsg.Data{"id": nodeID})
@@ -137,7 +138,7 @@ func (co *Component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 
 	if firstNode.ID == nodeID {
 		if firstNode.OrderIndex == 0 {
-			currentNode := mrsort.EntityNode{
+			currentNode := entity.Node{
 				ID:         nodeID,
 				OrderIndex: mrentity.ZeronullInt64(orderIndexStep),
 			}
@@ -152,7 +153,7 @@ func (co *Component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 
 	currentNode, err := co.storage.FetchNode(ctx, nodeID)
 	if err != nil {
-		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, mrsort.ModelNameEntityOrderer)
+		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, entity.ModelNameNode)
 	}
 
 	if mrtype.KeyInt32(currentNode.NextID) == firstNode.ID {
@@ -215,7 +216,7 @@ func (co *Component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) err
 
 	if lastNode.ID == nodeID {
 		if lastNode.OrderIndex == 0 {
-			currentNode := mrsort.EntityNode{
+			currentNode := entity.Node{
 				ID:         nodeID,
 				OrderIndex: mrentity.ZeronullInt64(orderIndexStep),
 			}
@@ -230,7 +231,7 @@ func (co *Component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) err
 
 	currentNode, err := co.storage.FetchNode(ctx, nodeID)
 	if err != nil {
-		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, mrsort.ModelNameEntityOrderer)
+		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, entity.ModelNameNode)
 	}
 
 	if lastNode.ID > 0 {
@@ -290,7 +291,7 @@ func (co *Component) MoveAfterID(ctx context.Context, nodeID, afterNodeID mrtype
 
 	currentNode, err := co.storage.FetchNode(ctx, nodeID)
 	if err != nil {
-		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, mrsort.ModelNameEntityOrderer)
+		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, entity.ModelNameNode)
 	}
 
 	if mrtype.KeyInt32(currentNode.PrevID) == afterNodeID {
@@ -302,7 +303,7 @@ func (co *Component) MoveAfterID(ctx context.Context, nodeID, afterNodeID mrtype
 		return co.wrapErrorAfterNodeNotFound(err, afterNodeID)
 	}
 
-	afterNextNode := mrsort.EntityNode{
+	afterNextNode := entity.Node{
 		ID: mrtype.KeyInt32(afterNode.NextID),
 	}
 
@@ -365,7 +366,7 @@ func (co *Component) Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error {
 
 	currentNode, err := co.storage.FetchNode(ctx, nodeID)
 	if err != nil {
-		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, mrsort.ModelNameEntityOrderer)
+		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, entity.ModelNameNode)
 	}
 
 	if currentNode.PrevID == 0 &&
@@ -404,7 +405,7 @@ func (co *Component) wrapErrorAfterNodeNotFound(err error, afterNodeID mrtype.Ke
 		return mrsort.ErrAfterNodeNotFound.Wrap(err, afterNodeID)
 	}
 
-	return co.errorWrapper.WrapErrorFailed(err, mrsort.ModelNameEntityOrderer)
+	return co.errorWrapper.WrapErrorFailed(err, entity.ModelNameNode)
 }
 
 func (co *Component) wrapErrorMustLoad(err error) error {
@@ -412,7 +413,7 @@ func (co *Component) wrapErrorMustLoad(err error) error {
 		return mrcore.ErrInternal.Wrap(err)
 	}
 
-	return co.errorWrapper.WrapErrorFailed(err, mrsort.ModelNameEntityOrderer)
+	return co.errorWrapper.WrapErrorFailed(err, entity.ModelNameNode)
 }
 
 func (co *Component) wrapErrorMustStore(err error) error {
@@ -420,14 +421,14 @@ func (co *Component) wrapErrorMustStore(err error) error {
 		return mrcore.ErrInternal.Wrap(err)
 	}
 
-	return co.errorWrapper.WrapErrorFailed(err, mrsort.ModelNameEntityOrderer)
+	return co.errorWrapper.WrapErrorFailed(err, entity.ModelNameNode)
 }
 
 func (co *Component) emitEvent(ctx context.Context, eventName string, object mrmsg.Data) {
 	co.eventEmitter.EmitWithSource(
 		ctx,
 		eventName,
-		mrsort.ModelNameEntityOrderer,
+		entity.ModelNameNode,
 		object,
 	)
 }

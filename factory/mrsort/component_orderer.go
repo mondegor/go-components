@@ -1,11 +1,12 @@
-package factory
+package mrsort
 
 import (
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-webcore/mrcore"
 	"github.com/mondegor/go-webcore/mrsender"
 
-	"github.com/mondegor/go-components/mrsort/orderer"
+	"github.com/mondegor/go-components/mrsort/component/orderer"
+
 	"github.com/mondegor/go-components/mrsort/repository"
 )
 
