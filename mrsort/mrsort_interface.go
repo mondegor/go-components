@@ -11,7 +11,7 @@ import (
 )
 
 type (
-	// Orderer - comment interface.
+	// Orderer - интерфейс управления порядком следования записей.
 	Orderer interface {
 		WithMetaData(meta mrstorage.MetaGetter) Orderer
 		InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error
@@ -22,7 +22,7 @@ type (
 		Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error
 	}
 
-	// Storage - comment interface.
+	// Storage - интерфейс для доступа к записям порядка следования и их модификации.
 	Storage interface {
 		WithMetaData(meta mrstorage.MetaGetter) Storage
 		FetchNode(ctx context.Context, nodeID mrtype.KeyInt32) (entity.Node, error)

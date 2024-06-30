@@ -39,7 +39,7 @@ func New(storage mrsort.Storage, eventEmitter mrsender.EventEmitter, errorWrappe
 	}
 }
 
-// WithMetaData - comment func.
+// WithMetaData - comment method.
 func (co *Component) WithMetaData(meta mrstorage.MetaGetter) mrsort.Orderer {
 	return &Component{
 		storage:      co.storage.WithMetaData(meta),
@@ -47,7 +47,7 @@ func (co *Component) WithMetaData(meta mrstorage.MetaGetter) mrsort.Orderer {
 	}
 }
 
-// InsertToFirst - comment func.
+// InsertToFirst - comment method.
 func (co *Component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
 		return mrcore.ErrUseCaseIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
@@ -90,7 +90,7 @@ func (co *Component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) 
 	return nil
 }
 
-// InsertToLast - comment func.
+// InsertToLast - comment method.
 func (co *Component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
 		return mrcore.ErrUseCaseIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
@@ -125,7 +125,7 @@ func (co *Component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) e
 	return nil
 }
 
-// MoveToFirst - comment func.
+// MoveToFirst - comment method.
 func (co *Component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
 		return mrcore.ErrUseCaseIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
@@ -203,7 +203,7 @@ func (co *Component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 	return nil
 }
 
-// MoveToLast - comment func.
+// MoveToLast - comment method.
 func (co *Component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
 		return mrcore.ErrUseCaseIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
@@ -275,7 +275,7 @@ func (co *Component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) err
 	return nil
 }
 
-// MoveAfterID - comment func.
+// MoveAfterID - comment method.
 func (co *Component) MoveAfterID(ctx context.Context, nodeID, afterNodeID mrtype.KeyInt32) error {
 	if afterNodeID < 1 {
 		return co.MoveToFirst(ctx, nodeID)
@@ -358,7 +358,7 @@ func (co *Component) MoveAfterID(ctx context.Context, nodeID, afterNodeID mrtype
 	return nil
 }
 
-// Unlink - comment func.
+// Unlink - comment method.
 func (co *Component) Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	if nodeID < 1 {
 		return co.MoveToFirst(ctx, nodeID)
