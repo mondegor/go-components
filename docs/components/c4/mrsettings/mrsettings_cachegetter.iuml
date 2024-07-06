@@ -1,0 +1,1 @@
+Component(mrsettings_cachegetter, "CacheGetter", "mrsettings", "Компонент отдающий значения настроек из кэша")

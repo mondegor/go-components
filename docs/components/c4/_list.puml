@@ -1,0 +1,17 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+' mrsettings
+!include components/c4/mrsettings/mrsettings_cachegetter.iuml
+!include components/c4/mrsettings/mrsettings_loader.iuml
+!include components/c4/mrsettings/mrsettings_setter.iuml
+!include components/c4/containers/infrastructure/db_abstract.iuml
+
+' scheduler
+!include components/c4/scheduler/scheduler_task.iuml
+
+' app
+!include components/c4/app/app_component.iuml
+!include components/c4/app/app_controller.iuml
+
+@enduml

@@ -1,0 +1,11 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+' title Система использующая пакеты библиотеки go-components
+
+Boundary(app, "Приложение/Сервис") {
+  !include components/c4/app/app_controller.iuml
+  !include components/c4/app/app_component.iuml
+}
+
+@enduml

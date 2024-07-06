@@ -1,0 +1,1 @@
+Component(app_controller, "AppController", "app", "Вызывает и контролирует работу компонентов системы")

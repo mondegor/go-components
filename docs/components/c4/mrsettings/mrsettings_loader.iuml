@@ -1,0 +1,1 @@
+Component(mrsettings_loader, "Loader", "mrsettings", "Компонент загружающий обновлённые значения настроек из хранилища в кэш")

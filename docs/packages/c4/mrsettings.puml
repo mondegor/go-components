@@ -1,0 +1,12 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+' title Подсистема для работы с настройками сервиса
+
+Boundary(mrsettings, "Пакет для работы с настройками сервиса") {
+  !include components/c4/mrsettings/mrsettings_cachegetter.iuml
+  !include components/c4/mrsettings/mrsettings_setter.iuml
+  !include components/c4/mrsettings/mrsettings_loader.iuml
+}
+
+@enduml

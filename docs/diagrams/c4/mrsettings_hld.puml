@@ -1,0 +1,39 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+'LAYOUT_LEFT_RIGHT()
+LAYOUT_WITH_LEGEND()
+
+' title Верхнеуровневая архитектура работы системы с пакетом mrsettings
+
+Boundary(app, "Приложение/Сервис") {
+  !include components/c4/app/app_controller.iuml
+  !include components/c4/app/app_component.iuml
+
+  Boundary(scheduler, "Планировщик задач") {
+    !include components/c4/scheduler/scheduler_task.iuml
+  }
+
+  Boundary(mrsettings, "Пакет для работы с настройками сервиса") {
+    !include components/c4/mrsettings/mrsettings_cachegetter.iuml
+    !include components/c4/mrsettings/mrsettings_setter.iuml
+    !include components/c4/mrsettings/mrsettings_loader.iuml
+  }
+
+  !include components/c4/containers/infrastructure/db_abstract.iuml
+}
+
+Rel(app_controller, scheduler_task, "При старте сервиса инициализирует задачу для обновления настроек")
+Rel(app_controller, app_component, "Обращается к компоненту")
+
+Rel(scheduler_task, mrsettings_loader, "Периодически вызывает обновление настроек")
+
+Rel(app_component, mrsettings_cachegetter, "Получает значение указанной настройки")
+Rel(app_component, mrsettings_setter, "Сохраняет значение указанной настройки")
+
+Rel(mrsettings_loader, db_abstract, "Загружает обновившиеся настройки")
+Rel(mrsettings_loader, mrsettings_cachegetter, "Обновляет кэш настройками, загруженными из БД")
+
+Rel(mrsettings_setter, db_abstract, "Сохраняет переданные значения настроек")
+
+@enduml

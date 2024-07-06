@@ -1,0 +1,1 @@
+Component(scheduler_task, "Task", "scheduler", "Задача запускаемая в планировщике задач")

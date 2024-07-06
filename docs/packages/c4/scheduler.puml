@@ -1,0 +1,10 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+' title Подсистема планирования задач
+
+Boundary(scheduler, "Планировщик задач") {
+  !include components/c4/scheduler/scheduler_task.iuml
+}
+
+@enduml

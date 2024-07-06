@@ -1,0 +1,1 @@
+Component(app_component, "Component", "app", "Компонент системы который взаимодействует с библиотекой go-components")
