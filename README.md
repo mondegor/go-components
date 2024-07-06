@@ -1,4 +1,4 @@
-# Описание GoComponents v0.7.5
+# Описание GoComponents v0.7.6
 Этот репозиторий содержит описание библиотеки GoComponents.
 
 ## Статус библиотеки
@@ -11,7 +11,7 @@
   позволяет встраиваться в произвольные таблицы БД;
 
 ## Подключение библиотеки
-`go get -u github.com/mondegor/go-components@v0.7.5`
+`go get -u github.com/mondegor/go-components@v0.7.6`
 
 ## Установка библиотеки для её локальной разработки
 
@@ -55,4 +55,4 @@
 ![image](docs/resources/packages/c4/app.svg)
 
 ### Верхнеуровневая архитектура
-![image](docs/resources/diagrams/c4/mrsettings_hld.svg))
+![image](docs/resources/diagrams/c4/mrsettings_hld.svg)
