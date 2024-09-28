@@ -19,7 +19,7 @@ type (
 func NewComponentCacheGetter(
 	client mrstorage.DBConnManager,
 	meta mrstorage.MetaGetter,
-	errorWrapper mrcore.UsecaseErrorWrapper,
+	errorWrapper mrcore.UseCaseErrorWrapper,
 	opts ComponentCacheGetterOptions,
 ) *cachegetter.Component {
 	if opts.DBCondition == nil {

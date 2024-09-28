@@ -19,7 +19,7 @@ type (
 		formatter    mrsettings.ValueFormatter
 		storage      mrsettings.Storage
 		eventEmitter mrsender.EventEmitter
-		errorWrapper mrcore.UsecaseErrorWrapper
+		errorWrapper mrcore.UseCaseErrorWrapper
 	}
 )
 
@@ -28,7 +28,7 @@ func New(
 	formatter mrsettings.ValueFormatter,
 	storage mrsettings.Storage,
 	eventEmitter mrsender.EventEmitter,
-	errorWrapper mrcore.UsecaseErrorWrapper,
+	errorWrapper mrcore.UseCaseErrorWrapper,
 ) *Component {
 	return &Component{
 		formatter:    formatter,

@@ -1,8 +1,9 @@
 # See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
+.cache
 .idea
 .vscode
 
 /.env
-/Makefile.loc
+/Makefile.mk
 /test-coverage-full.html

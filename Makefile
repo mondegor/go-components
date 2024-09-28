@@ -1,4 +1,4 @@
--include Makefile.loc
+-include Makefile.mk
 
 .PHONY: deps
 deps:

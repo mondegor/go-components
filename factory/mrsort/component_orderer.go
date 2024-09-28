@@ -15,7 +15,7 @@ type (
 	ComponentOptions struct {
 		DBClient     mrstorage.DBConnManager
 		EventEmitter mrsender.EventEmitter
-		ErrorWrapper mrcore.UsecaseErrorWrapper
+		ErrorWrapper mrcore.UseCaseErrorWrapper
 	}
 )
 

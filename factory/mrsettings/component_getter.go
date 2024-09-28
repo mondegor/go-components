@@ -22,7 +22,7 @@ type (
 func NewComponentGetter(
 	client mrstorage.DBConnManager,
 	meta mrstorage.MetaGetter,
-	errorWrapper mrcore.UsecaseErrorWrapper,
+	errorWrapper mrcore.UseCaseErrorWrapper,
 	opts ComponentGetterOptions,
 ) *getter.Component {
 	if opts.DBCondition == nil {

@@ -18,12 +18,12 @@ type (
 	Component struct {
 		parser       mrsettings.ValueParser
 		storage      mrsettings.Storage
-		errorWrapper mrcore.UsecaseErrorWrapper
+		errorWrapper mrcore.UseCaseErrorWrapper
 	}
 )
 
 // New - создаёт объект Component.
-func New(parser mrsettings.ValueParser, storage mrsettings.Storage, errorWrapper mrcore.UsecaseErrorWrapper) *Component {
+func New(parser mrsettings.ValueParser, storage mrsettings.Storage, errorWrapper mrcore.UseCaseErrorWrapper) *Component {
 	return &Component{
 		parser:       parser,
 		storage:      storage,

@@ -25,7 +25,7 @@ func NewComponentSetter(
 	client mrstorage.DBConnManager,
 	meta mrstorage.MetaGetter,
 	eventEmitter mrsender.EventEmitter,
-	errorWrapper mrcore.UsecaseErrorWrapper,
+	errorWrapper mrcore.UseCaseErrorWrapper,
 	opts ComponentSetterOptions,
 ) *setter.Component {
 	if opts.DBCondition == nil {

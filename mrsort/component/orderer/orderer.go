@@ -26,12 +26,12 @@ type (
 	Component struct {
 		storage      mrsort.Storage
 		eventEmitter mrsender.EventEmitter
-		errorWrapper mrcore.UsecaseErrorWrapper
+		errorWrapper mrcore.UseCaseErrorWrapper
 	}
 )
 
 // New - создаёт объект Component.
-func New(storage mrsort.Storage, eventEmitter mrsender.EventEmitter, errorWrapper mrcore.UsecaseErrorWrapper) *Component {
+func New(storage mrsort.Storage, eventEmitter mrsender.EventEmitter, errorWrapper mrcore.UseCaseErrorWrapper) *Component {
 	return &Component{
 		storage:      storage,
 		eventEmitter: eventEmitter,
