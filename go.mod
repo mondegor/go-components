@@ -5,9 +5,9 @@ go 1.22.0
 toolchain go1.22.6
 
 require (
-	github.com/mondegor/go-storage v0.13.0
-	github.com/mondegor/go-sysmess v0.11.2
-	github.com/mondegor/go-webcore v0.24.0
+	github.com/mondegor/go-storage v0.13.1
+	github.com/mondegor/go-sysmess v0.11.3
+	github.com/mondegor/go-webcore v0.24.1
 )
 
 require (

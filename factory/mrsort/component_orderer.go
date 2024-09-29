@@ -6,7 +6,6 @@ import (
 	"github.com/mondegor/go-webcore/mrsender"
 
 	"github.com/mondegor/go-components/mrsort/component/orderer"
-
 	"github.com/mondegor/go-components/mrsort/repository"
 )
 
