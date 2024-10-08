@@ -9,14 +9,13 @@ import (
 	"github.com/mondegor/go-sysmess/mrmsg"
 	"github.com/mondegor/go-webcore/mrcore"
 	"github.com/mondegor/go-webcore/mrsender"
-	"github.com/mondegor/go-webcore/mrtype"
 
 	"github.com/mondegor/go-components/mrsort"
 	"github.com/mondegor/go-components/mrsort/entity"
 )
 
 const (
-	orderIndexStep int64 = 1024 * 1024
+	orderIndexStep mrentity.ZeronullUint64 = 1024 * 1024
 )
 
 type (
@@ -48,9 +47,9 @@ func (co *Component) WithMetaData(meta mrstorage.MetaGetter) mrsort.Orderer {
 }
 
 // InsertToFirst - comment method.
-func (co *Component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error {
-	if nodeID < 1 {
-		return mrcore.ErrUseCaseIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
+func (co *Component) InsertToFirst(ctx context.Context, nodeID uint64) error {
+	if nodeID == 0 {
+		return mrcore.ErrUseCaseIncorrectInputData.New("node", "id is zero")
 	}
 
 	firstNode, err := co.storage.FetchFirstNode(ctx)
@@ -62,23 +61,23 @@ func (co *Component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) 
 		return mrcore.ErrUseCaseIncorrectInputData.New("node", mrmsg.Data{"nodeId=firstNode.Id": nodeID})
 	}
 
-	if err = co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullInt32(nodeID)); err != nil {
+	if err = co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullUint64(nodeID)); err != nil {
 		return co.wrapErrorMustStore(err)
 	}
 
 	currentNode := entity.Node{
 		ID:         nodeID,
 		PrevID:     0,
-		NextID:     mrentity.ZeronullInt32(firstNode.ID),
+		NextID:     mrentity.ZeronullUint64(firstNode.ID),
 		OrderIndex: firstNode.OrderIndex / 2,
 	}
 
-	if currentNode.OrderIndex < 1 {
-		if err = co.storage.RecalcOrderIndex(ctx, 0, 2*orderIndexStep); err != nil {
+	if currentNode.OrderIndex == 0 {
+		if err = co.storage.RecalcOrderIndex(ctx, 0, 2*uint64(orderIndexStep)); err != nil {
 			return co.wrapErrorMustStore(err)
 		}
 
-		currentNode.OrderIndex = mrentity.ZeronullInt64(orderIndexStep)
+		currentNode.OrderIndex = orderIndexStep
 	}
 
 	if err = co.storage.UpdateNode(ctx, currentNode); err != nil {
@@ -91,9 +90,9 @@ func (co *Component) InsertToFirst(ctx context.Context, nodeID mrtype.KeyInt32) 
 }
 
 // InsertToLast - comment method.
-func (co *Component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) error {
-	if nodeID < 1 {
-		return mrcore.ErrUseCaseIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
+func (co *Component) InsertToLast(ctx context.Context, nodeID uint64) error {
+	if nodeID == 0 {
+		return mrcore.ErrUseCaseIncorrectInputData.New("node", "id is zero")
 	}
 
 	lastNode, err := co.storage.FetchLastNode(ctx)
@@ -105,15 +104,15 @@ func (co *Component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) e
 		return mrcore.ErrUseCaseIncorrectInputData.New("node", mrmsg.Data{"nodeId=lastNode.Id": nodeID})
 	}
 
-	if err = co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullInt32(nodeID)); err != nil {
+	if err = co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullUint64(nodeID)); err != nil {
 		return co.wrapErrorMustStore(err)
 	}
 
 	currentNode := entity.Node{
 		ID:         nodeID,
-		PrevID:     mrentity.ZeronullInt32(lastNode.ID),
+		PrevID:     mrentity.ZeronullUint64(lastNode.ID),
 		NextID:     0,
-		OrderIndex: lastNode.OrderIndex + mrentity.ZeronullInt64(orderIndexStep),
+		OrderIndex: lastNode.OrderIndex + orderIndexStep,
 	}
 
 	if err = co.storage.UpdateNode(ctx, currentNode); err != nil {
@@ -126,9 +125,9 @@ func (co *Component) InsertToLast(ctx context.Context, nodeID mrtype.KeyInt32) e
 }
 
 // MoveToFirst - comment method.
-func (co *Component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) error {
-	if nodeID < 1 {
-		return mrcore.ErrUseCaseIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
+func (co *Component) MoveToFirst(ctx context.Context, nodeID uint64) error {
+	if nodeID == 0 {
+		return mrcore.ErrUseCaseIncorrectInputData.New("node", "id is zero")
 	}
 
 	firstNode, err := co.storage.FetchFirstNode(ctx)
@@ -140,7 +139,7 @@ func (co *Component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 		if firstNode.OrderIndex == 0 {
 			currentNode := entity.Node{
 				ID:         nodeID,
-				OrderIndex: mrentity.ZeronullInt64(orderIndexStep),
+				OrderIndex: orderIndexStep,
 			}
 
 			if err = co.storage.UpdateNode(ctx, currentNode); err != nil {
@@ -156,7 +155,7 @@ func (co *Component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, entity.ModelNameNode)
 	}
 
-	if mrtype.KeyInt32(currentNode.NextID) == firstNode.ID {
+	if uint64(currentNode.NextID) == firstNode.ID {
 		return mrcore.ErrInternal.New().WithAttr(
 			"node",
 			mrmsg.Data{
@@ -166,32 +165,32 @@ func (co *Component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 		)
 	}
 
-	if err = co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullInt32(currentNode.ID)); err != nil {
+	if err = co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullUint64(currentNode.ID)); err != nil {
 		return co.wrapErrorMustStore(err)
 	}
 
 	if currentNode.PrevID > 0 {
-		if err = co.storage.UpdateNodeNextID(ctx, mrtype.KeyInt32(currentNode.PrevID), currentNode.NextID); err != nil {
+		if err = co.storage.UpdateNodeNextID(ctx, uint64(currentNode.PrevID), currentNode.NextID); err != nil {
 			return co.wrapErrorMustStore(err)
 		}
 	}
 
 	if currentNode.NextID > 0 {
-		if err = co.storage.UpdateNodePrevID(ctx, mrtype.KeyInt32(currentNode.NextID), currentNode.PrevID); err != nil {
+		if err = co.storage.UpdateNodePrevID(ctx, uint64(currentNode.NextID), currentNode.PrevID); err != nil {
 			return co.wrapErrorMustStore(err)
 		}
 	}
 
 	currentNode.PrevID = 0
-	currentNode.NextID = mrentity.ZeronullInt32(firstNode.ID)
+	currentNode.NextID = mrentity.ZeronullUint64(firstNode.ID)
 	currentNode.OrderIndex = firstNode.OrderIndex / 2
 
-	if currentNode.OrderIndex < 1 {
-		if err = co.storage.RecalcOrderIndex(ctx, 0, 2*orderIndexStep); err != nil {
+	if currentNode.OrderIndex == 0 {
+		if err = co.storage.RecalcOrderIndex(ctx, 0, 2*uint64(orderIndexStep)); err != nil {
 			return co.wrapErrorMustStore(err)
 		}
 
-		currentNode.OrderIndex = mrentity.ZeronullInt64(orderIndexStep)
+		currentNode.OrderIndex = orderIndexStep
 	}
 
 	if err = co.storage.UpdateNode(ctx, currentNode); err != nil {
@@ -204,9 +203,9 @@ func (co *Component) MoveToFirst(ctx context.Context, nodeID mrtype.KeyInt32) er
 }
 
 // MoveToLast - comment method.
-func (co *Component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) error {
-	if nodeID < 1 {
-		return mrcore.ErrUseCaseIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
+func (co *Component) MoveToLast(ctx context.Context, nodeID uint64) error {
+	if nodeID == 0 {
+		return mrcore.ErrUseCaseIncorrectInputData.New("node", "id is zero")
 	}
 
 	lastNode, err := co.storage.FetchLastNode(ctx)
@@ -218,7 +217,7 @@ func (co *Component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) err
 		if lastNode.OrderIndex == 0 {
 			currentNode := entity.Node{
 				ID:         nodeID,
-				OrderIndex: mrentity.ZeronullInt64(orderIndexStep),
+				OrderIndex: orderIndexStep,
 			}
 
 			if err = co.storage.UpdateNode(ctx, currentNode); err != nil {
@@ -235,7 +234,7 @@ func (co *Component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) err
 	}
 
 	if lastNode.ID > 0 {
-		if mrtype.KeyInt32(currentNode.PrevID) == lastNode.ID {
+		if uint64(currentNode.PrevID) == lastNode.ID {
 			return mrcore.ErrInternal.New().WithAttr(
 				"node",
 				mrmsg.Data{
@@ -245,26 +244,26 @@ func (co *Component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) err
 			)
 		}
 
-		if err = co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullInt32(currentNode.ID)); err != nil {
+		if err = co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullUint64(currentNode.ID)); err != nil {
 			return co.wrapErrorMustStore(err)
 		}
 	}
 
 	if currentNode.PrevID > 0 {
-		if err = co.storage.UpdateNodeNextID(ctx, mrtype.KeyInt32(currentNode.PrevID), currentNode.NextID); err != nil {
+		if err = co.storage.UpdateNodeNextID(ctx, uint64(currentNode.PrevID), currentNode.NextID); err != nil {
 			return co.wrapErrorMustStore(err)
 		}
 	}
 
 	if currentNode.NextID > 0 {
-		if err = co.storage.UpdateNodePrevID(ctx, mrtype.KeyInt32(currentNode.NextID), currentNode.PrevID); err != nil {
+		if err = co.storage.UpdateNodePrevID(ctx, uint64(currentNode.NextID), currentNode.PrevID); err != nil {
 			return co.wrapErrorMustStore(err)
 		}
 	}
 
-	currentNode.PrevID = mrentity.ZeronullInt32(lastNode.ID)
+	currentNode.PrevID = mrentity.ZeronullUint64(lastNode.ID)
 	currentNode.NextID = 0
-	currentNode.OrderIndex = lastNode.OrderIndex + mrentity.ZeronullInt64(orderIndexStep)
+	currentNode.OrderIndex = lastNode.OrderIndex + orderIndexStep
 
 	if err = co.storage.UpdateNode(ctx, currentNode); err != nil {
 		return co.wrapErrorMustStore(err)
@@ -276,13 +275,13 @@ func (co *Component) MoveToLast(ctx context.Context, nodeID mrtype.KeyInt32) err
 }
 
 // MoveAfterID - comment method.
-func (co *Component) MoveAfterID(ctx context.Context, nodeID, afterNodeID mrtype.KeyInt32) error {
-	if afterNodeID < 1 {
+func (co *Component) MoveAfterID(ctx context.Context, nodeID, afterNodeID uint64) error {
+	if afterNodeID == 0 {
 		return co.MoveToFirst(ctx, nodeID)
 	}
 
-	if nodeID < 1 {
-		return mrcore.ErrUseCaseIncorrectInputData.New("node", mrmsg.Data{"nodeId": nodeID})
+	if nodeID == 0 {
+		return mrcore.ErrUseCaseIncorrectInputData.New("node", "id is zero")
 	}
 
 	if nodeID == afterNodeID {
@@ -294,7 +293,7 @@ func (co *Component) MoveAfterID(ctx context.Context, nodeID, afterNodeID mrtype
 		return co.errorWrapper.WrapErrorNotFoundOrFailed(err, entity.ModelNameNode)
 	}
 
-	if mrtype.KeyInt32(currentNode.PrevID) == afterNodeID {
+	if uint64(currentNode.PrevID) == afterNodeID {
 		return nil
 	}
 
@@ -304,7 +303,7 @@ func (co *Component) MoveAfterID(ctx context.Context, nodeID, afterNodeID mrtype
 	}
 
 	afterNextNode := entity.Node{
-		ID: mrtype.KeyInt32(afterNode.NextID),
+		ID: uint64(afterNode.NextID),
 	}
 
 	if afterNextNode.ID > 0 {
@@ -313,40 +312,40 @@ func (co *Component) MoveAfterID(ctx context.Context, nodeID, afterNodeID mrtype
 		}
 	}
 
-	if err = co.storage.UpdateNodeNextID(ctx, afterNode.ID, mrentity.ZeronullInt32(currentNode.ID)); err != nil {
+	if err = co.storage.UpdateNodeNextID(ctx, afterNode.ID, mrentity.ZeronullUint64(currentNode.ID)); err != nil {
 		return co.wrapErrorMustStore(err)
 	}
 
 	if afterNextNode.ID > 0 {
-		if err = co.storage.UpdateNodePrevID(ctx, afterNextNode.ID, mrentity.ZeronullInt32(currentNode.ID)); err != nil {
+		if err = co.storage.UpdateNodePrevID(ctx, afterNextNode.ID, mrentity.ZeronullUint64(currentNode.ID)); err != nil {
 			return co.wrapErrorMustStore(err)
 		}
 	}
 
 	if currentNode.PrevID > 0 {
-		if err = co.storage.UpdateNodeNextID(ctx, mrtype.KeyInt32(currentNode.PrevID), currentNode.NextID); err != nil {
+		if err = co.storage.UpdateNodeNextID(ctx, uint64(currentNode.PrevID), currentNode.NextID); err != nil {
 			return co.wrapErrorMustStore(err)
 		}
 	}
 
 	if currentNode.NextID > 0 {
-		if err = co.storage.UpdateNodePrevID(ctx, mrtype.KeyInt32(currentNode.NextID), currentNode.PrevID); err != nil {
+		if err = co.storage.UpdateNodePrevID(ctx, uint64(currentNode.NextID), currentNode.PrevID); err != nil {
 			return co.wrapErrorMustStore(err)
 		}
 	}
 
-	currentNode.PrevID = mrentity.ZeronullInt32(afterNode.ID)
-	currentNode.NextID = mrentity.ZeronullInt32(afterNextNode.ID)
+	currentNode.PrevID = mrentity.ZeronullUint64(afterNode.ID)
+	currentNode.NextID = mrentity.ZeronullUint64(afterNextNode.ID)
 	currentNode.OrderIndex = (afterNode.OrderIndex + afterNextNode.OrderIndex) / 2
 
 	if currentNode.OrderIndex <= afterNode.OrderIndex {
 		if afterNextNode.ID > 0 {
-			if err := co.storage.RecalcOrderIndex(ctx, int64(afterNode.OrderIndex), orderIndexStep*2); err != nil {
+			if err := co.storage.RecalcOrderIndex(ctx, uint64(afterNode.OrderIndex), uint64(orderIndexStep)*2); err != nil {
 				return co.wrapErrorMustStore(err)
 			}
 		}
 
-		currentNode.OrderIndex = afterNode.OrderIndex + mrentity.ZeronullInt64(orderIndexStep)
+		currentNode.OrderIndex = afterNode.OrderIndex + orderIndexStep
 	}
 
 	if err := co.storage.UpdateNode(ctx, currentNode); err != nil {
@@ -359,9 +358,9 @@ func (co *Component) MoveAfterID(ctx context.Context, nodeID, afterNodeID mrtype
 }
 
 // Unlink - comment method.
-func (co *Component) Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error {
-	if nodeID < 1 {
-		return co.MoveToFirst(ctx, nodeID)
+func (co *Component) Unlink(ctx context.Context, nodeID uint64) error {
+	if nodeID == 0 {
+		return mrcore.ErrUseCaseIncorrectInputData.New("node", "id is zero")
 	}
 
 	currentNode, err := co.storage.FetchNode(ctx, nodeID)
@@ -376,13 +375,13 @@ func (co *Component) Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	}
 
 	if currentNode.PrevID > 0 {
-		if err = co.storage.UpdateNodeNextID(ctx, mrtype.KeyInt32(currentNode.PrevID), currentNode.NextID); err != nil {
+		if err = co.storage.UpdateNodeNextID(ctx, uint64(currentNode.PrevID), currentNode.NextID); err != nil {
 			return co.wrapErrorMustStore(err)
 		}
 	}
 
 	if currentNode.NextID > 0 {
-		if err = co.storage.UpdateNodePrevID(ctx, mrtype.KeyInt32(currentNode.NextID), currentNode.PrevID); err != nil {
+		if err = co.storage.UpdateNodePrevID(ctx, uint64(currentNode.NextID), currentNode.PrevID); err != nil {
 			return co.wrapErrorMustStore(err)
 		}
 	}
@@ -400,7 +399,7 @@ func (co *Component) Unlink(ctx context.Context, nodeID mrtype.KeyInt32) error {
 	return nil
 }
 
-func (co *Component) wrapErrorAfterNodeNotFound(err error, afterNodeID mrtype.KeyInt32) error {
+func (co *Component) wrapErrorAfterNodeNotFound(err error, afterNodeID uint64) error {
 	if errors.Is(err, mrcore.ErrStorageNoRowFound) {
 		return mrsort.ErrAfterNodeNotFound.Wrap(err, afterNodeID)
 	}

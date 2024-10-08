@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/mondegor/go-webcore/mrlog"
-	"github.com/mondegor/go-webcore/mrtype"
 
 	"github.com/mondegor/go-components/mrsettings"
 )
@@ -25,7 +24,7 @@ func New(reader mrsettings.Getter) *Component {
 }
 
 // Get - comment method.
-func (co *Component) Get(ctx context.Context, id mrtype.KeyInt32, defaultVal string) string {
+func (co *Component) Get(ctx context.Context, id uint64, defaultVal string) string {
 	value, err := co.reader.Get(ctx, id)
 	if err != nil {
 		mrlog.Ctx(ctx).Error().Err(err).Send()
@@ -37,7 +36,7 @@ func (co *Component) Get(ctx context.Context, id mrtype.KeyInt32, defaultVal str
 }
 
 // GetList - comment method.
-func (co *Component) GetList(ctx context.Context, id mrtype.KeyInt32, defaultVal []string) []string {
+func (co *Component) GetList(ctx context.Context, id uint64, defaultVal []string) []string {
 	value, err := co.reader.GetList(ctx, id)
 	if err != nil {
 		mrlog.Ctx(ctx).Error().Err(err).Send()
@@ -49,7 +48,7 @@ func (co *Component) GetList(ctx context.Context, id mrtype.KeyInt32, defaultVal
 }
 
 // GetInt64 - comment method.
-func (co *Component) GetInt64(ctx context.Context, id mrtype.KeyInt32, defaultVal int64) int64 {
+func (co *Component) GetInt64(ctx context.Context, id uint64, defaultVal int64) int64 {
 	value, err := co.reader.GetInt64(ctx, id)
 	if err != nil {
 		mrlog.Ctx(ctx).Error().Err(err).Send()
@@ -61,7 +60,7 @@ func (co *Component) GetInt64(ctx context.Context, id mrtype.KeyInt32, defaultVa
 }
 
 // GetInt64List - comment method.
-func (co *Component) GetInt64List(ctx context.Context, id mrtype.KeyInt32, defaultVal []int64) []int64 {
+func (co *Component) GetInt64List(ctx context.Context, id uint64, defaultVal []int64) []int64 {
 	value, err := co.reader.GetInt64List(ctx, id)
 	if err != nil {
 		mrlog.Ctx(ctx).Error().Err(err).Send()
@@ -73,7 +72,7 @@ func (co *Component) GetInt64List(ctx context.Context, id mrtype.KeyInt32, defau
 }
 
 // GetBool - comment method.
-func (co *Component) GetBool(ctx context.Context, id mrtype.KeyInt32, defaultVal bool) bool {
+func (co *Component) GetBool(ctx context.Context, id uint64, defaultVal bool) bool {
 	value, err := co.reader.GetBool(ctx, id)
 	if err != nil {
 		mrlog.Ctx(ctx).Error().Err(err).Send()

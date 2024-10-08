@@ -8,7 +8,6 @@ import (
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrmsg"
 	"github.com/mondegor/go-webcore/mrcore"
-	"github.com/mondegor/go-webcore/mrtype"
 
 	"github.com/mondegor/go-components/mrsettings/entity"
 )
@@ -90,7 +89,7 @@ func (re *Repository) Fetch(ctx context.Context, lastUpdated time.Time) ([]entit
 }
 
 // FetchOne - comment method.
-func (re *Repository) FetchOne(ctx context.Context, id mrtype.KeyInt32) (entity.Setting, error) {
+func (re *Repository) FetchOne(ctx context.Context, id uint64) (entity.Setting, error) {
 	args := []any{
 		id,
 	}

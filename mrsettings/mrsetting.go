@@ -4,38 +4,36 @@ import (
 	"context"
 	"time"
 
-	"github.com/mondegor/go-webcore/mrtype"
-
 	"github.com/mondegor/go-components/mrsettings/entity"
 )
 
 type (
 	// Getter - интерфейс получения значения настройки по-указанному ID.
 	Getter interface {
-		Get(ctx context.Context, id mrtype.KeyInt32) (string, error)
-		GetList(ctx context.Context, id mrtype.KeyInt32) ([]string, error)
-		GetInt64(ctx context.Context, id mrtype.KeyInt32) (int64, error)
-		GetInt64List(ctx context.Context, id mrtype.KeyInt32) ([]int64, error)
-		GetBool(ctx context.Context, id mrtype.KeyInt32) (bool, error)
+		Get(ctx context.Context, id uint64) (string, error)
+		GetList(ctx context.Context, id uint64) ([]string, error)
+		GetInt64(ctx context.Context, id uint64) (int64, error)
+		GetInt64List(ctx context.Context, id uint64) ([]int64, error)
+		GetBool(ctx context.Context, id uint64) (bool, error)
 	}
 
 	// DefaultValueGetter - интерфейс получения значения настройки по-указанному ID.
 	// Если значение не найдено или случилась ошибка, то будет возвращено значение по умолчанию.
 	DefaultValueGetter interface {
-		Get(ctx context.Context, id mrtype.KeyInt32, defaultVal string) string
-		GetList(ctx context.Context, id mrtype.KeyInt32, defaultVal []string) []string
-		GetInt64(ctx context.Context, id mrtype.KeyInt32, defaultVal int64) int64
-		GetInt64List(ctx context.Context, id mrtype.KeyInt32, defaultVal []int64) []int64
-		GetBool(ctx context.Context, id mrtype.KeyInt32, defaultVal bool) bool
+		Get(ctx context.Context, id uint64, defaultVal string) string
+		GetList(ctx context.Context, id uint64, defaultVal []string) []string
+		GetInt64(ctx context.Context, id uint64, defaultVal int64) int64
+		GetInt64List(ctx context.Context, id uint64, defaultVal []int64) []int64
+		GetBool(ctx context.Context, id uint64, defaultVal bool) bool
 	}
 
 	// Setter - интерфейс сохранения значения настройки по-указанному ID.
 	Setter interface {
-		Set(ctx context.Context, id mrtype.KeyInt32, value string) error
-		SetList(ctx context.Context, id mrtype.KeyInt32, value []string) error
-		SetInt64(ctx context.Context, id mrtype.KeyInt32, value int64) error
-		SetInt64List(ctx context.Context, id mrtype.KeyInt32, value []int64) error
-		SetBool(ctx context.Context, id mrtype.KeyInt32, value bool) error
+		Set(ctx context.Context, id uint64, value string) error
+		SetList(ctx context.Context, id uint64, value []string) error
+		SetInt64(ctx context.Context, id uint64, value int64) error
+		SetInt64List(ctx context.Context, id uint64, value []int64) error
+		SetBool(ctx context.Context, id uint64, value bool) error
 	}
 
 	// Loader - интерфейс загрузки данных из хранилища в область памяти,
@@ -72,7 +70,7 @@ type (
 
 	// Storage - извлечение и сохранение значения настройки по-указанному ID.
 	Storage interface {
-		FetchOne(ctx context.Context, id mrtype.KeyInt32) (entity.Setting, error)
+		FetchOne(ctx context.Context, id uint64) (entity.Setting, error)
 		Update(ctx context.Context, row entity.Setting) error
 	}
 )

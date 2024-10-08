@@ -6,7 +6,6 @@ import (
 	"github.com/mondegor/go-sysmess/mrmsg"
 	"github.com/mondegor/go-webcore/mrcore"
 	"github.com/mondegor/go-webcore/mrsender"
-	"github.com/mondegor/go-webcore/mrtype"
 
 	"github.com/mondegor/go-components/mrsettings"
 	"github.com/mondegor/go-components/mrsettings/entity"
@@ -39,7 +38,7 @@ func New(
 }
 
 // Set - comment method.
-func (co *Component) Set(ctx context.Context, id mrtype.KeyInt32, value string) error {
+func (co *Component) Set(ctx context.Context, id uint64, value string) error {
 	formattedValue, err := co.formatter.FormatString(value)
 	if err != nil {
 		return err
@@ -55,7 +54,7 @@ func (co *Component) Set(ctx context.Context, id mrtype.KeyInt32, value string) 
 }
 
 // SetList - comment method.
-func (co *Component) SetList(ctx context.Context, id mrtype.KeyInt32, value []string) error {
+func (co *Component) SetList(ctx context.Context, id uint64, value []string) error {
 	formattedValue, err := co.formatter.FormatStringList(value)
 	if err != nil {
 		return err
@@ -71,7 +70,7 @@ func (co *Component) SetList(ctx context.Context, id mrtype.KeyInt32, value []st
 }
 
 // SetInt64 - comment method.
-func (co *Component) SetInt64(ctx context.Context, id mrtype.KeyInt32, value int64) error {
+func (co *Component) SetInt64(ctx context.Context, id uint64, value int64) error {
 	formattedValue, err := co.formatter.FormatInt64(value)
 	if err != nil {
 		return err
@@ -87,7 +86,7 @@ func (co *Component) SetInt64(ctx context.Context, id mrtype.KeyInt32, value int
 }
 
 // SetInt64List - comment method.
-func (co *Component) SetInt64List(ctx context.Context, id mrtype.KeyInt32, value []int64) error {
+func (co *Component) SetInt64List(ctx context.Context, id uint64, value []int64) error {
 	formattedValue, err := co.formatter.FormatInt64List(value)
 	if err != nil {
 		return err
@@ -103,7 +102,7 @@ func (co *Component) SetInt64List(ctx context.Context, id mrtype.KeyInt32, value
 }
 
 // SetBool - comment method.
-func (co *Component) SetBool(ctx context.Context, id mrtype.KeyInt32, value bool) error {
+func (co *Component) SetBool(ctx context.Context, id uint64, value bool) error {
 	formattedValue, err := co.formatter.FormatBool(value)
 	if err != nil {
 		return err
@@ -118,7 +117,7 @@ func (co *Component) SetBool(ctx context.Context, id mrtype.KeyInt32, value bool
 	return nil
 }
 
-func (co *Component) setValue(ctx context.Context, id mrtype.KeyInt32, value string, rowType enum.SettingType) error {
+func (co *Component) setValue(ctx context.Context, id uint64, value string, rowType enum.SettingType) error {
 	row := entity.Setting{
 		ID:    id,
 		Type:  rowType,

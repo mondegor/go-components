@@ -615,7 +615,6 @@ issues:
       linters:
         - dupl
         - gosec
-        - gochecknoglobals
         - exhaustruct
         - forbidigo
         - forcetypeassert

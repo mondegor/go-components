@@ -8,7 +8,6 @@ import (
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrmsg"
 	"github.com/mondegor/go-webcore/mrcore"
-	"github.com/mondegor/go-webcore/mrtype"
 
 	"github.com/mondegor/go-components/mrsort"
 	"github.com/mondegor/go-components/mrsort/entity"
@@ -39,7 +38,7 @@ func (re *Repository) WithMetaData(meta mrstorage.MetaGetter) mrsort.Storage {
 }
 
 // FetchNode - comment method.
-func (re *Repository) FetchNode(ctx context.Context, nodeID mrtype.KeyInt32) (entity.Node, error) {
+func (re *Repository) FetchNode(ctx context.Context, nodeID uint64) (entity.Node, error) {
 	args := []any{
 		nodeID,
 	}
@@ -197,17 +196,17 @@ func (re *Repository) UpdateNode(ctx context.Context, row entity.Node) error {
 }
 
 // UpdateNodePrevID - comment method.
-func (re *Repository) UpdateNodePrevID(ctx context.Context, rowID mrtype.KeyInt32, prevID mrentity.ZeronullInt32) error {
+func (re *Repository) UpdateNodePrevID(ctx context.Context, rowID uint64, prevID mrentity.ZeronullUint64) error {
 	return re.updateNodeNeighborID(ctx, rowID, prevID, "prev_")
 }
 
 // UpdateNodeNextID - comment method.
-func (re *Repository) UpdateNodeNextID(ctx context.Context, rowID mrtype.KeyInt32, nextID mrentity.ZeronullInt32) error {
+func (re *Repository) UpdateNodeNextID(ctx context.Context, rowID uint64, nextID mrentity.ZeronullUint64) error {
 	return re.updateNodeNeighborID(ctx, rowID, nextID, "next_")
 }
 
 // RecalcOrderIndex - comment method.
-func (re *Repository) RecalcOrderIndex(ctx context.Context, minBorder, step int64) error {
+func (re *Repository) RecalcOrderIndex(ctx context.Context, minBorder, step uint64) error {
 	args := []any{
 		minBorder,
 		step,
@@ -277,7 +276,7 @@ func (re *Repository) loadNodeByOrderIndex(ctx context.Context, row *entity.Node
 	return nil
 }
 
-func (re *Repository) updateNodeNeighborID(ctx context.Context, rowID mrtype.KeyInt32, neighborID mrentity.ZeronullInt32, fieldPrefix string) error {
+func (re *Repository) updateNodeNeighborID(ctx context.Context, rowID uint64, neighborID mrentity.ZeronullUint64, fieldPrefix string) error {
 	args := []any{
 		rowID,
 		neighborID,

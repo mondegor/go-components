@@ -3,8 +3,6 @@ package entity
 import (
 	"time"
 
-	"github.com/mondegor/go-webcore/mrtype"
-
 	"github.com/mondegor/go-components/mrsettings/enum"
 )
 
@@ -15,7 +13,7 @@ const (
 type (
 	// Setting - элемент с метаинформацией настройки и её значением.
 	Setting struct {
-		ID          mrtype.KeyInt32
+		ID          uint64
 		Name        string
 		Type        enum.SettingType
 		Value       string
@@ -35,7 +33,7 @@ type (
 
 	// CachedSettingWithID - элемент настройки CachedSetting с полем ID.
 	CachedSettingWithID struct {
-		ID mrtype.KeyInt32
+		ID uint64
 		CachedSetting
 	}
 )

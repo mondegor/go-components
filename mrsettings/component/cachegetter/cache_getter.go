@@ -28,7 +28,7 @@ type (
 		reloadMu     sync.Mutex
 		lastUpdated  time.Time
 		settingsMu   sync.RWMutex
-		settings     map[mrtype.KeyInt32]entity.CachedSetting
+		settings     map[uint64]entity.CachedSetting
 	}
 )
 
@@ -38,12 +38,12 @@ func New(parser mrsettings.ValueParser, storage mrsettings.StorageLoader, errorW
 		parser:       parser,
 		storage:      storage,
 		errorWrapper: errorWrapper,
-		settings:     make(map[mrtype.KeyInt32]entity.CachedSetting, 0),
+		settings:     make(map[uint64]entity.CachedSetting),
 	}
 }
 
 // Get - comment method.
-func (co *Component) Get(_ context.Context, id mrtype.KeyInt32) (string, error) {
+func (co *Component) Get(_ context.Context, id uint64) (string, error) {
 	co.settingsMu.RLock()
 	value, ok := co.settings[id]
 	co.settingsMu.RUnlock()
@@ -56,7 +56,7 @@ func (co *Component) Get(_ context.Context, id mrtype.KeyInt32) (string, error) 
 }
 
 // GetList - comment method.
-func (co *Component) GetList(_ context.Context, id mrtype.KeyInt32) ([]string, error) {
+func (co *Component) GetList(_ context.Context, id uint64) ([]string, error) {
 	co.settingsMu.RLock()
 	value, ok := co.settings[id]
 	co.settingsMu.RUnlock()
@@ -69,7 +69,7 @@ func (co *Component) GetList(_ context.Context, id mrtype.KeyInt32) ([]string, e
 }
 
 // GetInt64 - comment method.
-func (co *Component) GetInt64(_ context.Context, id mrtype.KeyInt32) (int64, error) {
+func (co *Component) GetInt64(_ context.Context, id uint64) (int64, error) {
 	co.settingsMu.RLock()
 	value, ok := co.settings[id]
 	co.settingsMu.RUnlock()
@@ -82,7 +82,7 @@ func (co *Component) GetInt64(_ context.Context, id mrtype.KeyInt32) (int64, err
 }
 
 // GetInt64List - comment method.
-func (co *Component) GetInt64List(_ context.Context, id mrtype.KeyInt32) ([]int64, error) {
+func (co *Component) GetInt64List(_ context.Context, id uint64) ([]int64, error) {
 	co.settingsMu.RLock()
 	value, ok := co.settings[id]
 	co.settingsMu.RUnlock()
@@ -95,7 +95,7 @@ func (co *Component) GetInt64List(_ context.Context, id mrtype.KeyInt32) ([]int6
 }
 
 // GetBool - comment method.
-func (co *Component) GetBool(_ context.Context, id mrtype.KeyInt32) (bool, error) {
+func (co *Component) GetBool(_ context.Context, id uint64) (bool, error) {
 	co.settingsMu.RLock()
 	value, ok := co.settings[id]
 	co.settingsMu.RUnlock()
@@ -181,7 +181,7 @@ func (co *Component) makeItem(item entity.Setting) (setting entity.CachedSetting
 	case enum.SettingTypeBoolean:
 		var boolValue bool
 		boolValue, err = co.parser.ParseBool(item.Value)
-		setting.ValueInt64 = mrtype.BoolToInt64(boolValue)
+		setting.ValueInt64 = mrtype.CastBoolToNumber[int64](boolValue)
 	}
 
 	if err != nil {

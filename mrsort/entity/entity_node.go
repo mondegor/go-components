@@ -2,7 +2,6 @@ package entity
 
 import (
 	"github.com/mondegor/go-storage/mrentity"
-	"github.com/mondegor/go-webcore/mrtype"
 )
 
 const (
@@ -12,9 +11,9 @@ const (
 type (
 	// Node - элемент двусвязного списка участвующий в сортировке.
 	Node struct {
-		ID         mrtype.KeyInt32
-		PrevID     mrentity.ZeronullInt32
-		NextID     mrentity.ZeronullInt32
-		OrderIndex mrentity.ZeronullInt64
+		ID         uint64
+		PrevID     mrentity.ZeronullUint64
+		NextID     mrentity.ZeronullUint64
+		OrderIndex mrentity.ZeronullUint64
 	}
 )

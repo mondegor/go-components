@@ -1,6 +1,12 @@
 # GoStorage Changelog
 Все изменения библиотеки GoComponents будут документироваться на этой странице.
 
+## 2024-10-09
+### Changed
+- Заменены следующие типы:
+  - `mrtype.KeyInt32` -> `uint64`;
+  - `mrentity.ZeronullInt32` -> `mrentity.ZeronullUint64`;
+
 ## 2024-09-29
 ### Changed
 - Обновлены зависимости библиотеки;
