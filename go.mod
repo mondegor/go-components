@@ -1,11 +1,11 @@
 module github.com/mondegor/go-components
 
-go 1.22.0
+go 1.22.6
 
 require (
-	github.com/mondegor/go-storage v0.14.0
-	github.com/mondegor/go-sysmess v0.11.5
-	github.com/mondegor/go-webcore v0.25.0
+	github.com/mondegor/go-storage v0.14.1
+	github.com/mondegor/go-sysmess v0.11.6
+	github.com/mondegor/go-webcore v0.25.1
 )
 
 require (
@@ -15,7 +15,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.1 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
-	golang.org/x/exp v0.0.0-20241004190924-225e2abe05e6 // indirect
+	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 )
