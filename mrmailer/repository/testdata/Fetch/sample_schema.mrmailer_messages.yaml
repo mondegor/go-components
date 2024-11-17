@@ -1,0 +1,5 @@
+---
+- message_id: 2
+  message_channel: 'mail'
+  message_data: '{"header":{"CorrelationID":"56a8ee4a-7fcf-44c5-849e-e9f6a453e380"},"email":{"contentType":"text/plain","from":{"name":"Ivan Ivanov","email":"ivan.ivanov@localhost"},"to":{"name":"Ivan Ivanov","email":"ivan.ivanov@localhost"},"replyTo":{"name":"Ivan Ivanov","email":"reply@localhost"},"subject":"Test Subject","content":"Test Content"}}'
+  created_at: '2024-01-01 00:00:00.000001'

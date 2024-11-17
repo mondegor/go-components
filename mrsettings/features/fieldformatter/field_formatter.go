@@ -9,51 +9,43 @@ import (
 )
 
 const (
-	valueMaxLen       = 65536
-	listItemSeparator = ","
+	defaultValueMaxLen       = 65536
+	defaultListItemSeparator = ","
 )
 
 type (
 	// DBFieldFormatter - объект для преобразования данных поступающих
 	// из внешнего источника в формат для сохранения в хранилище данных.
 	DBFieldFormatter struct {
-		valueMaxLen   int
+		valueMaxLen   uint32
 		itemSeparator string
-	}
-
-	// DBFieldFormatterOptions - опции для создания DBFieldFormatter.
-	DBFieldFormatterOptions struct {
-		ValueMaxLen       uint64
-		ListItemSeparator string
 	}
 )
 
 // New - создаёт объект DBFieldFormatter.
-func New(opts DBFieldFormatterOptions) *DBFieldFormatter {
-	if opts.ValueMaxLen == 0 {
-		opts.ValueMaxLen = valueMaxLen
+func New(opts ...Option) *DBFieldFormatter {
+	f := &DBFieldFormatter{
+		valueMaxLen:   defaultValueMaxLen,
+		itemSeparator: defaultListItemSeparator,
 	}
 
-	if opts.ListItemSeparator == "" {
-		opts.ListItemSeparator = listItemSeparator
+	for _, opt := range opts {
+		opt(f)
 	}
 
-	return &DBFieldFormatter{
-		valueMaxLen:   int(opts.ValueMaxLen),
-		itemSeparator: opts.ListItemSeparator,
-	}
+	return f
 }
 
-// FormatString - comment method.
+// FormatString - возвращает само значение value, т.к. оно уже строковое.
 func (f *DBFieldFormatter) FormatString(value string) (string, error) {
-	if len(value) > f.valueMaxLen {
+	if uint32(len(value)) > f.valueMaxLen {
 		return "", mrcore.ErrInternalValueLenMax.New(len(value), f.valueMaxLen)
 	}
 
 	return value, nil
 }
 
-// FormatStringList - comment method.
+// FormatStringList - возвращает список строк объединённую в одну строку через разделитель.
 func (f *DBFieldFormatter) FormatStringList(values []string) (string, error) {
 	if len(values) == 0 {
 		return "", nil
@@ -64,7 +56,7 @@ func (f *DBFieldFormatter) FormatStringList(values []string) (string, error) {
 		valuesLen += len(values[i])
 	}
 
-	if valuesLen > f.valueMaxLen {
+	if uint32(valuesLen) > f.valueMaxLen {
 		return "", mrcore.ErrInternalValueLenMax.New(valuesLen, f.valueMaxLen)
 	}
 
@@ -83,12 +75,12 @@ func (f *DBFieldFormatter) FormatStringList(values []string) (string, error) {
 	return buf.String(), nil
 }
 
-// FormatInt64 - comment method.
+// FormatInt64 - возвращает целое знаковое число в виде строки.
 func (f *DBFieldFormatter) FormatInt64(value int64) (string, error) {
 	return strconv.FormatInt(value, 10), nil
 }
 
-// FormatInt64List - comment method.
+// FormatInt64List - возвращает список целых знаковых чисел объединённую в одну строку через разделитель.
 func (f *DBFieldFormatter) FormatInt64List(values []int64) (string, error) {
 	if len(values) == 0 {
 		return "", nil
@@ -96,7 +88,7 @@ func (f *DBFieldFormatter) FormatInt64List(values []int64) (string, error) {
 
 	const maxInt64Digits = 19 // max number of digits in int64
 
-	if len(values) > f.valueMaxLen/maxInt64Digits {
+	if uint32(len(values)*maxInt64Digits) > f.valueMaxLen {
 		return "", mrcore.ErrInternal.Wrap(
 			fmt.Errorf(
 				"number of digits cannot be more than %d; got: %d, maximum field length: %d",
@@ -122,7 +114,7 @@ func (f *DBFieldFormatter) FormatInt64List(values []int64) (string, error) {
 	return buf.String(), nil
 }
 
-// FormatBool - comment method.
+// FormatBool - возвращает булево значение в виде строки.
 func (f *DBFieldFormatter) FormatBool(value bool) (string, error) {
 	return strconv.FormatBool(value), nil
 }

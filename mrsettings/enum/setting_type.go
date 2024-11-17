@@ -10,9 +10,9 @@ import (
 const (
 	_                      SettingType = iota
 	SettingTypeString                  // SettingTypeString - строковый тип настройки
-	SettingTypeStringList              // SettingTypeStringList - список строковых элементов
+	SettingTypeStringList              // SettingTypeStringList - списочный тип строковых элементов настройки
 	SettingTypeInteger                 // SettingTypeInteger - целочисленный тип настройки
-	SettingTypeIntegerList             // SettingTypeIntegerList - список целочисленных элементов
+	SettingTypeIntegerList             // SettingTypeIntegerList - списочный тип целочисленных элементов настройки
 	SettingTypeBoolean                 // SettingTypeBoolean - логический тип настройки
 
 	settingTypeLast     = uint8(SettingTypeBoolean)
@@ -64,7 +64,7 @@ func (e *SettingType) Set(value uint8) error {
 	return mrcore.ErrInternalKeyNotFoundInSource.New(value, enumNameSettingType)
 }
 
-// String - comment method.
+// String - возвращается значение в виде строки.
 func (e SettingType) String() string {
 	return settingTypeName[e]
 }

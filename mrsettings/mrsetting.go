@@ -8,7 +8,7 @@ import (
 )
 
 type (
-	// Getter - интерфейс получения значения настройки по-указанному ID.
+	// Getter - интерфейс получения значения настройки по указанному ID.
 	Getter interface {
 		Get(ctx context.Context, id uint64) (string, error)
 		GetList(ctx context.Context, id uint64) ([]string, error)
@@ -17,17 +17,17 @@ type (
 		GetBool(ctx context.Context, id uint64) (bool, error)
 	}
 
-	// DefaultValueGetter - интерфейс получения значения настройки по-указанному ID.
+	// DefaultValueGetter - интерфейс получения значения настройки по указанному ID.
 	// Если значение не найдено или случилась ошибка, то будет возвращено значение по умолчанию.
 	DefaultValueGetter interface {
-		Get(ctx context.Context, id uint64, defaultVal string) string
-		GetList(ctx context.Context, id uint64, defaultVal []string) []string
-		GetInt64(ctx context.Context, id uint64, defaultVal int64) int64
-		GetInt64List(ctx context.Context, id uint64, defaultVal []int64) []int64
-		GetBool(ctx context.Context, id uint64, defaultVal bool) bool
+		Get(ctx context.Context, id uint64, defValue string) string
+		GetList(ctx context.Context, id uint64, defValue []string) []string
+		GetInt64(ctx context.Context, id uint64, defValue int64) int64
+		GetInt64List(ctx context.Context, id uint64, defValue []int64) []int64
+		GetBool(ctx context.Context, id uint64, defValue bool) bool
 	}
 
-	// Setter - интерфейс сохранения значения настройки по-указанному ID.
+	// Setter - интерфейс сохранения значения настройки по указанному ID.
 	Setter interface {
 		Set(ctx context.Context, id uint64, value string) error
 		SetList(ctx context.Context, id uint64, value []string) error
@@ -68,7 +68,7 @@ type (
 		Fetch(ctx context.Context, lastUpdated time.Time) ([]entity.Setting, error)
 	}
 
-	// Storage - извлечение и сохранение значения настройки по-указанному ID.
+	// Storage - извлечение и сохранение значения настройки по указанному ID.
 	Storage interface {
 		FetchOne(ctx context.Context, id uint64) (entity.Setting, error)
 		Update(ctx context.Context, row entity.Setting) error

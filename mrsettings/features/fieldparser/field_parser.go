@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	listItemSeparator = ","
+	defaultListItemSeparator = ","
 )
 
 type (
@@ -20,22 +20,24 @@ type (
 )
 
 // New - создаёт объект DBFieldParser.
-func New(itemSeparator string) *DBFieldParser {
-	if itemSeparator == "" {
-		itemSeparator = listItemSeparator
+func New(opts ...Option) *DBFieldParser {
+	p := &DBFieldParser{
+		itemSeparator: defaultListItemSeparator,
 	}
 
-	return &DBFieldParser{
-		itemSeparator: itemSeparator,
+	for _, opt := range opts {
+		opt(p)
 	}
+
+	return p
 }
 
-// ParseString - comment method.
+// ParseString - возвращает само значение value, т.к. оно уже строковое.
 func (p *DBFieldParser) ParseString(value string) (string, error) {
 	return value, nil
 }
 
-// ParseStringList - comment method.
+// ParseStringList - разделяет разделителем строку и возвращает список строк.
 func (p *DBFieldParser) ParseStringList(value string) ([]string, error) {
 	if value == "" {
 		return nil, nil
@@ -44,7 +46,7 @@ func (p *DBFieldParser) ParseStringList(value string) ([]string, error) {
 	return strings.Split(value, p.itemSeparator), nil
 }
 
-// ParseInt64 - comment method.
+// ParseInt64 - возвращает целое знаковое число.
 func (p *DBFieldParser) ParseInt64(value string) (int64, error) {
 	if value == "" {
 		return 0, nil
@@ -58,7 +60,7 @@ func (p *DBFieldParser) ParseInt64(value string) (int64, error) {
 	return parsedValue, nil
 }
 
-// ParseInt64List - comment method.
+// ParseInt64List - разделяет разделителем строку и список целых знаковых чисел.
 func (p *DBFieldParser) ParseInt64List(value string) ([]int64, error) {
 	if value == "" {
 		return nil, nil
@@ -79,7 +81,7 @@ func (p *DBFieldParser) ParseInt64List(value string) ([]int64, error) {
 	return parsedValues, nil
 }
 
-// ParseBool - comment method.
+// ParseBool - возвращает булево значение.
 func (p *DBFieldParser) ParseBool(value string) (bool, error) {
 	if value == "" {
 		return false, nil
