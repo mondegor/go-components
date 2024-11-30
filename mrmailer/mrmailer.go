@@ -12,13 +12,6 @@ import (
 const (
 	HeaderLang          = "lang"                 // HeaderLang - название переменной языка сообщения
 	HeaderCorrelationID = mrapp.KeyCorrelationID // HeaderCorrelationID - название переменной заголовка, содержащего CorrelationID
-
-	FieldFrom      = "from"      // FieldFrom - адрес отправителя (расширенный вариант: from.name, from.email)
-	FieldTo        = "to"        // FieldTo - адрес получателя (расширенный вариант: to.name, to.email)
-	FieldReplyTo   = "replyTo"   // FieldReplyTo - адрес для ответа на письмо (расширенный вариант: replyTo.name, replyTo.email)
-	FieldPreHeader = "preheader" // FieldPreHeader - дополнительный заголовок отображаемый в некоторых почтовых клиентах
-
-	ContentTypePlain = "text/plain" // ContentTypePlain - простой текст
 )
 
 type (

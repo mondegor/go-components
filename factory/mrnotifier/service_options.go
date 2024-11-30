@@ -8,11 +8,11 @@ import (
 )
 
 type (
-	// ServiceOption - настройка объекта NoticeService.
+	// ServiceOption - настройка объекта ComponentService.
 	ServiceOption func(o *serviceOptions)
 )
 
-// WithChangeLimit - устанавливает опцию changeLimit для Service.
+// WithChangeLimit - устанавливает опцию changeLimit для ComponentService.
 func WithChangeLimit(value uint32) ServiceOption {
 	return func(o *serviceOptions) {
 		if o.changeLimit > 0 {
@@ -21,7 +21,7 @@ func WithChangeLimit(value uint32) ServiceOption {
 	}
 }
 
-// WithChangeRetryTimeout - устанавливает опцию changeRetryTimeout для Service.
+// WithChangeRetryTimeout - устанавливает опцию changeRetryTimeout для ComponentService.
 func WithChangeRetryTimeout(value time.Duration) ServiceOption {
 	return func(o *serviceOptions) {
 		if o.changeRetryTimeout > 0 {
@@ -30,14 +30,14 @@ func WithChangeRetryTimeout(value time.Duration) ServiceOption {
 	}
 }
 
-// WithChangeRetryDelayed - устанавливает опцию changeRetryDelayed для Service.
+// WithChangeRetryDelayed - устанавливает опцию changeRetryDelayed для ComponentService.
 func WithChangeRetryDelayed(value time.Duration) ServiceOption {
 	return func(o *serviceOptions) {
 		o.changeRetryDelayed = value
 	}
 }
 
-// WithCleanLimit - устанавливает опцию cleanLimit для Service.
+// WithCleanLimit - устанавливает опцию cleanLimit для ComponentService.
 func WithCleanLimit(value uint32) ServiceOption {
 	return func(o *serviceOptions) {
 		if o.cleanLimit > 0 {
@@ -46,7 +46,7 @@ func WithCleanLimit(value uint32) ServiceOption {
 	}
 }
 
-// WithDefaultLang - устанавливает опцию defaultLang для Service.
+// WithDefaultLang - устанавливает опцию defaultLang для ComponentService.
 func WithDefaultLang(value string) ServiceOption {
 	return func(o *serviceOptions) {
 		if o.defaultLang != "" {
@@ -55,7 +55,7 @@ func WithDefaultLang(value string) ServiceOption {
 	}
 }
 
-// WithSendProcessorOpts - устанавливает опцию sendProcessor для Service.
+// WithSendProcessorOpts - устанавливает опцию sendProcessor для ComponentService.
 func WithSendProcessorOpts(value ...consume.Option) ServiceOption {
 	return func(o *serviceOptions) {
 		if len(value) > 0 {
@@ -64,7 +64,7 @@ func WithSendProcessorOpts(value ...consume.Option) ServiceOption {
 	}
 }
 
-// WithTaskChangeFromToRetryOpts - устанавливает опцию taskChangeFromToRetry для Service.
+// WithTaskChangeFromToRetryOpts - устанавливает опцию taskChangeFromToRetry для ComponentService.
 func WithTaskChangeFromToRetryOpts(value ...task.Option) ServiceOption {
 	return func(o *serviceOptions) {
 		if len(value) > 0 {
@@ -73,7 +73,7 @@ func WithTaskChangeFromToRetryOpts(value ...task.Option) ServiceOption {
 	}
 }
 
-// WithTaskCleanNoticesOpts - устанавливает опцию taskCleanNotices для Service.
+// WithTaskCleanNoticesOpts - устанавливает опцию taskCleanNotices для ComponentService.
 func WithTaskCleanNoticesOpts(value ...task.Option) ServiceOption {
 	return func(o *serviceOptions) {
 		if len(value) > 0 {

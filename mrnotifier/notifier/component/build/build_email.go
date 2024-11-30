@@ -1,54 +1,54 @@
 package build
 
 import (
-	"fmt"
-
 	"github.com/mondegor/go-sysmess/mrmsg"
+	"github.com/mondegor/go-webcore/mrcore"
+	"github.com/mondegor/go-webcore/mrsender"
 
-	"github.com/mondegor/go-components/mrmailer"
 	"github.com/mondegor/go-components/mrmailer/dto"
+	"github.com/mondegor/go-components/mrnotifier"
 	templaterentity "github.com/mondegor/go-components/mrnotifier/template/entity"
 )
 
-func (co *NoticeBuilder) buildEmail(vars map[string]string, mail *templaterentity.DataEmail) ([]dto.Message, error) {
-	// в переменной mail.Content должна содержаться переменная
-	// mrmailer.FieldPreHeader в которую подставится этот заголовок
-	if mail.Preheader != "" {
-		vars[mrmailer.FieldPreHeader] = mail.Preheader
+func (co *NoticeBuilder) buildEmail(vars map[string]string, templMail *templaterentity.DataEmail) ([]dto.Message, error) {
+	// в переменной templMail.Content должна содержаться переменная
+	// mrnotifier.FieldPreHeader в которую подставится этот заголовок
+	if templMail.Preheader != "" {
+		vars[mrnotifier.FieldPreHeader] = templMail.Preheader
 	}
 
-	subject, err := mrmsg.Render(mail.Subject, vars)
+	subject, err := mrmsg.Render(templMail.Subject, vars)
 	if err != nil {
-		return nil, fmt.Errorf("subject rendering failed: %w", err)
+		return nil, mrcore.ErrInternalWithDetails.Wrap(err, "subject rendering failed")
 	}
 
-	content, err := mrmsg.Render(mail.Content, vars)
+	content, err := mrmsg.Render(templMail.Content, vars)
 	if err != nil {
-		return nil, fmt.Errorf("content rendering failed: %w", err)
+		return nil, mrcore.ErrInternalWithDetails.Wrap(err, "content rendering failed")
 	}
 
-	messages := make([]dto.Message, len(mail.ObserverEmails)+1)
+	messages := make([]dto.Message, len(templMail.ObserverEmails)+1)
 
 	messages[0] = dto.Message{
 		Channel: channelEmail,
 		Data: dto.MessageData{
 			Email: &dto.DataEmail{
-				ContentType: co.contentType(mail.ContentType),
-				From:        co.emailAddress(mrmailer.FieldFrom, vars, mail.From),
-				To:          co.emailAddress(mrmailer.FieldTo, vars, mail.To),
-				ReplyTo:     co.replyTo(vars, mail.ReplyTo),
+				ContentType: co.contentType(templMail.ContentType),
+				From:        co.emailAddressName(mrnotifier.FieldFromName, vars, templMail.FromName),
+				To:          co.emailAddress(mrnotifier.FieldTo, vars, templMail.To),
+				ReplyTo:     co.emailAddress(mrnotifier.FieldReplyTo, vars, templMail.ReplyTo),
 				Subject:     subject,
 				Content:     content,
 			},
 		},
 	}
 
-	for i := 1; i <= len(mail.ObserverEmails); i++ {
+	for i := 1; i <= len(templMail.ObserverEmails); i++ {
 		messages[i] = messages[0]
 
 		bodyCopy := *messages[0].Data.Email // копируется тело уведомления
 		messages[i].Data.Email = &bodyCopy
-		messages[i].Data.Email.To = mail.ObserverEmails[i-1] // заменяется получатель
+		messages[i].Data.Email.To = templMail.ObserverEmails[i-1] // заменяется получатель
 	}
 
 	return messages, nil
@@ -56,39 +56,28 @@ func (co *NoticeBuilder) buildEmail(vars map[string]string, mail *templaterentit
 
 func (co *NoticeBuilder) contentType(value string) string {
 	if value == "" {
-		return mrmailer.ContentTypePlain
+		return mrsender.ContentTypePlain
 	}
 
 	return value
 }
 
-func (co *NoticeBuilder) emailAddress(varName string, vars map[string]string, def *dto.EmailAddress) dto.EmailAddress {
-	if vars[varName+".email"] != "" {
-		return dto.EmailAddress{
-			Name:  vars[varName+".name"], // OPTIONAL
-			Email: vars[varName+".email"],
-		}
-	}
-
+func (co *NoticeBuilder) emailAddressName(varName string, vars map[string]string, defaultAddressName string) string {
 	if vars[varName] != "" {
-		return dto.EmailAddress{
-			Email: vars[varName],
-		}
+		return vars[varName]
 	}
 
-	if def != nil {
-		return *def
-	}
-
-	return dto.EmailAddress{}
+	return defaultAddressName
 }
 
-func (co *NoticeBuilder) replyTo(vars map[string]string, def *dto.EmailAddress) *dto.EmailAddress {
-	addr := co.emailAddress(mrmailer.FieldReplyTo, vars, def)
-
-	if addr.Empty() {
-		return nil
+func (co *NoticeBuilder) emailAddress(varName string, vars map[string]string, defaultAddress *string) string {
+	if vars[varName] != "" {
+		return vars[varName]
 	}
 
-	return &addr
+	if defaultAddress != nil {
+		return *defaultAddress
+	}
+
+	return ""
 }

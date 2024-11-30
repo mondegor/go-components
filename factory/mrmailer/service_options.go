@@ -10,11 +10,11 @@ import (
 )
 
 type (
-	// ServiceOption - настройка объекта MessageService.
+	// ServiceOption - настройка объекта ComponentService.
 	ServiceOption func(o *serviceOptions)
 )
 
-// WithChangeLimit - устанавливает опцию changeLimit для Service.
+// WithChangeLimit - устанавливает опцию changeLimit для ComponentService.
 func WithChangeLimit(value uint32) ServiceOption {
 	return func(o *serviceOptions) {
 		if o.changeLimit > 0 {
@@ -23,7 +23,7 @@ func WithChangeLimit(value uint32) ServiceOption {
 	}
 }
 
-// WithChangeRetryTimeout - устанавливает опцию changeRetryTimeout для Service.
+// WithChangeRetryTimeout - устанавливает опцию changeRetryTimeout для ComponentService.
 func WithChangeRetryTimeout(value time.Duration) ServiceOption {
 	return func(o *serviceOptions) {
 		if o.changeRetryTimeout > 0 {
@@ -32,14 +32,14 @@ func WithChangeRetryTimeout(value time.Duration) ServiceOption {
 	}
 }
 
-// WithChangeRetryDelayed - устанавливает опцию changeRetryDelayed для Service.
+// WithChangeRetryDelayed - устанавливает опцию changeRetryDelayed для ComponentService.
 func WithChangeRetryDelayed(value time.Duration) ServiceOption {
 	return func(o *serviceOptions) {
 		o.changeRetryDelayed = value
 	}
 }
 
-// WithCleanLimit - устанавливает опцию cleanLimit для Service.
+// WithCleanLimit - устанавливает опцию cleanLimit для ComponentService.
 func WithCleanLimit(value uint32) ServiceOption {
 	return func(o *serviceOptions) {
 		if o.cleanLimit > 0 {
@@ -48,7 +48,7 @@ func WithCleanLimit(value uint32) ServiceOption {
 	}
 }
 
-// WithSendProcessorOpts - устанавливает опцию sendProcessor для Service.
+// WithSendProcessorOpts - устанавливает опцию sendProcessor для ComponentService.
 func WithSendProcessorOpts(value ...consume.Option) ServiceOption {
 	return func(o *serviceOptions) {
 		if len(value) > 0 {
@@ -57,7 +57,7 @@ func WithSendProcessorOpts(value ...consume.Option) ServiceOption {
 	}
 }
 
-// WithSendHandlerOpts - устанавливает опцию sendHandler для Service.
+// WithSendHandlerOpts - устанавливает опцию sendHandler для ComponentService.
 func WithSendHandlerOpts(value ...handle.Option) ServiceOption {
 	return func(o *serviceOptions) {
 		if len(value) > 0 {
@@ -66,7 +66,7 @@ func WithSendHandlerOpts(value ...handle.Option) ServiceOption {
 	}
 }
 
-// WithTaskChangeFromToRetryOpts - устанавливает опцию taskChangeFromToRetry для Service.
+// WithTaskChangeFromToRetryOpts - устанавливает опцию taskChangeFromToRetry для ComponentService.
 func WithTaskChangeFromToRetryOpts(value ...task.Option) ServiceOption {
 	return func(o *serviceOptions) {
 		if len(value) > 0 {
@@ -75,7 +75,7 @@ func WithTaskChangeFromToRetryOpts(value ...task.Option) ServiceOption {
 	}
 }
 
-// WithTaskCleanMessagesOpts - устанавливает опцию taskCleanMessages для Service.
+// WithTaskCleanMessagesOpts - устанавливает опцию taskCleanMessages для ComponentService.
 func WithTaskCleanMessagesOpts(value ...task.Option) ServiceOption {
 	return func(o *serviceOptions) {
 		if len(value) > 0 {

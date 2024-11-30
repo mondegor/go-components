@@ -15,20 +15,20 @@ import (
 type (
 	// MessageHandler - обработчик сообщений с целью их отправки конечному получателю.
 	MessageHandler struct {
-		errorWrapper   mrcore.UseCaseErrorWrapper
-		clientEmail    mrmailer.MessageProvider
-		clientSMS      mrmailer.MessageProvider
-		clientTelegram mrmailer.MessageProvider
+		errorWrapper    mrcore.UseCaseErrorWrapper
+		clientEmail     mrmailer.MessageProvider
+		clientSMS       mrmailer.MessageProvider
+		clientMessenger mrmailer.MessageProvider
 	}
 )
 
 // New - создаёт объект MessageHandler.
 func New(errorWrapper mrcore.UseCaseErrorWrapper, opts ...Option) *MessageHandler {
 	co := &MessageHandler{
-		errorWrapper:   errorWrapper,
-		clientEmail:    nop.New(), // disabled by default
-		clientSMS:      nop.New(), // disabled by default
-		clientTelegram: nop.New(), // disabled by default
+		errorWrapper:    errorWrapper,
+		clientEmail:     nop.New(), // disabled by default
+		clientSMS:       nop.New(), // disabled by default
+		clientMessenger: nop.New(), // disabled by default
 	}
 
 	for _, opt := range opts {
@@ -44,7 +44,7 @@ func (co *MessageHandler) Execute(ctx context.Context, message any) (commit func
 	if msg, ok := message.(entity.Message); ok {
 		ctxFunc := func(ctx context.Context) context.Context { return ctx }
 
-		if correlationID, ok2 := msg.Data.Header[mrmailer.HeaderCorrelationID]; ok2 {
+		if correlationID, ok := msg.Data.Header[mrmailer.HeaderCorrelationID]; ok {
 			logger := mrlog.Ctx(ctx).With().Str(mrapp.KeyCorrelationID, correlationID).Logger()
 			processID := mrapp.ProcessCtx(ctx) + "|" + correlationID
 
@@ -91,16 +91,16 @@ func (co *MessageHandler) getProvider(message entity.Message) (provider mrmailer
 		return co.clientSMS, nil
 	}
 
-	if message.Data.Telegram != nil {
-		if co.clientTelegram == nil {
+	if message.Data.Messenger != nil {
+		if co.clientMessenger == nil {
 			return nil, co.errorWrapper.WrapErrorEntityFailed(
-				mrmailer.ErrProviderClientNotSpecified.New("telegram"),
+				mrmailer.ErrProviderClientNotSpecified.New("messenger"),
 				entity.ModelNameMessage,
 				message.Channel,
 			)
 		}
 
-		return co.clientTelegram, nil
+		return co.clientMessenger, nil
 	}
 
 	return nil, co.errorWrapper.WrapErrorFailed(

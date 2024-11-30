@@ -1,6 +1,11 @@
 # GoStorage Changelog
 Все изменения библиотеки GoComponents будут документироваться на этой странице.
 
+## 2024-11-30
+### Added
+- Добавлен `mail.Provider` для отправки уведомлений на электронные адреса получателей;
+- Добавлен `messanger.Provider` для отправки уведомлений в мессанджеры;
+
 ## 2024-11-17
 ### Added
 - Добавлена очередь элементов `mrqueue` основанной на БД с возможностями:
@@ -20,8 +25,8 @@
 ## 2024-10-09
 ### Changed
 - Заменены следующие типы:
-  - `mrtype.KeyInt32` -> `uint64`;
-  - `mrentity.ZeronullInt32` -> `mrentity.ZeronullUint64`;
+    - `mrtype.KeyInt32` -> `uint64`;
+    - `mrentity.ZeronullInt32` -> `mrentity.ZeronullUint64`;
 
 ## 2024-09-29
 ### Changed

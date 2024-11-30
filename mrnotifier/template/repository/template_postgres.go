@@ -69,7 +69,9 @@ func (re *TemplatePostgres) FetchOneByKey(ctx context.Context, name, lang string
 
 	if status != mrenum.ItemStatusEnabled {
 		return entity.Template{}, re.errorWrapper.WrapErrorEntity(
-			mrcore.ErrStorageNoRowFound.Wrap(fmt.Errorf("%s is in status %s, expected: %s", entity.ModelNameTemplate, status, mrenum.ItemStatusEnabled)),
+			mrcore.ErrStorageNoRowFound.Wrap(
+				fmt.Errorf("%s is in status %s, expected: %s", entity.ModelNameTemplate, status, mrenum.ItemStatusEnabled),
+			),
 			re.tableName,
 			mrmsg.Data{"name": name, "lang": lang},
 		)

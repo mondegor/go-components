@@ -151,7 +151,7 @@ func (co *MessageSender) checkMessage(message dto.Message) error {
 		countBodies++
 	}
 
-	if message.Data.Telegram != nil {
+	if message.Data.Messenger != nil {
 		countBodies++
 	}
 

@@ -89,8 +89,8 @@ func (f *DBFieldFormatter) FormatInt64List(values []int64) (string, error) {
 	const maxInt64Digits = 19 // max number of digits in int64
 
 	if uint32(len(values)*maxInt64Digits) > f.valueMaxLen {
-		return "", mrcore.ErrInternal.Wrap(
-			fmt.Errorf(
+		return "", mrcore.ErrInternalWithDetails.New(
+			fmt.Sprintf(
 				"number of digits cannot be more than %d; got: %d, maximum field length: %d",
 				f.valueMaxLen/maxInt64Digits,
 				len(values),

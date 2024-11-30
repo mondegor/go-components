@@ -19,7 +19,7 @@ const (
 	defaultChannelPrefix = "notifier"
 	channelEmail         = "email"
 	channelSMS           = "sms"
-	channelTelegram      = "telegram"
+	channelMessenger     = "messenger"
 )
 
 type (
@@ -79,8 +79,8 @@ func (co *NoticeBuilder) BuildNotice(ctx context.Context, notice entity.Notice) 
 		messages = append(messages, list...)
 	}
 
-	if templ.Props.Telegram != nil && !templ.Props.Telegram.IsDisabled {
-		list, err := co.buildTelegram(notice.Data, templ.Props.Telegram)
+	if templ.Props.Messenger != nil && !templ.Props.Messenger.IsDisabled {
+		list, err := co.buildMessenger(notice.Data, templ.Props.Messenger)
 		if err != nil {
 			return nil, co.wrapError(err, notice)
 		}

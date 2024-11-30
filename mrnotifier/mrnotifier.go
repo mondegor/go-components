@@ -20,6 +20,11 @@ const (
 
 	// HeaderCorrelationID - название переменной заголовка, содержащего CorrelationID.
 	HeaderCorrelationID = HeaderPrefix + mrmailer.HeaderCorrelationID
+
+	FieldFromName  = "fromName"  // FieldFromName - имя отправителя (адрес подставится тот, с которого произойдёт отправка письма)
+	FieldTo        = "to"        // FieldTo - адрес получателя
+	FieldReplyTo   = "replyTo"   // FieldReplyTo - адрес для ответа на письмо
+	FieldPreHeader = "preheader" // FieldPreHeader - дополнительный заголовок отображаемый в некоторых почтовых клиентах
 )
 
 type (

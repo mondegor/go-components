@@ -59,11 +59,11 @@ func New(
 // SendNotice - отправляет уведомление, ключ которой должен быть зарегистрирован в БД компонента mrnotifier.template.
 // В props можно указывать следующие служебные поля:
 //   - header.lang (mrnotifier.HeaderLang) - язык уведомления (если не указан, то будет выбран автоматически);
-//   - config.delayTime (mrnotifier.ConfigDelayTime) - абсолютное время (RFC3339), после которого следует отправить уведомление
+//   - config.delayTime (mrnotifier.ConfigDelayTime) - абсолютное время (RFC3339), по истечению которого следует отправить уведомление
 //     или период, на который необходимо отложить отправку уведомления (в секундах или в формате Duration);
-//   - from (mrmailer.FieldFrom) - адрес отправителя (расширенный вариант: from.name, from.email);
-//   - to (mrmailer.FieldTo) - адрес получателя (расширенный вариант: to.name, to.email);
-//   - replyTo (mrmailer.FieldReplyTo) - адрес для ответа на уведомление (расширенный вариант: replyTo.name, replyTo.email);
+//   - fromName (mrnotifier.FieldFromName) - адрес отправителя;
+//   - to (mrnotifier.FieldTo) - адрес получателя;
+//   - replyTo (mrnotifier.FieldReplyTo) - адрес для ответа на уведомление;
 func (co *NoticeSender) SendNotice(ctx context.Context, key string, props map[string]any) error {
 	if key == "" {
 		return mrcore.ErrUseCaseIncorrectInputData.New("notify", "key is empty")

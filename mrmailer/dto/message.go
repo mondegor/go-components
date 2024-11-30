@@ -17,20 +17,20 @@ type (
 	// MessageData - собирательная структура, которая позволяет
 	// хранить один из нескольких типов сообщений в виде json.
 	MessageData struct {
-		Header   map[string]string `json:"header,omitempty"`
-		Email    *DataEmail        `json:"email,omitempty"`
-		SMS      *DataSMS          `json:"sms,omitempty"`
-		Telegram *DataTelegram     `json:"telegram,omitempty"`
+		Header    map[string]string `json:"header,omitempty"`
+		Email     *DataEmail        `json:"email,omitempty"`
+		SMS       *DataSMS          `json:"sms,omitempty"`
+		Messenger *DataMessenger    `json:"messenger,omitempty"`
 	}
 
 	// DataEmail - тип сообщения, которое отправляется в виде электронного письма на почтовый сервис.
 	DataEmail struct {
-		ContentType string        `json:"contentType"`
-		From        EmailAddress  `json:"from"`
-		To          EmailAddress  `json:"to"`
-		ReplyTo     *EmailAddress `json:"replyTo,omitempty"`
-		Subject     string        `json:"subject"`
-		Content     string        `json:"content"`
+		ContentType string `json:"contentType"`
+		From        string `json:"from"` // name | email | name <email>
+		To          string `json:"to"`
+		ReplyTo     string `json:"replyTo,omitempty"`
+		Subject     string `json:"subject"`
+		Content     string `json:"content"`
 	}
 
 	// DataSMS - тип сообщения, которое отправляется в виде короткого сообщения на телефон.
@@ -40,10 +40,10 @@ type (
 		Content string `json:"content"`
 	}
 
-	// DataTelegram - тип сообщения, которое отправляется в виде текста в Telegram сервис.
-	DataTelegram struct {
-		ChatID  string   `json:"chatId"`
-		Tags    []string `json:"tags"`
-		Content string   `json:"content"`
+	// DataMessenger - тип сообщения, которое отправляется в виде текста в Messenger сервис.
+	DataMessenger struct {
+		From    string `json:"from"`
+		ChatID  string `json:"chatId"`
+		Content string `json:"content"`
 	}
 )

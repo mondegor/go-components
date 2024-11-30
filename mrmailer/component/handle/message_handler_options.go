@@ -23,9 +23,9 @@ func WithClientSMS(value mrmailer.MessageProvider) Option {
 	}
 }
 
-// WithClientTelegram - устанавливает клиента, для возможности отправки сообщений в Telegram сервис.
-func WithClientTelegram(value mrmailer.MessageProvider) Option {
+// WithClientMessenger - устанавливает клиента, для возможности отправки сообщений в Messenger сервис.
+func WithClientMessenger(value mrmailer.MessageProvider) Option {
 	return func(co *MessageHandler) {
-		co.clientTelegram = value
+		co.clientMessenger = value
 	}
 }

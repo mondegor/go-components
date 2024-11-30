@@ -6,9 +6,11 @@ import (
 
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrtests/infra"
+	"github.com/mondegor/go-webcore/mrsender"
 	"github.com/mondegor/go-webcore/mrtests/helpers"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/mondegor/go-components/mrmailer"
 	"github.com/mondegor/go-components/mrmailer/dto"
 	"github.com/mondegor/go-components/mrmailer/entity"
 	"github.com/mondegor/go-components/mrmailer/repository"
@@ -61,20 +63,11 @@ func (ts *RepositoryTestSuite) Test_Fetch() {
 			},
 			Email: &dto.DataEmail{
 				ContentType: "text/plain",
-				From: dto.EmailAddress{
-					Name:  "Ivan Ivanov",
-					Email: "ivan.ivanov@localhost",
-				},
-				To: dto.EmailAddress{
-					Name:  "Ivan Ivanov",
-					Email: "ivan.ivanov@localhost",
-				},
-				ReplyTo: &dto.EmailAddress{
-					Name:  "Ivan Ivanov",
-					Email: "reply@localhost",
-				},
-				Subject: "Test Subject",
-				Content: "Test Content",
+				From:        "Ivan Ivanov",
+				To:          "Ivan Ivanov <ivan.ivanov@localhost>",
+				ReplyTo:     "Ivan Ivanov <reply@localhost>",
+				Subject:     "Test Subject",
+				Content:     "Test Content",
 			},
 		},
 	}
@@ -94,24 +87,15 @@ func (ts *RepositoryTestSuite) Test_Insert() {
 		Channel: "mail",
 		Data: dto.MessageData{
 			Header: map[string]string{
-				"CorrelationID": "56a8ee4a-7fcf-44c5-849e-e9f6a453e380",
+				mrmailer.HeaderCorrelationID: "56a8ee4a-7fcf-44c5-849e-e9f6a453e380",
 			},
 			Email: &dto.DataEmail{
-				ContentType: "text/plain",
-				From: dto.EmailAddress{
-					Name:  "Ivan Ivanov",
-					Email: "ivan.ivanov@localhost",
-				},
-				To: dto.EmailAddress{
-					Name:  "Ivan Ivanov",
-					Email: "ivan.ivanov@localhost",
-				},
-				ReplyTo: &dto.EmailAddress{
-					Name:  "Ivan Ivanov",
-					Email: "reply@localhost",
-				},
-				Subject: "Test Subject",
-				Content: "Test Content",
+				ContentType: mrsender.ContentTypePlain,
+				From:        "Ivan Ivanov",
+				To:          "Ivan Ivanov <ivan.ivanov@localhost>",
+				ReplyTo:     "Ivan Ivanov <reply@localhost>",
+				Subject:     "Test Subject",
+				Content:     "Test Content",
 			},
 		},
 	}
