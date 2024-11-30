@@ -35,8 +35,8 @@ const (
 
 	defaultSendProcessorCaption           = "Mailer.SendProcessor"
 	defaultSendProcessorReadyTimeout      = 60 * time.Second
+	defaultSendProcessorStartReadDelay    = 0 * time.Second
 	defaultSendProcessorReadPeriod        = 30 * time.Second
-	defaultSendProcessorBusyReadPeriod    = 15 * time.Second
 	defaultSendProcessorCancelReadTimeout = 5 * time.Second
 	defaultSendProcessorHandlerTimeout    = 30 * time.Second
 	defaultSendProcessorQueueSize         = 25
@@ -81,8 +81,8 @@ func NewComponentService(
 		sendProcessor: []processconsume.Option{
 			processconsume.WithCaption(defaultSendProcessorCaption),
 			processconsume.WithReadyTimeout(defaultSendProcessorReadyTimeout),
+			processconsume.WithStartReadDelay(defaultSendProcessorStartReadDelay),
 			processconsume.WithReadPeriod(defaultSendProcessorReadPeriod),
-			processconsume.WithBusyReadPeriod(defaultSendProcessorBusyReadPeriod),
 			processconsume.WithCancelReadTimeout(defaultSendProcessorCancelReadTimeout),
 			processconsume.WithHandlerTimeout(defaultSendProcessorHandlerTimeout),
 			processconsume.WithQueueSize(defaultSendProcessorQueueSize),

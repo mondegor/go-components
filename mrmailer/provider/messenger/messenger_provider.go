@@ -34,10 +34,6 @@ func (p *Provider) Send(ctx context.Context, message entity.Message) error {
 		return mrcore.ErrUseCaseIncorrectInputData.New("message.Data.Messenger", "nil")
 	}
 
-	if err := p.messengerAPI.SendToChat(ctx, message.Data.Messenger.ChatID, message.Data.Messenger.Content); err != nil {
-		return err
-	}
-
 	mrlog.Ctx(ctx).
 		Trace().
 		Str("source", messengerProviderName).
@@ -45,5 +41,5 @@ func (p *Provider) Send(ctx context.Context, message entity.Message) error {
 		Str("channel", message.Channel).
 		Send()
 
-	return nil
+	return p.messengerAPI.SendToChat(ctx, message.Data.Messenger.ChatID, message.Data.Messenger.Content)
 }

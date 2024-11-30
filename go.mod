@@ -3,9 +3,9 @@ module github.com/mondegor/go-components
 go 1.22.7
 
 require (
-	github.com/mondegor/go-storage v0.16.3
-	github.com/mondegor/go-sysmess v0.13.1
-	github.com/mondegor/go-webcore v0.28.3
+	github.com/mondegor/go-storage v0.16.4
+	github.com/mondegor/go-sysmess v0.13.2
+	github.com/mondegor/go-webcore v0.28.4
 	github.com/stretchr/testify v1.10.0
 )
 
