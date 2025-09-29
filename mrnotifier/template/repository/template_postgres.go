@@ -5,11 +5,12 @@ import (
 	"fmt"
 
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrmsg"
-	"github.com/mondegor/go-webcore/mrcore"
+	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-webcore/mrenum"
-	"github.com/mondegor/go-webcore/mrlog"
 
+	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrnotifier/template/entity"
 )
 
@@ -17,19 +18,21 @@ type (
 	// TemplatePostgres - репозиторий для хранения шаблонов уведомлений.
 	TemplatePostgres struct {
 		client       mrstorage.DBConnManager
-		errorWrapper mrcore.StorageErrorWrapper
 		storageVar   *VariablePostgres
 		tableName    string
+		logger       mrlog.Logger
+		errorWrapper core.ErrorWrapper
 	}
 )
 
 // NewTemplatePostgres - создаёт объект TemplatePostgres.
-func NewTemplatePostgres(client mrstorage.DBConnManager, tableName, tableVarsName string, errorWrapper mrcore.StorageErrorWrapper) *TemplatePostgres {
+func NewTemplatePostgres(client mrstorage.DBConnManager, tableName, tableVarsName string, logger mrlog.Logger) *TemplatePostgres {
 	return &TemplatePostgres{
 		client:       client,
-		errorWrapper: errorWrapper,
-		storageVar:   NewVariablePostgres(client, tableVarsName, errorWrapper),
+		logger:       logger,
+		storageVar:   NewVariablePostgres(client, tableVarsName),
 		tableName:    tableName,
+		errorWrapper: core.NewStorageErrorWrapper(tableName),
 	}
 }
 
@@ -64,31 +67,29 @@ func (re *TemplatePostgres) FetchOneByKey(ctx context.Context, name, lang string
 		&status,
 	)
 	if err != nil {
-		return entity.Template{}, re.errorWrapper.WrapErrorEntity(err, re.tableName, mrmsg.Data{"name": name, "lang": lang})
+		return entity.Template{}, re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"name": name, "lang": lang})
 	}
 
 	if status != mrenum.ItemStatusEnabled {
-		return entity.Template{}, re.errorWrapper.WrapErrorEntity(
-			mrcore.ErrStorageNoRowFound.Wrap(
-				fmt.Errorf("%s is in status %s, expected: %s", entity.ModelNameTemplate, status, mrenum.ItemStatusEnabled),
-			),
-			re.tableName,
-			mrmsg.Data{"name": name, "lang": lang},
+		return entity.Template{}, mr.ErrStorageNoRowFound.Wrap(
+			fmt.Errorf("model is in status %s, expected: %s", status, mrenum.ItemStatusEnabled),
+			"storage-data", mrargs.Group{"name": name, "lang": lang},
 		)
 	}
 
 	if len(vars) > 0 {
 		varRows, err := re.storageVar.Fetch(ctx, vars)
 		if err != nil {
-			return entity.Template{}, re.errorWrapper.WrapErrorEntity(err, re.tableName, mrmsg.Data{"name": name, "lang": lang})
+			return entity.Template{}, re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"name": name, "lang": lang})
 		}
 
 		if len(vars) != len(varRows) {
-			mrlog.Ctx(ctx).
-				Warn().
-				Str("source", re.tableName).
-				Str("entity", name+"+"+lang).
-				Msgf("vars count: %d, expected: %d", len(varRows), len(vars))
+			re.logger.Warn(
+				ctx,
+				fmt.Sprintf("vars count: %d, expected: %d", len(varRows), len(vars)),
+				"source", re.tableName,
+				"entity", name+"+"+lang,
+			)
 		}
 
 		row.Vars = varRows

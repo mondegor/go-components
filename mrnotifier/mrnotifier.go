@@ -3,7 +3,9 @@ package mrnotifier
 import (
 	"context"
 
-	"github.com/mondegor/go-components/mrmailer"
+	"github.com/mondegor/go-sysmess/mrtrace"
+
+	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrmailer/dto"
 	"github.com/mondegor/go-components/mrnotifier/notifier/entity"
 )
@@ -16,15 +18,22 @@ const (
 	HeaderPrefix = "header."
 
 	// HeaderLang - название переменной языка уведомления.
-	HeaderLang = HeaderPrefix + mrmailer.HeaderLang
+	HeaderLang = HeaderPrefix + core.KeyLangCode
 
 	// HeaderCorrelationID - название переменной заголовка, содержащего CorrelationID.
-	HeaderCorrelationID = HeaderPrefix + mrmailer.HeaderCorrelationID
+	HeaderCorrelationID = HeaderPrefix + mrtrace.KeyCorrelationID
 
-	FieldFromName  = "fromName"  // FieldFromName - имя отправителя (адрес подставится тот, с которого произойдёт отправка письма)
-	FieldTo        = "to"        // FieldTo - адрес получателя
-	FieldReplyTo   = "replyTo"   // FieldReplyTo - адрес для ответа на письмо
-	FieldPreHeader = "preheader" // FieldPreHeader - дополнительный заголовок отображаемый в некоторых почтовых клиентах
+	// FieldFromName - имя отправителя (адрес подставится тот, с которого произойдёт отправка письма).
+	FieldFromName = "fromName"
+
+	// FieldTo - адрес получателя.
+	FieldTo = "to"
+
+	// FieldReplyTo - адрес для ответа на письмо.
+	FieldReplyTo = "replyTo"
+
+	// FieldPreHeader - дополнительный заголовок отображаемый в некоторых почтовых клиентах.
+	FieldPreHeader = "preheader"
 )
 
 type (

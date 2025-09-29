@@ -4,11 +4,10 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/builder/part"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-webcore/mrcore/mrapp"
 	"github.com/mondegor/go-webcore/mrsender"
 
-	"github.com/mondegor/go-components/mrordering/component/move"
 	"github.com/mondegor/go-components/mrordering/repository"
+	"github.com/mondegor/go-components/mrordering/usecase/move"
 )
 
 type (
@@ -24,12 +23,12 @@ func NewComponentMover(
 	eventEmitter mrsender.EventEmitter,
 	opts ...MoverOption,
 ) *move.NodeMover {
-	options := moverOptions{
+	o := moverOptions{
 		storageCondition: nil,
 	}
 
 	for _, opt := range opts {
-		opt(&options)
+		opt(&o)
 	}
 
 	return move.New(
@@ -37,10 +36,8 @@ func NewComponentMover(
 			client,
 			storageTable,
 			part.NewSQLConditionBuilder(),
-			mrapp.NewStorageErrorWrapper(),
-			options.storageCondition,
+			o.storageCondition,
 		),
 		eventEmitter,
-		mrapp.NewUseCaseErrorWrapper(),
 	)
 }

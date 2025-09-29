@@ -3,8 +3,8 @@ package messenger
 import (
 	"context"
 
-	"github.com/mondegor/go-webcore/mrcore"
-	"github.com/mondegor/go-webcore/mrlog"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/mrtrace"
 	"github.com/mondegor/go-webcore/mrsender"
 
 	"github.com/mondegor/go-components/mrmailer/entity"
@@ -18,28 +18,30 @@ type (
 	// Provider - провайдер для отправки сообщений через заданный мессенджер.
 	Provider struct {
 		messengerAPI mrsender.MessageProvider
+		tracer       mrtrace.Tracer
 	}
 )
 
 // New - создаёт объект Provider.
-func New(messengerAPI mrsender.MessageProvider) *Provider {
+func New(messengerAPI mrsender.MessageProvider, tracer mrtrace.Tracer) *Provider {
 	return &Provider{
 		messengerAPI: messengerAPI,
+		tracer:       tracer,
 	}
 }
 
 // Send - отправляет указанное сообщение.
 func (p *Provider) Send(ctx context.Context, message entity.Message) error {
 	if message.Data.Messenger == nil {
-		return mrcore.ErrUseCaseIncorrectInputData.New("message.Data.Messenger", "nil")
+		return mr.ErrUseCaseIncorrectInternalInputData.New("reason", "message.Data.Messenger is nil")
 	}
 
-	mrlog.Ctx(ctx).
-		Trace().
-		Str("source", messengerProviderName).
-		Int64("messageId", int64(message.ID)).
-		Str("channel", message.Channel).
-		Send()
+	p.tracer.Trace(
+		ctx,
+		"source", messengerProviderName,
+		"messageId", message.ID,
+		"channel", message.Channel,
+	)
 
 	return p.messengerAPI.SendToChat(ctx, message.Data.Messenger.ChatID, message.Data.Messenger.Content)
 }

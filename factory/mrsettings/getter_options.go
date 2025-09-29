@@ -3,7 +3,7 @@ package mrsettings
 import (
 	"github.com/mondegor/go-storage/mrstorage"
 
-	"github.com/mondegor/go-components/mrsettings/features/fieldparser"
+	"github.com/mondegor/go-components/mrsettings/bag/fieldparser"
 )
 
 type (

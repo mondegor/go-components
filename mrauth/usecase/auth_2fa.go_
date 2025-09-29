@@ -1,0 +1,142 @@
+package usecase
+
+import (
+	"context"
+	"github.com/google/uuid"
+	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-sysmess/mrmsg"
+	"github.com/mondegor/go-webcore/mrcore"
+	"github.com/mondegor/go-webcore/mrsender"
+	"golang.org/x/crypto/bcrypt"
+)
+
+type (
+	// Auth2fa - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	Auth2fa struct {
+		storage       mrauth.User2faStorage
+		eventEmitter  mrsender.EventEmitter
+		errorWrapper  mrcore.UseCaseErrorWrapper
+		codeGenerator mrauth.CodeGenerator
+		tokenLength   uint64
+		digitLength   uint64
+	}
+
+	// codeGenerator interface {
+	// 	GenTokenBase64(length int) (string, error)
+	// 	GenDigitCode(length int) (string, error)
+	// }
+)
+
+// New3 - создаёт объект UserProvider.
+func New3(
+	storage mrauth.User2faStorage,
+	eventEmitter mrsender.EventEmitter,
+	tokenGenerator codeGenerator,
+	tokenLength uint64,
+	digitLength uint64,
+) *Auth2fa {
+	return &Auth2fa{
+		storage:       storage,
+		eventEmitter:  eventEmitter,
+		errorWrapper:  mr.NewUseCaseErrorWrapper(entity.ModelNameAuth2fa),
+		codeGenerator: tokenGenerator,
+		tokenLength:   tokenLength,
+		digitLength:   digitLength,
+	}
+}
+
+// Create - возвращает строковое значение настройки с указанным идентификатором.
+func (co *Auth2fa) Create(ctx context.Context, item entity.Auth2fa) (entity.Auth2faCancel, error) {
+	if item.UserID == uuid.Nil {
+		return entity.Auth2faCancel{}, mr.ErrUseCaseEntityNotFound.New()
+	}
+
+	cancelSecret, err := co.codeGenerator GenTokenBase64(32) // добавить тире
+	if err != nil {
+		return entity.Auth2faCancel{}, co.errorWrapper.WrapErrorFailed(err )
+	}
+
+	hashedCancelSecret, err := bcrypt.GenerateFromPassword([]byte(cancelSecret), bcrypt.MaxCost)
+	if err != nil {
+		return entity.Auth2faCancel{}, co.errorWrapper.WrapErrorFailed(err )
+	}
+
+	var hashedSecret []byte
+
+	if item.Type == enum.Auth2faTypePassword {
+		hashedSecret, err = bcrypt.GenerateFromPassword([]byte(item.Secret), bcrypt.MaxCost)
+		if err != nil {
+			return entity.Auth2faCancel{}, co.errorWrapper.WrapErrorFailed(err )
+		}
+	} else {
+		hashedSecret = []byte(item.Secret) // TOTP ????
+	}
+
+	err = co.storage.InsertOrUpdate(
+		ctx,
+		entity.Auth2fa{
+			UserID:       item.UserID,
+			Type:         item.Type,
+			Secret:       string(hashedSecret),
+			CancelSecret: string(hashedCancelSecret),
+		},
+	)
+	if err != nil {
+		return entity.Auth2faCancel{}, co.errorWrapper.WrapErrorFailed(err )
+	}
+
+	return entity.Auth2faCancel{Secret: cancelSecret}, nil
+}
+
+// Change - comments method.
+func (co *Auth2fa) Change(ctx context.Context, item entity.Auth2fa, secret string) (entity.Auth2faCancel, error) {
+	if err := co.Remove(ctx, item.UserID, secret); err != nil {
+		// обработать if not exists
+
+		return entity.Auth2faCancel{}, co.errorWrapper.WrapErrorFailed(err )
+	}
+
+	return co.Create(ctx, item)
+}
+
+// Remove - comments method.
+func (co *Auth2fa) Remove(ctx context.Context, userID uuid.UUID, secret string) error {
+	if userID == uuid.Nil {
+		return mr.ErrUseCaseEntityNotFound.New()
+	}
+
+	hashedSecret, err := bcrypt.GenerateFromPassword([]byte(secret), bcrypt.MaxCost)
+	if err != nil {
+		return co.errorWrapper.WrapErrorFailed(err )
+	}
+
+	item, err := co.storage.FetchOne(ctx, userID)
+	if err != nil {
+		return co.errorWrapper.WrapErrorFailed(err )
+	}
+
+	var useCancelSecret bool
+
+	if co.checkSecret(item, string(hashedSecret)) {
+		if item.CancelSecret != string(hashedSecret) {
+			return co.errorWrapper.WrapErrorFailed(err ) // код указан неверно!!!
+		}
+
+		useCancelSecret = true
+	}
+
+	// была отключена 2fa
+	co.eventEmitter.Emit(ctx, "Remove2fa", mrargs.Group{"userId": userID, "useCancelSecret": useCancelSecret})
+
+	return nil
+}
+
+func (co *Auth2fa) checkSecret(item entity.Auth2fa, hashedSecret string) bool {
+	if item.Type == enum.Auth2faTypePassword {
+		return item.Secret == hashedSecret
+	}
+
+	return false // TOTP
+}

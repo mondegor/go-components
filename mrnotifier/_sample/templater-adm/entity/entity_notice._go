@@ -1,0 +1,37 @@
+package entity
+
+import (
+	"time"
+
+	"github.com/mondegor/go-webcore/mrenum"
+
+	"github.com/mondegor/go-components/mrnotifier/template/entity"
+	"github.com/mondegor/go-components/mrnotifier/template/enum"
+)
+
+const (
+	ModelNameNotice = "mrnotifier.Notice" // ModelNameNotice - название сущности
+)
+
+type (
+	// Notice - элемент с метаинформацией настройки и её значением.
+	Notice struct {
+		ID          uint64            `json:"id"` // paper_id
+		TagVersion  uint32            `json:"tagVersion"`
+		Key         string            `json:"noticeKey"`
+		Group       enum.NoticeGroup  `json:"noticeGroup"`
+		Type        enum.NoticeType   `json:"noticeType"`
+		ContentType string            `json:"contentType"`
+		Subject     string            `json:"noticeSubject"`
+		Attrs       *NoticeAttrs      `json:"noticeData,omitempty"`
+		Body        uint64            `json:"noticeBody"`
+		Vars        uint64            `json:"noticeVars"`
+		Status      mrenum.ItemStatus `json:"status"`
+		CreatedAt   time.Time         `json:"createdAt" sort:"createdAt"`
+		UpdatedAt   time.Time         `json:"updatedAt" sort:"updatedAt"`
+	}
+
+	NoticeAttrs struct {
+		EmailMeta *entity.NoticeEmailMeta `json:"email"`
+	}
+)

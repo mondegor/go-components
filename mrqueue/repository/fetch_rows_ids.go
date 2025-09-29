@@ -6,7 +6,7 @@ import (
 	"github.com/mondegor/go-storage/mrstorage"
 )
 
-func fetchRowsIDs(ctx context.Context, client mrstorage.DBConnManager, sql string, limit uint32, args ...any) (rowsIDs []uint64, err error) {
+func fetchRowsIDs(ctx context.Context, client mrstorage.DBConnManager, sql string, limit int, args ...any) (rowsIDs []uint64, err error) {
 	cursor, err := client.Conn(ctx).Query(
 		ctx,
 		sql,

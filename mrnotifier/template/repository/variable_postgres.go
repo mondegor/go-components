@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrmsg"
-	"github.com/mondegor/go-webcore/mrcore"
+	"github.com/mondegor/go-sysmess/mrargs"
 
+	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrnotifier/template/entity"
 )
 
@@ -15,16 +15,16 @@ type (
 	VariablePostgres struct {
 		client       mrstorage.DBConnManager
 		tableName    string
-		errorWrapper mrcore.StorageErrorWrapper
+		errorWrapper core.ErrorWrapper
 	}
 )
 
 // NewVariablePostgres - создаёт объект VariablePostgres.
-func NewVariablePostgres(client mrstorage.DBConnManager, tableName string, errorWrapper mrcore.StorageErrorWrapper) *VariablePostgres {
+func NewVariablePostgres(client mrstorage.DBConnManager, tableName string) *VariablePostgres {
 	return &VariablePostgres{
 		client:       client,
 		tableName:    tableName,
-		errorWrapper: errorWrapper,
+		errorWrapper: core.NewStorageErrorWrapper(tableName),
 	}
 }
 
@@ -45,7 +45,7 @@ func (re *VariablePostgres) Fetch(ctx context.Context, vars []string) ([]entity.
 		vars,
 	)
 	if err != nil {
-		return nil, re.errorWrapper.WrapErrorEntity(err, re.tableName, mrmsg.Data{"vars": vars})
+		return nil, re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"vars": vars})
 	}
 
 	defer cursor.Close()
@@ -60,7 +60,7 @@ func (re *VariablePostgres) Fetch(ctx context.Context, vars []string) ([]entity.
 			&row.DefaultValue,
 		)
 		if err != nil {
-			return nil, re.errorWrapper.WrapErrorEntity(err, re.tableName, mrmsg.Data{"vars": vars})
+			return nil, re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"vars": vars})
 		}
 
 		rows = append(rows, row)

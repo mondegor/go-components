@@ -4,13 +4,22 @@ import (
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-webcore/mrworker/job/task"
 
-	"github.com/mondegor/go-components/mrsettings/features/fieldparser"
+	"github.com/mondegor/go-components/mrsettings/bag/fieldparser"
 )
 
 type (
-	// GetterOption - настройка объекта cacheget.SettingsGetter.
+	// GetterOption - настройка объекта caching.SettingsGetter.
 	GetterOption func(o *getterOptions)
 )
+
+// WithCaptionPrefix - устанавливает опцию captionPrefix для caching.SettingsGetter.
+func WithCaptionPrefix(value string) GetterOption {
+	return func(o *getterOptions) {
+		if value != "" {
+			o.captionPrefix = value
+		}
+	}
+}
 
 // WithFieldFormatterOpts - устанавливает опции парсинга данных поступающих из хранилища данных.
 func WithFieldFormatterOpts(value ...fieldparser.Option) GetterOption {

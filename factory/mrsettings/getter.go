@@ -4,11 +4,10 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/builder/part"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-webcore/mrcore/mrapp"
 
-	"github.com/mondegor/go-components/mrsettings/component/get"
-	"github.com/mondegor/go-components/mrsettings/features/fieldparser"
+	"github.com/mondegor/go-components/mrsettings/bag/fieldparser"
 	"github.com/mondegor/go-components/mrsettings/repository"
+	"github.com/mondegor/go-components/mrsettings/usecase/get"
 )
 
 type (
@@ -24,21 +23,19 @@ func NewComponentGetter(
 	storageTable mrsql.DBTableInfo,
 	opts ...GetterOption,
 ) *get.SettingsGetter {
-	options := getterOptions{}
+	o := getterOptions{}
 
 	for _, opt := range opts {
-		opt(&options)
+		opt(&o)
 	}
 
 	return get.New(
-		fieldparser.New(options.fieldParser...),
+		fieldparser.New(o.fieldParser...),
 		repository.NewSettingPostgres(
 			client,
 			storageTable,
 			part.NewSQLConditionBuilder(),
-			mrapp.NewStorageErrorWrapper(),
-			options.storageCondition,
+			o.storageCondition,
 		),
-		mrapp.NewUseCaseErrorWrapper(),
 	)
 }

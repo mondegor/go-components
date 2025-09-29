@@ -3,7 +3,8 @@ package entity
 import "time"
 
 const (
-	ModelNameItem = "mrqueue.Item" // ModelNameItem - название сущности
+	// ModelNameItem - название сущности.
+	ModelNameItem = "mrqueue.Item"
 )
 
 type (

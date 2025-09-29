@@ -29,11 +29,10 @@ func (re *CompletedPostgres) Insert(ctx context.Context, rowID uint64) error {
 	sql := `
 		INSERT INTO ` + re.table.Name + `
 			(
-				` + re.table.PrimaryKey + `,
-				updated_at
+				` + re.table.PrimaryKey + `
 			)
 		VALUES
-			($1, NOW());`
+			($1);`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,
@@ -43,8 +42,8 @@ func (re *CompletedPostgres) Insert(ctx context.Context, rowID uint64) error {
 }
 
 // Delete - удаляет ограниченный список записей из успешно обработанных.
-// Возвращает ID записей, которые были удалены.
-func (re *CompletedPostgres) Delete(ctx context.Context, expiry time.Duration, limit uint32) (rowsIDs []uint64, err error) {
+// Возвращает SettingID записей, которые были удалены.
+func (re *CompletedPostgres) Delete(ctx context.Context, expiry time.Duration, limit int) (rowsIDs []uint64, err error) {
 	sql := `
 		WITH completed_expired_items as (
 			SELECT

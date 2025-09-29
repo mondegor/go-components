@@ -5,7 +5,8 @@ import (
 )
 
 const (
-	ModelNameNode = "mrordering.Node" // ModelNameNode - название сущности
+	// ModelNameNode - название сущности.
+	ModelNameNode = "mrordering.Node"
 )
 
 type (

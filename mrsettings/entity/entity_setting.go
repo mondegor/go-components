@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	ModelNameSetting = "mrsettings.Setting" // ModelNameSetting - название сущности
+	// ModelNameSetting - название сущности.
+	ModelNameSetting = "mrsettings.Setting"
 )
 
 type (

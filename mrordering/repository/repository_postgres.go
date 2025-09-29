@@ -6,9 +6,10 @@ import (
 	"github.com/mondegor/go-storage/mrentity"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrmsg"
-	"github.com/mondegor/go-webcore/mrcore"
+	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
 
+	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrordering/entity"
 )
 
@@ -23,8 +24,8 @@ type (
 		client       mrstorage.DBConnManager
 		table        mrsql.DBTableInfo
 		whereBuilder mrstorage.SQLConditionBuilder
-		errorWrapper mrcore.StorageErrorWrapper
 		condition    mrstorage.SQLPartFunc // OPTIONAL
+		errorWrapper core.ErrorWrapper
 	}
 )
 
@@ -33,19 +34,18 @@ func NewRepository(
 	client mrstorage.DBConnManager,
 	table mrsql.DBTableInfo,
 	whereBuilder mrstorage.SQLConditionBuilder,
-	errorWrapper mrcore.StorageErrorWrapper,
 	condition mrstorage.SQLPartFunc, // OPTIONAL
 ) *Repository {
 	return &Repository{
 		client:       client,
 		table:        table,
 		whereBuilder: whereBuilder,
-		errorWrapper: errorWrapper,
 		condition:    condition,
+		errorWrapper: core.NewStorageErrorWrapper(table.Name),
 	}
 }
 
-// FetchNode - возвращает элемент, по указанному ID с учётом указанного условия.
+// FetchNode - возвращает элемент, по указанному SettingID с учётом указанного условия.
 func (re *Repository) FetchNode(ctx context.Context, rowID uint64, condition mrstorage.SQLPartFunc) (entity.Node, error) {
 	args := []any{
 		rowID,
@@ -81,7 +81,7 @@ func (re *Repository) FetchNode(ctx context.Context, rowID uint64, condition mrs
 		&row.OrderIndex,
 	)
 	if err != nil {
-		return entity.Node{}, re.errorWrapper.WrapErrorEntity(err, re.table.Name, mrmsg.Data{re.table.PrimaryKey: row.ID})
+		return entity.Node{}, re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"id": row.ID})
 	}
 
 	return row, nil
@@ -110,7 +110,7 @@ func (re *Repository) FetchFirstNode(ctx context.Context, condition mrstorage.SQ
 		&row.OrderIndex,
 	)
 	if err != nil {
-		return entity.Node{}, re.errorWrapper.WrapErrorEntity(err, re.table.Name, "MIN(order_index)")
+		return entity.Node{}, re.errorWrapper.WrapError(err, "storage-data", "MIN(order_index)")
 	}
 
 	if err = re.loadNodeByOrderIndex(ctx, &row, condition); err != nil {
@@ -118,7 +118,7 @@ func (re *Repository) FetchFirstNode(ctx context.Context, condition mrstorage.SQ
 	}
 
 	if row.PrevID > 0 {
-		return entity.Node{}, mrcore.ErrInternal.New().WithAttr(re.table.Name, mrmsg.Data{"row.Id": row.ID, "row.PrevId": row.PrevID})
+		return entity.Node{}, mr.ErrInternal.New().WithAttrs("source", re.table.Name, "data", mrargs.Group{"row.Id": row.ID, "row.PrevId": row.PrevID})
 	}
 
 	return row, nil
@@ -147,7 +147,7 @@ func (re *Repository) FetchLastNode(ctx context.Context, condition mrstorage.SQL
 		&row.OrderIndex,
 	)
 	if err != nil {
-		return entity.Node{}, re.errorWrapper.WrapErrorEntity(err, re.table.Name, "MAX(order_index)")
+		return entity.Node{}, re.errorWrapper.WrapError(err, "storage-data", "MAX(order_index)")
 	}
 
 	if row.OrderIndex == 0 {
@@ -159,7 +159,7 @@ func (re *Repository) FetchLastNode(ctx context.Context, condition mrstorage.SQL
 	}
 
 	if row.NextID > 0 {
-		return entity.Node{}, mrcore.ErrInternal.New().WithAttr(re.table.Name, mrmsg.Data{"row.Id": row.ID, "row.NextId": row.NextID})
+		return entity.Node{}, mr.ErrInternal.New().WithAttrs("source", re.table.Name, "data", mrargs.Group{"row.Id": row.ID, "row.NextId": row.NextID})
 	}
 
 	return row, nil
@@ -195,7 +195,7 @@ func (re *Repository) UpdateNode(ctx context.Context, row entity.Node, condition
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	if err != nil {
-		return re.errorWrapper.WrapErrorEntity(err, re.table.Name, mrmsg.Data{re.table.PrimaryKey: row.ID})
+		return re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"id": row.ID})
 	}
 
 	return err
@@ -237,7 +237,7 @@ func (re *Repository) RecalcOrderIndex(ctx context.Context, minBorder, step uint
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	if err != nil {
-		return re.errorWrapper.WrapErrorEntity(err, re.table.Name, mrmsg.Data{"orderIndex": minBorder, "step": step})
+		return re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"orderIndex": minBorder, "step": step})
 	}
 
 	return nil
@@ -276,7 +276,7 @@ func (re *Repository) loadNodeByOrderIndex(ctx context.Context, row *entity.Node
 		&row.NextID,
 	)
 	if err != nil {
-		return re.errorWrapper.WrapErrorEntity(err, re.table.Name, mrmsg.Data{"orderIndex": row.OrderIndex})
+		return re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"orderIndex": row.OrderIndex})
 	}
 
 	return nil
@@ -313,7 +313,7 @@ func (re *Repository) updateNodeNeighborID(
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	if err != nil {
-		return re.errorWrapper.WrapErrorEntity(err, re.table.Name, mrmsg.Data{re.table.PrimaryKey: rowID})
+		return re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"id": rowID})
 	}
 
 	return nil

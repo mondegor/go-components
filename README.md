@@ -1,4 +1,4 @@
-# Описание GoComponents v0.8.2
+# Описание GoComponents v0.9.0
 Этот репозиторий содержит описание библиотеки GoComponents.
 
 ## Статус библиотеки
@@ -19,7 +19,7 @@
   Также основан на очереди элементов `mrqueue`;
 
 ## Подключение библиотеки
-`go get -u github.com/mondegor/go-components@v0.8.2`
+`go get -u github.com/mondegor/go-components@v0.9.0`
 
 ## Установка библиотеки для её локальной разработки
 - Выбрать рабочую директорию, где должна быть расположена библиотека
@@ -47,8 +47,6 @@
 #### Короткий вариант выше приведённых команд (Makefile)
 - `make deps` // аналог `mrcmd go-dev deps`
 - `make generate` // аналог `mrcmd go-dev generate`
-- `make fmt` // аналог `mrcmd go-dev gofumpt-fix`
-- `make fmti` // аналог `mrcmd go-dev goimports-fix`
 - `make lint` // аналог `mrcmd golangci-lint check`
 - `make test` // аналог `mrcmd go-dev test`
 - `make test-report` // аналог `mrcmd go-dev test-report`
@@ -60,8 +58,8 @@
 ## Примеры архитектуры системы с использованием библиотеки go-components
 
 ### Пакет mrsettings
-- [CacheGetter + Loader](https://github.com/mondegor/go-components/blob/master/mrsettings/component/cachegetter/cache_getter.go)
-- [Setter](https://github.com/mondegor/go-components/blob/master/mrsettings/component/setter/component_setter.go)
+- [CacheGetter + Loader](https://github.com/mondegor/go-components/blob/master/mrsettings/usecase/cachegetter/cache_getter.go)
+- [Setter](https://github.com/mondegor/go-components/blob/master/mrsettings/usecase/setter/component_setter.go)
 
 ![image](docs/resources/packages/c4/mrsettings.svg)
 

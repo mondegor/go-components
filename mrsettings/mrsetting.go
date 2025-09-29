@@ -8,7 +8,7 @@ import (
 )
 
 type (
-	// Getter - интерфейс получения значения настройки по указанному ID.
+	// Getter - интерфейс получения значения настройки по указанному SettingID.
 	Getter interface {
 		Get(ctx context.Context, id uint64) (string, error)
 		GetList(ctx context.Context, id uint64) ([]string, error)
@@ -17,7 +17,7 @@ type (
 		GetBool(ctx context.Context, id uint64) (bool, error)
 	}
 
-	// DefaultValueGetter - интерфейс получения значения настройки по указанному ID.
+	// DefaultValueGetter - интерфейс получения значения настройки по указанному SettingID.
 	// Если значение не найдено или случилась ошибка, то будет возвращено значение по умолчанию.
 	DefaultValueGetter interface {
 		Get(ctx context.Context, id uint64, defValue string) string
@@ -27,7 +27,7 @@ type (
 		GetBool(ctx context.Context, id uint64, defValue bool) bool
 	}
 
-	// Setter - интерфейс сохранения значения настройки по указанному ID.
+	// Setter - интерфейс сохранения значения настройки по указанному SettingID.
 	Setter interface {
 		Set(ctx context.Context, id uint64, value string) error
 		SetList(ctx context.Context, id uint64, value []string) error
@@ -39,7 +39,7 @@ type (
 	// Loader - интерфейс загрузки данных из хранилища в область памяти,
 	// для оперативного доступа за значениями настроек.
 	Loader interface {
-		Reload(ctx context.Context) (count uint64, err error)
+		Reload(ctx context.Context) (count int, err error)
 	}
 
 	// ValueParser - парсер значения настройки полученного из хранилища,
@@ -68,9 +68,14 @@ type (
 		Fetch(ctx context.Context, lastUpdated time.Time) ([]entity.Setting, error)
 	}
 
-	// Storage - извлечение и сохранение значения настройки по указанному ID.
+	// Storage - извлечение и сохранение значения настройки по указанному SettingID.
 	Storage interface {
 		FetchOne(ctx context.Context, id uint64) (entity.Setting, error)
 		Update(ctx context.Context, row entity.Setting) error
+	}
+
+	// StorageLog - comments interface.
+	StorageLog interface {
+		Insert(ctx context.Context, settingID uint64, newValue string) error
 	}
 )

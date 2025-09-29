@@ -4,12 +4,11 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/builder/part"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-webcore/mrcore/mrapp"
 	"github.com/mondegor/go-webcore/mrsender"
 
-	"github.com/mondegor/go-components/mrsettings/component/set"
-	"github.com/mondegor/go-components/mrsettings/features/fieldformatter"
+	"github.com/mondegor/go-components/mrsettings/bag/fieldformatter"
 	"github.com/mondegor/go-components/mrsettings/repository"
+	"github.com/mondegor/go-components/mrsettings/usecase/set"
 )
 
 type (
@@ -23,25 +22,30 @@ type (
 func NewComponentSetter(
 	client mrstorage.DBConnManager,
 	storageTable mrsql.DBTableInfo,
+	storageTableLog string,
 	eventEmitter mrsender.EventEmitter,
 	opts ...SetterOption,
 ) *set.SettingsSetter {
-	options := setterOptions{}
+	o := setterOptions{}
 
 	for _, opt := range opts {
-		opt(&options)
+		opt(&o)
 	}
 
 	return set.New(
-		fieldformatter.New(options.fieldFormatter...),
+		client,
+		fieldformatter.New(o.fieldFormatter...),
 		repository.NewSettingPostgres(
 			client,
 			storageTable,
 			part.NewSQLConditionBuilder(),
-			mrapp.NewStorageErrorWrapper(),
-			options.storageCondition,
+			o.storageCondition,
+		),
+		repository.NewSettingLogPostgres(
+			client,
+			storageTableLog,
+			storageTable,
 		),
 		eventEmitter,
-		mrapp.NewUseCaseErrorWrapper(),
 	)
 }

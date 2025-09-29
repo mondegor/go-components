@@ -27,7 +27,7 @@ func NewMessagePostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo)
 	}
 }
 
-// FetchByIDs - возвращает список сообщений по их указанным ID.
+// FetchByIDs - возвращает список сообщений по их указанным SettingID.
 func (re *MessagePostgres) FetchByIDs(ctx context.Context, rowsIDs []uint64) ([]entity.Message, error) {
 	sql := `
 		SELECT
@@ -83,18 +83,16 @@ func (re *MessagePostgres) Insert(ctx context.Context, rows []entity.Message) er
 			(
 				` + re.table.PrimaryKey + `,
 				message_channel,
-				message_data,
-				created_at
+				message_data
 			)
 		VALUES `)
 
 	const countLineArgs = 3
 
-	// generate: ($1, $2, $3, NOW()), ...
+	// generate: ($1, $2, $3), ...
 	sqlValues := placeholdedvalues.New(
 		&sql,
 		placeholdedvalues.WithCountArgs(countLineArgs),
-		placeholdedvalues.WithLinePostfix(", NOW()"),
 	)
 
 	values := make([]any, 0, len(rows)*countLineArgs)
@@ -117,7 +115,7 @@ func (re *MessagePostgres) Insert(ctx context.Context, rows []entity.Message) er
 	)
 }
 
-// DeleteByIDs - удаляет сообщения по их указанным ID.
+// DeleteByIDs - удаляет сообщения по их указанным SettingID.
 func (re *MessagePostgres) DeleteByIDs(ctx context.Context, rowsIDs []uint64) error {
 	sql := `
 		DELETE FROM

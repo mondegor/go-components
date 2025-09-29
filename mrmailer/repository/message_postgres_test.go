@@ -7,7 +7,6 @@ import (
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrtests/infra"
 	"github.com/mondegor/go-webcore/mrsender"
-	"github.com/mondegor/go-webcore/mrtests/helpers"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/mondegor/go-components/mrmailer"
@@ -30,7 +29,7 @@ func TestMessagePostgresTestSuite(t *testing.T) {
 }
 
 func (ts *RepositoryTestSuite) SetupSuite() {
-	ts.ctx = helpers.ContextWithNopLogger()
+	ts.ctx = context.Background()
 	ts.pgt = infra.NewPostgresTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
 	ts.pgt.ApplyMigrations(tests.AppWorkDir() + "/mrmailer/sample/migrations")
 

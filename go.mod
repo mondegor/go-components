@@ -3,10 +3,15 @@ module github.com/mondegor/go-components
 go 1.22.7
 
 require (
-	github.com/mondegor/go-storage v0.16.4
-	github.com/mondegor/go-sysmess v0.13.2
-	github.com/mondegor/go-webcore v0.28.4
+	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/golang/mock v1.6.0
+	github.com/google/uuid v1.6.0
+	github.com/mondegor/go-storage v0.17.2-0.20250929225215-48c2a21b254b
+	github.com/mondegor/go-sysmess v0.15.4-0.20250929224048-b99af89abbd4
+	github.com/mondegor/go-webcore v0.29.3-0.20250929225336-da15a5b30dff
+	github.com/pquerna/otp v1.4.0
 	github.com/stretchr/testify v1.10.0
+	golang.org/x/crypto v0.29.0
 )
 
 require (
@@ -24,6 +29,7 @@ require (
 	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.5.2 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.25.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/boombuler/barcode v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -51,7 +57,6 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.18.1 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/s2a-go v0.1.8 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.0 // indirect
 	github.com/googleapis/go-sql-spanner v1.9.0 // indirect
@@ -65,6 +70,7 @@ require (
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect
 	github.com/lib/pq v1.10.9 // indirect
+	github.com/lmittmann/tint v1.0.7 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240909124753-873cd0166683 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
@@ -104,7 +110,6 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.32.0 // indirect
 	go.opentelemetry.io/otel/trace v1.32.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/crypto v0.29.0 // indirect
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f // indirect
 	golang.org/x/net v0.31.0 // indirect
 	golang.org/x/oauth2 v0.24.0 // indirect

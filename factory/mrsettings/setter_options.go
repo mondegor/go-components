@@ -3,7 +3,7 @@ package mrsettings
 import (
 	"github.com/mondegor/go-storage/mrstorage"
 
-	"github.com/mondegor/go-components/mrsettings/features/fieldformatter"
+	"github.com/mondegor/go-components/mrsettings/bag/fieldformatter"
 )
 
 type (

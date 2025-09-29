@@ -54,7 +54,7 @@ func (re *QueuePostgres) Insert(ctx context.Context, rows []entity.Item) error {
 	sqlValues := placeholdedvalues.New(
 		&sql,
 		placeholdedvalues.WithCountArgs(countLineArgs),
-		placeholdedvalues.WithLineMiddle(map[uint32]string{countLineArgs - 1: ", NOW() + INTERVAL '1 second' * "}),
+		placeholdedvalues.WithLineMiddle(map[int]string{countLineArgs - 1: ", NOW() + INTERVAL '1 second' * "}),
 	)
 
 	values := make([]any, 0, len(rows)*countLineArgs)
@@ -79,7 +79,7 @@ func (re *QueuePostgres) Insert(ctx context.Context, rows []entity.Item) error {
 
 // FetchAndUpdateStatusReadyToProcessing - выбирает ограниченный список записей из очереди находящихся в статусе READY
 // в порядке их добавления и переводит эти записи в статус PROCESSING.
-func (re *QueuePostgres) FetchAndUpdateStatusReadyToProcessing(ctx context.Context, limit uint32) (rowsIDs []uint64, err error) {
+func (re *QueuePostgres) FetchAndUpdateStatusReadyToProcessing(ctx context.Context, limit int) (rowsIDs []uint64, err error) {
 	sql := `
 		WITH ready_to_processing as (
 			SELECT
@@ -161,7 +161,7 @@ func (re *QueuePostgres) UpdateStatusProcessingToRetry(ctx context.Context, rowI
 
 // FetchAndUpdateStatusProcessingToRetryByTimeout - возвращает ограниченный список записей находящихся долгое время
 // в статусе PROCESSING (например, в случае если обработка записи подвисла) предварительно переведя их в статус RETRY.
-func (re *QueuePostgres) FetchAndUpdateStatusProcessingToRetryByTimeout(ctx context.Context, timeout time.Duration, limit uint32) (rowIDs []uint64, err error) {
+func (re *QueuePostgres) FetchAndUpdateStatusProcessingToRetryByTimeout(ctx context.Context, timeout time.Duration, limit int) (rowIDs []uint64, err error) {
 	sql := `
 		WITH processing_to_retry as (
 			SELECT
@@ -201,7 +201,7 @@ func (re *QueuePostgres) FetchAndUpdateStatusProcessingToRetryByTimeout(ctx cont
 
 // FetchAndUpdateStatusRetryToReady - переводит ограниченный список записей из статуса RETRY в статус READY
 // учитывая указанную задержку нахождения записи в этом статусе и положительное кол-во попыток.
-func (re *QueuePostgres) FetchAndUpdateStatusRetryToReady(ctx context.Context, delayed time.Duration, limit uint32) (rowIDs []uint64, err error) {
+func (re *QueuePostgres) FetchAndUpdateStatusRetryToReady(ctx context.Context, delayed time.Duration, limit int) (rowIDs []uint64, err error) {
 	sql := `
 		WITH retry_to_ready as (
 			SELECT
@@ -242,8 +242,8 @@ func (re *QueuePostgres) FetchAndUpdateStatusRetryToReady(ctx context.Context, d
 }
 
 // DeleteRetryWithoutAttempts - удаляет из очереди ограниченный список записей находящихся
-// в статусе RETRY и с нулевым кол-вом попыток в целях разгрузки очереди. Возвращает ID записей, которые были удалены.
-func (re *QueuePostgres) DeleteRetryWithoutAttempts(ctx context.Context, limit uint32) (rowsIDs []uint64, err error) {
+// в статусе RETRY и с нулевым кол-вом попыток в целях разгрузки очереди. Возвращает SettingID записей, которые были удалены.
+func (re *QueuePostgres) DeleteRetryWithoutAttempts(ctx context.Context, limit int) (rowsIDs []uint64, err error) {
 	sql := `
 		WITH retry_without_attempts as (
 			SELECT
@@ -275,7 +275,7 @@ func (re *QueuePostgres) DeleteRetryWithoutAttempts(ctx context.Context, limit u
 	)
 }
 
-// Delete - удаляет запись из очереди по указанному ID и находящеюся в указанном статусе.
+// Delete - удаляет запись из очереди по указанному SettingID и находящеюся в указанном статусе.
 func (re *QueuePostgres) Delete(ctx context.Context, rowID uint64, status enum.ItemStatus) error {
 	sql := `
 		DELETE FROM

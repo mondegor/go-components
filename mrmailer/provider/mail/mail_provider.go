@@ -5,8 +5,8 @@ import (
 	"net/mail"
 	"strings"
 
-	"github.com/mondegor/go-webcore/mrcore"
-	"github.com/mondegor/go-webcore/mrlog"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/mrtrace"
 	"github.com/mondegor/go-webcore/mrsender"
 	msg "github.com/mondegor/go-webcore/mrsender/mail"
 
@@ -21,6 +21,7 @@ type (
 	// Provider - провайдер для отправки сообщений через заданный мессенджер.
 	Provider struct {
 		mailerAPI        mrsender.MailProvider
+		tracer           mrtrace.Tracer
 		defaultFrom      string
 		defaultFromEmail string
 	}
@@ -29,14 +30,15 @@ type (
 // New - создаёт объект Provider.
 // В переменной defaultFromEmail обязателен для заполнения
 // и в ней должен находиться электронный адрес отправителя, в том числе и расширенный.
-func New(mailAPI mrsender.MailProvider, defaultFromEmail string) (*Provider, error) {
+func New(mailAPI mrsender.MailProvider, tracer mrtrace.Tracer, defaultFromEmail string) (*Provider, error) {
 	addr, err := mail.ParseAddress(defaultFromEmail)
 	if err != nil {
-		return nil, mrcore.ErrInternalWithDetails.Wrap(err, "defaultFromEmail parsing failed")
+		return nil, mr.ErrInternal.Wrap(err, "details", "defaultFromEmail parsing failed")
 	}
 
 	return &Provider{
 		mailerAPI:        mailAPI,
+		tracer:           tracer,
 		defaultFrom:      addr.String(),
 		defaultFromEmail: addr.Address,
 	}, nil
@@ -45,15 +47,15 @@ func New(mailAPI mrsender.MailProvider, defaultFromEmail string) (*Provider, err
 // Send - отправляет указанное сообщение.
 func (p *Provider) Send(ctx context.Context, message entity.Message) error {
 	if message.Data.Email == nil {
-		return mrcore.ErrUseCaseIncorrectInputData.New("message.Data.Email", "nil")
+		return mr.ErrUseCaseIncorrectInternalInputData.New("reason", "message.Data.Email is nil")
 	}
 
-	mrlog.Ctx(ctx).
-		Trace().
-		Str("source", mailProviderName).
-		Int64("messageId", int64(message.ID)).
-		Str("channel", message.Channel).
-		Send()
+	p.tracer.Trace(
+		ctx,
+		"source", mailProviderName,
+		"messageId", message.ID,
+		"channel", message.Channel,
+	)
 
 	smtpMessage, err := msg.NewMessage(
 		p.makeFromAddress(message.Data.Email.From),

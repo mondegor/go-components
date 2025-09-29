@@ -1,0 +1,79 @@
+package repository
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrmsg"
+	"github.com/mondegor/go-webcore/mrcore"
+	"github.com/mondegor/go-webcore/mrenum"
+
+	"github.com/mondegor/go-components/mrnotifier/template/entity"
+)
+
+type (
+	// VariablePostgres - репозиторий для хранения элементов настроек.
+	VariablePostgres struct {
+		client       mrstorage.DBConnManager
+		errorWrapper mrcore.StorageErrorWrapper
+		tableName    string
+	}
+)
+
+// NewVariablePostgres - создаёт объект VariablePostgres.
+func NewVariablePostgres(client mrstorage.DBConnManager, tableName string, errorWrapper mrcore.StorageErrorWrapper) *VariablePostgres {
+	return &VariablePostgres{
+		client:       client,
+		errorWrapper: errorWrapper,
+		tableName:    tableName,
+	}
+}
+
+// Fetch - comment method.
+func (re *VariablePostgres) Fetch(ctx context.Context, names []string) (row entity.Variable, err error) {
+	sql := `
+		SELECT
+			var_name,
+			default_value,
+
+
+			lang_code,
+			notice_props,
+			notice_body,
+			notice_vars,
+			notice_status
+		FROM
+			` + re.tableName + `
+		WHERE
+			notice_key = $1 AND lang_code = $2 AND deleted_at IS NULL
+		LIMIT 1;`
+
+	var status mrenum.ItemStatus
+
+	err = re.client.Conn(ctx).QueryRow(
+		ctx,
+		sql,
+		noticeKey,
+		lang,
+	).Scan(
+		&row.Lang,
+		&row.Props,
+		&row.Body,
+		&row.Vars,
+		status,
+	)
+	if err != nil {
+		return entity.NoticeVariable{}, re.errorWrapper.WrapErrorEntity(err, re.tableName, mrmsg.Data{"noticeKey": noticeKey, "lang": lang})
+	}
+
+	if status != mrenum.ItemStatusEnabled {
+		return entity.NoticeVariable{}, re.errorWrapper.WrapErrorEntity(
+			mrcore.ErrStorageNoRowFound.Wrap(fmt.Errorf("notice template is in status %s, expected: %s", status, mrenum.ItemStatusEnabled)),
+			re.tableName,
+			mrmsg.Data{"noticeKey": noticeKey, "lang": lang},
+		)
+	}
+
+	return row, nil
+}

@@ -40,22 +40,19 @@ func (re *BrokenPostgres) Insert(ctx context.Context, rows []entity.ItemWithErro
 		INSERT INTO ` + re.table.Name + `
 			(
 				` + re.table.PrimaryKey + `,
-				error_message,
-				created_at
+				error_message
 			)
 		VALUES `)
 
 	const countLineArgs = 2
 
-	// generate: ($1, $2, NOW()), ...
+	// generate: ($1, $2), ...
 	sqlValues := placeholdedvalues.New(
 		&sql,
 		placeholdedvalues.WithCountArgs(countLineArgs),
-		placeholdedvalues.WithLinePostfix(", NOW()"),
 	)
 
 	values := make([]any, 0, len(rows)*countLineArgs)
-
 	argumentNumber := sqlValues.WriteFirstLine()
 
 	for i, row := range rows {
@@ -81,8 +78,8 @@ func (re *BrokenPostgres) InsertOne(ctx context.Context, row entity.ItemWithErro
 }
 
 // Delete - удаляет ограниченный список записей из журнала ошибок.
-// Возвращает ID записей, которые были удалены.
-func (re *BrokenPostgres) Delete(ctx context.Context, expiry time.Duration, limit uint32) (rowsIDs []uint64, err error) {
+// Возвращает SettingID записей, которые были удалены.
+func (re *BrokenPostgres) Delete(ctx context.Context, expiry time.Duration, limit int) (rowsIDs []uint64, err error) {
 	sql := `
 		WITH broken_expired_items as (
 			SELECT

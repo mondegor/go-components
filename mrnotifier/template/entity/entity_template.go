@@ -1,7 +1,8 @@
 package entity
 
 const (
-	ModelNameTemplate = "mrnotifier.template.Template" // ModelNameTemplate - название сущности
+	// ModelNameTemplate - название сущности.
+	ModelNameTemplate = "mrnotifier.template.Template"
 )
 
 type (

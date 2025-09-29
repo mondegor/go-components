@@ -3,18 +3,21 @@ package enum
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"math"
 
-	"github.com/mondegor/go-webcore/mrcore"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
+)
+
+// Тип значения настройки.
+const (
+	SettingTypeString      SettingType = iota + 1 // строковый тип настройки
+	SettingTypeStringList                         // списочный тип строковых элементов настройки
+	SettingTypeInteger                            // целочисленный тип настройки
+	SettingTypeIntegerList                        // списочный тип целочисленных элементов настройки
+	SettingTypeBoolean                            // логический тип настройки
 )
 
 const (
-	_                      SettingType = iota
-	SettingTypeString                  // SettingTypeString - строковый тип настройки
-	SettingTypeStringList              // SettingTypeStringList - списочный тип строковых элементов настройки
-	SettingTypeInteger                 // SettingTypeInteger - целочисленный тип настройки
-	SettingTypeIntegerList             // SettingTypeIntegerList - списочный тип целочисленных элементов настройки
-	SettingTypeBoolean                 // SettingTypeBoolean - логический тип настройки
-
 	settingTypeLast     = uint8(SettingTypeBoolean)
 	enumNameSettingType = "SettingType"
 )
@@ -50,7 +53,7 @@ func (e *SettingType) ParseAndSet(value string) error {
 		return nil
 	}
 
-	return mrcore.ErrInternalKeyNotFoundInSource.New(value, enumNameSettingType)
+	return mr.ErrInternalKeyNotFoundInSource.New(value, enumNameSettingType)
 }
 
 // Set - устанавливает указанное значение, если оно является enum значением.
@@ -61,7 +64,7 @@ func (e *SettingType) Set(value uint8) error {
 		return nil
 	}
 
-	return mrcore.ErrInternalKeyNotFoundInSource.New(value, enumNameSettingType)
+	return mr.ErrInternalKeyNotFoundInSource.New(value, enumNameSettingType)
 }
 
 // String - возвращается значение в виде строки.
@@ -69,10 +72,10 @@ func (e SettingType) String() string {
 	return settingTypeName[e]
 }
 
-// Empty - проверяет, что enum значение не установлено.
-func (e SettingType) Empty() bool {
-	return e == 0
-}
+// // Empty - сообщает, установлено ли enum значение.
+// func (e SettingType) Empty() bool {
+// 	return e == 0
+// }
 
 // MarshalJSON - переводит enum значение в строковое представление.
 func (e SettingType) MarshalJSON() ([]byte, error) {
@@ -92,32 +95,14 @@ func (e *SettingType) UnmarshalJSON(data []byte) error {
 
 // Scan implements the Scanner interface.
 func (e *SettingType) Scan(value any) error {
-	if val, ok := value.(int64); ok {
-		return e.Set(uint8(val))
+	if val, ok := value.(int64); ok && val >= 0 && val <= math.MaxUint8 {
+		return e.Set(uint8(val)) //nolint:gosec
 	}
 
-	return mrcore.ErrInternalTypeAssertion.New(enumNameSettingType, value)
+	return mr.ErrInternalTypeAssertion.New(enumNameSettingType, value)
 }
 
 // Value implements the driver.Valuer interface.
 func (e SettingType) Value() (driver.Value, error) {
 	return uint8(e), nil
-}
-
-// ParseSettingTypeList - парсит массив строковых значений и
-// возвращает соответствующий массив enum значений.
-func ParseSettingTypeList(items []string) ([]SettingType, error) {
-	var tmp SettingType
-
-	parsedItems := make([]SettingType, len(items))
-
-	for i := range items {
-		if err := tmp.ParseAndSet(items[i]); err != nil {
-			return nil, err
-		}
-
-		parsedItems[i] = tmp
-	}
-
-	return parsedItems, nil
 }

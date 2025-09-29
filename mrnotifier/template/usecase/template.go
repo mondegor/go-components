@@ -2,17 +2,19 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/mondegor/go-webcore/mrcore"
-	"github.com/mondegor/go-webcore/mrlog"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/mrlog"
 
+	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrnotifier"
 	"github.com/mondegor/go-components/mrnotifier/template"
 	"github.com/mondegor/go-components/mrnotifier/template/entity"
 )
 
 const (
-	defaultDefaultLang = "en_EN"
+	defaultDefaultLang = "en-US"
 )
 
 type (
@@ -20,7 +22,8 @@ type (
 	// формируются персонализированные уведомления конкретным получателям.
 	Template struct {
 		storage      template.Storage
-		errorWrapper mrcore.UseCaseErrorWrapper
+		errorWrapper core.UseCaseErrorWrapper
+		logger       mrlog.Logger
 		defaultLang  string
 	}
 )
@@ -28,7 +31,7 @@ type (
 // New - создаёт объект Template.
 func New(
 	storage template.Storage,
-	errorWrapper mrcore.UseCaseErrorWrapper,
+	logger mrlog.Logger,
 	defaultLang string,
 ) *Template {
 	if defaultLang == "" {
@@ -37,7 +40,8 @@ func New(
 
 	return &Template{
 		storage:      storage,
-		errorWrapper: errorWrapper,
+		errorWrapper: core.NewUseCaseErrorWrapper(entity.ModelNameTemplate),
+		logger:       logger,
 		defaultLang:  defaultLang,
 	}
 }
@@ -51,19 +55,19 @@ func (co *Template) GetItemByKey(ctx context.Context, key, lang string) (entity.
 
 	item, err := co.storage.FetchOneByKey(ctx, key, lang)
 	if err != nil {
-		if lang != co.defaultLang && mrcore.ErrStorageNoRowFound.Is(err) {
-			mrlog.Ctx(ctx).Warn().Msgf("No template was found for the notification %s with lang %s", key, lang)
+		if lang != co.defaultLang && mr.ErrStorageNoRowFound.Is(err) {
+			co.logger.Warn(ctx, fmt.Sprintf("No template was found for the notification %s with lang %s", key, lang))
 
 			// если запись не найдена для указанного языка, то происходит попытка выбрать её с языком по умолчанию
 			item, err = co.storage.FetchOneByKey(ctx, key, co.defaultLang)
 		}
 
 		if err != nil {
-			if mrcore.ErrStorageNoRowFound.Is(err) {
+			if mr.ErrStorageNoRowFound.Is(err) {
 				err = mrnotifier.ErrTemplateNotRegistered.Wrap(err, key, lang)
 			}
 
-			return entity.Template{}, co.errorWrapper.WrapErrorFailed(err, entity.ModelNameTemplate)
+			return entity.Template{}, co.errorWrapper.WrapErrorFailed(err)
 		}
 	}
 

@@ -3,7 +3,8 @@ package entity
 import "github.com/mondegor/go-components/mrmailer/dto"
 
 const (
-	ModelNameMessage = "mrmailer.Message" // ModelNameMessage - название сущности
+	// ModelNameMessage - название сущности.
+	ModelNameMessage = "mrmailer.Message"
 )
 
 type (

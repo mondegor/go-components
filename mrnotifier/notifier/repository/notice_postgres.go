@@ -25,7 +25,7 @@ func NewNoticePostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) 
 	}
 }
 
-// FetchByIDs - возвращает список уведомлений по их указанным ID.
+// FetchByIDs - возвращает список уведомлений по их указанным SettingID.
 func (re *NoticePostgres) FetchByIDs(ctx context.Context, rowsIDs []uint64) ([]entity.Notice, error) {
 	sql := `
 		SELECT
@@ -75,11 +75,10 @@ func (re *NoticePostgres) Insert(ctx context.Context, row entity.Notice) error {
 			(
 				` + re.table.PrimaryKey + `,
 				notice_key,
-				notice_data,
-				created_at
+				notice_data
 			)
 		VALUES
-			($1, $2, $3, NOW());`
+			($1, $2, $3);`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,
@@ -90,7 +89,7 @@ func (re *NoticePostgres) Insert(ctx context.Context, row entity.Notice) error {
 	)
 }
 
-// DeleteByIDs - удаляет уведомления по их указанным ID.
+// DeleteByIDs - удаляет уведомления по их указанным SettingID.
 func (re *NoticePostgres) DeleteByIDs(ctx context.Context, rowsIDs []uint64) error {
 	sql := `
 		DELETE FROM
