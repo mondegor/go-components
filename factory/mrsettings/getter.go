@@ -4,6 +4,7 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/builder/part"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
 
 	"github.com/mondegor/go-components/mrsettings/bag/fieldparser"
 	"github.com/mondegor/go-components/mrsettings/repository"
@@ -33,9 +34,11 @@ func NewComponentGetter(
 		fieldparser.New(o.fieldParser...),
 		repository.NewSettingPostgres(
 			client,
+			errorwrapper.NewInfraStorage(),
 			storageTable,
 			part.NewSQLConditionBuilder(),
 			o.storageCondition,
 		),
+		errorwrapper.NewUseCase(),
 	)
 }

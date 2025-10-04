@@ -6,12 +6,14 @@ import (
 
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
 	"github.com/mondegor/go-sysmess/mrlog"
+	"github.com/mondegor/go-sysmess/mrtrace"
 	"github.com/mondegor/go-webcore/mrworker"
 	"github.com/mondegor/go-webcore/mrworker/job/task"
 	"github.com/mondegor/go-webcore/mrworker/process/schedule"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/usecase/clean"
 )
@@ -38,9 +40,9 @@ type (
 // NewService - создаёт сервис для обработки и отправки сообщений и связанных с ним задачи.
 func NewService(
 	client mrstorage.DBConnManager,
-	errorHandler core.ErrorHandler,
+	errorHandler mrerr.ErrorHandler,
 	logger mrlog.Logger,
-	traceManager core.TraceManager,
+	traceManager mrtrace.ContextManager,
 	authTokenTable mrsql.DBTableInfo,
 	operationTable mrsql.DBTableInfo,
 	operationLogTable string,
@@ -66,26 +68,33 @@ func NewService(
 	authTokenCleaner := clean.NewAuthTokenCleaner(
 		repository.NewAuthTokenPostgres(
 			client,
+			errorwrapper.NewInfraStorage(),
 			authTokenTable,
 		),
+		errorwrapper.NewUseCase(),
 	)
 
 	operationCleaner := clean.NewOperationCleaner(
 		repository.NewSecureOperationPostgres(
 			client,
+			errorwrapper.NewInfraStorage(),
 			operationTable,
 		),
 		repository.NewSecureOperationLogPostgres(
 			client,
+			errorwrapper.NewInfraStorage(),
 			operationLogTable,
 		),
+		errorwrapper.NewUseCase(),
 	)
 
 	userCleaner := clean.NewUserCleaner(
 		repository.NewUserActivityLogPostgres(
 			client,
+			errorwrapper.NewInfraStorage(),
 			userActivityLogTable,
 		),
+		errorwrapper.NewUseCase(),
 	)
 
 	cleanerTask := task.NewJobWrapper(

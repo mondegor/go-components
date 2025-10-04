@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrnotifier"
 	"github.com/mondegor/go-components/mrnotifier/notifier/entity"
 	"github.com/mondegor/go-components/mrqueue"
@@ -18,7 +18,7 @@ type (
 		txManager    mrstorage.DBTxManager
 		storage      mrnotifier.NoticeStorage
 		useCaseQueue mrqueue.Cleaner
-		errorWrapper core.UseCaseErrorWrapper
+		errorWrapper mrerr.UseCaseErrorWrapper
 	}
 )
 
@@ -27,12 +27,13 @@ func New(
 	txManager mrstorage.DBTxManager,
 	storage mrnotifier.NoticeStorage,
 	useCaseQueue mrqueue.Cleaner,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *NoticeCleaner {
 	return &NoticeCleaner{
 		txManager:    txManager,
 		storage:      storage,
 		useCaseQueue: useCaseQueue,
-		errorWrapper: core.NewUseCaseErrorWrapper(entity.ModelNameNotice),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameNotice),
 	}
 }
 

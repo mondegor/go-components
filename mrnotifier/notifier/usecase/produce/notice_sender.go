@@ -5,10 +5,10 @@ import (
 
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-sysmess/mrtrace"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrnotifier"
 	"github.com/mondegor/go-components/mrnotifier/notifier/entity"
 	"github.com/mondegor/go-components/mrqueue"
@@ -26,7 +26,8 @@ type (
 		sequenceGenerator mrstorage.SequenceGenerator
 		storage           mrnotifier.NoticeStorage
 		useCaseQueue      mrqueue.Producer
-		errorWrapper      core.UseCaseErrorWrapper
+		traceManager      mrtrace.ContextManager
+		errorWrapper      mrerr.UseCaseErrorWrapper
 		retryAttempts     uint32
 	}
 )
@@ -37,6 +38,8 @@ func New(
 	sequenceGenerator mrstorage.SequenceGenerator,
 	storage mrnotifier.NoticeStorage,
 	useCaseQueue mrqueue.Producer,
+	traceManager mrtrace.ContextManager,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 	opts ...Option,
 ) *NoticeSender {
 	co := &NoticeSender{
@@ -44,7 +47,8 @@ func New(
 		sequenceGenerator: sequenceGenerator,
 		storage:           storage,
 		useCaseQueue:      useCaseQueue,
-		errorWrapper:      core.NewUseCaseErrorWrapper(entity.ModelNameNotice),
+		traceManager:      traceManager,
+		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameNotice),
 		retryAttempts:     defaultRetryAttempts,
 	}
 
@@ -104,7 +108,7 @@ func (co *NoticeSender) prepareData(ctx context.Context, props map[string]any) m
 
 	// если CorrelationID пустой, то выбирается из контекста
 	if id := data[mrnotifier.HeaderCorrelationID]; id == "" {
-		if id = mrtrace.ExtractCorrelationID(ctx); id != "" {
+		if id = co.traceManager.ExtractCorrelationID(ctx); id != "" {
 			data[mrnotifier.HeaderCorrelationID] = id
 		}
 	}

@@ -7,11 +7,10 @@ import (
 	"github.com/mondegor/go-storage/mrentity"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
-	"github.com/mondegor/go-webcore/mrsender"
-	"github.com/mondegor/go-webcore/mrsender/decorator"
+	"github.com/mondegor/go-sysmess/mrevent"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrordering"
 	"github.com/mondegor/go-components/mrordering/entity"
 )
@@ -26,17 +25,21 @@ type (
 	// А именно позволяет вставлять элементы на нужную позицию, перемещать и отвязывать от их от текущих позиций.
 	NodeMover struct {
 		storage      mrordering.Storage
-		eventEmitter mrsender.EventEmitter
-		errorWrapper core.UseCaseErrorWrapper
+		eventEmitter mrevent.Emitter
+		errorWrapper mrerr.UseCaseErrorWrapper
 	}
 )
 
 // New - создаёт объект NodeMover.
-func New(storage mrordering.Storage, eventEmitter mrsender.EventEmitter) *NodeMover {
+func New(
+	storage mrordering.Storage,
+	eventEmitter mrevent.Emitter,
+	errorWrapper mrerr.UseCaseErrorWrapper,
+) *NodeMover {
 	return &NodeMover{
 		storage:      storage,
-		eventEmitter: decorator.NewSourceEmitter(eventEmitter, entity.ModelNameNode),
-		errorWrapper: core.NewUseCaseErrorWrapper(entity.ModelNameNode),
+		eventEmitter: mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameNode),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameNode),
 	}
 }
 

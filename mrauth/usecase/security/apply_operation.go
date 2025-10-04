@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum"
@@ -19,7 +19,7 @@ type (
 	ApplyOperation struct {
 		txManager        mrstorage.DBTxManager
 		storageOperation mrauth.SecureOperationStorage
-		errorWrapper     core.UseCaseErrorWrapper
+		errorWrapper     mrerr.UseCaseErrorWrapper
 		handlerMap       map[string]mrauth.OperationHandler
 	}
 )
@@ -28,12 +28,13 @@ type (
 func NewApplyOperation(
 	txManager mrstorage.DBTxManager,
 	storageOperation mrauth.SecureOperationStorage,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 	handlerMap map[string]mrauth.OperationHandler,
 ) *ApplyOperation {
 	return &ApplyOperation{
 		txManager:        txManager,
 		storageOperation: storageOperation,
-		errorWrapper:     core.NewUseCaseErrorWrapper(entity.ModelNameSecureOperation),
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSecureOperation),
 		handlerMap:       handlerMap,
 	}
 }

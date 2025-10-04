@@ -6,10 +6,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-sysmess/mrlog"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -22,8 +22,8 @@ type (
 		storageUser      mrauth.UserStorage
 		storageUserRealm mrauth.UserRealmStorage
 		notifierAPI      mrnotifier.NoticeProducer
+		errorWrapper     mrerr.UseCaseErrorWrapper
 		logger           mrlog.Logger
-		errorWrapper     core.UseCaseErrorWrapper
 	}
 )
 
@@ -32,14 +32,15 @@ func NewBeforeAuthUser(
 	storageUser mrauth.UserStorage,
 	storageUserNamespace mrauth.UserRealmStorage,
 	notifierAPI mrnotifier.NoticeProducer,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 	logger mrlog.Logger,
 ) *BeforeAuthUser {
 	return &BeforeAuthUser{
 		storageUser:      storageUser,
 		storageUserRealm: storageUserNamespace,
 		notifierAPI:      notifierAPI,
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameUser),
 		logger:           logger,
-		errorWrapper:     core.NewUseCaseErrorWrapper(entity.ModelNameUser),
 	}
 }
 

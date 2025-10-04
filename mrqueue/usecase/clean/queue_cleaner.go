@@ -5,11 +5,10 @@ import (
 	"time"
 
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
-	"github.com/mondegor/go-webcore/mrsender"
-	"github.com/mondegor/go-webcore/mrsender/decorator"
+	"github.com/mondegor/go-sysmess/mrevent"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrqueue"
 	"github.com/mondegor/go-components/mrqueue/entity"
 )
@@ -25,8 +24,8 @@ type (
 		storage          mrqueue.Storage
 		storageCompleted mrqueue.CompletedStorage // OPTIONAL
 		storageBroken    mrqueue.BrokenStorage    // OPTIONAL
-		eventEmitter     mrsender.EventEmitter
-		errorWrapper     core.UseCaseErrorWrapper
+		eventEmitter     mrevent.Emitter
+		errorWrapper     mrerr.UseCaseErrorWrapper
 		completedExpiry  time.Duration
 		brokenExpiry     time.Duration
 	}
@@ -35,13 +34,14 @@ type (
 // New - создаёт объект QueueCleaner.
 func New(
 	storage mrqueue.Storage,
-	eventEmitter mrsender.EventEmitter,
+	eventEmitter mrevent.Emitter,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 	opts ...Option,
 ) *QueueCleaner {
 	co := &QueueCleaner{
 		storage:         storage,
-		eventEmitter:    decorator.NewSourceEmitter(eventEmitter, entity.ModelNameItem),
-		errorWrapper:    core.NewUseCaseErrorWrapper(entity.ModelNameItem),
+		eventEmitter:    mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameItem),
+		errorWrapper:    mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameItem),
 		completedExpiry: defaultCompletedExpiry,
 		brokenExpiry:    defaultBrokenExpiry,
 	}

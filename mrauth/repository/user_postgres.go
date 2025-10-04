@@ -9,9 +9,9 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/db"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum"
@@ -26,15 +26,20 @@ type (
 		repoUserIDByPhone db.FieldFetcher[uint64, uuid.UUID]
 		repoEmail         db.FieldUpdater[uuid.UUID, string]
 		repoPhone         db.FieldUpdater[uuid.UUID, uint64]
-		errorWrapper      core.ErrorWrapper
+		errorWrapper      mrerr.ErrorWrapper
 	}
 )
 
 // NewUserPostgres - создаёт объект UserPostgres.
-func NewUserPostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *UserPostgres {
+func NewUserPostgres(
+	client mrstorage.DBConnManager,
+	errorWrapper mrerr.ErrorWrapper,
+	table mrsql.DBTableInfo,
+) *UserPostgres {
 	return &UserPostgres{
-		client: client,
-		table:  table,
+		client:       client,
+		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
+		table:        table,
 		repoEmail: db.NewFieldUpdater[uuid.UUID, string](
 			client,
 			table.Name,
@@ -49,7 +54,6 @@ func NewUserPostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *U
 			"user_phone",
 			"deleted_at",
 		),
-		errorWrapper: core.NewStorageErrorWrapper(table.Name),
 	}
 }
 

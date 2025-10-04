@@ -6,10 +6,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-sysmess/mrlog"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -22,7 +22,7 @@ type (
 	ChangePassword struct {
 		storage      mrauth.User2faStorage
 		notifierAPI  mrnotifier.NoticeProducer
-		errorWrapper core.UseCaseErrorWrapper
+		errorWrapper mrerr.UseCaseErrorWrapper
 		logger       mrlog.Logger
 	}
 )
@@ -31,12 +31,13 @@ type (
 func NewChangePassword(
 	storage mrauth.User2faStorage,
 	notifierAPI mrnotifier.NoticeProducer,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 	logger mrlog.Logger,
 ) *ChangePassword {
 	return &ChangePassword{
 		storage:      storage,
 		notifierAPI:  notifierAPI,
-		errorWrapper: core.NewUseCaseErrorWrapper(entity.ModelNameAuth2fa),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameAuth2fa),
 		logger:       logger,
 	}
 }

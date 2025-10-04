@@ -7,8 +7,8 @@ import (
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrsettings/entity"
 )
 
@@ -21,16 +21,17 @@ type (
 	// SettingPostgres - репозиторий для хранения элементов настроек.
 	SettingPostgres struct {
 		client       mrstorage.DBConnManager
+		errorWrapper mrerr.ErrorWrapper
 		table        mrsql.DBTableInfo
 		condBuilder  mrstorage.SQLConditionBuilder
 		condition    mrstorage.SQLPartFunc // OPTIONAL
-		errorWrapper core.ErrorWrapper
 	}
 )
 
 // NewSettingPostgres - создаёт объект SettingPostgres.
 func NewSettingPostgres(
 	client mrstorage.DBConnManager,
+	errorWrapper mrerr.ErrorWrapper,
 	table mrsql.DBTableInfo,
 	whereBuilder mrstorage.SQLConditionBuilder,
 	condition mrstorage.SQLPartFunc, // OPTIONAL
@@ -45,10 +46,10 @@ func NewSettingPostgres(
 
 	return &SettingPostgres{
 		client:       client,
+		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
 		table:        table,
 		condBuilder:  whereBuilder,
 		condition:    condition,
-		errorWrapper: core.NewStorageErrorWrapper(table.Name),
 	}
 }
 

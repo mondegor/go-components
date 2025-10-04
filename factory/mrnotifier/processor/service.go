@@ -5,12 +5,13 @@ import (
 
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
+	"github.com/mondegor/go-sysmess/mrevent"
 	"github.com/mondegor/go-sysmess/mrlog"
-	"github.com/mondegor/go-webcore/mrsender"
-	"github.com/mondegor/go-webcore/mrsender/decorator"
+	"github.com/mondegor/go-sysmess/mrtrace"
 	processconsume "github.com/mondegor/go-webcore/mrworker/process/consume"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrnotifier"
 	"github.com/mondegor/go-components/mrnotifier/notifier/entity"
 	"github.com/mondegor/go-components/mrnotifier/notifier/repository"
@@ -47,10 +48,10 @@ type (
 func NewService(
 	client mrstorage.DBConnManager,
 	mailerAPI mrnotifier.MailerAPI,
-	eventEmitter mrsender.EventEmitter,
-	errorHandler core.ErrorHandler,
+	eventEmitter mrevent.Emitter,
+	errorHandler mrerr.ErrorHandler,
 	logger mrlog.Logger,
-	traceManager core.TraceManager,
+	traceManager mrtrace.ContextManager,
 	noticeTable mrsql.DBTableInfo,
 	queueTable mrsql.DBTableInfo,
 	templateTableName string,
@@ -78,9 +79,10 @@ func NewService(
 
 	storageTemplate := templaterepository.NewTemplatePostgres(
 		client,
+		errorwrapper.NewInfraStorage(),
+		logger,
 		templateTableName,
 		templateVarName,
-		logger,
 	)
 
 	storageQueue := queuerepository.NewQueuePostgres(client, queueTable)
@@ -99,7 +101,7 @@ func NewService(
 		},
 	)
 
-	eventEmitterQueue := decorator.NewSourceEmitter(eventEmitter, entity.ModelNameNotice)
+	eventEmitterQueue := mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameNotice)
 
 	noticeConsumer := consume.New(
 		client,
@@ -108,6 +110,7 @@ func NewService(
 			client,
 			storageQueue,
 			eventEmitterQueue,
+			errorwrapper.NewUseCase(),
 			queueconsume.WithStorageCompleted(storageQueueCompleted),
 			queueconsume.WithStorageBroken(storageQueueBroken),
 		),
@@ -119,6 +122,7 @@ func NewService(
 			build.New(
 				templateusecase.New(
 					storageTemplate,
+					errorwrapper.NewUseCase(),
 					logger,
 					o.defaultLang,
 				),

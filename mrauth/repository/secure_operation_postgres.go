@@ -6,8 +6,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum"
 )
@@ -16,17 +16,21 @@ type (
 	// SecureOperationPostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
 	SecureOperationPostgres struct {
 		client       mrstorage.DBConnManager
+		errorWrapper mrerr.ErrorWrapper
 		table        mrsql.DBTableInfo
-		errorWrapper core.ErrorWrapper
 	}
 )
 
 // NewSecureOperationPostgres - создаёт объект SecureOperationPostgres.
-func NewSecureOperationPostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *SecureOperationPostgres {
+func NewSecureOperationPostgres(
+	client mrstorage.DBConnManager,
+	errorWrapper mrerr.ErrorWrapper,
+	table mrsql.DBTableInfo,
+) *SecureOperationPostgres {
 	return &SecureOperationPostgres{
 		client:       client,
+		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
 		table:        table,
-		errorWrapper: core.NewStorageErrorWrapper(table.Name),
 	}
 }
 

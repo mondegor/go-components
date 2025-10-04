@@ -4,7 +4,8 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/builder/part"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-webcore/mrsender"
+	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
+	"github.com/mondegor/go-sysmess/mrevent"
 
 	"github.com/mondegor/go-components/mrsettings/bag/fieldformatter"
 	"github.com/mondegor/go-components/mrsettings/repository"
@@ -23,7 +24,7 @@ func NewComponentSetter(
 	client mrstorage.DBConnManager,
 	storageTable mrsql.DBTableInfo,
 	storageTableLog string,
-	eventEmitter mrsender.EventEmitter,
+	eventEmitter mrevent.Emitter,
 	opts ...SetterOption,
 ) *set.SettingsSetter {
 	o := setterOptions{}
@@ -37,15 +38,18 @@ func NewComponentSetter(
 		fieldformatter.New(o.fieldFormatter...),
 		repository.NewSettingPostgres(
 			client,
+			errorwrapper.NewInfraStorage(),
 			storageTable,
 			part.NewSQLConditionBuilder(),
 			o.storageCondition,
 		),
 		repository.NewSettingLogPostgres(
 			client,
+			errorwrapper.NewInfraStorage(),
 			storageTableLog,
 			storageTable,
 		),
 		eventEmitter,
+		errorwrapper.NewUseCase(),
 	)
 }

@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -20,7 +20,7 @@ type (
 		storageUser2FA   mrauth.User2faStorage
 		storageUserStat  mrauth.UserActivityStatStorage
 		storageUserRealm mrauth.UserRealmStorage
-		errorWrapper     core.UseCaseErrorWrapper
+		errorWrapper     mrerr.UseCaseErrorWrapper
 	}
 )
 
@@ -31,6 +31,7 @@ func NewUserInfo(
 	storageUser2FA mrauth.User2faStorage,
 	storageUserStat mrauth.UserActivityStatStorage,
 	storageUserRealm mrauth.UserRealmStorage,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *UserInfo {
 	return &UserInfo{
 		txManager:        txManager,
@@ -38,7 +39,7 @@ func NewUserInfo(
 		storageUser2FA:   storageUser2FA,
 		storageUserStat:  storageUserStat,
 		storageUserRealm: storageUserRealm,
-		errorWrapper:     core.NewUseCaseErrorWrapper(entity.ModelNameUser),
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameUser),
 	}
 }
 

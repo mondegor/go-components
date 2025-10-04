@@ -7,26 +7,30 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/db"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-
-	core "github.com/mondegor/go-components/internal"
+	"github.com/mondegor/go-sysmess/mrerr"
 )
 
 type (
 	// CheckUserPostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
 	CheckUserPostgres struct {
 		client            mrstorage.DBConnManager
+		errorWrapper      mrerr.ErrorWrapper
 		table             mrsql.DBTableInfo
 		repoUserIDByEmail db.FieldFetcher[string, uuid.UUID]
 		repoUserIDByPhone db.FieldFetcher[uint64, uuid.UUID]
-		errorWrapper      core.ErrorWrapper
 	}
 )
 
 // NewCheckUserPostgres - создаёт объект UserPostgres.
-func NewCheckUserPostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *CheckUserPostgres {
+func NewCheckUserPostgres(
+	client mrstorage.DBConnManager,
+	errorWrapper mrerr.ErrorWrapper,
+	table mrsql.DBTableInfo,
+) *CheckUserPostgres {
 	return &CheckUserPostgres{
-		client: client,
-		table:  table,
+		client:       client,
+		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
+		table:        table,
 		repoUserIDByEmail: db.NewFieldFetcher[string, uuid.UUID](
 			client,
 			table.Name,
@@ -41,7 +45,6 @@ func NewCheckUserPostgres(client mrstorage.DBConnManager, table mrsql.DBTableInf
 			"user_id",
 			"deleted_at",
 		),
-		errorWrapper: core.NewStorageErrorWrapper(table.Name),
 	}
 }
 

@@ -7,9 +7,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -22,7 +22,7 @@ type (
 		txManager    mrstorage.DBTxManager
 		storage      mrauth.User2faStorage
 		notifierAPI  mrnotifier.NoticeProducer
-		errorWrapper core.UseCaseErrorWrapper
+		errorWrapper mrerr.UseCaseErrorWrapper
 	}
 )
 
@@ -31,12 +31,13 @@ func NewDisable2FA(
 	txManager mrstorage.DBTxManager,
 	storage mrauth.User2faStorage,
 	notifierAPI mrnotifier.NoticeProducer,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *Disable2FA {
 	return &Disable2FA{
 		txManager:    txManager,
 		storage:      storage,
 		notifierAPI:  notifierAPI,
-		errorWrapper: core.NewUseCaseErrorWrapper(entity.ModelNameUser),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameUser),
 	}
 }
 

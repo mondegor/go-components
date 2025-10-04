@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-sysmess/mrlog"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrnotifier"
 	"github.com/mondegor/go-components/mrnotifier/template"
 	"github.com/mondegor/go-components/mrnotifier/template/entity"
@@ -22,7 +22,7 @@ type (
 	// формируются персонализированные уведомления конкретным получателям.
 	Template struct {
 		storage      template.Storage
-		errorWrapper core.UseCaseErrorWrapper
+		errorWrapper mrerr.UseCaseErrorWrapper
 		logger       mrlog.Logger
 		defaultLang  string
 	}
@@ -31,6 +31,7 @@ type (
 // New - создаёт объект Template.
 func New(
 	storage template.Storage,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 	logger mrlog.Logger,
 	defaultLang string,
 ) *Template {
@@ -40,7 +41,7 @@ func New(
 
 	return &Template{
 		storage:      storage,
-		errorWrapper: core.NewUseCaseErrorWrapper(entity.ModelNameTemplate),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameTemplate),
 		logger:       logger,
 		defaultLang:  defaultLang,
 	}

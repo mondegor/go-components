@@ -6,11 +6,11 @@ import (
 
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-webcore/mrenum"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrnotifier/template/entity"
 )
 
@@ -18,21 +18,29 @@ type (
 	// TemplatePostgres - репозиторий для хранения шаблонов уведомлений.
 	TemplatePostgres struct {
 		client       mrstorage.DBConnManager
+		errorWrapper mrerr.ErrorWrapper
+		logger       mrlog.Logger
 		storageVar   *VariablePostgres
 		tableName    string
-		logger       mrlog.Logger
-		errorWrapper core.ErrorWrapper
 	}
 )
 
 // NewTemplatePostgres - создаёт объект TemplatePostgres.
-func NewTemplatePostgres(client mrstorage.DBConnManager, tableName, tableVarsName string, logger mrlog.Logger) *TemplatePostgres {
+func NewTemplatePostgres(
+	client mrstorage.DBConnManager,
+	errorWrapper mrerr.ErrorWrapper,
+	logger mrlog.Logger,
+	tableName string,
+	tableVarsName string,
+) *TemplatePostgres {
+	errorWrapper = mrerr.NewErrorWrapper(errorWrapper, tableName)
+
 	return &TemplatePostgres{
 		client:       client,
+		errorWrapper: errorWrapper,
 		logger:       logger,
-		storageVar:   NewVariablePostgres(client, tableVarsName),
+		storageVar:   NewVariablePostgres(client, errorWrapper, tableVarsName),
 		tableName:    tableName,
-		errorWrapper: core.NewStorageErrorWrapper(tableName),
 	}
 }
 

@@ -7,10 +7,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-sysmess/mrlog"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -26,7 +26,7 @@ type (
 		storageUser      mrauth.UserStorage
 		storageUserRealm mrauth.UserRealmStorage
 		notifierAPI      mrnotifier.NoticeProducer
-		errorWrapper     core.UseCaseErrorWrapper
+		errorWrapper     mrerr.UseCaseErrorWrapper
 		logger           mrlog.Logger
 	}
 )
@@ -37,6 +37,7 @@ func NewCreateUser(
 	storageUser mrauth.UserStorage,
 	storageUserNamespace mrauth.UserRealmStorage,
 	notifierAPI mrnotifier.NoticeProducer,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 	logger mrlog.Logger,
 ) *CreateUser {
 	return &CreateUser{
@@ -44,7 +45,7 @@ func NewCreateUser(
 		storageUser:      storageUser,
 		storageUserRealm: storageUserNamespace,
 		notifierAPI:      notifierAPI,
-		errorWrapper:     core.NewUseCaseErrorWrapper(entity.ModelNameUser),
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameUser),
 		logger:           logger,
 	}
 }

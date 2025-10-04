@@ -8,7 +8,6 @@ import (
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum"
 )
@@ -17,8 +16,8 @@ type (
 	// AuthTokenPostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
 	AuthTokenPostgres struct {
 		client       mrstorage.DBConnManager
+		errorWrapper mrerr.ErrorWrapper
 		table        mrsql.DBTableInfo
-		errorWrapper core.ErrorWrapper
 	}
 )
 
@@ -31,11 +30,15 @@ var (
 )
 
 // NewAuthTokenPostgres - создаёт объект AuthTokenPostgres.
-func NewAuthTokenPostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *AuthTokenPostgres {
+func NewAuthTokenPostgres(
+	client mrstorage.DBConnManager,
+	errorWrapper mrerr.ErrorWrapper,
+	table mrsql.DBTableInfo,
+) *AuthTokenPostgres {
 	return &AuthTokenPostgres{
 		client:       client,
+		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
 		table:        table,
-		errorWrapper: core.NewStorageErrorWrapper(table.Name),
 	}
 }
 

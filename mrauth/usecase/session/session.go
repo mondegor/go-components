@@ -7,12 +7,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/mrevent"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrtype"
-	"github.com/mondegor/go-webcore/mrsender"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -28,12 +28,12 @@ type (
 		storage               mrauth.AuthTokenStorage
 		storageUserActivity   mrauth.UserActivityStatStorage
 		storageOperation      mrauth.SecureOperationStorage
-		eventEmitter          mrsender.EventEmitter
-		logger                mrlog.Logger
 		handlerCreateUser     operationHandlerCreateUser
 		handlerBeforeAuthUser operationHandlerBeforeAuthUser
+		eventEmitter          mrevent.Emitter
+		errorWrapper          mrerr.UseCaseErrorWrapper
+		logger                mrlog.Logger
 		realm2tokenIssuer     map[string]mrauth.TokenIssuer
-		errorWrapper          core.UseCaseErrorWrapper
 	}
 
 	// CreateSessionRealm - сообщение для получателя.
@@ -57,10 +57,11 @@ func NewSession(
 	storage mrauth.AuthTokenStorage,
 	storageUserActivity mrauth.UserActivityStatStorage,
 	storageOperation mrauth.SecureOperationStorage,
-	eventEmitter mrsender.EventEmitter,
-	logger mrlog.Logger,
 	handlerCreateUser operationHandlerCreateUser,
 	handlerBeforeAuthUser operationHandlerBeforeAuthUser,
+	eventEmitter mrevent.Emitter,
+	errorWrapper mrerr.UseCaseErrorWrapper,
+	logger mrlog.Logger,
 	allowedRealms []CreateSessionRealm,
 ) *Session {
 	realm2tokenIssuer := make(map[string]mrauth.TokenIssuer, len(allowedRealms))
@@ -74,11 +75,11 @@ func NewSession(
 		storageUserActivity:   storageUserActivity,
 		storageOperation:      storageOperation,
 		eventEmitter:          eventEmitter,
-		logger:                logger,
 		handlerCreateUser:     handlerCreateUser,
 		handlerBeforeAuthUser: handlerBeforeAuthUser,
+		errorWrapper:          mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameRefreshToken),
+		logger:                logger,
 		realm2tokenIssuer:     realm2tokenIssuer,
-		errorWrapper:          core.NewUseCaseErrorWrapper(entity.ModelNameRefreshToken),
 	}
 }
 

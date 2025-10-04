@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrtrace"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrmailer"
 	"github.com/mondegor/go-components/mrmailer/dto"
 	"github.com/mondegor/go-components/mrmailer/entity"
@@ -27,7 +27,8 @@ type (
 		sequenceGenerator mrstorage.SequenceGenerator
 		storage           mrmailer.MessageStorage
 		useCaseQueue      mrqueue.Producer
-		errorWrapper      core.UseCaseErrorWrapper
+		traceManager      mrtrace.ContextManager
+		errorWrapper      mrerr.UseCaseErrorWrapper
 		retryAttempts     uint32
 		delayCorrection   time.Duration
 	}
@@ -39,6 +40,8 @@ func New(
 	sequenceGenerator mrstorage.SequenceGenerator,
 	storage mrmailer.MessageStorage,
 	useCaseQueue mrqueue.Producer,
+	traceManager mrtrace.ContextManager,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 	opts ...Option,
 ) *MessageSender {
 	co := &MessageSender{
@@ -46,7 +49,8 @@ func New(
 		sequenceGenerator: sequenceGenerator,
 		storage:           storage,
 		useCaseQueue:      useCaseQueue,
-		errorWrapper:      core.NewUseCaseErrorWrapper(entity.ModelNameMessage),
+		traceManager:      traceManager,
+		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameMessage),
 		retryAttempts:     defaultRetryAttempts,
 		delayCorrection:   defaultDelayCorrection,
 	}
@@ -176,7 +180,7 @@ func (co *MessageSender) prepareHeader(ctx context.Context, header map[string]st
 
 	// если CorrelationID пустой, то выбирается из контекста
 	if id := header[mrmailer.HeaderCorrelationID]; id == "" {
-		if id = mrtrace.ExtractCorrelationID(ctx); id != "" {
+		if id = co.traceManager.ExtractCorrelationID(ctx); id != "" {
 			header[mrmailer.HeaderCorrelationID] = id
 		}
 	}

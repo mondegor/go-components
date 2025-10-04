@@ -7,9 +7,9 @@ import (
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrordering/entity"
 )
 
@@ -22,26 +22,27 @@ type (
 	// - order_index - поле порядка следования.
 	Repository struct {
 		client       mrstorage.DBConnManager
+		errorWrapper mrerr.ErrorWrapper
 		table        mrsql.DBTableInfo
 		whereBuilder mrstorage.SQLConditionBuilder
 		condition    mrstorage.SQLPartFunc // OPTIONAL
-		errorWrapper core.ErrorWrapper
 	}
 )
 
 // NewRepository - создаёт объект Repository.
 func NewRepository(
 	client mrstorage.DBConnManager,
+	errorWrapper mrerr.ErrorWrapper,
 	table mrsql.DBTableInfo,
 	whereBuilder mrstorage.SQLConditionBuilder,
 	condition mrstorage.SQLPartFunc, // OPTIONAL
 ) *Repository {
 	return &Repository{
 		client:       client,
+		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
 		table:        table,
 		whereBuilder: whereBuilder,
 		condition:    condition,
-		errorWrapper: core.NewStorageErrorWrapper(table.Name),
 	}
 }
 

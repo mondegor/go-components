@@ -10,12 +10,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
-	"github.com/mondegor/go-sysmess/mrdto"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-sysmess/mrtype"
 	"github.com/pquerna/otp/totp"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum"
@@ -29,7 +28,7 @@ type (
 		storage          mrauth.User2faStorage
 		storageOperation mrauth.SecureOperationStorage
 		notifierAPI      mrnotifier.NoticeProducer
-		errorWrapper     core.UseCaseErrorWrapper
+		errorWrapper     mrerr.UseCaseErrorWrapper
 		issuer           string
 	}
 )
@@ -40,6 +39,7 @@ func NewApplyTOTPGenerator(
 	storage mrauth.User2faStorage,
 	storageOperation mrauth.SecureOperationStorage,
 	notifierAPI mrnotifier.NoticeProducer,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 	issuer string,
 ) *ApplyTOTPGenerator {
 	return &ApplyTOTPGenerator{
@@ -47,7 +47,7 @@ func NewApplyTOTPGenerator(
 		storage:          storage,
 		storageOperation: storageOperation,
 		notifierAPI:      notifierAPI,
-		errorWrapper:     core.NewUseCaseErrorWrapper(entity.ModelNameSecureOperation),
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSecureOperation),
 		issuer:           issuer,
 	}
 }
@@ -132,7 +132,7 @@ func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, ope
 
 	// вынести отдельно
 	return mrtype.Image{
-		ImageInfo: mrdto.ImageInfo{
+		ImageInfo: mrtype.ImageInfo{
 			ContentType: "image/jpeg",
 			// OriginalName: "qr",
 			// Realm:         "rq",

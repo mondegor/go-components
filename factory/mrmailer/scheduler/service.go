@@ -6,14 +6,15 @@ import (
 
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
+	"github.com/mondegor/go-sysmess/mrevent"
 	"github.com/mondegor/go-sysmess/mrlog"
-	"github.com/mondegor/go-webcore/mrsender"
-	"github.com/mondegor/go-webcore/mrsender/decorator"
+	"github.com/mondegor/go-sysmess/mrtrace"
 	"github.com/mondegor/go-webcore/mrworker"
 	"github.com/mondegor/go-webcore/mrworker/job/task"
 	"github.com/mondegor/go-webcore/mrworker/process/schedule"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrmailer/entity"
 	"github.com/mondegor/go-components/mrmailer/repository"
 	"github.com/mondegor/go-components/mrmailer/usecase/change"
@@ -54,10 +55,10 @@ type (
 // NewService - создаёт сервис для обработки и отправки сообщений и связанных с ним задачи.
 func NewService(
 	client mrstorage.DBConnManager,
-	eventEmitter mrsender.EventEmitter,
-	errorHandler core.ErrorHandler,
+	eventEmitter mrevent.Emitter,
+	errorHandler mrerr.ErrorHandler,
 	logger mrlog.Logger,
-	traceManager core.TraceManager,
+	traceManager mrtrace.ContextManager,
 	messageTable mrsql.DBTableInfo,
 	queueTable mrsql.DBTableInfo,
 	opts ...ServiceOption,
@@ -104,7 +105,7 @@ func NewService(
 		},
 	)
 
-	eventEmitterQueue := decorator.NewSourceEmitter(eventEmitter, entity.ModelNameMessage)
+	eventEmitterQueue := mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameMessage)
 
 	messageCleaner := clean.New(
 		client,
@@ -112,9 +113,11 @@ func NewService(
 		queueclean.New(
 			storageQueue,
 			eventEmitterQueue,
+			errorwrapper.NewUseCase(),
 			queueclean.WithStorageCompleted(storageQueueCompleted),
 			queueclean.WithStorageBroken(storageQueueBroken),
 		),
+		errorwrapper.NewUseCase(),
 	)
 
 	statusChanger := change.New(
@@ -122,6 +125,7 @@ func NewService(
 			client,
 			storageQueue,
 			eventEmitterQueue,
+			errorwrapper.NewUseCase(),
 			queuechange.WithStorageBroken(storageQueueBroken),
 			queuechange.WithRetryTimeout(o.changeRetryTimeout),
 			queuechange.WithRetryDelayed(o.changeRetryDelayed),

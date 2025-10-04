@@ -8,9 +8,9 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrtype"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
@@ -18,17 +18,21 @@ type (
 	// UserActivityStatPostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
 	UserActivityStatPostgres struct {
 		client       mrstorage.DBConnManager
+		errorWrapper mrerr.ErrorWrapper
 		table        mrsql.DBTableInfo
-		errorWrapper core.ErrorWrapper
 	}
 )
 
 // NewUserActivityStatPostgres - создаёт объект UserActivityStatPostgres.
-func NewUserActivityStatPostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *UserActivityStatPostgres {
+func NewUserActivityStatPostgres(
+	client mrstorage.DBConnManager,
+	errorWrapper mrerr.ErrorWrapper,
+	table mrsql.DBTableInfo,
+) *UserActivityStatPostgres {
 	return &UserActivityStatPostgres{
 		client:       client,
+		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
 		table:        table,
-		errorWrapper: core.NewStorageErrorWrapper(table.Name),
 	}
 }
 

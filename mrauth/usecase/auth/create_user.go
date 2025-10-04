@@ -6,10 +6,10 @@ import (
 
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-sysmess/mrlock"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -30,8 +30,8 @@ type (
 		notifierAPI      mrnotifier.NoticeProducer
 		locker           mrlock.Locker
 		loginParser      loginEmailParser
+		errorWrapper     mrerr.UseCaseErrorWrapper
 		realm2operation  map[string]createUserOperation
-		errorWrapper     core.UseCaseErrorWrapper
 	}
 
 	// CreateUserRealm - сообщение для получателя.
@@ -57,6 +57,7 @@ func NewCreateUser(
 	notifierAPI mrnotifier.NoticeProducer,
 	locker mrlock.Locker,
 	loginParser loginEmailParser,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 	allowedRealms []CreateUserRealm,
 ) *CreateUser {
 	realm2operation := make(map[string]createUserOperation, len(allowedRealms))
@@ -71,8 +72,8 @@ func NewCreateUser(
 		notifierAPI:      notifierAPI,
 		locker:           locker,
 		loginParser:      loginParser,
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameUser),
 		realm2operation:  realm2operation,
-		errorWrapper:     core.NewUseCaseErrorWrapper(entity.ModelNameUser),
 	}
 }
 

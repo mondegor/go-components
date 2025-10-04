@@ -5,8 +5,8 @@ import (
 
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrnotifier/template/entity"
 )
 
@@ -14,17 +14,21 @@ type (
 	// VariablePostgres - репозиторий для хранения переменных шаблонов со значениями по умолчанию.
 	VariablePostgres struct {
 		client       mrstorage.DBConnManager
+		errorWrapper mrerr.ErrorWrapper
 		tableName    string
-		errorWrapper core.ErrorWrapper
 	}
 )
 
 // NewVariablePostgres - создаёт объект VariablePostgres.
-func NewVariablePostgres(client mrstorage.DBConnManager, tableName string) *VariablePostgres {
+func NewVariablePostgres(
+	client mrstorage.DBConnManager,
+	errorWrapper mrerr.ErrorWrapper,
+	tableName string,
+) *VariablePostgres {
 	return &VariablePostgres{
 		client:       client,
 		tableName:    tableName,
-		errorWrapper: core.NewStorageErrorWrapper(tableName),
+		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, tableName),
 	}
 }
 

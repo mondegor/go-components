@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrlib/crypt"
+	"github.com/mondegor/go-sysmess/mrlib/crypt/password"
 	"github.com/mondegor/go-sysmess/mrtype"
 
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
@@ -54,7 +54,7 @@ type (
 		CheckAvailability(ctx context.Context, realm, userLogin string) error
 		CheckAvailabilityEmail(ctx context.Context, userEmail string) error
 		CheckAvailabilityPhone(ctx context.Context, userPhone string) error
-		CheckPasswordStrength(ctx context.Context, password string) (crypt.PassStrength, error)
+		CheckPasswordStrength(ctx context.Context, userPassword string) (password.PassStrength, error)
 	}
 
 	// ChangeUseCase - comments interface.

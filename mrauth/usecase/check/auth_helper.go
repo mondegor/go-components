@@ -5,11 +5,11 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-sysmess/mrerrors"
-	"github.com/mondegor/go-sysmess/mrlib/crypt"
+	"github.com/mondegor/go-sysmess/mrlib/crypt/password"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -22,7 +22,7 @@ type (
 		storageCheckUser mrauth.CheckUserStorage
 		storageUserRealm mrauth.UserRealmStorage
 		loginParser      loginParser
-		errorWrapper     core.UseCaseErrorWrapper
+		errorWrapper     mrerr.UseCaseErrorWrapper
 	}
 
 	loginParser interface {
@@ -31,12 +31,17 @@ type (
 )
 
 // NewAuthHelper - создаёт объект AuthHelper.
-func NewAuthHelper(storageCheckUser mrauth.CheckUserStorage, storageUserRealm mrauth.UserRealmStorage, loginParser loginParser) *AuthHelper {
+func NewAuthHelper(
+	storageCheckUser mrauth.CheckUserStorage,
+	storageUserRealm mrauth.UserRealmStorage,
+	loginParser loginParser,
+	errorWrapper mrerr.UseCaseErrorWrapper,
+) *AuthHelper {
 	return &AuthHelper{
 		storageCheckUser: storageCheckUser,
 		storageUserRealm: storageUserRealm,
 		loginParser:      loginParser,
-		errorWrapper:     core.NewUseCaseErrorWrapper(entity.ModelNameUser),
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameUser),
 	}
 }
 
@@ -69,8 +74,8 @@ func (uc *AuthHelper) CheckAvailabilityPhone(ctx context.Context, userPhone stri
 }
 
 // CheckPasswordStrength - comments method.
-func (uc *AuthHelper) CheckPasswordStrength(_ context.Context, password string) (crypt.PassStrength, error) {
-	return crypt.PasswordStrength(password), nil
+func (uc *AuthHelper) CheckPasswordStrength(_ context.Context, userPassword string) (password.PassStrength, error) {
+	return password.CalcStrength(userPassword), nil
 }
 
 func (uc *AuthHelper) checkAvailabilityByEmail(ctx context.Context, realm, userEmail string) error {

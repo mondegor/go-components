@@ -6,11 +6,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-sysmess/mrlib/casttype"
 	"github.com/mondegor/go-sysmess/mrlog"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrsettings"
 	"github.com/mondegor/go-components/mrsettings/dto"
 	"github.com/mondegor/go-components/mrsettings/entity"
@@ -22,7 +22,7 @@ type (
 	SettingsReloader struct {
 		parser       mrsettings.ValueParser
 		storage      mrsettings.StorageLoader
-		errorWrapper core.UseCaseErrorWrapper
+		errorWrapper mrerr.UseCaseErrorWrapper
 		logger       mrlog.Logger
 		cache        *sharedCache
 		lastUpdated  time.Time
@@ -39,12 +39,13 @@ type (
 func NewSettingsReloader(
 	parser mrsettings.ValueParser,
 	storage mrsettings.StorageLoader,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 	logger mrlog.Logger,
 ) *SettingsReloader {
 	return &SettingsReloader{
 		parser:       parser,
 		storage:      storage,
-		errorWrapper: core.NewUseCaseErrorWrapper(entity.ModelNameSetting),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSetting),
 		logger:       logger,
 		cache: &sharedCache{
 			mu:       sync.RWMutex{},

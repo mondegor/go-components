@@ -3,11 +3,11 @@ package get
 import (
 	"context"
 
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-webcore/mraccess"
 	"github.com/mondegor/go-webcore/mraccess/user"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/repository"
@@ -17,13 +17,17 @@ type (
 	// UserProvider - компонент для извлечения настроек, которые хранятся в хранилище данных.
 	UserProvider struct {
 		storage       mrauth.AuthTokenFetcher
-		errorWrapper  core.UseCaseErrorWrapper
+		errorWrapper  mrerr.UseCaseErrorWrapper
 		allowedRealms map[string]struct{}
 	}
 )
 
 // New - создаёт объект UserProvider.
-func New(storage mrauth.AuthTokenFetcher, allowedRealms []string) *UserProvider {
+func New(
+	storage mrauth.AuthTokenFetcher,
+	errorWrapper mrerr.UseCaseErrorWrapper,
+	allowedRealms []string,
+) *UserProvider {
 	allowedRealmsMap := make(map[string]struct{}, len(allowedRealms))
 
 	for _, allowedRealm := range allowedRealms {
@@ -32,7 +36,7 @@ func New(storage mrauth.AuthTokenFetcher, allowedRealms []string) *UserProvider 
 
 	return &UserProvider{
 		storage:       storage,
-		errorWrapper:  core.NewUseCaseErrorWrapper(entity.ModelNameAuthToken),
+		errorWrapper:  mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameAuthToken),
 		allowedRealms: allowedRealmsMap,
 	}
 }

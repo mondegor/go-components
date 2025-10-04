@@ -6,9 +6,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -30,7 +30,7 @@ type (
 		factoryOperationTOTP       factoryOperationTOTP
 		factoryOperationDisable2FA factoryOperationDisable2FA
 		passwordGenerator          func() string
-		errorWrapper               core.UseCaseErrorWrapper
+		errorWrapper               mrerr.UseCaseErrorWrapper
 	}
 
 	factoryOperation interface {
@@ -57,6 +57,7 @@ func NewChangeProperty(
 	factoryOperationTOTP factoryOperationTOTP,
 	factoryOperationDisable2FA factoryOperationDisable2FA,
 	passwordGenerator func() string,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *ChangeProperty {
 	return &ChangeProperty{
 		txManager:                  txManager,
@@ -70,7 +71,7 @@ func NewChangeProperty(
 		factoryOperationTOTP:       factoryOperationTOTP,
 		factoryOperationDisable2FA: factoryOperationDisable2FA,
 		passwordGenerator:          passwordGenerator,
-		errorWrapper:               core.NewUseCaseErrorWrapper(entity.ModelNameRefreshToken),
+		errorWrapper:               mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameRefreshToken),
 	}
 }
 

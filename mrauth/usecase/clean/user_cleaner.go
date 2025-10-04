@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	core "github.com/mondegor/go-components/internal"
+	"github.com/mondegor/go-sysmess/mrerr"
+
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
 )
@@ -13,15 +14,18 @@ type (
 	// UserCleaner - объект очищающий очередь от обработанных/сломанных уведомлений.
 	UserCleaner struct {
 		storageLog   mrauth.UserActivityLogStorage
-		errorWrapper core.UseCaseErrorWrapper
+		errorWrapper mrerr.UseCaseErrorWrapper
 	}
 )
 
 // NewUserCleaner - создаёт объект UserCleaner.
-func NewUserCleaner(storageLog mrauth.UserActivityLogStorage) *UserCleaner {
+func NewUserCleaner(
+	storageLog mrauth.UserActivityLogStorage,
+	errorWrapper mrerr.UseCaseErrorWrapper,
+) *UserCleaner {
 	return &UserCleaner{
 		storageLog:   storageLog,
-		errorWrapper: core.NewUseCaseErrorWrapper(entity.ModelNameUser),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameUser),
 	}
 }
 

@@ -5,9 +5,9 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -21,7 +21,7 @@ type (
 		storageUser    mrauth.UserStorage
 		storageUser2FA mrauth.User2faStorage
 		factoryAction  factoryConfirmAction2FA
-		errorWrapper   core.UseCaseErrorWrapper
+		errorWrapper   mrerr.UseCaseErrorWrapper
 	}
 
 	factoryConfirmAction2FA interface {
@@ -34,12 +34,13 @@ func NewFactoryConfirm2FA(
 	storageUser mrauth.UserStorage,
 	storageUser2FA mrauth.User2faStorage,
 	factoryAction factoryConfirmAction2FA,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *FactoryConfirm2FA {
 	return &FactoryConfirm2FA{
 		storageUser:    storageUser,
 		storageUser2FA: storageUser2FA,
 		factoryAction:  factoryAction,
-		errorWrapper:   core.NewUseCaseErrorWrapper(entity.ModelNameUser),
+		errorWrapper:   mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameUser),
 	}
 }
 

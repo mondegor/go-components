@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	core "github.com/mondegor/go-components/internal"
+	"github.com/mondegor/go-sysmess/mrerr"
+
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
 )
@@ -14,16 +15,20 @@ type (
 	OperationCleaner struct {
 		storage      mrauth.SecureOperationStorage
 		storageLog   mrauth.SecureOperationLogStorage
-		errorWrapper core.UseCaseErrorWrapper
+		errorWrapper mrerr.UseCaseErrorWrapper
 	}
 )
 
 // NewOperationCleaner - создаёт объект OperationCleaner.
-func NewOperationCleaner(storage mrauth.SecureOperationStorage, storageLog mrauth.SecureOperationLogStorage) *OperationCleaner {
+func NewOperationCleaner(
+	storage mrauth.SecureOperationStorage,
+	storageLog mrauth.SecureOperationLogStorage,
+	errorWrapper mrerr.UseCaseErrorWrapper,
+) *OperationCleaner {
 	return &OperationCleaner{
 		storage:      storage,
 		storageLog:   storageLog,
-		errorWrapper: core.NewUseCaseErrorWrapper(entity.ModelNameSecureOperation),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSecureOperation),
 	}
 }
 

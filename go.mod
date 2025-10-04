@@ -4,11 +4,10 @@ go 1.22.7
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.2.1
-	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
-	github.com/mondegor/go-storage v0.17.2-0.20250929225215-48c2a21b254b
-	github.com/mondegor/go-sysmess v0.15.4-0.20250929224048-b99af89abbd4
-	github.com/mondegor/go-webcore v0.29.3-0.20250929225336-da15a5b30dff
+	github.com/mondegor/go-storage v0.17.2-0.20251004100147-a0d97ff93e0b
+	github.com/mondegor/go-sysmess v0.15.4-0.20251004084206-a6c3849a18a2
+	github.com/mondegor/go-webcore v0.29.3-0.20251003220219-545f047b9811
 	github.com/pquerna/otp v1.4.0
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/crypto v0.29.0

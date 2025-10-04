@@ -7,8 +7,8 @@ import (
 
 	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
@@ -16,20 +16,21 @@ type (
 	// SecureOperationLogPostgres - репозиторий для хранения элементов настроек.
 	SecureOperationLogPostgres struct {
 		client       mrstorage.DBConnManager
+		errorWrapper mrerr.ErrorWrapper
 		tableName    string
-		errorWrapper core.ErrorWrapper
 	}
 )
 
 // NewSecureOperationLogPostgres - создаёт объект SecureOperationLogPostgres.
 func NewSecureOperationLogPostgres(
 	client mrstorage.DBConnManager,
+	errorWrapper mrerr.ErrorWrapper,
 	tableName string,
 ) *SecureOperationLogPostgres {
 	return &SecureOperationLogPostgres{
 		client:       client,
+		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, tableName),
 		tableName:    tableName,
-		errorWrapper: core.NewStorageErrorWrapper(tableName),
 	}
 }
 

@@ -5,9 +5,9 @@ import (
 
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum"
@@ -21,7 +21,7 @@ type (
 		storageOperation  mrauth.SecureOperationStorage
 		notifierAPI       mrnotifier.NoticeProducer
 		operationPreparer resendOperationPreparer
-		errorWrapper      core.UseCaseErrorWrapper
+		errorWrapper      mrerr.UseCaseErrorWrapper
 	}
 
 	resendOperationPreparer interface {
@@ -35,13 +35,14 @@ func NewResendCode(
 	storageOperation mrauth.SecureOperationStorage,
 	notifierAPI mrnotifier.NoticeProducer,
 	operationPreparer resendOperationPreparer,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *ResendCode {
 	return &ResendCode{
 		txManager:         txManager,
 		storageOperation:  storageOperation,
 		notifierAPI:       notifierAPI,
 		operationPreparer: operationPreparer,
-		errorWrapper:      core.NewUseCaseErrorWrapper(entity.ModelNameSecureOperation),
+		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSecureOperation),
 	}
 }
 

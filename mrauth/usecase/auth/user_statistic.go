@@ -5,9 +5,9 @@ import (
 	"context"
 	"slices"
 
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -18,7 +18,7 @@ type (
 	UserStatistic struct {
 		storageActivityStat mrauth.UserActivityStatStorage
 		storageActivityLog  mrauth.UserActivityLogStorage
-		errorWrapper        core.UseCaseErrorWrapper
+		errorWrapper        mrerr.UseCaseErrorWrapper
 	}
 )
 
@@ -26,11 +26,12 @@ type (
 func NewUserStatistic(
 	storageActivityStat mrauth.UserActivityStatStorage,
 	storageActivityLog mrauth.UserActivityLogStorage,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *UserStatistic {
 	return &UserStatistic{
 		storageActivityStat: storageActivityStat,
 		storageActivityLog:  storageActivityLog,
-		errorWrapper:        core.NewUseCaseErrorWrapper(entity.ModelNameRefreshToken),
+		errorWrapper:        mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameRefreshToken),
 	}
 }
 

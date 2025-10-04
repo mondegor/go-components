@@ -5,9 +5,9 @@ import (
 
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -25,8 +25,8 @@ type (
 		notifierAPI           mrnotifier.NoticeProducer
 		loginParser           loginParser
 		factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA
+		errorWrapper          mrerr.UseCaseErrorWrapper
 		realm2operation       map[string]createSessionOperation
-		errorWrapper          core.UseCaseErrorWrapper
 	}
 
 	// CreateSessionRealm - сообщение для получателя.
@@ -52,6 +52,7 @@ func NewCreateSession(
 	notifierAPI mrnotifier.NoticeProducer,
 	loginParser loginParser,
 	factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 	allowedRealms []CreateSessionRealm,
 ) *CreateSession {
 	realm2operation := make(map[string]createSessionOperation, len(allowedRealms))
@@ -65,9 +66,9 @@ func NewCreateSession(
 		storageOperation:      storageOperation,
 		notifierAPI:           notifierAPI,
 		loginParser:           loginParser,
-		realm2operation:       realm2operation,
+		errorWrapper:          mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameRefreshToken), // ??????
 		factoryUserConfirm2FA: factoryUserConfirm2FA,
-		errorWrapper:          core.NewUseCaseErrorWrapper(entity.ModelNameRefreshToken), // ??????
+		realm2operation:       realm2operation,
 	}
 }
 

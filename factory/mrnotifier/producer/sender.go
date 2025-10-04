@@ -4,8 +4,9 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/sequence"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-webcore/mrsender"
-	"github.com/mondegor/go-webcore/mrsender/decorator"
+	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
+	"github.com/mondegor/go-sysmess/mrevent"
+	"github.com/mondegor/go-sysmess/mrtrace"
 
 	"github.com/mondegor/go-components/mrnotifier/notifier/entity"
 	"github.com/mondegor/go-components/mrnotifier/notifier/repository"
@@ -17,9 +18,10 @@ import (
 // NewSender - создаёт отправителя сообщений получателям.
 func NewSender(
 	client mrstorage.DBConnManager,
+	traceManager mrtrace.ContextManager,
+	eventEmitter mrevent.Emitter,
 	noticeTable mrsql.DBTableInfo,
 	queueTable mrsql.DBTableInfo,
-	eventEmitter mrsender.EventEmitter,
 	opts ...produce.Option,
 ) *produce.NoticeSender {
 	return produce.New(
@@ -28,8 +30,11 @@ func NewSender(
 		repository.NewNoticePostgres(client, noticeTable),
 		queueproduce.New(
 			queuerepository.NewQueuePostgres(client, queueTable),
-			decorator.NewSourceEmitter(eventEmitter, entity.ModelNameNotice),
+			mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameNotice),
+			errorwrapper.NewUseCase(),
 		),
+		traceManager,
+		errorwrapper.NewUseCase(),
 		opts...,
 	)
 }

@@ -5,10 +5,9 @@ import (
 
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
-	"github.com/mondegor/go-webcore/mrsender"
-	"github.com/mondegor/go-webcore/mrsender/decorator"
+	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/mrevent"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrsettings"
 	"github.com/mondegor/go-components/mrsettings/entity"
 	"github.com/mondegor/go-components/mrsettings/enum"
@@ -21,8 +20,8 @@ type (
 		formatter    mrsettings.ValueFormatter
 		storage      mrsettings.Storage
 		storageLog   mrsettings.StorageLog
-		eventEmitter mrsender.EventEmitter
-		errorWrapper core.UseCaseErrorWrapper
+		eventEmitter mrevent.Emitter
+		errorWrapper mrerr.UseCaseErrorWrapper
 	}
 )
 
@@ -32,15 +31,16 @@ func New(
 	formatter mrsettings.ValueFormatter,
 	storage mrsettings.Storage,
 	storageLog mrsettings.StorageLog,
-	eventEmitter mrsender.EventEmitter,
+	eventEmitter mrevent.Emitter,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *SettingsSetter {
 	return &SettingsSetter{
 		txManager:    txManager,
 		formatter:    formatter,
 		storage:      storage,
 		storageLog:   storageLog,
-		eventEmitter: decorator.NewSourceEmitter(eventEmitter, entity.ModelNameSetting+".Setter"),
-		errorWrapper: core.NewUseCaseErrorWrapper(entity.ModelNameSetting + ".Setter"),
+		eventEmitter: mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameSetting+".Setter"),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSetting+".Setter"),
 	}
 }
 

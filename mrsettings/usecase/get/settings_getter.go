@@ -3,9 +3,9 @@ package get
 import (
 	"context"
 
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrsettings"
 	"github.com/mondegor/go-components/mrsettings/entity"
 	"github.com/mondegor/go-components/mrsettings/enum"
@@ -16,16 +16,20 @@ type (
 	SettingsGetter struct {
 		parser       mrsettings.ValueParser
 		storage      mrsettings.Storage
-		errorWrapper core.UseCaseErrorWrapper
+		errorWrapper mrerr.UseCaseErrorWrapper
 	}
 )
 
 // New - создаёт объект SettingsGetter.
-func New(parser mrsettings.ValueParser, storage mrsettings.Storage) *SettingsGetter {
+func New(
+	parser mrsettings.ValueParser,
+	storage mrsettings.Storage,
+	errorWrapper mrerr.UseCaseErrorWrapper,
+) *SettingsGetter {
 	return &SettingsGetter{
 		parser:       parser,
 		storage:      storage,
-		errorWrapper: core.NewUseCaseErrorWrapper(entity.ModelNameSetting),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSetting),
 	}
 }
 

@@ -3,9 +3,9 @@ package mrnotifier
 import (
 	"context"
 
+	"github.com/mondegor/go-sysmess/mrapp"
 	"github.com/mondegor/go-sysmess/mrtrace"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrmailer/dto"
 	"github.com/mondegor/go-components/mrnotifier/notifier/entity"
 )
@@ -18,7 +18,7 @@ const (
 	HeaderPrefix = "header."
 
 	// HeaderLang - название переменной языка уведомления.
-	HeaderLang = HeaderPrefix + core.KeyLangCode
+	HeaderLang = HeaderPrefix + mrapp.KeyLangCode
 
 	// HeaderCorrelationID - название переменной заголовка, содержащего CorrelationID.
 	HeaderCorrelationID = HeaderPrefix + mrtrace.KeyCorrelationID

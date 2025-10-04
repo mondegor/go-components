@@ -3,11 +3,11 @@ package handle
 import (
 	"context"
 
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-sysmess/mrtrace"
 	tracectx "github.com/mondegor/go-sysmess/mrtrace/context"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrmailer"
 	"github.com/mondegor/go-components/mrmailer/entity"
 	"github.com/mondegor/go-components/mrmailer/provider/nop"
@@ -19,17 +19,21 @@ type (
 		clientEmail     mrmailer.MessageProvider
 		clientSMS       mrmailer.MessageProvider
 		clientMessenger mrmailer.MessageProvider
-		errorWrapper    core.UseCaseErrorWrapper
+		errorWrapper    mrerr.UseCaseErrorWrapper
 	}
 )
 
 // New - создаёт объект MessageHandler.
-func New(trace mrtrace.Tracer, opts ...Option) *MessageHandler {
+func New(
+	trace mrtrace.Tracer,
+	errorWrapper mrerr.UseCaseErrorWrapper,
+	opts ...Option,
+) *MessageHandler {
 	co := &MessageHandler{
 		clientEmail:     nop.New(trace), // disabled by default
 		clientSMS:       nop.New(trace), // disabled by default
 		clientMessenger: nop.New(trace), // disabled by default
-		errorWrapper:    core.NewUseCaseErrorWrapper(entity.ModelNameMessage),
+		errorWrapper:    mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameMessage),
 	}
 
 	for _, opt := range opts {

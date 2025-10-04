@@ -3,16 +3,16 @@ package mrmailer
 import (
 	"context"
 
+	"github.com/mondegor/go-sysmess/mrapp"
 	"github.com/mondegor/go-sysmess/mrtrace"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrmailer/dto"
 	"github.com/mondegor/go-components/mrmailer/entity"
 )
 
 const (
 	// HeaderLang - название переменной языка сообщения.
-	HeaderLang = core.KeyLangCode
+	HeaderLang = mrapp.KeyLangCode
 
 	// HeaderCorrelationID - название переменной заголовка, содержащего CorrelationID.
 	HeaderCorrelationID = mrtrace.KeyCorrelationID

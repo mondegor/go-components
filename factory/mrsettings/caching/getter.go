@@ -7,12 +7,14 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/builder/part"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
 	"github.com/mondegor/go-sysmess/mrlog"
+	"github.com/mondegor/go-sysmess/mrtrace"
 	"github.com/mondegor/go-webcore/mrworker"
 	"github.com/mondegor/go-webcore/mrworker/job/task"
 	"github.com/mondegor/go-webcore/mrworker/process/schedule"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrsettings/bag/fieldparser"
 	"github.com/mondegor/go-components/mrsettings/repository"
 	"github.com/mondegor/go-components/mrsettings/usecase/cacheget"
@@ -39,9 +41,9 @@ type (
 func NewComponentGetter(
 	client mrstorage.DBConnManager,
 	storageTable mrsql.DBTableInfo,
-	errorHandler core.ErrorHandler,
+	errorHandler mrerr.ErrorHandler,
 	logger mrlog.Logger,
-	traceManager core.TraceManager,
+	traceManager mrtrace.ContextManager,
 	opts ...GetterOption,
 ) (*cacheget.SettingsGetter, *schedule.TaskScheduler) {
 	o := getterOptions{
@@ -60,6 +62,7 @@ func NewComponentGetter(
 
 	storage := repository.NewSettingPostgres(
 		client,
+		errorwrapper.NewInfraStorage(),
 		storageTable,
 		part.NewSQLConditionBuilder(),
 		o.storageCondition,
@@ -68,6 +71,7 @@ func NewComponentGetter(
 	settingsReloader := cacheget.NewSettingsReloader(
 		fieldparser.New(o.fieldParser...),
 		storage,
+		errorwrapper.NewUseCase(),
 		logger,
 	)
 

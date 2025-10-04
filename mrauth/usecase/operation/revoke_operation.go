@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
 )
@@ -15,17 +15,18 @@ type (
 	// RevokeOperation - компонент для извлечения настроек, которые хранятся в хранилище данных.
 	RevokeOperation struct {
 		storageOperation mrauth.SecureOperationStorage
-		errorWrapper     core.UseCaseErrorWrapper
+		errorWrapper     mrerr.UseCaseErrorWrapper
 	}
 )
 
 // NewRevokeOperation - создаёт объект NewRevokeOperation.
 func NewRevokeOperation(
 	storageOperation mrauth.SecureOperationStorage,
+	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *RevokeOperation {
 	return &RevokeOperation{
 		storageOperation: storageOperation,
-		errorWrapper:     core.NewUseCaseErrorWrapper(entity.ModelNameSecureOperation),
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSecureOperation),
 	}
 }
 

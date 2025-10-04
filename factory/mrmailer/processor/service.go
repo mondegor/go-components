@@ -5,13 +5,13 @@ import (
 
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
+	"github.com/mondegor/go-sysmess/mrevent"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrtrace"
-	"github.com/mondegor/go-webcore/mrsender"
-	"github.com/mondegor/go-webcore/mrsender/decorator"
 	processconsume "github.com/mondegor/go-webcore/mrworker/process/consume"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrmailer/entity"
 	"github.com/mondegor/go-components/mrmailer/repository"
 	"github.com/mondegor/go-components/mrmailer/usecase/consume"
@@ -41,11 +41,11 @@ type (
 // NewService - создаёт сервис для обработки и отправки сообщений и связанных с ним задачи.
 func NewService(
 	client mrstorage.DBConnManager,
-	eventEmitter mrsender.EventEmitter,
-	errorHandler core.ErrorHandler,
+	eventEmitter mrevent.Emitter,
+	errorHandler mrerr.ErrorHandler,
 	logger mrlog.Logger,
 	trace mrtrace.Tracer,
-	traceManager core.TraceManager,
+	traceManager mrtrace.ContextManager,
 	messageTable mrsql.DBTableInfo,
 	queueTable mrsql.DBTableInfo,
 	opts ...ServiceOption,
@@ -85,7 +85,7 @@ func NewService(
 		},
 	)
 
-	eventEmitterQueue := decorator.NewSourceEmitter(eventEmitter, entity.ModelNameMessage)
+	eventEmitterQueue := mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameMessage)
 
 	messageConsumer := consume.New(
 		client,
@@ -94,6 +94,7 @@ func NewService(
 			client,
 			storageQueue,
 			eventEmitterQueue,
+			errorwrapper.NewUseCase(),
 			queueconsume.WithStorageCompleted(storageQueueCompleted),
 			queueconsume.WithStorageBroken(storageQueueBroken),
 		),
@@ -103,6 +104,7 @@ func NewService(
 		messageConsumer,
 		handle.New(
 			trace,
+			errorwrapper.NewUseCase(),
 			o.messageHandler...,
 		),
 		errorHandler,

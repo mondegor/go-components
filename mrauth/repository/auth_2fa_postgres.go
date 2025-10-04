@@ -6,8 +6,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
@@ -15,17 +15,21 @@ type (
 	// Auth2faPostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
 	Auth2faPostgres struct {
 		client       mrstorage.DBConnManager
+		errorWrapper mrerr.ErrorWrapper
 		table        mrsql.DBTableInfo
-		errorWrapper core.ErrorWrapper
 	}
 )
 
 // NewAuth2faPostgres - создаёт объект Auth2faPostgres.
-func NewAuth2faPostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *Auth2faPostgres {
+func NewAuth2faPostgres(
+	client mrstorage.DBConnManager,
+	errorWrapper mrerr.ErrorWrapper,
+	table mrsql.DBTableInfo,
+) *Auth2faPostgres {
 	return &Auth2faPostgres{
 		client:       client,
+		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
 		table:        table,
-		errorWrapper: core.NewStorageErrorWrapper(table.Name),
 	}
 }
 

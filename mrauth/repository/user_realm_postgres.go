@@ -5,8 +5,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr"
 
-	core "github.com/mondegor/go-components/internal"
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
@@ -14,17 +14,21 @@ type (
 	// UserRealmPostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
 	UserRealmPostgres struct {
 		client       mrstorage.DBConnManager
+		errorWrapper mrerr.ErrorWrapper
 		tableName    string
-		errorWrapper core.ErrorWrapper
 	}
 )
 
 // NewUserRealmPostgres - создаёт объект UserRealmPostgres.
-func NewUserRealmPostgres(client mrstorage.DBConnManager, tableName string) *UserRealmPostgres {
+func NewUserRealmPostgres(
+	client mrstorage.DBConnManager,
+	errorWrapper mrerr.ErrorWrapper,
+	tableName string,
+) *UserRealmPostgres {
 	return &UserRealmPostgres{
 		client:       client,
+		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, tableName),
 		tableName:    tableName,
-		errorWrapper: core.NewStorageErrorWrapper(tableName),
 	}
 }
 
