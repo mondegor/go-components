@@ -7,7 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/mondegor/go-storage v0.17.2-0.20251004100147-a0d97ff93e0b
 	github.com/mondegor/go-sysmess v0.15.4-0.20251004084206-a6c3849a18a2
-	github.com/mondegor/go-webcore v0.29.3-0.20251003220219-545f047b9811
+	github.com/mondegor/go-webcore v0.29.3-0.20251004095846-e9097ed38c96
 	github.com/pquerna/otp v1.4.0
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/crypto v0.29.0

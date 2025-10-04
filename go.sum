@@ -996,8 +996,8 @@ github.com/mondegor/go-storage v0.17.2-0.20251004100147-a0d97ff93e0b h1:ceVNKA+P
 github.com/mondegor/go-storage v0.17.2-0.20251004100147-a0d97ff93e0b/go.mod h1:2hkgIo5Y40o22qQfH1S0Iemxuia8V9bowyI68uBSMGg=
 github.com/mondegor/go-sysmess v0.15.4-0.20251004084206-a6c3849a18a2 h1:yeP/1nrfdulVz6/WA3Ba/TtoFqMt8R4axeaRE6qP0tM=
 github.com/mondegor/go-sysmess v0.15.4-0.20251004084206-a6c3849a18a2/go.mod h1:vw452qgNo9O3iqUxCEyuewVq4IR+BPG89KQnK+bVrZQ=
-github.com/mondegor/go-webcore v0.29.3-0.20251003220219-545f047b9811 h1:jKKdFtBZIxuYf94elOdrh4q3j/YP8ruu1RPqe2X3j7c=
-github.com/mondegor/go-webcore v0.29.3-0.20251003220219-545f047b9811/go.mod h1:z0o/6qoUmCljqkgYYxjdLKY6DW+Dqd0+rTRXj3XstTg=
+github.com/mondegor/go-webcore v0.29.3-0.20251004095846-e9097ed38c96 h1:sVi7hUYlbiztwF51SN+lBc1Y2ZqnTU19BWrBwTcD0PI=
+github.com/mondegor/go-webcore v0.29.3-0.20251004095846-e9097ed38c96/go.mod h1:nkdgcGjAIl/oRBZQTSei8M7YzJW2ZyU1bT+InZAWIuE=
 github.com/morikuni/aec v1.0.0 h1:nP9CBfwrvYnBRgY6qfDQkygYDmYwOilePFkwzv4dU8A=
 github.com/morikuni/aec v1.0.0/go.mod h1:BbKIizmSmc5MMPqRYbxO4ZU0S0+P200+tUnFx7PXmsc=
 github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U=
