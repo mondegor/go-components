@@ -4,7 +4,7 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/builder/part"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
+	"github.com/mondegor/go-sysmess/mrerr"
 
 	"github.com/mondegor/go-components/mrsettings/bag/fieldparser"
 	"github.com/mondegor/go-components/mrsettings/repository"
@@ -21,6 +21,8 @@ type (
 // NewComponentGetter - создаёт получателя произвольных настроек из БД.
 func NewComponentGetter(
 	client mrstorage.DBConnManager,
+	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
+	storageErrorWrapper mrerr.ErrorWrapper,
 	storageTable mrsql.DBTableInfo,
 	opts ...GetterOption,
 ) *get.SettingsGetter {
@@ -34,11 +36,11 @@ func NewComponentGetter(
 		fieldparser.New(o.fieldParser...),
 		repository.NewSettingPostgres(
 			client,
-			errorwrapper.NewInfraStorage(),
+			storageErrorWrapper,
 			storageTable,
 			part.NewSQLConditionBuilder(),
 			o.storageCondition,
 		),
-		errorwrapper.NewUseCase(),
+		useCaseErrorWrapper,
 	)
 }

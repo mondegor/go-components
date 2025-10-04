@@ -4,7 +4,7 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/builder/part"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrevent"
 
 	"github.com/mondegor/go-components/mrordering/repository"
@@ -20,8 +20,10 @@ type (
 // NewComponentMover - создаёт объект move.NodeMover.
 func NewComponentMover(
 	client mrstorage.DBConnManager,
-	storageTable mrsql.DBTableInfo,
+	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
+	storageErrorWrapper mrerr.ErrorWrapper,
 	eventEmitter mrevent.Emitter,
+	storageTable mrsql.DBTableInfo,
 	opts ...MoverOption,
 ) *move.NodeMover {
 	o := moverOptions{
@@ -35,12 +37,12 @@ func NewComponentMover(
 	return move.New(
 		repository.NewRepository(
 			client,
-			errorwrapper.NewInfraStorage(),
+			storageErrorWrapper,
 			storageTable,
 			part.NewSQLConditionBuilder(),
 			o.storageCondition,
 		),
 		eventEmitter,
-		errorwrapper.NewUseCase(),
+		useCaseErrorWrapper,
 	)
 }

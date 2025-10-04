@@ -33,7 +33,7 @@ type (
 func New(mailAPI mrsender.MailProvider, tracer mrtrace.Tracer, defaultFromEmail string) (*Provider, error) {
 	addr, err := mail.ParseAddress(defaultFromEmail)
 	if err != nil {
-		return nil, mr.ErrInternal.Wrap(err, "details", "defaultFromEmail parsing failed")
+		return nil, mr.ErrInternal.Wrap(err, "details", "parsing variable failed", "defaultFromEmail", defaultFromEmail)
 	}
 
 	return &Provider{

@@ -4,7 +4,7 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/sequence"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrevent"
 	"github.com/mondegor/go-sysmess/mrtrace"
 
@@ -18,8 +18,9 @@ import (
 // NewSender - создаёт отправителя сообщений получателям.
 func NewSender(
 	client mrstorage.DBConnManager,
-	traceManager mrtrace.ContextManager,
 	eventEmitter mrevent.Emitter,
+	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
+	traceManager mrtrace.ContextManager,
 	noticeTable mrsql.DBTableInfo,
 	queueTable mrsql.DBTableInfo,
 	opts ...produce.Option,
@@ -31,10 +32,10 @@ func NewSender(
 		queueproduce.New(
 			queuerepository.NewQueuePostgres(client, queueTable),
 			mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameNotice),
-			errorwrapper.NewUseCase(),
+			useCaseErrorWrapper,
 		),
+		useCaseErrorWrapper,
 		traceManager,
-		errorwrapper.NewUseCase(),
 		opts...,
 	)
 }

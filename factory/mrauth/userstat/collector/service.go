@@ -6,7 +6,6 @@ import (
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrtrace"
 	"github.com/mondegor/go-webcore/mrworker/process/collect"
@@ -36,6 +35,8 @@ type (
 func NewService(
 	client mrstorage.DBConnManager,
 	errorHandler mrerr.ErrorHandler,
+	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
+	storageErrorWrapper mrerr.ErrorWrapper,
 	logger mrlog.Logger,
 	traceManager mrtrace.ContextManager,
 	userActivityStatTable mrsql.DBTableInfo,
@@ -61,15 +62,15 @@ func NewService(
 	userStatistic := auth.NewUserStatistic(
 		repository.NewUserActivityStatPostgres(
 			client,
-			errorwrapper.NewInfraStorage(),
+			storageErrorWrapper,
 			userActivityStatTable,
 		),
 		repository.NewUserActivityLogPostgres(
 			client,
-			errorwrapper.NewInfraStorage(),
+			storageErrorWrapper,
 			userActivityLogTable,
 		),
-		errorwrapper.NewUseCase(),
+		useCaseErrorWrapper,
 	)
 
 	return collect.NewMessageCollector(

@@ -8,7 +8,6 @@ import (
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrtrace"
 	"github.com/mondegor/go-webcore/mrworker"
@@ -42,6 +41,8 @@ func NewComponentGetter(
 	client mrstorage.DBConnManager,
 	storageTable mrsql.DBTableInfo,
 	errorHandler mrerr.ErrorHandler,
+	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
+	storageErrorWrapper mrerr.ErrorWrapper,
 	logger mrlog.Logger,
 	traceManager mrtrace.ContextManager,
 	opts ...GetterOption,
@@ -62,7 +63,7 @@ func NewComponentGetter(
 
 	storage := repository.NewSettingPostgres(
 		client,
-		errorwrapper.NewInfraStorage(),
+		storageErrorWrapper,
 		storageTable,
 		part.NewSQLConditionBuilder(),
 		o.storageCondition,
@@ -71,7 +72,7 @@ func NewComponentGetter(
 	settingsReloader := cacheget.NewSettingsReloader(
 		fieldparser.New(o.fieldParser...),
 		storage,
-		errorwrapper.NewUseCase(),
+		useCaseErrorWrapper,
 		logger,
 	)
 

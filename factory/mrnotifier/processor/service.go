@@ -6,7 +6,6 @@ import (
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
 	"github.com/mondegor/go-sysmess/mrevent"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrtrace"
@@ -50,6 +49,8 @@ func NewService(
 	mailerAPI mrnotifier.MailerAPI,
 	eventEmitter mrevent.Emitter,
 	errorHandler mrerr.ErrorHandler,
+	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
+	storageErrorWrapper mrerr.ErrorWrapper,
 	logger mrlog.Logger,
 	traceManager mrtrace.ContextManager,
 	noticeTable mrsql.DBTableInfo,
@@ -79,7 +80,7 @@ func NewService(
 
 	storageTemplate := templaterepository.NewTemplatePostgres(
 		client,
-		errorwrapper.NewInfraStorage(),
+		storageErrorWrapper,
 		logger,
 		templateTableName,
 		templateVarName,
@@ -110,7 +111,7 @@ func NewService(
 			client,
 			storageQueue,
 			eventEmitterQueue,
-			errorwrapper.NewUseCase(),
+			useCaseErrorWrapper,
 			queueconsume.WithStorageCompleted(storageQueueCompleted),
 			queueconsume.WithStorageBroken(storageQueueBroken),
 		),
@@ -122,7 +123,7 @@ func NewService(
 			build.New(
 				templateusecase.New(
 					storageTemplate,
-					errorwrapper.NewUseCase(),
+					useCaseErrorWrapper,
 					logger,
 					o.defaultLang,
 				),

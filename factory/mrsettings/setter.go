@@ -4,7 +4,7 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/builder/part"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
+	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrevent"
 
 	"github.com/mondegor/go-components/mrsettings/bag/fieldformatter"
@@ -22,9 +22,11 @@ type (
 // NewComponentSetter - создаёт объект для сохранения произвольных настроек в БД.
 func NewComponentSetter(
 	client mrstorage.DBConnManager,
+	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
+	storageErrorWrapper mrerr.ErrorWrapper,
+	eventEmitter mrevent.Emitter,
 	storageTable mrsql.DBTableInfo,
 	storageTableLog string,
-	eventEmitter mrevent.Emitter,
 	opts ...SetterOption,
 ) *set.SettingsSetter {
 	o := setterOptions{}
@@ -38,18 +40,18 @@ func NewComponentSetter(
 		fieldformatter.New(o.fieldFormatter...),
 		repository.NewSettingPostgres(
 			client,
-			errorwrapper.NewInfraStorage(),
+			storageErrorWrapper,
 			storageTable,
 			part.NewSQLConditionBuilder(),
 			o.storageCondition,
 		),
 		repository.NewSettingLogPostgres(
 			client,
-			errorwrapper.NewInfraStorage(),
+			storageErrorWrapper,
 			storageTableLog,
 			storageTable,
 		),
 		eventEmitter,
-		errorwrapper.NewUseCase(),
+		useCaseErrorWrapper,
 	)
 }

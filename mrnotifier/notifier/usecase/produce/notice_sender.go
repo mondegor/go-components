@@ -26,8 +26,8 @@ type (
 		sequenceGenerator mrstorage.SequenceGenerator
 		storage           mrnotifier.NoticeStorage
 		useCaseQueue      mrqueue.Producer
-		traceManager      mrtrace.ContextManager
 		errorWrapper      mrerr.UseCaseErrorWrapper
+		traceManager      mrtrace.ContextManager
 		retryAttempts     uint32
 	}
 )
@@ -38,8 +38,8 @@ func New(
 	sequenceGenerator mrstorage.SequenceGenerator,
 	storage mrnotifier.NoticeStorage,
 	useCaseQueue mrqueue.Producer,
-	traceManager mrtrace.ContextManager,
 	errorWrapper mrerr.UseCaseErrorWrapper,
+	traceManager mrtrace.ContextManager,
 	opts ...Option,
 ) *NoticeSender {
 	co := &NoticeSender{
@@ -47,8 +47,8 @@ func New(
 		sequenceGenerator: sequenceGenerator,
 		storage:           storage,
 		useCaseQueue:      useCaseQueue,
-		traceManager:      traceManager,
 		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameNotice),
+		traceManager:      traceManager,
 		retryAttempts:     defaultRetryAttempts,
 	}
 

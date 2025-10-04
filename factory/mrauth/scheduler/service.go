@@ -7,7 +7,6 @@ import (
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrtrace"
 	"github.com/mondegor/go-webcore/mrworker"
@@ -41,6 +40,8 @@ type (
 func NewService(
 	client mrstorage.DBConnManager,
 	errorHandler mrerr.ErrorHandler,
+	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
+	storageErrorWrapper mrerr.ErrorWrapper,
 	logger mrlog.Logger,
 	traceManager mrtrace.ContextManager,
 	authTokenTable mrsql.DBTableInfo,
@@ -68,33 +69,33 @@ func NewService(
 	authTokenCleaner := clean.NewAuthTokenCleaner(
 		repository.NewAuthTokenPostgres(
 			client,
-			errorwrapper.NewInfraStorage(),
+			storageErrorWrapper,
 			authTokenTable,
 		),
-		errorwrapper.NewUseCase(),
+		useCaseErrorWrapper,
 	)
 
 	operationCleaner := clean.NewOperationCleaner(
 		repository.NewSecureOperationPostgres(
 			client,
-			errorwrapper.NewInfraStorage(),
+			storageErrorWrapper,
 			operationTable,
 		),
 		repository.NewSecureOperationLogPostgres(
 			client,
-			errorwrapper.NewInfraStorage(),
+			storageErrorWrapper,
 			operationLogTable,
 		),
-		errorwrapper.NewUseCase(),
+		useCaseErrorWrapper,
 	)
 
 	userCleaner := clean.NewUserCleaner(
 		repository.NewUserActivityLogPostgres(
 			client,
-			errorwrapper.NewInfraStorage(),
+			storageErrorWrapper,
 			userActivityLogTable,
 		),
-		errorwrapper.NewUseCase(),
+		useCaseErrorWrapper,
 	)
 
 	cleanerTask := task.NewJobWrapper(

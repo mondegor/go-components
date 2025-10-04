@@ -27,8 +27,8 @@ type (
 		sequenceGenerator mrstorage.SequenceGenerator
 		storage           mrmailer.MessageStorage
 		useCaseQueue      mrqueue.Producer
-		traceManager      mrtrace.ContextManager
 		errorWrapper      mrerr.UseCaseErrorWrapper
+		traceManager      mrtrace.ContextManager
 		retryAttempts     uint32
 		delayCorrection   time.Duration
 	}
@@ -40,8 +40,8 @@ func New(
 	sequenceGenerator mrstorage.SequenceGenerator,
 	storage mrmailer.MessageStorage,
 	useCaseQueue mrqueue.Producer,
-	traceManager mrtrace.ContextManager,
 	errorWrapper mrerr.UseCaseErrorWrapper,
+	traceManager mrtrace.ContextManager,
 	opts ...Option,
 ) *MessageSender {
 	co := &MessageSender{
@@ -49,8 +49,8 @@ func New(
 		sequenceGenerator: sequenceGenerator,
 		storage:           storage,
 		useCaseQueue:      useCaseQueue,
-		traceManager:      traceManager,
 		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameMessage),
+		traceManager:      traceManager,
 		retryAttempts:     defaultRetryAttempts,
 		delayCorrection:   defaultDelayCorrection,
 	}

@@ -6,7 +6,6 @@ import (
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/errorwrapper"
 	"github.com/mondegor/go-sysmess/mrevent"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrtrace"
@@ -43,6 +42,7 @@ func NewService(
 	client mrstorage.DBConnManager,
 	eventEmitter mrevent.Emitter,
 	errorHandler mrerr.ErrorHandler,
+	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
 	logger mrlog.Logger,
 	trace mrtrace.Tracer,
 	traceManager mrtrace.ContextManager,
@@ -94,7 +94,7 @@ func NewService(
 			client,
 			storageQueue,
 			eventEmitterQueue,
-			errorwrapper.NewUseCase(),
+			useCaseErrorWrapper,
 			queueconsume.WithStorageCompleted(storageQueueCompleted),
 			queueconsume.WithStorageBroken(storageQueueBroken),
 		),
@@ -104,7 +104,7 @@ func NewService(
 		messageConsumer,
 		handle.New(
 			trace,
-			errorwrapper.NewUseCase(),
+			useCaseErrorWrapper,
 			o.messageHandler...,
 		),
 		errorHandler,
