@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/mrlog"
-	"github.com/mondegor/go-webcore/mrserver"
+	"github.com/mondegor/go-webcore/mrserver/request"
 
 	"github.com/mondegor/go-components/mrauth/dto"
 )
@@ -17,8 +17,8 @@ type (
 	// UserRequest - comment struct.
 	UserRequest struct {
 		producer       userLogProducer
-		parserClientIP mrserver.RequestParserClientIP
-		parserUser     mrserver.RequestParserUser
+		parserClientIP request.ParserClientIP
+		parserUser     request.ParserUser
 		logger         mrlog.Logger
 	}
 
@@ -31,8 +31,8 @@ type (
 func NewUserRequest(
 	producer userLogProducer,
 	logger mrlog.Logger,
-	parserClientIP mrserver.RequestParserClientIP,
-	parserUser mrserver.RequestParserUser,
+	parserClientIP request.ParserClientIP,
+	parserUser request.ParserUser,
 ) *UserRequest {
 	return &UserRequest{
 		producer:       producer,

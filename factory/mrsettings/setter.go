@@ -22,9 +22,9 @@ type (
 // NewComponentSetter - создаёт объект для сохранения произвольных настроек в БД.
 func NewComponentSetter(
 	client mrstorage.DBConnManager,
+	eventEmitter mrevent.Emitter,
 	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
 	storageErrorWrapper mrerr.ErrorWrapper,
-	eventEmitter mrevent.Emitter,
 	storageTable mrsql.DBTableInfo,
 	storageTableLog string,
 	opts ...SetterOption,

@@ -1,10 +1,19 @@
 package dto
 
 import (
+	"github.com/google/uuid"
+
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
 type (
+	// User - comment struct.
+	User struct {
+		ID       uuid.UUID
+		Group    string
+		LangCode string
+	}
+
 	// UserInRealm - сообщение для получателя.
 	UserInRealm struct {
 		Realm string

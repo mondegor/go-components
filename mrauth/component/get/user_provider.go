@@ -6,7 +6,6 @@ import (
 	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-webcore/mraccess"
-	"github.com/mondegor/go-webcore/mraccess/user"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -18,6 +17,7 @@ type (
 	UserProvider struct {
 		storage       mrauth.AuthTokenFetcher
 		errorWrapper  mrerr.UseCaseErrorWrapper
+		userGroups    mraccess.RightsGetter
 		allowedRealms map[string]struct{}
 	}
 )
@@ -26,6 +26,7 @@ type (
 func New(
 	storage mrauth.AuthTokenFetcher,
 	errorWrapper mrerr.UseCaseErrorWrapper,
+	userGroups mraccess.RightsGetter,
 	allowedRealms []string,
 ) *UserProvider {
 	allowedRealmsMap := make(map[string]struct{}, len(allowedRealms))
@@ -37,12 +38,13 @@ func New(
 	return &UserProvider{
 		storage:       storage,
 		errorWrapper:  mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameAuthToken),
+		userGroups:    userGroups,
 		allowedRealms: allowedRealmsMap,
 	}
 }
 
-// MemberByToken - возвращает строковое значение настройки с указанным идентификатором.
-func (co *UserProvider) MemberByToken(ctx context.Context, value string) (mraccess.Member, error) {
+// UserByToken - возвращает строковое значение настройки с указанным идентификатором.
+func (co *UserProvider) UserByToken(ctx context.Context, value string) (mraccess.User, error) {
 	if value == "" {
 		return nil, mr.ErrUseCaseIncorrectInternalInputData.New("token is empty")
 	}
@@ -61,5 +63,10 @@ func (co *UserProvider) MemberByToken(ctx context.Context, value string) (mracce
 		return nil, mr.ErrUseCaseAccessForbidden.New()
 	}
 
-	return user.New(authToken.UserID, authToken.Realm+"/"+authToken.UserKind, authToken.LangCode), nil
+	return mraccess.NewUser(
+		authToken.UserID,
+		authToken.Realm+"/"+authToken.UserKind,
+		authToken.LangCode,
+		co.userGroups,
+	), nil
 }

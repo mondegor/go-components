@@ -9,7 +9,7 @@ import (
 	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-sysmess/mrlog"
-	"github.com/mondegor/go-webcore/mrenum"
+	"github.com/mondegor/go-sysmess/mrstatus/itemstatus"
 
 	"github.com/mondegor/go-components/mrnotifier/template/entity"
 )
@@ -59,7 +59,7 @@ func (re *TemplatePostgres) FetchOneByKey(ctx context.Context, name, lang string
 		LIMIT 1;`
 
 	var (
-		status mrenum.ItemStatus
+		status itemstatus.Enum
 		vars   []string
 	)
 
@@ -78,9 +78,9 @@ func (re *TemplatePostgres) FetchOneByKey(ctx context.Context, name, lang string
 		return entity.Template{}, re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"name": name, "lang": lang})
 	}
 
-	if status != mrenum.ItemStatusEnabled {
+	if status != itemstatus.Enabled {
 		return entity.Template{}, mr.ErrStorageNoRowFound.Wrap(
-			fmt.Errorf("model is in status %s, expected: %s", status, mrenum.ItemStatusEnabled),
+			fmt.Errorf("model is in status %s, expected: %s", status, itemstatus.Enabled),
 			"storage-data", mrargs.Group{"name": name, "lang": lang},
 		)
 	}

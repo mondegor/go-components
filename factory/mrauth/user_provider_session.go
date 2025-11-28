@@ -4,6 +4,7 @@ import (
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-webcore/mraccess"
 
 	"github.com/mondegor/go-components/mrauth/component/get"
 	"github.com/mondegor/go-components/mrauth/repository"
@@ -14,6 +15,7 @@ func NewUserProviderSession(
 	client mrstorage.DBConnManager,
 	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
 	storageErrorWrapper mrerr.ErrorWrapper,
+	userGroups mraccess.RightsGetter,
 	storageTable mrsql.DBTableInfo,
 	allowedRealms []string,
 ) *get.UserProvider {
@@ -24,6 +26,7 @@ func NewUserProviderSession(
 			storageTable,
 		),
 		useCaseErrorWrapper,
+		userGroups,
 		allowedRealms,
 	)
 }

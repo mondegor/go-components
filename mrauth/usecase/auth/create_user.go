@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/mondegor/go-storage/mrlock"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
 	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrerr/mr"
-	"github.com/mondegor/go-sysmess/mrlock"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
@@ -91,7 +91,7 @@ func (co *CreateUser) Perform(ctx context.Context, realm, langCode, userEmail st
 
 	unlockEmail, err := co.locker.LockWithExpiry(ctx, createUserLockKeyPrefix+realm+":"+parsedLogin.Value, createUserLockTimeout)
 	if err != nil {
-		if mr.ErrStorageLockKeyNotCaptured.Is(err) {
+		if mrlock.ErrStorageLockKeyNotObtained.Is(err) {
 			return entity.SecureOperation{}, mrauth.ErrEmailAlreadyExists.New()
 		}
 
