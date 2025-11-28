@@ -133,8 +133,8 @@ github.com/moby/sys/userns v0.1.0 h1:tVLXkFOxVu9A64/yh59slHVv9ahO9UIev4JZusOLG/g
 github.com/moby/sys/userns v0.1.0/go.mod h1:IHUYgu/kao6N8YZlp9Cf444ySSvCmDlmzUcYfDHOl28=
 github.com/moby/term v0.5.2 h1:6qk3FJAFDs6i/q3W/pQ97SX192qKfZgGjCQqfCJkgzQ=
 github.com/moby/term v0.5.2/go.mod h1:d3djjFCrjnB+fl8NJux+EJzu0msscUP+f8it8hPkFLc=
-github.com/mondegor/go-storage v0.17.2-0.20251128110918-ab24b1ff767d h1:/NuQX/LY9a0q9SgqnuLr+E42FKQy0DQmtFkwrOMrHrY=
-github.com/mondegor/go-storage v0.17.2-0.20251128110918-ab24b1ff767d/go.mod h1:dMEI5ICtfiU5Pc5h1eZkyNHOsvOij+PBSRXcYA2h6gY=
+github.com/mondegor/go-storage v0.17.2-0.20251128130448-a3a4c06cbc3a h1:LFr0Nz/HnBS7NR0LGtAQMEJz8Ffmj5zkyPPUi1WvBQ0=
+github.com/mondegor/go-storage v0.17.2-0.20251128130448-a3a4c06cbc3a/go.mod h1:dMEI5ICtfiU5Pc5h1eZkyNHOsvOij+PBSRXcYA2h6gY=
 github.com/mondegor/go-sysmess v0.15.4-0.20251128110047-5f17fa964782 h1:69v+8Qy3uVdY1ct8JDH5+GaVyh9fj+CZztmQpFDSfjg=
 github.com/mondegor/go-sysmess v0.15.4-0.20251128110047-5f17fa964782/go.mod h1:8eG66uD08c+6/CKj31crgIM9Tno+M8WWV94qHbgxTyg=
 github.com/mondegor/go-webcore v0.29.3-0.20251128110404-7b0a9034ddcb h1:LfL+Xx5H7+noQboC+CSjCOGJ0iZo8w0UVS55DgAHBOo=
