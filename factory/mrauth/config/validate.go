@@ -21,7 +21,7 @@ func ValidateRealms(realms []UserRealm, allRoles []string) error {
 		}
 
 		if realm.AuthToken.AccessType != "jwt" && realm.AuthToken.AccessType != "session" {
-			return fmt.Errorf("invalid token type '%s' for realm '%s'", realm.AuthToken.AccessType, realm.Name)
+			return fmt.Errorf("invalid token type for realm (type='%s', realm='%s')", realm.AuthToken.AccessType, realm.Name)
 		}
 
 		uniqRealms[realm.Name] = struct{}{}
@@ -40,7 +40,7 @@ func validateRealm(realm UserRealm, allRoles []string) error {
 
 	for _, kind := range realm.UserKinds {
 		if _, ok := uniqKinds[kind.Name]; ok {
-			return fmt.Errorf("duplicate user kind name '%s' for realm '%s'", kind.Name, realm.Name)
+			return fmt.Errorf("duplicate user kind name for realm (kind='%s', realm='%s')", kind.Name, realm.Name)
 		}
 
 		uniqKinds[kind.Name] = struct{}{}
@@ -51,13 +51,13 @@ func validateRealm(realm UserRealm, allRoles []string) error {
 
 		for _, role := range kind.Roles {
 			if !extstrings.InArray(role, allRoles) {
-				return fmt.Errorf("role '%s' of user kind '%s' is not found in roles for realm '%s'", role, kind.Name, realm.Name)
+				return fmt.Errorf("role of user kind is not found in roles for realm (role='%s', kind='%s', realm='%s')", role, kind.Name, realm.Name)
 			}
 		}
 	}
 
 	if !hasRegisterUser {
-		return fmt.Errorf("realm.RegisterUserKind '%s' is not found in realm.UserKinds for realm: %s", realm.RegisterUserKind, realm.Name)
+		return fmt.Errorf("realm.RegisterUserKind is not found in realm.UserKinds for realm (kind='%s', realm='%s')", realm.RegisterUserKind, realm.Name)
 	}
 
 	return nil

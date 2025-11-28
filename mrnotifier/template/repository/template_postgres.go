@@ -80,7 +80,7 @@ func (re *TemplatePostgres) FetchOneByKey(ctx context.Context, name, lang string
 
 	if status != itemstatus.Enabled {
 		return entity.Template{}, mr.ErrStorageNoRowFound.Wrap(
-			fmt.Errorf("model is in status %s, expected: %s", status, itemstatus.Enabled),
+			fmt.Errorf("model is in status '%s', expected: '%s'", status, itemstatus.Enabled),
 			"storage-data", mrargs.Group{"name": name, "lang": lang},
 		)
 	}

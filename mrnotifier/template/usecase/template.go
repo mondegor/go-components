@@ -57,7 +57,7 @@ func (co *Template) GetItemByKey(ctx context.Context, key, lang string) (entity.
 	item, err := co.storage.FetchOneByKey(ctx, key, lang)
 	if err != nil {
 		if lang != co.defaultLang && mr.ErrStorageNoRowFound.Is(err) {
-			co.logger.Warn(ctx, fmt.Sprintf("No template was found for the notification %s with lang %s", key, lang))
+			co.logger.Warn(ctx, fmt.Sprintf("No template was found for the notification (key='%s', lang='%s')", key, lang))
 
 			// если запись не найдена для указанного языка, то происходит попытка выбрать её с языком по умолчанию
 			item, err = co.storage.FetchOneByKey(ctx, key, co.defaultLang)
