@@ -13,11 +13,11 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/addresstype"
 )
 
 type (
-	// AuthHelper - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
+	// AuthHelper - comment struct.
 	AuthHelper struct {
 		storageCheckUser mrauth.CheckUserStorage
 		storageUserRealm mrauth.UserRealmStorage
@@ -52,11 +52,11 @@ func (uc *AuthHelper) CheckAvailability(ctx context.Context, realm, userLogin st
 		return uc.errorWrapper.WrapErrorFailed(err)
 	}
 
-	if parsedLogin.Type == enum.AddressTypeEmail {
+	if parsedLogin.Type == addresstype.Email {
 		return uc.checkAvailabilityByEmail(ctx, realm, parsedLogin.Value)
 	}
 
-	if parsedLogin.Type == enum.AddressTypePhone {
+	if parsedLogin.Type == addresstype.Phone {
 		return uc.checkAvailabilityByPhone(ctx, realm, parsedLogin.Value)
 	}
 

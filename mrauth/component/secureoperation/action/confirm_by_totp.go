@@ -3,8 +3,8 @@ package action
 import (
 	"time"
 
-	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 )
 
 type (
@@ -26,9 +26,9 @@ func NewConfirmByTOTP(opts ...Option) *ConfirmByTOTP {
 }
 
 // Create - comments method.
-func (a *ConfirmByTOTP) Create(secret string) entity.ConfirmAction {
-	return entity.ConfirmAction{
-		Method:      enum.ConfirmMethodTOTP,
+func (a *ConfirmByTOTP) Create(secret string) dto.ConfirmAction {
+	return dto.ConfirmAction{
+		Method:      confirmmethod.TOTP,
 		MaxAttempts: a.maxAttempts,
 		Expiry:      a.expiry,
 		Secret:      secret,

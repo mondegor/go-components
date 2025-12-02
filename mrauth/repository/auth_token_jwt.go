@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"github.com/mondegor/go-components/mrauth/bag/jwt"
-	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/dto"
 )
 
 type (
-	// AuthTokenJWT - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
+	// AuthTokenJWT - comment struct.
 	AuthTokenJWT struct {
 		parser *jwt.Parser
 	}
@@ -22,13 +22,13 @@ func NewAuthTokenJWT(secret string) *AuthTokenJWT {
 }
 
 // FetchOne - возвращает список сообщений по их указанным SettingID.
-func (re *AuthTokenJWT) FetchOne(_ context.Context, accessToken string) (row entity.AuthTokenScopes, err error) {
+func (re *AuthTokenJWT) FetchOne(_ context.Context, accessToken string) (row dto.AuthTokenScopes, err error) {
 	scopes, err := re.parser.Parse(accessToken)
 	if err != nil {
-		return entity.AuthTokenScopes{}, err
+		return dto.AuthTokenScopes{}, err
 	}
 
-	return entity.AuthTokenScopes{
+	return dto.AuthTokenScopes{
 		Realm:    scopes.Realm,
 		UserKind: scopes.UserKind,
 		LangCode: scopes.LangCode,

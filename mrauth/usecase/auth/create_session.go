@@ -12,7 +12,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -117,7 +117,7 @@ func (co *CreateSession) Perform(ctx context.Context, realm, langCode, userLogin
 			return co.errorWrapper.WrapErrorFailed(err)
 		}
 
-		if confirmingAction.Method != enum.ConfirmMethodEmail {
+		if confirmingAction.Method != confirmmethod.Email {
 			return mr.ErrInternal.New("reason", "confirm operation method is not email")
 		}
 

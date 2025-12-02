@@ -3,13 +3,13 @@ package contactaddress
 import (
 	"strconv"
 
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/addresstype"
 )
 
 type (
-	// ContactAddress - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ContactAddress - comment struct.
 	ContactAddress struct {
-		Type     enum.AddressType
+		Type     addresstype.Enum
 		Original string
 		Value    string
 	}
@@ -18,7 +18,7 @@ type (
 // NewEmail - создаёт объект ContactAddress с типом емаил.
 func NewEmail(value string) ContactAddress {
 	return ContactAddress{
-		Type:     enum.AddressTypeEmail,
+		Type:     addresstype.Email,
 		Original: value,
 		Value:    value,
 	}
@@ -27,7 +27,7 @@ func NewEmail(value string) ContactAddress {
 // NewPhone - создаёт объект ContactAddress с типом телефон.
 func NewPhone(value string) ContactAddress {
 	return ContactAddress{
-		Type:     enum.AddressTypePhone,
+		Type:     addresstype.Phone,
 		Original: value,
 		Value:    value,
 	}
@@ -38,7 +38,7 @@ func NewDigitPhone(value uint64) ContactAddress {
 	phoneString := strconv.FormatUint(value, 10)
 
 	return ContactAddress{
-		Type:     enum.AddressTypePhone,
+		Type:     addresstype.Phone,
 		Original: phoneString,
 		Value:    phoneString,
 	}

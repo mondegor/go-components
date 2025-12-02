@@ -3,7 +3,7 @@ package entity
 import (
 	"github.com/google/uuid"
 
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 )
 
 const (
@@ -12,16 +12,11 @@ const (
 )
 
 type (
-	// Auth2fa - сообщение для получателя.
+	// Auth2fa - информация о пользователе для 2FA.
 	Auth2fa struct {
 		UserID       uuid.UUID
-		Type         enum.Auth2faType
+		Type         auth2fatype.Enum
 		Secret       string
 		CancelSecret string
-	}
-
-	// Auth2faCancel - comment struct.
-	Auth2faCancel struct {
-		Secret string
 	}
 )

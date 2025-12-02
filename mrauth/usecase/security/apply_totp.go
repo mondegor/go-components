@@ -17,12 +17,13 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
-	// ApplyTOTPGenerator - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ApplyTOTPGenerator - comment struct.
 	ApplyTOTPGenerator struct {
 		txManager        mrstorage.DBTxManager
 		storage          mrauth.User2faStorage
@@ -72,7 +73,7 @@ func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, ope
 
 	// TODO: проверить, что пользователь не заблокирован !!!!!!!
 
-	if op.Status != enum.OperationStatusConfirmed {
+	if op.Status != operationstatus.Confirmed {
 		return mrtype.Image{}, errors.New("operation id not confirmed")
 	}
 
@@ -98,7 +99,7 @@ func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, ope
 			ctx,
 			entity.Auth2fa{
 				UserID: op.UserID,
-				Type:   enum.Auth2faTypeTOTP,
+				Type:   auth2fatype.TOTP,
 				Secret: secret.Secret(),
 			},
 		)

@@ -9,7 +9,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/component/secureoperation/action"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
 const (
@@ -18,7 +18,7 @@ const (
 )
 
 type (
-	// ChangePassword - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ChangePassword - comment struct.
 	ChangePassword struct {
 		actionCreator  mrauth.ConfirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
@@ -66,7 +66,7 @@ func (o *ChangePassword) Create(user2FA dto.User2FA, newPassword string) (entity
 		return entity.SecureOperation{}, err
 	}
 
-	actions := make([]entity.ConfirmAction, 1, 2)
+	actions := make([]dto.ConfirmAction, 1, 2)
 
 	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email), confirmCode)
 	if err != nil {
@@ -86,7 +86,7 @@ func (o *ChangePassword) Create(user2FA dto.User2FA, newPassword string) (entity
 		RemainingResends:  actions[0].MaxResends,
 		ResendsAt:         time.Now().Add(actions[0].MinResendTime).Round(1 * time.Second),
 		Payload:           payload,
-		Status:            enum.OperationStatusOpened,
+		Status:            operationstatus.Opened,
 		ExpiresAt:         time.Now().Add(actions[0].Expiry).Round(1 * time.Second),
 	}, nil
 }

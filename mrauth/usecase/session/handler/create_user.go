@@ -15,7 +15,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/userstatus"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -70,7 +70,7 @@ func (uc *CreateUser) Execute(ctx context.Context, payload []byte) (u dto.UserIn
 			user = entity.User{
 				Email:    payloadDTO.Email,
 				LangCode: payloadDTO.LangCode,
-				Status:   enum.UserStatusEnabled,
+				Status:   userstatus.Enabled,
 			}
 
 			user.ID, err = uc.storageUser.Insert(ctx, user)
@@ -121,8 +121,11 @@ func (uc *CreateUser) Execute(ctx context.Context, payload []byte) (u dto.UserIn
 	}
 
 	return dto.UserInRealm{
-		Realm: payloadDTO.Realm,
-		Kind:  payloadDTO.UserKind,
-		User:  user,
+		ID:       user.ID,
+		Realm:    payloadDTO.Realm,
+		Kind:     payloadDTO.UserKind,
+		LangCode: user.LangCode,
+		// Email:    user.Email,
+		// Phone:    user.Phone,
 	}, nil
 }

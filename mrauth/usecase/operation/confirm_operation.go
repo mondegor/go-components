@@ -10,7 +10,8 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -100,7 +101,7 @@ func (co *ConfirmOperation) Perform(ctx context.Context, langCode, operationToke
 		}
 
 		// если все действия подтверждены
-		if op.Status == enum.OperationStatusConfirmed {
+		if op.Status == operationstatus.Confirmed {
 			// TODO: асинхронный запуск каких либо работ после подтверждения операции
 			return nil
 		}
@@ -113,7 +114,7 @@ func (co *ConfirmOperation) Perform(ctx context.Context, langCode, operationToke
 
 		// TODO: Add Operation log:op!
 
-		if confirmingAction.Method == enum.ConfirmMethodEmail {
+		if confirmingAction.Method == confirmmethod.Email {
 			return co.notifierAPI.SendNotice(
 				ctx,
 				"confirm.operation.by.email",
@@ -126,7 +127,7 @@ func (co *ConfirmOperation) Perform(ctx context.Context, langCode, operationToke
 			)
 		}
 
-		if confirmingAction.Method == enum.ConfirmMethodPhone {
+		if confirmingAction.Method == confirmmethod.Phone {
 			return mr.ErrInternal.New("reason", "ConfirmMethodPhone is not yet supported")
 		}
 

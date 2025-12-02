@@ -8,12 +8,13 @@ import (
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
 
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/authtokenstatus"
 )
 
 type (
-	// AuthTokenPostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
+	// AuthTokenPostgres - comment struct.
 	AuthTokenPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper mrerr.ErrorWrapper
@@ -43,7 +44,7 @@ func NewAuthTokenPostgres(
 }
 
 // FetchOne - возвращает список сообщений по их указанным SettingID.
-func (re *AuthTokenPostgres) FetchOne(ctx context.Context, accessToken string) (row entity.AuthTokenScopes, err error) {
+func (re *AuthTokenPostgres) FetchOne(ctx context.Context, accessToken string) (row dto.AuthTokenScopes, err error) {
 	sql := `
 		SELECT
 			user_id,
@@ -64,18 +65,18 @@ func (re *AuthTokenPostgres) FetchOne(ctx context.Context, accessToken string) (
 		ctx,
 		sql,
 		accessToken,
-		enum.AuthTokenStatusOpened,
+		authtokenstatus.Opened,
 	).Scan(
 		&userID,
 		&row, // загружаются все данные кроме userID, т.к. хранится в отдельном поле
 		&isExpired,
 	)
 	if err != nil {
-		return entity.AuthTokenScopes{}, re.errorWrapper.WrapError(err)
+		return dto.AuthTokenScopes{}, re.errorWrapper.WrapError(err)
 	}
 
 	if isExpired {
-		return entity.AuthTokenScopes{}, ErrTokenExpired
+		return dto.AuthTokenScopes{}, ErrTokenExpired
 	}
 
 	// дозаполняется структура userID полученного из отдельного поля
@@ -114,7 +115,7 @@ func (re *AuthTokenPostgres) Insert(ctx context.Context, row entity.AuthToken) e
 		row.AccessExpiresAt,
 		row.Scopes.UserID,
 		row.Scopes, // userID будет исключён, т.к. он сохраняется в отдельном поле
-		enum.AuthTokenStatusOpened,
+		authtokenstatus.Opened,
 		row.ExpiresAt,
 	)
 	if err != nil {
@@ -138,8 +139,8 @@ func (re *AuthTokenPostgres) UpdateToClose(ctx context.Context, accessToken stri
 		ctx,
 		sql,
 		accessToken,
-		enum.AuthTokenStatusOpened,
-		enum.AuthTokenStatusClosed,
+		authtokenstatus.Opened,
+		authtokenstatus.Closed,
 	)
 	if err != nil {
 		return re.errorWrapper.WrapError(err)
@@ -149,7 +150,7 @@ func (re *AuthTokenPostgres) UpdateToClose(ctx context.Context, accessToken stri
 }
 
 // Revoke - comments method.
-func (re *AuthTokenPostgres) Revoke(ctx context.Context, refreshToken string) (row entity.AuthTokenScopes, err error) {
+func (re *AuthTokenPostgres) Revoke(ctx context.Context, refreshToken string) (row dto.AuthTokenScopes, err error) {
 	sql := `
         UPDATE
             ` + re.table.Name + `
@@ -173,9 +174,9 @@ func (re *AuthTokenPostgres) Revoke(ctx context.Context, refreshToken string) (r
 		ctx,
 		sql,
 		refreshToken,
-		enum.AuthTokenStatusOpened,
-		enum.AuthTokenStatusRevoked,
-		enum.AuthTokenStatusUnexpectedRevoked,
+		authtokenstatus.Opened,
+		authtokenstatus.Revoked,
+		authtokenstatus.UnexpectedRevoked,
 	).Scan(
 		&userID,
 		&row, // загружаются все данные кроме userID, т.к. хранится в отдельном поле
@@ -183,11 +184,11 @@ func (re *AuthTokenPostgres) Revoke(ctx context.Context, refreshToken string) (r
 		&isAlreadyRevoked,
 	)
 	if err != nil {
-		return entity.AuthTokenScopes{}, re.errorWrapper.WrapError(err)
+		return dto.AuthTokenScopes{}, re.errorWrapper.WrapError(err)
 	}
 
 	if isExpired {
-		return entity.AuthTokenScopes{}, ErrTokenExpired
+		return dto.AuthTokenScopes{}, ErrTokenExpired
 	}
 
 	// дозаполняется структура userID полученного из отдельного поля
@@ -214,8 +215,8 @@ func (re *AuthTokenPostgres) UpdateToCloseAll(ctx context.Context, userID uuid.U
 		ctx,
 		sql,
 		userID,
-		enum.AuthTokenStatusOpened,
-		enum.AuthTokenStatusClosed,
+		authtokenstatus.Opened,
+		authtokenstatus.Closed,
 	)
 	if err != nil {
 		return re.errorWrapper.WrapError(err)

@@ -11,7 +11,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 )
 
 type (
@@ -37,7 +37,7 @@ type (
 
 	// UserInfoUseCase - отправляет внешним клиентом уведомление преобразованное в сообщение.
 	UserInfoUseCase interface {
-		Get(ctx context.Context, userID uuid.UUID) (dto.UserInfo, error)
+		Get(ctx context.Context, userID uuid.UUID) (entity.UserInfo, error)
 	}
 
 	// SessionUseCase - comments interface.
@@ -76,13 +76,13 @@ type (
 
 	// AuthTokenFetcher - предоставляет доступ к хранилищу сообщений.
 	AuthTokenFetcher interface {
-		FetchOne(ctx context.Context, accessToken string) (entity.AuthTokenScopes, error)
+		FetchOne(ctx context.Context, accessToken string) (dto.AuthTokenScopes, error)
 	}
 
 	// AuthTokenStorage - comments interface.
 	AuthTokenStorage interface {
 		Insert(ctx context.Context, row entity.AuthToken) error
-		Revoke(ctx context.Context, refreshToken string) (row entity.AuthTokenScopes, err error)
+		Revoke(ctx context.Context, refreshToken string) (row dto.AuthTokenScopes, err error)
 		UpdateToClose(ctx context.Context, accessToken string) error
 		UpdateToCloseAll(ctx context.Context, userID uuid.UUID) error
 		DeleteExpired(ctx context.Context, limit int) error
@@ -90,7 +90,7 @@ type (
 
 	// UserStatisticUseCase - comments interface.
 	UserStatisticUseCase interface {
-		Execute(ctx context.Context, list []dto.UserActivityLog) error
+		Execute(ctx context.Context, list []entity.UserActivityLog) error
 	}
 
 	// SecureOperationStorage - comments interface.
@@ -125,7 +125,7 @@ type (
 	UserActivityStatStorage interface {
 		FetchOne(ctx context.Context, userID uuid.UUID) (row entity.UserActivityStat, err error)
 		InsertOrUpdate(ctx context.Context, row entity.UserActivityStat) error
-		UpdateLastVisited(ctx context.Context, rows []entity.UserActivityLastVisited) error
+		UpdateLastVisited(ctx context.Context, rows []dto.UserActivityLastVisited) error
 	}
 
 	// UserActivityLogStorage - comments interface.
@@ -162,7 +162,7 @@ type (
 	OperationEntity interface {
 		Create(ctx context.Context, opts entity.CreateOperation) (entity.SecureOperation, error)
 		GenerateToken() (string, error)
-		GenerateSecret(method enum.ConfirmMethod) (string, error)
+		GenerateSecret(method confirmmethod.Enum) (string, error)
 	}
 
 	// FactoryUserConfirm2FA - comments interface.
@@ -192,6 +192,6 @@ type (
 
 	// ConfirmByAddressCreator - comments interface.
 	ConfirmByAddressCreator interface {
-		Create(address contactaddress.ContactAddress, confirmCode string) (entity.ConfirmAction, error)
+		Create(address contactaddress.ContactAddress, confirmCode string) (dto.ConfirmAction, error)
 	}
 )

@@ -7,7 +7,7 @@ import (
 )
 
 type (
-	// AuthToken - сообщение для получателя.
+	// AuthToken - токен доступа пользователя к системе.
 	AuthToken struct {
 		AccessToken      string
 		ExpiresIn        time.Duration
@@ -17,11 +17,11 @@ type (
 		Scopes           AuthTokenScopes
 	}
 
-	// AuthTokenScopes - comment struct.
+	// AuthTokenScopes - область действия токена доступа.
 	AuthTokenScopes struct {
-		Realm    string
-		UserKind string
-		LangCode string
-		UserID   uuid.UUID
+		Realm    string    `json:"realm"` // domain + '/' + user_group
+		UserKind string    `json:"kind"`
+		LangCode string    `json:"lang"`
+		UserID   uuid.UUID `json:"-"`
 	}
 )

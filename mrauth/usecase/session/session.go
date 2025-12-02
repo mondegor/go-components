@@ -17,12 +17,12 @@ import (
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/repository"
 )
 
 type (
-	// Session - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// Session - comment struct.
 	Session struct {
 		txManager             mrstorage.DBTxManager
 		storage               mrauth.AuthTokenStorage
@@ -87,7 +87,7 @@ func NewSession(
 func (uc *Session) Open(ctx context.Context, clientIP mrtype.DetailedIP, op entity.SecureOperation) (authToken dto.AuthToken, err error) {
 	var user dto.UserInRealm
 
-	if op.Status != enum.OperationStatusConfirmed {
+	if op.Status != operationstatus.Confirmed {
 		return dto.AuthToken{}, mrauth.ErrOperationIsNotConfirmed.New()
 	}
 
@@ -159,12 +159,12 @@ func (uc *Session) Continue(ctx context.Context, _, refreshToken string) (authTo
 				uc.eventEmitter.Emit(ctx, "RevokeAlert", mrargs.Group{"userId": userScopes.UserID})
 
 				// возвращаемая ошибка специально обобщается
-				return mrauth.ErrTokenNotFoundOrExpired.New()
+				return mrauth.ErrTokenNotFoundOrExpired.Wrap(mr.ErrUseCaseEntityNotFound)
 			}
 
 			if uc.errorWrapper.IsNotFoundOrNotAffectedError(err) || repository.ErrTokenExpired.Is(err) {
 				// возвращаемая ошибка специально обобщается
-				return mrauth.ErrTokenNotFoundOrExpired.New()
+				return mrauth.ErrTokenNotFoundOrExpired.Wrap(mr.ErrUseCaseEntityNotFound)
 			}
 
 			return uc.errorWrapper.WrapErrorFailed(err)
@@ -187,9 +187,13 @@ func (uc *Session) Close(ctx context.Context, accessToken string) error {
 		return mr.ErrUseCaseIncorrectInputData.New("accessToken is empty")
 	}
 
-	// :TODO можно закрывать сессию по refresh token при jwt
+	// :TODO можно закрывать сессию по refresh token при jwt, иначе сейчас генерируется ошибка 404
 
 	if err := uc.storage.UpdateToClose(ctx, accessToken); err != nil {
+		if uc.errorWrapper.IsNotFoundOrNotAffectedError(err) {
+			return mrauth.ErrTokenNotFoundOrExpired.Wrap(mr.ErrUseCaseEntityNotFound)
+		}
+
 		return uc.errorWrapper.WrapErrorFailed(err)
 	}
 
@@ -211,7 +215,7 @@ func (uc *Session) createAuthToken(ctx context.Context, realm, userKind, langCod
 		AccessToken:     token.AccessToken,
 		RefreshToken:    token.RefreshToken,
 		AccessExpiresAt: time.Now().Add(token.ExpiresIn).Round(1 * time.Second),
-		Scopes: entity.AuthTokenScopes{
+		Scopes: dto.AuthTokenScopes{
 			Realm:    token.Scopes.Realm,
 			UserKind: token.Scopes.UserKind,
 			LangCode: token.Scopes.LangCode,

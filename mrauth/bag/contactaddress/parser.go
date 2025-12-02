@@ -3,7 +3,7 @@ package contactaddress
 import (
 	"strings"
 
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/addresstype"
 )
 
 const (
@@ -62,7 +62,7 @@ func (p *Parser) parseEmail(value string) (ContactAddress, error) {
 	}
 
 	return ContactAddress{
-		Type:     enum.AddressTypeEmail,
+		Type:     addresstype.Email,
 		Original: value,
 		Value:    strings.ToLower(value),
 	}, nil
@@ -89,7 +89,7 @@ func (p *Parser) parsePhone(value string) (ContactAddress, error) {
 	}
 
 	return ContactAddress{
-		Type:     enum.AddressTypePhone,
+		Type:     addresstype.Phone,
 		Original: value,
 		Value:    correctPhoneNumber(phoneString),
 	}, nil

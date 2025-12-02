@@ -1,7 +1,8 @@
 package model
 
 import (
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
+	"github.com/mondegor/go-components/mrauth/enum/userstatus"
 )
 
 type (
@@ -44,9 +45,9 @@ type (
 		LangCode     string           `json:"lang"`
 		LastLoginIP  string           `json:"lastLoginIp"`
 		LastLoggedAt string           `json:"lastLoggedAt"`
-		Auth2faType  enum.Auth2faType `json:"auth2faType"`
+		Auth2faType  auth2fatype.Enum `json:"auth2faType"`
 		Realms       []UserRealm      `json:"realms"`
-		Status       enum.UserStatus  `json:"status"`
+		Status       userstatus.Enum  `json:"status"`
 		// CreatedAt    time.Time       `json:"createdAt"`
 		// UpdatedAt    time.Time       `json:"updatedAt"`
 	}

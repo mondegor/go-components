@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
 )
 
 type (
@@ -31,7 +31,7 @@ func New(useCase mrauth.UserStatisticUseCase, opts ...Option) *RequestHandler {
 // Execute - подбирает провайдера, для конкретного сообщения
 // и через него отправляет его конечному получателю.
 func (co *RequestHandler) Execute(ctx context.Context, messages [][]byte) error {
-	list := make([]dto.UserActivityLog, len(messages))
+	list := make([]entity.UserActivityLog, len(messages))
 
 	for i, message := range messages {
 		if err := json.Unmarshal(message, &list[i]); err != nil {

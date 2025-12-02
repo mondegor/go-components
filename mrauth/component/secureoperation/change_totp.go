@@ -9,7 +9,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/component/secureoperation/action"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
 const (
@@ -18,7 +18,7 @@ const (
 )
 
 type (
-	// ChangeTOTP - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ChangeTOTP - comment struct.
 	ChangeTOTP struct {
 		actionCreator  mrauth.ConfirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
@@ -60,7 +60,7 @@ func (o *ChangeTOTP) Create(user2FA dto.User2FA) (entity.SecureOperation, error)
 		return entity.SecureOperation{}, err
 	}
 
-	actions := make([]entity.ConfirmAction, 1, 2)
+	actions := make([]dto.ConfirmAction, 1, 2)
 
 	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email), confirmCode)
 	if err != nil {
@@ -80,7 +80,7 @@ func (o *ChangeTOTP) Create(user2FA dto.User2FA) (entity.SecureOperation, error)
 		RemainingResends:  actions[0].MaxResends,
 		ResendsAt:         time.Now().Add(actions[0].MinResendTime).Round(1 * time.Second),
 		Payload:           payload,
-		Status:            enum.OperationStatusOpened,
+		Status:            operationstatus.Opened,
 		ExpiresAt:         time.Now().Add(actions[0].Expiry).Round(1 * time.Second),
 	}, nil
 }

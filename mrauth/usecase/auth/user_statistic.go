@@ -14,7 +14,7 @@ import (
 )
 
 type (
-	// UserStatistic - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// UserStatistic - comment struct.
 	UserStatistic struct {
 		storageActivityStat mrauth.UserActivityStatStorage
 		storageActivityLog  mrauth.UserActivityLogStorage
@@ -36,14 +36,14 @@ func NewUserStatistic(
 }
 
 // Execute - comments method.
-func (uc *UserStatistic) Execute(ctx context.Context, list []dto.UserActivityLog) error {
+func (uc *UserStatistic) Execute(ctx context.Context, list []entity.UserActivityLog) error {
 	if len(list) == 0 {
 		return nil
 	}
 
 	usersN := 1
 
-	slices.SortFunc(list, func(a, b dto.UserActivityLog) int {
+	slices.SortFunc(list, func(a, b entity.UserActivityLog) int {
 		if cmp := bytes.Compare(a.UserID[:], b.UserID[:]); cmp != 0 {
 			usersN++ // подсчёт уникальных пользователей
 
@@ -53,9 +53,9 @@ func (uc *UserStatistic) Execute(ctx context.Context, list []dto.UserActivityLog
 		return b.VisitedAt.Compare(a.VisitedAt) // сортировка по времени в обратном порядке
 	})
 
-	stat := make([]entity.UserActivityLastVisited, usersN)
+	stat := make([]dto.UserActivityLastVisited, usersN)
 
-	stat[0] = entity.UserActivityLastVisited{
+	stat[0] = dto.UserActivityLastVisited{
 		UserID:        list[0].UserID,
 		LastVisitedAt: list[0].VisitedAt,
 	}
@@ -69,7 +69,7 @@ func (uc *UserStatistic) Execute(ctx context.Context, list []dto.UserActivityLog
 
 		j++
 
-		stat[j] = entity.UserActivityLastVisited{
+		stat[j] = dto.UserActivityLastVisited{
 			UserID:        list[i].UserID,
 			LastVisitedAt: list[i].VisitedAt,
 		}

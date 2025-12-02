@@ -22,7 +22,7 @@ const (
 )
 
 type (
-	// CreateUser - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// CreateUser - comment struct.
 	CreateUser struct {
 		txManager        mrstorage.DBTxManager
 		userChecker      mrauth.CheckUserUseCase

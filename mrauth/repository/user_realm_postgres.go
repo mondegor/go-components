@@ -11,7 +11,7 @@ import (
 )
 
 type (
-	// UserRealmPostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
+	// UserRealmPostgres - comment struct.
 	UserRealmPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper mrerr.ErrorWrapper

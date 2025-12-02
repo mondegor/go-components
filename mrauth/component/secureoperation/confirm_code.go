@@ -6,12 +6,14 @@ import (
 	"github.com/pquerna/otp/totp"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
 type (
-	// ConfirmCode - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ConfirmCode - comment struct.
 	ConfirmCode struct {
 		tokenGenerator mrauth.TokenGenerator
 		codeGenerator  mrauth.CodeGenerator
@@ -43,7 +45,7 @@ func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (en
 	// 	return 0, errors.New("invalid operation token")
 	// }
 
-	if op.Status != enum.OperationStatusOpened {
+	if op.Status != operationstatus.Opened {
 		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyConfirmed.New() // operation is not opened
 	}
 
@@ -71,7 +73,7 @@ func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (en
 		}
 
 		op.Actions = nil
-		op.Status = enum.OperationStatusConfirmed
+		op.Status = operationstatus.Confirmed
 		op.ExpiresAt = time.Now().Add(confirmedExpiry).Round(1 * time.Second)
 
 		return op, nil
@@ -86,7 +88,7 @@ func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (en
 	op.RemainingAttempts = confirmingAction.MaxAttempts
 	op.ExpiresAt = time.Now().Add(confirmingAction.Expiry).Round(1 * time.Second)
 
-	if confirmingAction.Method == enum.ConfirmMethodEmail || confirmingAction.Method == enum.ConfirmMethodPhone {
+	if confirmingAction.Method == confirmmethod.Email || confirmingAction.Method == confirmmethod.Phone {
 		confirmingAction.Secret, err = o.codeGenerator.GenCodeLen(len(confirmingAction.Secret))
 		if err != nil {
 			return entity.SecureOperation{}, err
@@ -105,13 +107,13 @@ func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (en
 	return op, nil
 }
 
-func (o *ConfirmCode) checkCode(action *entity.ConfirmAction, confirmCode string) error {
+func (o *ConfirmCode) checkCode(action *dto.ConfirmAction, confirmCode string) error {
 	switch action.Method {
-	case enum.ConfirmMethodPassword:
+	case confirmmethod.Password:
 		if err := o.codeGenerator.CompareCodeAndHash(confirmCode, action.Secret); err == nil {
 			return nil
 		}
-	case enum.ConfirmMethodTOTP:
+	case confirmmethod.TOTP:
 		if totp.Validate(confirmCode, action.Secret) {
 			return nil
 		}

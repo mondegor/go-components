@@ -17,7 +17,7 @@ import (
 )
 
 type (
-	// Disable2FA - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// Disable2FA - comment struct.
 	Disable2FA struct {
 		txManager    mrstorage.DBTxManager
 		storage      mrauth.User2faStorage

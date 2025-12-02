@@ -11,11 +11,12 @@ import (
 	"github.com/mondegor/go-sysmess/mrerr"
 	"github.com/mondegor/go-sysmess/mrtype"
 
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
 type (
-	// UserActivityStatPostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
+	// UserActivityStatPostgres - comment struct.
 	UserActivityStatPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper mrerr.ErrorWrapper
@@ -112,7 +113,7 @@ func (re *UserActivityStatPostgres) InsertOrUpdate(ctx context.Context, row enti
 
 // UpdateLastVisited - фиксирует изменение настройки.
 // Поле last_visited_at не будет обновлено в меньшую сторону.
-func (re *UserActivityStatPostgres) UpdateLastVisited(ctx context.Context, rows []entity.UserActivityLastVisited) error {
+func (re *UserActivityStatPostgres) UpdateLastVisited(ctx context.Context, rows []dto.UserActivityLastVisited) error {
 	if len(rows) == 0 {
 		return nil
 	}

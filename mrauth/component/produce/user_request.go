@@ -10,7 +10,7 @@ import (
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-webcore/mrserver/request"
 
-	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
 )
 
 type (
@@ -59,7 +59,7 @@ func (rs *UserRequest) Emit(r *http.Request, _ []byte, _ int, _ []byte, _ int, _
 		status = 0
 	}
 
-	activityLog := dto.UserActivityLog{
+	activityLog := entity.UserActivityLog{
 		UserID:        userID,
 		UserIP:        rs.parserClientIP.DetailedIP(r),
 		UserAgent:     r.UserAgent(),

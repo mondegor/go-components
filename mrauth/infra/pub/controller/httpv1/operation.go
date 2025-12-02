@@ -9,7 +9,7 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/validate"
 )
@@ -79,7 +79,7 @@ func (ht *Operation) Confirm(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// если необходимо дополнительное подтверждение (2fa)
-	if op.Status == enum.OperationStatusOpened {
+	if op.Status == operationstatus.Opened {
 		return ht.sender.Send(
 			w,
 			http.StatusOK,

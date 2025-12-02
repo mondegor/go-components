@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	// RevokeOperation - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// RevokeOperation - comment struct.
 	RevokeOperation struct {
 		storageOperation mrauth.SecureOperationStorage
 		errorWrapper     mrerr.UseCaseErrorWrapper

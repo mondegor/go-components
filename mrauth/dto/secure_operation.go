@@ -1,7 +1,5 @@
 package dto
 
-import "github.com/mondegor/go-components/mrauth/entity"
-
 type (
 	// CreateUserOperation - comment struct.
 	CreateUserOperation struct {
@@ -17,10 +15,7 @@ type (
 		LangCode string `json:"langCode"`
 	}
 
-	// SecureOperationLog - comment struct.
-	SecureOperationLog = entity.SecureOperationLog
-
-	// OperationWithUserEmail - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// OperationWithUserEmail - comment struct.
 	OperationWithUserEmail struct {
 		Email string `json:"email"`
 	}
@@ -31,19 +26,19 @@ type (
 	// Disable2faOperation - comment struct.
 	Disable2faOperation OperationWithUserEmail
 
-	// ChangeEmailOperation - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ChangeEmailOperation - comment struct.
 	ChangeEmailOperation struct {
 		NewEmail      string `json:"newEmail"`
 		NotifyByEmail string `json:"email"`
 	}
 
-	// ChangePasswordOperation - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ChangePasswordOperation - comment struct.
 	ChangePasswordOperation struct {
 		NewPassword   string `json:"newPassword"`
 		NotifyByEmail string `json:"email"`
 	}
 
-	// ChangePhoneOperation - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ChangePhoneOperation - comment struct.
 	ChangePhoneOperation struct {
 		NewPhone      uint64 `json:"newPhone"`
 		NotifyByEmail string `json:"email"`

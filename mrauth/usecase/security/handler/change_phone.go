@@ -17,7 +17,7 @@ import (
 )
 
 type (
-	// ChangePhone - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ChangePhone - comment struct.
 	ChangePhone struct {
 		txManager    mrstorage.DBTxManager
 		storage      mrauth.UserStorage

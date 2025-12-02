@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	// Auth2faPostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
+	// Auth2faPostgres - comment struct.
 	Auth2faPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper mrerr.ErrorWrapper

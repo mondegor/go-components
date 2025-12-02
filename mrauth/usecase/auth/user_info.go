@@ -8,12 +8,11 @@ import (
 	"github.com/mondegor/go-sysmess/mrerr"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
 type (
-	// UserInfo - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// UserInfo - comment struct.
 	UserInfo struct {
 		txManager        mrstorage.DBTxManager
 		storageUser      mrauth.UserStorage
@@ -44,7 +43,7 @@ func NewUserInfo(
 }
 
 // Get - возвращает строковое значение настройки с указанным идентификатором.
-func (uc *UserInfo) Get(ctx context.Context, userID uuid.UUID) (userInfo dto.UserInfo, err error) {
+func (uc *UserInfo) Get(ctx context.Context, userID uuid.UUID) (userInfo entity.UserInfo, err error) {
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		if userInfo.User, err = uc.storageUser.FetchOne(ctx, userID); err != nil {
 			return uc.errorWrapper.WrapErrorFailed(err) // the user must be
@@ -69,7 +68,7 @@ func (uc *UserInfo) Get(ctx context.Context, userID uuid.UUID) (userInfo dto.Use
 		return nil
 	})
 	if err != nil {
-		return dto.UserInfo{}, err
+		return entity.UserInfo{}, err
 	}
 
 	return userInfo, nil

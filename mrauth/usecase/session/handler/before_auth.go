@@ -17,7 +17,7 @@ import (
 )
 
 type (
-	// BeforeAuthUser - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// BeforeAuthUser - comment struct.
 	BeforeAuthUser struct {
 		storageUser      mrauth.UserStorage
 		storageUserRealm mrauth.UserRealmStorage
@@ -73,8 +73,11 @@ func (uc *BeforeAuthUser) Execute(ctx context.Context, userID uuid.UUID, payload
 	}
 
 	return dto.UserInRealm{
-		Realm: userRealm.Realm,
-		Kind:  userRealm.Kind,
-		User:  user,
+		ID:       user.ID,
+		Realm:    userRealm.Realm,
+		Kind:     userRealm.Kind,
+		LangCode: user.LangCode,
+		// Email:    user.Email,
+		// Phone:    user.Phone,
 	}, nil
 }

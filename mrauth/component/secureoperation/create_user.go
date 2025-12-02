@@ -9,7 +9,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/component/secureoperation/action"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
 const (
@@ -18,7 +18,7 @@ const (
 )
 
 type (
-	// CreateUser - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// CreateUser - comment struct.
 	CreateUser struct {
 		realm          string
 		userKind       string
@@ -77,12 +77,12 @@ func (o *CreateUser) Create(langCode string, userEmail contactaddress.ContactAdd
 	return entity.SecureOperation{
 		Token:             operationToken,
 		Name:              NameConfirmCreateUser,
-		Actions:           []entity.ConfirmAction{confirmAction},
+		Actions:           []dto.ConfirmAction{confirmAction},
 		RemainingAttempts: confirmAction.MaxAttempts,
 		RemainingResends:  confirmAction.MaxResends,
 		ResendsAt:         time.Now().Add(confirmAction.MinResendTime).Round(1 * time.Second),
 		Payload:           payload,
-		Status:            enum.OperationStatusOpened,
+		Status:            operationstatus.Opened,
 		ExpiresAt:         time.Now().Add(confirmAction.Expiry).Round(1 * time.Second),
 	}, nil
 }

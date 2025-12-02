@@ -3,8 +3,8 @@ package action
 import (
 	"time"
 
-	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 )
 
 type (
@@ -26,9 +26,9 @@ func NewConfirmByPassword(opts ...Option) *ConfirmByPassword {
 }
 
 // Create - comments method.
-func (a *ConfirmByPassword) Create(hashedPassword string) entity.ConfirmAction {
-	return entity.ConfirmAction{
-		Method:      enum.ConfirmMethodPassword,
+func (a *ConfirmByPassword) Create(hashedPassword string) dto.ConfirmAction {
+	return dto.ConfirmAction{
+		Method:      confirmmethod.Password,
 		MaxAttempts: a.maxAttempts,
 		Expiry:      a.expiry,
 		Secret:      hashedPassword,

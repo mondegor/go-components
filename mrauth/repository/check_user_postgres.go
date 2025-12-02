@@ -11,7 +11,7 @@ import (
 )
 
 type (
-	// CheckUserPostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
+	// CheckUserPostgres - comment struct.
 	CheckUserPostgres struct {
 		client            mrstorage.DBConnManager
 		errorWrapper      mrerr.ErrorWrapper

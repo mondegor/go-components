@@ -13,12 +13,12 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
-	// ChangePassword - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ChangePassword - comment struct.
 	ChangePassword struct {
 		storage      mrauth.User2faStorage
 		notifierAPI  mrnotifier.NoticeProducer
@@ -54,7 +54,7 @@ func (uc *ChangePassword) Execute(ctx context.Context, userID uuid.UUID, payload
 		ctx,
 		entity.Auth2fa{
 			UserID: userID,
-			Type:   enum.Auth2faTypePassword,
+			Type:   auth2fatype.Password,
 			Secret: payloadDTO.NewPassword,
 		},
 	)

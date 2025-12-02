@@ -9,11 +9,11 @@ import (
 	"github.com/mondegor/go-sysmess/mrerr"
 
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
 type (
-	// SecureOperationPostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
+	// SecureOperationPostgres - comment struct.
 	SecureOperationPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper mrerr.ErrorWrapper
@@ -151,7 +151,7 @@ func (re *SecureOperationPostgres) Update(ctx context.Context, currentToken stri
 		ctx,
 		sql,
 		currentToken,
-		enum.OperationStatusOpened,
+		operationstatus.Opened,
 		row.Token,
 		row.Actions,
 		row.RemainingAttempts,
@@ -183,7 +183,7 @@ func (re *SecureOperationPostgres) UpdateFailedAttempt(ctx context.Context, toke
 		ctx,
 		sql,
 		token,
-		enum.OperationStatusOpened,
+		operationstatus.Opened,
 	).Scan(
 		&attempts,
 	)

@@ -13,7 +13,7 @@ import (
 )
 
 type (
-	// UserProvider - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// UserProvider - comment struct.
 	UserProvider struct {
 		storage       mrauth.AuthTokenFetcher
 		errorWrapper  mrerr.UseCaseErrorWrapper
@@ -53,7 +53,7 @@ func (co *UserProvider) UserByToken(ctx context.Context, value string) (mraccess
 	if err != nil {
 		if repository.ErrTokenExpired.Is(err) || co.errorWrapper.IsNotFoundOrNotAffectedError(err) {
 			// возвращаемая ошибка специально обобщается
-			return nil, mrauth.ErrTokenNotFoundOrExpired.New()
+			return nil, mrauth.ErrTokenNotFoundOrExpired.Wrap(mr.ErrUseCaseEntityNotFound)
 		}
 
 		return nil, co.errorWrapper.WrapErrorFailed(err) // "token", trim value[:8]...

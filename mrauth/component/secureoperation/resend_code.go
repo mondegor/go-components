@@ -6,11 +6,11 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
 type (
-	// ResendCode - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ResendCode - comment struct.
 	ResendCode struct {
 		tokenGenerator mrauth.TokenGenerator
 		codeGenerator  mrauth.CodeGenerator
@@ -42,7 +42,7 @@ func (o *ResendCode) Prepare(op entity.SecureOperation) (entity.SecureOperation,
 	// 	return 0, errors.New("invalid operation token")
 	// }
 
-	if op.Status != enum.OperationStatusOpened {
+	if op.Status != operationstatus.Opened {
 		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyConfirmed.New() // operation is not opened
 	}
 

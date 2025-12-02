@@ -1,34 +1,32 @@
 package dto
 
 import (
-	"github.com/google/uuid"
+	"time"
 
-	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/google/uuid"
 )
 
 type (
-	// User - comment struct.
+	// User - информация о группе и языке пользователя.
 	User struct {
 		ID       uuid.UUID
 		Group    string
 		LangCode string
 	}
 
-	// UserInRealm - сообщение для получателя.
+	// UserInRealm - информация о группе, типе и языке пользователя.
 	UserInRealm struct {
-		Realm string
-		Kind  string
-		entity.User
+		ID       uuid.UUID
+		Realm    string
+		Kind     string
+		LangCode string
+		// Email    string
+		// Phone    uint64
 	}
 
-	// UserInfo - comment struct.
-	UserInfo struct {
-		User    entity.User
-		Stat    entity.UserActivityStat
-		Auth2fa entity.Auth2fa
-		Realms  []entity.UserRealm
+	// UserActivityLastVisited - информация о последнем посещении пользователя.
+	UserActivityLastVisited struct {
+		UserID        uuid.UUID
+		LastVisitedAt time.Time
 	}
-
-	// UserActivityLog - сообщение для получателя.
-	UserActivityLog = entity.UserActivityLog
 )

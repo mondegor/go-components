@@ -17,7 +17,7 @@ import (
 )
 
 type (
-	// ChangeEmail - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ChangeEmail - comment struct.
 	ChangeEmail struct {
 		txManager    mrstorage.DBTxManager
 		storage      mrauth.UserStorage

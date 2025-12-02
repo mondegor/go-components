@@ -3,7 +3,7 @@ package model
 import (
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 )
 
 type (
@@ -21,7 +21,7 @@ type (
 	// WaitingConfirmOperationResponse - информация для подтверждения операции.
 	WaitingConfirmOperationResponse struct {
 		Token             string             `json:"token"`
-		ConfirmMethod     enum.ConfirmMethod `json:"confirmMethod"`
+		ConfirmMethod     confirmmethod.Enum `json:"confirmMethod"`
 		RemainingAttempts uint32             `json:"remainingAttempts"`
 		RemainingResends  uint32             `json:"remainingResends,omitempty"`
 		ResendsIn         int64              `json:"resendsIn,omitempty"`

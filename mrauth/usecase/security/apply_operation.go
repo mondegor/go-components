@@ -11,11 +11,11 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
 type (
-	// ApplyOperation - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ApplyOperation - comment struct.
 	ApplyOperation struct {
 		txManager        mrstorage.DBTxManager
 		storageOperation mrauth.SecureOperationStorage
@@ -59,7 +59,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, userID uuid.UUID, operati
 
 	// TODO: проверить, что пользователь не заблокирован !!!!!!!
 
-	if op.Status != enum.OperationStatusConfirmed {
+	if op.Status != operationstatus.Confirmed {
 		return errors.New("operation id not confirmed")
 	}
 

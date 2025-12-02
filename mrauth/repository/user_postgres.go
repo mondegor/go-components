@@ -14,11 +14,11 @@ import (
 
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/addresstype"
 )
 
 type (
-	// UserPostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
+	// UserPostgres - comment struct.
 	UserPostgres struct {
 		client            mrstorage.DBConnManager
 		table             mrsql.DBTableInfo
@@ -64,11 +64,11 @@ func (re *UserPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row ent
 
 // FetchOneByLogin - возвращает список сообщений по их указанным SettingID.
 func (re *UserPostgres) FetchOneByLogin(ctx context.Context, userLogin contactaddress.ContactAddress) (row entity.User, err error) {
-	if userLogin.Type == enum.AddressTypeEmail {
+	if userLogin.Type == addresstype.Email {
 		return re.fetchOneBy(ctx, "user_email", userLogin.Value)
 	}
 
-	if userLogin.Type == enum.AddressTypePhone {
+	if userLogin.Type == addresstype.Phone {
 		userLoginPhone, err := strconv.ParseUint(userLogin.Value, 10, 64)
 		if err != nil {
 			return entity.User{}, mr.ErrInternal.Wrap(errors.New("userLoginPhone is incorrect"))

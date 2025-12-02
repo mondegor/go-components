@@ -12,11 +12,12 @@ import (
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
+	"github.com/mondegor/go-components/mrauth/enum/userstatus"
 )
 
 type (
-	// FactoryConfirm2FA - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
+	// FactoryConfirm2FA - comment struct.
 	FactoryConfirm2FA struct {
 		storageUser    mrauth.UserStorage
 		storageUser2FA mrauth.User2faStorage
@@ -25,7 +26,7 @@ type (
 	}
 
 	factoryConfirmAction2FA interface {
-		Create(auth2fa enum.Auth2faType, secret string) (entity.ConfirmAction, error)
+		Create(auth2fa auth2fatype.Enum, secret string) (dto.ConfirmAction, error)
 	}
 )
 
@@ -66,7 +67,7 @@ func (re *FactoryConfirm2FA) CreateByUserID(ctx context.Context, userID uuid.UUI
 
 func (re *FactoryConfirm2FA) createUser2FA(ctx context.Context, user *entity.User) (dto.User2FA, error) {
 	// TODO: ???????????????????????????
-	if user.Status != enum.UserStatusEnabled {
+	if user.Status != userstatus.Enabled {
 		return dto.User2FA{}, errors.New("user status is not enabled")
 	}
 

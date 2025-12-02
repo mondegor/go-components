@@ -16,7 +16,7 @@ import (
 )
 
 type (
-	// ChangeProperty - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ChangeProperty - comment struct.
 	ChangeProperty struct {
 		txManager mrstorage.DBTxManager
 		// storage      mrauth.User2faStorage

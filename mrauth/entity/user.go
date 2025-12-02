@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/mrtype"
 
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/userstatus"
 )
 
 const (
@@ -21,23 +21,23 @@ const (
 )
 
 type (
-	// User - сообщение для получателя.
+	// User - пользователь.
 	User struct {
 		ID       uuid.UUID
 		Email    string
 		Phone    uint64
 		LangCode string
-		Status   enum.UserStatus
+		Status   userstatus.Enum
 	}
 
-	// UserRealm - сообщение для получателя.
+	// UserRealm - привязка пользователя к зоне действия.
 	UserRealm struct {
 		UserID uuid.UUID
 		Realm  string
 		Kind   string
 	}
 
-	// UserActivityStat - сообщение для получателя.
+	// UserActivityStat - информация о последней активности пользователя.
 	UserActivityStat struct {
 		UserID        uuid.UUID
 		LastLoginIP   mrtype.DetailedIP
@@ -45,13 +45,7 @@ type (
 		LastVisitedAt time.Time
 	}
 
-	// UserActivityLastVisited - сообщение для получателя.
-	UserActivityLastVisited struct {
-		UserID        uuid.UUID
-		LastVisitedAt time.Time
-	}
-
-	// UserActivityLog - сообщение для получателя.
+	// UserActivityLog - информация об активности пользователя.
 	UserActivityLog struct {
 		RecordID      uint64            `json:"record_id"`
 		UserID        uuid.UUID         `json:"user_id"`
@@ -60,5 +54,13 @@ type (
 		RequestPath   string            `json:"request_path"`
 		RequestStatus uint32            `json:"request_status"`
 		VisitedAt     time.Time         `json:"visited_at"`
+	}
+
+	// UserInfo - сгруппированная информация о пользователе.
+	UserInfo struct {
+		User    User
+		Stat    UserActivityStat
+		Auth2fa Auth2fa
+		Realms  []UserRealm
 	}
 )

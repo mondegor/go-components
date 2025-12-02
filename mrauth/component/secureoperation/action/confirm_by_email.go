@@ -7,8 +7,9 @@ import (
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
-	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/addresstype"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 )
 
 type (
@@ -34,13 +35,13 @@ func NewConfirmByEmail(opts ...Option) *ConfirmByEmail {
 }
 
 // Create - comments method.
-func (a *ConfirmByEmail) Create(email contactaddress.ContactAddress, confirmCode string) (entity.ConfirmAction, error) {
-	if email.Type != enum.AddressTypeEmail {
-		return entity.ConfirmAction{}, mr.ErrInternal.Wrap(errors.New("invalid contactAddress type")).WithAttr("email", email)
+func (a *ConfirmByEmail) Create(email contactaddress.ContactAddress, confirmCode string) (dto.ConfirmAction, error) {
+	if email.Type != addresstype.Email {
+		return dto.ConfirmAction{}, mr.ErrInternal.Wrap(errors.New("invalid contactAddress type")).WithAttr("email", email)
 	}
 
-	return entity.ConfirmAction{
-		Method:        enum.ConfirmMethodEmail,
+	return dto.ConfirmAction{
+		Method:        confirmmethod.Email,
 		MaxAttempts:   a.maxAttempts,
 		MaxResends:    a.maxResends,
 		MinResendTime: a.minResendTime,

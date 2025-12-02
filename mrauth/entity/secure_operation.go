@@ -9,7 +9,9 @@ import (
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
 const (
@@ -23,12 +25,12 @@ type (
 		Token             string
 		Name              string
 		UserID            uuid.UUID
-		Actions           []ConfirmAction
+		Actions           []dto.ConfirmAction
 		RemainingAttempts uint32    // кол-во оставшихся попыток подтверждения текущего экшена операции
 		RemainingResends  uint32    // кол-во оставшихся попыток повторной отправки кода подтверждения
 		ResendsAt         time.Time // время, начиная с которого можно сделать повторную отправку кода подтверждения
 		Payload           []byte    // audience, visitorId
-		Status            enum.OperationStatus
+		Status            operationstatus.Enum
 		ExpiresAt         time.Time
 	}
 
@@ -39,20 +41,6 @@ type (
 		Address    contactaddress.ContactAddress
 		UseAuth2FA bool
 		Payload    map[string]string
-	}
-
-	// ConfirmAction - comment struct.
-	ConfirmAction struct {
-		Method        enum.ConfirmMethod `json:"method"` // email (отправить событие), password, phone (отправить событие), TOTP
-		MaxAttempts   uint32             `json:"maxAttempts"`
-		MaxResends    uint32             `json:"maxResends,omitempty"`
-		MinResendTime time.Duration      `json:"minResendTime,omitempty"`
-		Expiry        time.Duration      `json:"expiry"`
-		Address       string             `json:"address,omitempty"`
-
-		// omitempty - ????, hash(пароль) брать у юзера, hash(TOTP) брать у юзера, email одноразовый код, phone одноразовый код
-		Secret    string `json:"secret,omitempty"`
-		Confirmed bool   `json:"confirmed"`
 	}
 
 	// CreateRequestResult - comment struct.
@@ -67,7 +55,7 @@ type (
 		RecordID      uint64
 		VisitorID     uuid.UUID
 		OperationName string
-		ConfirmMethod enum.ConfirmMethod
+		ConfirmMethod confirmmethod.Enum
 		LogStatus     string // TODO: to status
 		CreatedAt     time.Time
 	}
@@ -81,8 +69,8 @@ type (
 var ErrOperationHasOnlyConfirmedActions = mrerr.NewKindInternal("operation has only confirmed actions")
 
 // NextNotConfirmedAction - comments method.
-func (so *SecureOperation) NextNotConfirmedAction() (*ConfirmAction, error) {
-	if so.Status != enum.OperationStatusOpened {
+func (so *SecureOperation) NextNotConfirmedAction() (*dto.ConfirmAction, error) {
+	if so.Status != operationstatus.Opened {
 		return nil, mr.ErrInternal.New().WithAttr("details", "operation status must be OPENED")
 	}
 

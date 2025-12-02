@@ -20,7 +20,7 @@ const (
 )
 
 type (
-	// Parser - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// Parser - comment struct.
 	Parser struct {
 		secret []byte
 	}

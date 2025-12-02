@@ -5,8 +5,9 @@ import (
 	"github.com/mondegor/go-webcore/mrcore"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 )
 
@@ -56,14 +57,14 @@ func (r *OperationResponse) newOperationStatus(operation *entity.SecureOperation
 	}
 }
 
-func (r *OperationResponse) operationAction(operation *entity.SecureOperation) entity.ConfirmAction {
+func (r *OperationResponse) operationAction(operation *entity.SecureOperation) dto.ConfirmAction {
 	for i := range operation.Actions {
 		if !operation.Actions[i].Confirmed {
 			return operation.Actions[i]
 		}
 	}
 
-	return entity.ConfirmAction{}
+	return dto.ConfirmAction{}
 }
 
 func (r *OperationResponse) debugInfo(operation *entity.SecureOperation) string {
@@ -73,7 +74,7 @@ func (r *OperationResponse) debugInfo(operation *entity.SecureOperation) string 
 
 	action := r.operationAction(operation)
 
-	if action.Method == enum.ConfirmMethodEmail || action.Method == enum.ConfirmMethodPhone {
+	if action.Method == confirmmethod.Email || action.Method == confirmmethod.Phone {
 		return "Confirm code: " + action.Secret
 	}
 

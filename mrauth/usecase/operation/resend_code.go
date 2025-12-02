@@ -10,12 +10,12 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
-	// ResendCode - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ResendCode - comment struct.
 	ResendCode struct {
 		txManager         mrstorage.DBTxManager
 		storageOperation  mrauth.SecureOperationStorage
@@ -78,7 +78,7 @@ func (co *ResendCode) Perform(ctx context.Context, langCode, operationToken stri
 
 		// TODO: Add Operation log:op!
 
-		if confirmingAction.Method != enum.ConfirmMethodEmail {
+		if confirmingAction.Method != confirmmethod.Email {
 			return mr.ErrInternal.New("reason", "confirm operation method is not email")
 		}
 

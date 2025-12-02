@@ -10,7 +10,7 @@ import (
 )
 
 type (
-	// TokenIssuer - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// TokenIssuer - comment struct.
 	TokenIssuer struct {
 		tokenGenerator mrauth.TokenGenerator
 		accessExpiry   time.Duration
