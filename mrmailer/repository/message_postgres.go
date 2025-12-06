@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrmailer/entity"
 )
@@ -27,7 +28,7 @@ func NewMessagePostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo)
 	}
 }
 
-// FetchByIDs - возвращает список сообщений по их указанным SettingID.
+// FetchByIDs - возвращает список сообщений по их указанным ID.
 func (re *MessagePostgres) FetchByIDs(ctx context.Context, rowsIDs []uint64) ([]entity.Message, error) {
 	sql := `
 		SELECT
@@ -115,7 +116,7 @@ func (re *MessagePostgres) Insert(ctx context.Context, rows []entity.Message) er
 	)
 }
 
-// DeleteByIDs - удаляет сообщения по их указанным SettingID.
+// DeleteByIDs - удаляет сообщения по их указанным ID.
 func (re *MessagePostgres) DeleteByIDs(ctx context.Context, rowsIDs []uint64) error {
 	sql := `
 		DELETE FROM
@@ -123,9 +124,15 @@ func (re *MessagePostgres) DeleteByIDs(ctx context.Context, rowsIDs []uint64) er
 		WHERE
 			` + re.table.PrimaryKey + ` = ANY($1);`
 
-	return re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		rowsIDs,
 	)
+	// если это внутренняя ошибка
+	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
+		return err
+	}
+
+	return nil
 }

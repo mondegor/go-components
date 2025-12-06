@@ -20,6 +20,7 @@ func InitHttpModule(
 	logger mrlog.Logger,
 	eventEmitter mrevent.Emitter,
 	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
+	serviceErrorWrapper mrerr.ErrorWrapper,
 	storageErrorWrapper mrerr.ErrorWrapper,
 	dbConnManager mrstorage.DBConnManager,
 	locker mrlock.Locker,
@@ -59,6 +60,7 @@ func InitHttpModule(
 						logger,
 						eventEmitter,
 						useCaseErrorWrapper,
+						serviceErrorWrapper,
 						dbConnManager,
 						storageUser,
 						storageCheckUser,
@@ -81,7 +83,7 @@ func InitHttpModule(
 			{
 				Create: func() (mrserver.HttpController, error) {
 					return initCheckController(
-						useCaseErrorWrapper,
+						serviceErrorWrapper,
 						storageCheckUser,
 						storageUserRealm,
 						requestParser,
@@ -109,6 +111,7 @@ func InitHttpModule(
 					return initSecurityController(
 						logger,
 						useCaseErrorWrapper,
+						serviceErrorWrapper,
 						dbConnManager,
 						storageUser,
 						storageCheckUser,

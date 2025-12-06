@@ -78,7 +78,7 @@ func (re *BrokenPostgres) InsertOne(ctx context.Context, row entity.ItemWithErro
 }
 
 // Delete - удаляет ограниченный список записей из журнала ошибок.
-// Возвращает SettingID записей, которые были удалены.
+// Возвращает ID записей, которые были удалены.
 func (re *BrokenPostgres) Delete(ctx context.Context, expiry time.Duration, limit int) (rowsIDs []uint64, err error) {
 	sql := `
 		WITH broken_expired_items as (

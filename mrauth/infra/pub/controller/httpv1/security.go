@@ -8,37 +8,60 @@ import (
 	"github.com/mondegor/go-sysmess/mrtype"
 	"github.com/mondegor/go-webcore/mrserver"
 
-	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/validate"
 )
 
 const (
-	securityEmailURL            = "/v1/security/email"
-	securityPhoneURL            = "/v1/security/phone"
-	securityPasswordURL         = "/v1/security/password"
-	securityPasswordGenerateURL = "/v1/security/password/generate"
-	securityTOTPGeneratorURL    = "/v1/security/totp"
-	securityDisable2FAURL       = "/v1/security/disable2fa"
-	securityApplyOperation      = "/v1/security/apply-operation"
+	securityEmailURL         = "/v1/security/email"
+	securityPhoneURL         = "/v1/security/phone"
+	securityPasswordURL      = "/v1/security/password"
+	securityTOTPGeneratorURL = "/v1/security/totp"
+	securityDisable2FAURL    = "/v1/security/disable2fa"
+	securityApplyOperation   = "/v1/security/apply-operation"
 )
 
 type (
 	// Security - comment struct.
 	Security struct {
-		parser                    validate.RequestParser
-		sender                    mrserver.FileResponseSender
-		useCase                   mrauth.ChangeUseCase
-		useCaseApplyOperationTOTP useCaseApplyOperationTOTP
-		useCaseApplyOperation     useCaseApplyOperation
-		factoryOperationResponse  factoryOperationResponse
+		parser                        validate.RequestParser
+		sender                        mrserver.FileResponseSender
+		useCaseChangeEmailProperty    changeEmailUseCase
+		useCaseChangePhoneProperty    changePhoneUseCase
+		useCaseChangePasswordProperty changePasswordUseCase
+		useCaseChangeTOTPProperty     changeTOTPGeneratorUseCase
+		useCaseDisable2FA             disable2FAUseCase
+		useCaseApplyOperationTOTP     applyOperationTOTPUseCase
+		useCaseApplyOperation         applyOperationUseCase
+		operationResponse             confirmOperationResponse
 	}
 
-	useCaseApplyOperationTOTP interface {
+	changeEmailUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID, newEmail string) (entity.SecureOperation, error)
+	}
+
+	changePhoneUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID, newPhone string) (entity.SecureOperation, error)
+	}
+
+	changePasswordUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID, newPassword string) (entity.SecureOperation, error)
+	}
+
+	changeTOTPGeneratorUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID) (entity.SecureOperation, error)
+	}
+
+	disable2FAUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID) (entity.SecureOperation, error)
+	}
+
+	applyOperationTOTPUseCase interface {
 		Execute(ctx context.Context, userID uuid.UUID, operationToken string) (totpURL mrtype.Image, err error)
 	}
 
-	useCaseApplyOperation interface {
+	applyOperationUseCase interface {
 		Execute(ctx context.Context, userID uuid.UUID, operationToken string) error
 	}
 )
@@ -47,18 +70,26 @@ type (
 func NewSecurity(
 	parser validate.RequestParser,
 	sender mrserver.FileResponseSender,
-	useCase mrauth.ChangeUseCase,
-	useCaseApplyOperationTOTP useCaseApplyOperationTOTP,
-	useCaseApplyOperation useCaseApplyOperation,
-	factoryOperationResponse factoryOperationResponse,
+	useCaseChangeEmailProperty changeEmailUseCase,
+	useCaseChangePhoneProperty changePhoneUseCase,
+	useCaseChangePasswordProperty changePasswordUseCase,
+	useCaseChangeTOTPProperty changeTOTPGeneratorUseCase,
+	useCaseDisable2FA disable2FAUseCase,
+	useCaseApplyOperationTOTP applyOperationTOTPUseCase,
+	useCaseApplyOperation applyOperationUseCase,
+	operationResponse confirmOperationResponse,
 ) *Security {
 	return &Security{
-		parser:                    parser,
-		sender:                    sender,
-		useCase:                   useCase,
-		useCaseApplyOperationTOTP: useCaseApplyOperationTOTP,
-		useCaseApplyOperation:     useCaseApplyOperation,
-		factoryOperationResponse:  factoryOperationResponse,
+		parser:                        parser,
+		sender:                        sender,
+		useCaseChangeEmailProperty:    useCaseChangeEmailProperty,
+		useCaseChangePhoneProperty:    useCaseChangePhoneProperty,
+		useCaseChangePasswordProperty: useCaseChangePasswordProperty,
+		useCaseChangeTOTPProperty:     useCaseChangeTOTPProperty,
+		useCaseDisable2FA:             useCaseDisable2FA,
+		useCaseApplyOperationTOTP:     useCaseApplyOperationTOTP,
+		useCaseApplyOperation:         useCaseApplyOperation,
+		operationResponse:             operationResponse,
 	}
 }
 
@@ -68,7 +99,6 @@ func (ht *Security) Handlers() []mrserver.HttpHandler {
 		{Method: http.MethodPost, URL: securityEmailURL, Func: ht.ChangeEmail},
 		{Method: http.MethodPost, URL: securityPhoneURL, Func: ht.ChangePhone},
 		{Method: http.MethodPost, URL: securityPasswordURL, Func: ht.ChangePassword},
-		{Method: http.MethodPost, URL: securityPasswordGenerateURL, Func: ht.GeneratePassword},
 		{Method: http.MethodPost, URL: securityTOTPGeneratorURL, Func: ht.ChangeTOTPGenerator},
 		{Method: http.MethodPatch, URL: securityTOTPGeneratorURL, Func: ht.ApplyTOTPGenerator},
 		{Method: http.MethodPost, URL: securityDisable2FAURL, Func: ht.Disable2FA},
@@ -84,7 +114,7 @@ func (ht *Security) ChangeEmail(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	op, err := ht.useCase.ChangeEmail(r.Context(), ht.parser.UserID(r), request.NewEmail)
+	op, err := ht.useCaseChangeEmailProperty.Execute(r.Context(), ht.parser.UserID(r), request.NewEmail)
 	if err != nil {
 		return err
 	}
@@ -92,7 +122,7 @@ func (ht *Security) ChangeEmail(w http.ResponseWriter, r *http.Request) error {
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
-		ht.factoryOperationResponse.NewConfirmOperation(
+		ht.operationResponse.NewConfirmOperation(
 			op,
 			ht.parser.Localizer(r).Translate("your account has been success registered"),
 		),
@@ -107,7 +137,7 @@ func (ht *Security) ChangePhone(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	op, err := ht.useCase.ChangePhone(r.Context(), ht.parser.UserID(r), request.NewPhone)
+	op, err := ht.useCaseChangePhoneProperty.Execute(r.Context(), ht.parser.UserID(r), request.NewPhone)
 	if err != nil {
 		return err
 	}
@@ -115,7 +145,7 @@ func (ht *Security) ChangePhone(w http.ResponseWriter, r *http.Request) error {
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
-		ht.factoryOperationResponse.NewConfirmOperation(
+		ht.operationResponse.NewConfirmOperation(
 			op,
 			ht.parser.Localizer(r).Translate("msgChangePhoneRequestCreatedSuccessfully"),
 		),
@@ -130,7 +160,7 @@ func (ht *Security) ChangePassword(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	op, err := ht.useCase.ChangePassword(r.Context(), ht.parser.UserID(r), request.NewPassword)
+	op, err := ht.useCaseChangePasswordProperty.Execute(r.Context(), ht.parser.UserID(r), request.NewPassword)
 	if err != nil {
 		return err
 	}
@@ -138,27 +168,16 @@ func (ht *Security) ChangePassword(w http.ResponseWriter, r *http.Request) error
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
-		ht.factoryOperationResponse.NewConfirmOperation(
+		ht.operationResponse.NewConfirmOperation(
 			op,
 			ht.parser.Localizer(r).Translate("msgChangePasswordRequestCreatedSuccessfully"),
 		),
 	)
 }
 
-// GeneratePassword - comment method.
-func (ht *Security) GeneratePassword(w http.ResponseWriter, r *http.Request) error {
-	return ht.sender.Send(
-		w,
-		http.StatusOK,
-		model.GeneratedPasswordResponse{
-			Password: ht.useCase.GeneratePassword(r.Context()),
-		},
-	)
-}
-
 // ChangeTOTPGenerator - comment method.
 func (ht *Security) ChangeTOTPGenerator(w http.ResponseWriter, r *http.Request) error {
-	op, err := ht.useCase.ChangeTOTPGenerator(r.Context(), ht.parser.UserID(r))
+	op, err := ht.useCaseChangeTOTPProperty.Execute(r.Context(), ht.parser.UserID(r))
 	if err != nil {
 		return err
 	}
@@ -166,7 +185,24 @@ func (ht *Security) ChangeTOTPGenerator(w http.ResponseWriter, r *http.Request) 
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
-		ht.factoryOperationResponse.NewConfirmOperation(
+		ht.operationResponse.NewConfirmOperation(
+			op,
+			ht.parser.Localizer(r).Translate("msgDisable2FARequestCreatedSuccessfully"),
+		),
+	)
+}
+
+// Disable2FA - comment method.
+func (ht *Security) Disable2FA(w http.ResponseWriter, r *http.Request) error {
+	op, err := ht.useCaseDisable2FA.Execute(r.Context(), ht.parser.UserID(r))
+	if err != nil {
+		return err
+	}
+
+	return ht.sender.Send(
+		w,
+		http.StatusOK,
+		ht.operationResponse.NewConfirmOperation(
 			op,
 			ht.parser.Localizer(r).Translate("msgDisable2FARequestCreatedSuccessfully"),
 		),
@@ -190,23 +226,6 @@ func (ht *Security) ApplyTOTPGenerator(w http.ResponseWriter, r *http.Request) e
 		r.Context(),
 		w,
 		totpImage.ToFile(),
-	)
-}
-
-// Disable2FA - comment method.
-func (ht *Security) Disable2FA(w http.ResponseWriter, r *http.Request) error {
-	op, err := ht.useCase.Disable2FA(r.Context(), ht.parser.UserID(r))
-	if err != nil {
-		return err
-	}
-
-	return ht.sender.Send(
-		w,
-		http.StatusOK,
-		ht.factoryOperationResponse.NewConfirmOperation(
-			op,
-			ht.parser.Localizer(r).Translate("msgDisable2FARequestCreatedSuccessfully"),
-		),
 	)
 }
 

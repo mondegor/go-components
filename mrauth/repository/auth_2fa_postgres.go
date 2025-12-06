@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrauth/entity"
 )
@@ -33,7 +34,7 @@ func NewAuth2faPostgres(
 	}
 }
 
-// FetchOne - возвращает список сообщений по их указанным SettingID.
+// FetchOne - возвращает список сообщений по их указанным ID.
 func (re *Auth2faPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row entity.Auth2fa, err error) {
 	sql := `
 		SELECT
@@ -62,7 +63,7 @@ func (re *Auth2faPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row 
 	return row, nil
 }
 
-// InsertOrUpdate - возвращает список сообщений по их указанным SettingID.
+// InsertOrUpdate - возвращает список сообщений по их указанным ID.
 func (re *Auth2faPostgres) InsertOrUpdate(ctx context.Context, row entity.Auth2fa) error {
 	sql := `
 		INSERT INTO ` + re.table.Name + `
@@ -103,9 +104,15 @@ func (re *Auth2faPostgres) Delete(ctx context.Context, userID uuid.UUID) error {
 		WHERE
 			user_id = $1;`
 
-	return re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		userID,
 	)
+	// если это внутренняя ошибка
+	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
+		return re.errorWrapper.WrapError(err)
+	}
+
+	return nil
 }

@@ -42,12 +42,12 @@ func NewResendCode(
 		storageOperation:  storageOperation,
 		notifierAPI:       notifierAPI,
 		operationPreparer: operationPreparer,
-		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSecureOperation),
+		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.ResendCode"),
 	}
 }
 
-// Perform - comments method.
-func (co *ResendCode) Perform(ctx context.Context, langCode, operationToken string) (entity.SecureOperation, error) {
+// Execute - comments method.
+func (co *ResendCode) Execute(ctx context.Context, langCode, operationToken string) (entity.SecureOperation, error) {
 	if operationToken == "" {
 		return entity.SecureOperation{}, mr.ErrUseCaseIncorrectInputData.New("operationToken is empty")
 	}

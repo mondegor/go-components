@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -43,7 +44,7 @@ func NewAuthTokenPostgres(
 	}
 }
 
-// FetchOne - возвращает список сообщений по их указанным SettingID.
+// FetchOne - возвращает список сообщений по их указанным ID.
 func (re *AuthTokenPostgres) FetchOne(ctx context.Context, accessToken string) (row dto.AuthTokenScopes, err error) {
 	sql := `
 		SELECT
@@ -85,7 +86,7 @@ func (re *AuthTokenPostgres) FetchOne(ctx context.Context, accessToken string) (
 	return row, nil
 }
 
-// Insert - возвращает список сообщений по их указанным SettingID.
+// Insert - возвращает список сообщений по их указанным ID.
 func (re *AuthTokenPostgres) Insert(ctx context.Context, row entity.AuthToken) error {
 	sql := `
 		INSERT INTO ` + re.table.Name + `
@@ -143,6 +144,10 @@ func (re *AuthTokenPostgres) UpdateToClose(ctx context.Context, accessToken stri
 		authtokenstatus.Closed,
 	)
 	if err != nil {
+		if mr.ErrStorageRowsNotAffected.Is(err) {
+			err = mr.ErrStorageNoRowFound.Wrap(err)
+		}
+
 		return re.errorWrapper.WrapError(err)
 	}
 
@@ -179,7 +184,7 @@ func (re *AuthTokenPostgres) Revoke(ctx context.Context, refreshToken string) (r
 		authtokenstatus.UnexpectedRevoked,
 	).Scan(
 		&userID,
-		&row, // загружаются все данные кроме userID, т.к. хранится в отдельном поле
+		&row, // загружаются все данные кроме userID, т.к. это поле хранится отдельно
 		&isExpired,
 		&isAlreadyRevoked,
 	)
@@ -218,7 +223,8 @@ func (re *AuthTokenPostgres) UpdateToCloseAll(ctx context.Context, userID uuid.U
 		authtokenstatus.Opened,
 		authtokenstatus.Closed,
 	)
-	if err != nil {
+	// если это внутренняя ошибка
+	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
 		return re.errorWrapper.WrapError(err)
 	}
 
@@ -251,7 +257,8 @@ func (re *AuthTokenPostgres) DeleteExpired(ctx context.Context, limit int) error
 		sql,
 		limit,
 	)
-	if err != nil {
+	// если это внутренняя ошибка
+	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
 		return re.errorWrapper.WrapError(err)
 	}
 

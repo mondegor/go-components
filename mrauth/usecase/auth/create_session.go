@@ -20,7 +20,7 @@ type (
 	// CreateSession - компонент для извлечения настроек, которые хранятся в хранилище данных.
 	CreateSession struct {
 		txManager             mrstorage.DBTxManager
-		userChecker           mrauth.CheckUserUseCase
+		userChecker           userLoginChecker
 		storageOperation      mrauth.SecureOperationStorage
 		notifierAPI           mrnotifier.NoticeProducer
 		loginParser           loginParser
@@ -39,6 +39,10 @@ type (
 		Parse(value string) (contactaddress.ContactAddress, error)
 	}
 
+	userLoginChecker interface {
+		CheckAvailabilityRealm(ctx context.Context, realm string, userLogin contactaddress.ContactAddress) error
+	}
+
 	createSessionOperation interface {
 		Create(user2FA dto.User2FA, realm, langCode string, address contactaddress.ContactAddress) (entity.SecureOperation, error)
 	}
@@ -47,7 +51,7 @@ type (
 // NewCreateSession - создаёт объект UserProvider.
 func NewCreateSession(
 	txManager mrstorage.DBTxManager,
-	userChecker mrauth.CheckUserUseCase,
+	userChecker userLoginChecker,
 	storageOperation mrauth.SecureOperationStorage,
 	notifierAPI mrnotifier.NoticeProducer,
 	loginParser loginParser,
@@ -66,14 +70,14 @@ func NewCreateSession(
 		storageOperation:      storageOperation,
 		notifierAPI:           notifierAPI,
 		loginParser:           loginParser,
-		errorWrapper:          mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameRefreshToken), // ??????
+		errorWrapper:          mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.CreateSession"),
 		factoryUserConfirm2FA: factoryUserConfirm2FA,
 		realm2operation:       realm2operation,
 	}
 }
 
-// Perform - возвращает строковое значение настройки с указанным идентификатором.
-func (co *CreateSession) Perform(ctx context.Context, realm, langCode, userLogin string) (entity.SecureOperation, error) {
+// Execute - возвращает строковое значение настройки с указанным идентификатором.
+func (co *CreateSession) Execute(ctx context.Context, realm, langCode, userLogin string) (entity.SecureOperation, error) {
 	if userLogin == "" {
 		return entity.SecureOperation{}, mr.ErrUseCaseIncorrectInputData.New("userLogin is empty")
 	}
@@ -88,7 +92,7 @@ func (co *CreateSession) Perform(ctx context.Context, realm, langCode, userLogin
 		return entity.SecureOperation{}, mr.ErrUseCaseIncorrectInputData.New(err)
 	}
 
-	err = co.userChecker.CheckAvailability(ctx, realm, parsedLogin.Value)
+	err = co.userChecker.CheckAvailabilityRealm(ctx, realm, parsedLogin)
 	if err == nil {
 		return entity.SecureOperation{}, mrauth.ErrLoginNotExists.New()
 	}

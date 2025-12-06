@@ -25,7 +25,7 @@ type (
 	// CreateUser - comment struct.
 	CreateUser struct {
 		txManager        mrstorage.DBTxManager
-		userChecker      mrauth.CheckUserUseCase
+		userChecker      userLoginChecker
 		storageOperation mrauth.SecureOperationStorage
 		notifierAPI      mrnotifier.NoticeProducer
 		locker           mrlock.Locker
@@ -52,7 +52,7 @@ type (
 // NewCreateUser - создаёт объект CreateUser.
 func NewCreateUser(
 	txManager mrstorage.DBTxManager,
-	userChecker mrauth.CheckUserUseCase,
+	userChecker userLoginChecker,
 	storageOperation mrauth.SecureOperationStorage,
 	notifierAPI mrnotifier.NoticeProducer,
 	locker mrlock.Locker,
@@ -72,13 +72,13 @@ func NewCreateUser(
 		notifierAPI:      notifierAPI,
 		locker:           locker,
 		loginParser:      loginParser,
-		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameUser),
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.CreateUser"),
 		realm2operation:  realm2operation,
 	}
 }
 
-// Perform - возвращает строковое значение настройки с указанным идентификатором.
-func (co *CreateUser) Perform(ctx context.Context, realm, langCode, userEmail string) (op entity.SecureOperation, err error) {
+// Execute - возвращает строковое значение настройки с указанным идентификатором.
+func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail string) (op entity.SecureOperation, err error) {
 	operationCreator, ok := co.realm2operation[realm]
 	if !ok {
 		return entity.SecureOperation{}, mr.ErrUseCaseIncorrectInputData.New("realm is unknown", "realm", realm)
@@ -106,7 +106,7 @@ func (co *CreateUser) Perform(ctx context.Context, realm, langCode, userEmail st
 		}
 	}()
 
-	if err = co.userChecker.CheckAvailability(ctx, realm, parsedLogin.Value); err != nil {
+	if err = co.userChecker.CheckAvailabilityRealm(ctx, realm, parsedLogin); err != nil {
 		return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(err)
 	}
 

@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrlib/crypt/password"
-	"github.com/mondegor/go-sysmess/mrtype"
 
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -15,58 +13,6 @@ import (
 )
 
 type (
-	// ConfirmCreateUserUseCase - отправляет внешним клиентом уведомление преобразованное в сообщение.
-	ConfirmCreateUserUseCase interface {
-		Perform(ctx context.Context, realm, langCode, userEmail string) (entity.SecureOperation, error)
-	}
-
-	// ConfirmAuthUserUseCase - отправляет внешним клиентом уведомление преобразованное в сообщение.
-	ConfirmAuthUserUseCase interface {
-		Perform(ctx context.Context, realm, langCode, userLogin string) (entity.SecureOperation, error)
-	}
-
-	// ConfirmOperationUseCase - comments interface.
-	ConfirmOperationUseCase interface {
-		Perform(ctx context.Context, langCode, operationToken, confirmCode string) (entity.SecureOperation, error)
-	}
-
-	// ResendConfirmCodeUseCase - comments interface.
-	ResendConfirmCodeUseCase interface {
-		Perform(ctx context.Context, langCode, operationToken string) (entity.SecureOperation, error)
-	}
-
-	// UserInfoUseCase - отправляет внешним клиентом уведомление преобразованное в сообщение.
-	UserInfoUseCase interface {
-		Get(ctx context.Context, userID uuid.UUID) (entity.UserInfo, error)
-	}
-
-	// SessionUseCase - comments interface.
-	SessionUseCase interface {
-		Open(ctx context.Context, clientIP mrtype.DetailedIP, op entity.SecureOperation) (token dto.AuthToken, err error)
-		Continue(ctx context.Context, langCode, refreshToken string) (token dto.AuthToken, err error)
-		Close(ctx context.Context, accessToken string) error
-		// GetList(ctx context.Context) ([]entity.Session, error)
-		// Close(ctx context.Context, sessionHashes []string) error
-	}
-
-	// CheckUserUseCase - comments interface.
-	CheckUserUseCase interface {
-		CheckAvailability(ctx context.Context, realm, userLogin string) error
-		CheckAvailabilityEmail(ctx context.Context, userEmail string) error
-		CheckAvailabilityPhone(ctx context.Context, userPhone string) error
-		CheckPasswordStrength(ctx context.Context, userPassword string) (password.PassStrength, error)
-	}
-
-	// ChangeUseCase - comments interface.
-	ChangeUseCase interface {
-		ChangeEmail(ctx context.Context, userID uuid.UUID, newEmail string) (entity.SecureOperation, error)
-		ChangePhone(ctx context.Context, userID uuid.UUID, newPhone string) (entity.SecureOperation, error)
-		ChangePassword(ctx context.Context, userID uuid.UUID, newPassword string) (entity.SecureOperation, error)
-		GeneratePassword(ctx context.Context) string
-		ChangeTOTPGenerator(ctx context.Context, userID uuid.UUID) (entity.SecureOperation, error)
-		Disable2FA(ctx context.Context, userID uuid.UUID) (entity.SecureOperation, error)
-	}
-
 	// OperationUseCase - comments interface.
 	OperationUseCase interface {
 		ConfirmAction(ctx context.Context, operationToken, secret string) (entity.SecureOperation, error)
@@ -150,12 +96,6 @@ type (
 		Insert(ctx context.Context, row entity.UserRealm) error
 		UpdateKind(ctx context.Context, row entity.UserRealm) error
 		Delete(ctx context.Context, userID uuid.UUID, realm string) error
-	}
-
-	// CheckUserStorage - comments interface.
-	CheckUserStorage interface {
-		UserIDByEmail(ctx context.Context, userEmail string) (rowID uuid.UUID, err error)
-		UserIDByPhone(ctx context.Context, userPhone uint64) (rowID uuid.UUID, err error)
 	}
 
 	// OperationEntity - comments interface.

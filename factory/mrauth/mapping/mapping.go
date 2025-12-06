@@ -8,9 +8,20 @@ import (
 	bagsession "github.com/mondegor/go-components/mrauth/bag/session"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation/action"
+	"github.com/mondegor/go-components/mrauth/service/session"
 	usecaseauth "github.com/mondegor/go-components/mrauth/usecase/auth"
-	"github.com/mondegor/go-components/mrauth/usecase/session"
 )
+
+// OptionUserRealmsToStringRealms - comment func.
+func OptionUserRealmsToStringRealms(realms []auth.UserRealm) []string {
+	mappedRealms := make([]string, 0, len(realms))
+
+	for _, realm := range realms {
+		mappedRealms = append(mappedRealms, realm.Name)
+	}
+
+	return mappedRealms
+}
 
 // OptionUserRealmsToConfirmCreateUserRealms - comment func.
 func OptionUserRealmsToConfirmCreateUserRealms(realms []auth.UserRealm) []usecaseauth.CreateUserRealm {
@@ -77,8 +88,8 @@ func OptionUserRealmsToConfirmCreateSessionRealms(realms []auth.UserRealm) []use
 }
 
 // OptionUserRealmsToCreateSessionRealms - comment func.
-func OptionUserRealmsToCreateSessionRealms(realms []auth.UserRealm, jwt2 auth.JWT) []session.CreateSessionRealm {
-	mappedRealms := make([]session.CreateSessionRealm, 0, len(realms))
+func OptionUserRealmsToCreateSessionRealms(realms []auth.UserRealm, jwt2 auth.JWT) []session.AuthTokenRealm {
+	mappedRealms := make([]session.AuthTokenRealm, 0, len(realms))
 
 	for _, realm := range realms {
 		var tokenIssuer mrauth.TokenIssuer
@@ -102,7 +113,7 @@ func OptionUserRealmsToCreateSessionRealms(realms []auth.UserRealm, jwt2 auth.JW
 
 		mappedRealms = append(
 			mappedRealms,
-			session.CreateSessionRealm{
+			session.AuthTokenRealm{
 				Name:        realm.Name,
 				TokenIssuer: tokenIssuer,
 			},

@@ -7,28 +7,29 @@ import (
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/repository"
-	"github.com/mondegor/go-components/mrauth/usecase/check"
+	"github.com/mondegor/go-components/mrauth/service/check"
 	"github.com/mondegor/go-components/mrauth/validate"
 )
 
 func initCheckController(
-	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
+	serviceErrorWrapper mrerr.ErrorWrapper,
 	storageCheckUser *repository.CheckUserPostgres,
 	storageUserRealm *repository.UserRealmPostgres,
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 ) (mrserver.HttpController, error) {
-	useCase := check.NewAuthHelper(
+	userLoginService := check.NewUserLoginExt(
 		storageCheckUser,
 		storageUserRealm,
-		contactaddress.NewParser(), // ??????
-		useCaseErrorWrapper,
+		contactaddress.NewParser(),
+		serviceErrorWrapper,
 	)
 
 	controller := httpv1.NewCheck(
 		requestParser,
 		responseSender,
-		useCase,
+		userLoginService,
+		check.NewPassword(16), // TODO: в настройки
 	)
 
 	return controller, nil

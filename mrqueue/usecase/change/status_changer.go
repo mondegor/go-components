@@ -46,8 +46,8 @@ func New(
 	co := &StatusChanger{
 		txManager:    txManager,
 		storage:      storage,
-		eventEmitter: mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameItem),
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameItem),
+		eventEmitter: mrevent.NewSourceEmitter(eventEmitter, "mrqueue.StatusChanger"),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrqueue.StatusChanger"),
 		retryTimeout: defaultRetryTimeout,
 		retryDelayed: defaultRetryDelayed,
 	}

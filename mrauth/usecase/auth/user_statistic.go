@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -31,7 +30,7 @@ func NewUserStatistic(
 	return &UserStatistic{
 		storageActivityStat: storageActivityStat,
 		storageActivityLog:  storageActivityLog,
-		errorWrapper:        mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameRefreshToken),
+		errorWrapper:        mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.UserStatistic"),
 	}
 }
 
@@ -78,9 +77,7 @@ func (uc *UserStatistic) Execute(ctx context.Context, list []entity.UserActivity
 	// целостность данных не критична, поэтому единой транзакции не требуется
 
 	if err := uc.storageActivityStat.UpdateLastVisited(ctx, stat); err != nil {
-		if !mr.ErrStorageRowsNotAffected.Is(err) { // TODO: а может быть ситуация, когда данные не обновились?
-			return uc.errorWrapper.WrapErrorFailed(err)
-		}
+		return uc.errorWrapper.WrapErrorFailed(err)
 	}
 
 	if err := uc.storageActivityLog.Insert(ctx, list); err != nil {

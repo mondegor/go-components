@@ -12,7 +12,6 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -39,7 +38,7 @@ func NewBeforeAuthUser(
 		storageUser:      storageUser,
 		storageUserRealm: storageUserNamespace,
 		notifierAPI:      notifierAPI,
-		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameUser),
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.BeforeAuthUser"),
 		logger:           logger,
 	}
 }

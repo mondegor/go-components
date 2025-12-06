@@ -8,6 +8,7 @@ import (
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrargs"
 	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrsettings/entity"
 )
@@ -182,8 +183,12 @@ func (re *SettingPostgres) Update(ctx context.Context, row entity.Setting) error
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	if err != nil {
+		if mr.ErrStorageRowsNotAffected.Is(err) {
+			err = mr.ErrStorageNoRowFound.Wrap(err)
+		}
+
 		return re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"id": row.ID, "type": row.Type, "where": whereStr})
 	}
 
-	return err
+	return nil
 }

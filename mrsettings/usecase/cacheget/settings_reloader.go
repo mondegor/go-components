@@ -45,7 +45,7 @@ func NewSettingsReloader(
 	return &SettingsReloader{
 		parser:       parser,
 		storage:      storage,
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSetting),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrsettings.SettingsReloader"),
 		logger:       logger,
 		cache: &sharedCache{
 			mu:       sync.RWMutex{},

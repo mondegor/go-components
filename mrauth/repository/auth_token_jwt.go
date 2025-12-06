@@ -21,7 +21,7 @@ func NewAuthTokenJWT(secret string) *AuthTokenJWT {
 	}
 }
 
-// FetchOne - возвращает список сообщений по их указанным SettingID.
+// FetchOne - возвращает список сообщений по их указанным ID.
 func (re *AuthTokenJWT) FetchOne(_ context.Context, accessToken string) (row dto.AuthTokenScopes, err error) {
 	scopes, err := re.parser.Parse(accessToken)
 	if err != nil {

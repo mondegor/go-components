@@ -8,13 +8,13 @@ import (
 type (
 	// CreateUserRequest - запрос на создание нового пользователя.
 	CreateUserRequest struct {
-		Realm     string `json:"realm" validate:"required,max=32,tag_name"`
+		Realm     string `json:"realm" validate:"required,max=32,tag_realm"`
 		UserEmail string `json:"userEmail" validate:"required,min=7,max=64,tag_email"`
 	}
 
 	// AuthorizeUserRequest - запрос на авторизацию пользователя в системе.
 	AuthorizeUserRequest struct {
-		Realm     string `json:"realm" validate:"required,max=32,tag_name"`
+		Realm     string `json:"realm" validate:"required,max=32,tag_realm"`
 		UserLogin string `json:"userLogin" validate:"required,min=7,max=64,tag_email_phone"`
 	}
 

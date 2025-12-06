@@ -8,6 +8,7 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrauth/entity"
 )
@@ -110,7 +111,8 @@ func (re *SecureOperationLogPostgres) DeleteBeforeDate(ctx context.Context, date
 		datetime,
 		limit,
 	)
-	if err != nil {
+	// если это внутренняя ошибка
+	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
 		return re.errorWrapper.WrapError(err)
 	}
 

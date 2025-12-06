@@ -1,9 +1,11 @@
 package httpv1
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-webcore/mraccess"
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -12,35 +14,51 @@ import (
 )
 
 const (
-	checkLoginURL            = "/v1/check/login"
-	checkPasswordStrengthURL = "/v1/check/password-strength" //nolint:gosec
+	checkCheckLoginURL           = "/v1/check/check-login"
+	checkCalcPasswordStrengthURL = "/v1/check/calc-password-strength" //nolint:gosec
+	checkGeneratePasswordURL     = "/v1/check/generate-password"      //nolint:gosec
 )
 
 // Check - comment struct.
-type Check struct {
-	parser  validate.RequestParser
-	sender  mrserver.ResponseSender
-	useCase mrauth.CheckUserUseCase
-}
+type (
+	Check struct {
+		parser          validate.RequestParser
+		sender          mrserver.ResponseSender
+		serviceLogin    loginService
+		servicePassword passwordService
+	}
+
+	loginService interface {
+		CheckAvailabilityRealm(ctx context.Context, realm, userLogin string) error
+	}
+
+	passwordService interface {
+		CalcStrength(userPassword string) (strength string)
+		Generate() (strength string)
+	}
+)
 
 // NewCheck - создаёт объект Check.
 func NewCheck(
 	parser validate.RequestParser,
 	sender mrserver.ResponseSender,
-	useCase mrauth.CheckUserUseCase,
+	serviceLogin loginService,
+	servicePassword passwordService,
 ) *Check {
 	return &Check{
-		parser:  parser,
-		sender:  sender,
-		useCase: useCase,
+		parser:          parser,
+		sender:          sender,
+		serviceLogin:    serviceLogin,
+		servicePassword: servicePassword,
 	}
 }
 
 // Handlers - возвращает обработчики контроллера Check.
 func (ht *Check) Handlers() []mrserver.HttpHandler {
 	return []mrserver.HttpHandler{
-		{Method: http.MethodPost, URL: checkLoginURL, Func: ht.CheckLogin},
-		{Method: http.MethodPost, URL: checkPasswordStrengthURL, Func: ht.CheckPasswordStrength},
+		{Method: http.MethodPost, URL: checkCheckLoginURL, Permission: mraccess.PermissionAnyUser, Func: ht.CheckLogin},
+		{Method: http.MethodPost, URL: checkCalcPasswordStrengthURL, Permission: mraccess.PermissionAnyUser, Func: ht.CalcPasswordStrength},
+		{Method: http.MethodPost, URL: checkGeneratePasswordURL, Permission: mraccess.PermissionAnyUser, Func: ht.GeneratePassword},
 	}
 }
 
@@ -52,7 +70,7 @@ func (ht *Check) CheckLogin(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	if err := ht.useCase.CheckAvailability(r.Context(), request.Realm, request.UserLogin); err != nil {
+	if err := ht.serviceLogin.CheckAvailabilityRealm(r.Context(), request.Realm, request.UserLogin); err != nil {
 		if mrauth.ErrEmailAlreadyExists.Is(err) || mrauth.ErrPhoneAlreadyExists.Is(err) {
 			return mrerr.NewCustomError("userLogin", err)
 		}
@@ -63,24 +81,30 @@ func (ht *Check) CheckLogin(w http.ResponseWriter, r *http.Request) error {
 	return ht.sender.SendNoContent(w)
 }
 
-// CheckPasswordStrength - comment method.
-func (ht *Check) CheckPasswordStrength(w http.ResponseWriter, r *http.Request) error {
-	request := model.CheckPasswordStrengthRequest{}
+// CalcPasswordStrength - comment method.
+func (ht *Check) CalcPasswordStrength(w http.ResponseWriter, r *http.Request) error {
+	request := model.CalcPasswordStrengthRequest{}
 
 	if err := ht.parser.Validate(r, &request); err != nil {
-		return err
-	}
-
-	strength, err := ht.useCase.CheckPasswordStrength(r.Context(), request.Password)
-	if err != nil {
 		return err
 	}
 
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
-		model.CheckPasswordStrengthResponse{
-			Strength: strength.String(),
+		model.CalcPasswordStrengthResponse{
+			Strength: ht.servicePassword.CalcStrength(request.Password),
+		},
+	)
+}
+
+// GeneratePassword - comment method.
+func (ht *Check) GeneratePassword(w http.ResponseWriter, _ *http.Request) error {
+	return ht.sender.Send(
+		w,
+		http.StatusOK,
+		model.GeneratedPasswordResponse{
+			Password: ht.servicePassword.Generate(),
 		},
 	)
 }

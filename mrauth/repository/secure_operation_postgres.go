@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
@@ -34,7 +35,7 @@ func NewSecureOperationPostgres(
 	}
 }
 
-// FetchOne - возвращает список сообщений по их указанным SettingID.
+// FetchOne - возвращает список сообщений по их указанным ID.
 func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (row entity.SecureOperation, err error) {
 	sql := `
 		SELECT
@@ -84,7 +85,7 @@ func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (
 	return row, nil
 }
 
-// Insert - возвращает список сообщений по их указанным SettingID.
+// Insert - возвращает список сообщений по их указанным ID.
 func (re *SecureOperationPostgres) Insert(ctx context.Context, row entity.SecureOperation) error {
 	sql := `
 		INSERT INTO ` + re.table.Name + `
@@ -161,6 +162,10 @@ func (re *SecureOperationPostgres) Update(ctx context.Context, currentToken stri
 		row.ExpiresAt,
 	)
 	if err != nil {
+		if mr.ErrStorageRowsNotAffected.Is(err) {
+			err = mr.ErrStorageNoRowFound.Wrap(err)
+		}
+
 		return re.errorWrapper.WrapError(err)
 	}
 
@@ -208,6 +213,10 @@ func (re *SecureOperationPostgres) Delete(ctx context.Context, token string) err
 		token,
 	)
 	if err != nil {
+		if mr.ErrStorageRowsNotAffected.Is(err) {
+			err = mr.ErrStorageNoRowFound.Wrap(err)
+		}
+
 		return re.errorWrapper.WrapError(err)
 	}
 
@@ -240,7 +249,8 @@ func (re *SecureOperationPostgres) DeleteExpired(ctx context.Context, limit int)
 		sql,
 		limit,
 	)
-	if err != nil {
+	// если это внутренняя ошибка
+	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
 		return re.errorWrapper.WrapError(err)
 	}
 

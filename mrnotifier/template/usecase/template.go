@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
 	"github.com/mondegor/go-sysmess/mrlog"
 
 	"github.com/mondegor/go-components/mrnotifier"
@@ -41,7 +40,7 @@ func New(
 
 	return &Template{
 		storage:      storage,
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameTemplate),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrnotifier.Template"),
 		logger:       logger,
 		defaultLang:  defaultLang,
 	}
@@ -56,7 +55,7 @@ func (co *Template) GetItemByKey(ctx context.Context, key, lang string) (entity.
 
 	item, err := co.storage.FetchOneByKey(ctx, key, lang)
 	if err != nil {
-		if lang != co.defaultLang && mr.ErrStorageNoRowFound.Is(err) {
+		if lang != co.defaultLang && co.errorWrapper.IsNotFoundError(err) {
 			co.logger.Warn(ctx, fmt.Sprintf("No template was found for the notification (key='%s', lang='%s')", key, lang))
 
 			// если запись не найдена для указанного языка, то происходит попытка выбрать её с языком по умолчанию
@@ -64,7 +63,7 @@ func (co *Template) GetItemByKey(ctx context.Context, key, lang string) (entity.
 		}
 
 		if err != nil {
-			if mr.ErrStorageNoRowFound.Is(err) {
+			if co.errorWrapper.IsNotFoundError(err) {
 				err = mrnotifier.ErrTemplateNotRegistered.Wrap(err, key, lang)
 			}
 

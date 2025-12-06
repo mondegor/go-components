@@ -7,7 +7,6 @@ import (
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrsettings"
-	"github.com/mondegor/go-components/mrsettings/entity"
 	"github.com/mondegor/go-components/mrsettings/enum"
 )
 
@@ -29,7 +28,7 @@ func New(
 	return &SettingsGetter{
 		parser:       parser,
 		storage:      storage,
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSetting),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrsettings.SettingsGetter"),
 	}
 }
 

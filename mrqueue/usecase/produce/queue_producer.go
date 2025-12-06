@@ -29,8 +29,8 @@ func New(
 ) *QueueProducer {
 	return &QueueProducer{
 		storage:      storage,
-		eventEmitter: mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameItem),
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameItem),
+		eventEmitter: mrevent.NewSourceEmitter(eventEmitter, "mrqueue.QueueProducer"),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrqueue.QueueProducer"),
 	}
 }
 

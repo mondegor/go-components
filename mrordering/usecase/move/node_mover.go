@@ -38,8 +38,8 @@ func New(
 ) *NodeMover {
 	return &NodeMover{
 		storage:      storage,
-		eventEmitter: mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameNode),
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameNode),
+		eventEmitter: mrevent.NewSourceEmitter(eventEmitter, "mrordering.NodeMover"),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrordering.NodeMover"),
 	}
 }
 
@@ -52,7 +52,7 @@ func (co *NodeMover) InsertToFirst(ctx context.Context, nodeID uint64, condition
 
 	firstNode, err := co.storage.FetchFirstNode(ctx, condition)
 	if err != nil {
-		return co.wrapErrorMustLoad(err)
+		return co.wrapErrorMustEntityExists(err)
 	}
 
 	if nodeID == firstNode.ID {
@@ -60,7 +60,7 @@ func (co *NodeMover) InsertToFirst(ctx context.Context, nodeID uint64, condition
 	}
 
 	if err = co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullUint64(nodeID), condition); err != nil {
-		return co.wrapErrorMustStore(err)
+		return co.wrapErrorMustEntityExists(err)
 	}
 
 	currentNode := entity.Node{
@@ -72,7 +72,7 @@ func (co *NodeMover) InsertToFirst(ctx context.Context, nodeID uint64, condition
 
 	if currentNode.OrderIndex == 0 {
 		if err = co.storage.RecalcOrderIndex(ctx, 0, 2*uint64(orderIndexStep), condition); err != nil {
-			return co.wrapErrorMustStore(err)
+			return co.errorWrapper.WrapErrorFailed(err)
 		}
 
 		currentNode.OrderIndex = orderIndexStep
@@ -96,7 +96,7 @@ func (co *NodeMover) InsertToLast(ctx context.Context, nodeID uint64, condition 
 
 	lastNode, err := co.storage.FetchLastNode(ctx, condition)
 	if err != nil {
-		return co.wrapErrorMustLoad(err)
+		return co.wrapErrorMustEntityExists(err)
 	}
 
 	if nodeID == lastNode.ID {
@@ -104,7 +104,7 @@ func (co *NodeMover) InsertToLast(ctx context.Context, nodeID uint64, condition 
 	}
 
 	if err = co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullUint64(nodeID), condition); err != nil {
-		return co.wrapErrorMustStore(err)
+		return co.wrapErrorMustEntityExists(err)
 	}
 
 	currentNode := entity.Node{
@@ -131,7 +131,7 @@ func (co *NodeMover) MoveToFirst(ctx context.Context, nodeID uint64, condition m
 
 	firstNode, err := co.storage.FetchFirstNode(ctx, condition)
 	if err != nil {
-		return co.wrapErrorMustLoad(err)
+		return co.wrapErrorMustEntityExists(err)
 	}
 
 	if firstNode.ID == nodeID {
@@ -142,7 +142,7 @@ func (co *NodeMover) MoveToFirst(ctx context.Context, nodeID uint64, condition m
 			}
 
 			if err = co.storage.UpdateNode(ctx, currentNode, condition); err != nil {
-				return co.wrapErrorMustStore(err)
+				return co.wrapErrorMustEntityExists(err)
 			}
 		}
 
@@ -165,18 +165,18 @@ func (co *NodeMover) MoveToFirst(ctx context.Context, nodeID uint64, condition m
 	}
 
 	if err = co.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullUint64(currentNode.ID), condition); err != nil {
-		return co.wrapErrorMustStore(err)
+		return co.wrapErrorMustEntityExists(err)
 	}
 
 	if currentNode.PrevID > 0 {
 		if err = co.storage.UpdateNodeNextID(ctx, uint64(currentNode.PrevID), currentNode.NextID, condition); err != nil {
-			return co.wrapErrorMustStore(err)
+			return co.wrapErrorMustEntityExists(err)
 		}
 	}
 
 	if currentNode.NextID > 0 {
 		if err = co.storage.UpdateNodePrevID(ctx, uint64(currentNode.NextID), currentNode.PrevID, condition); err != nil {
-			return co.wrapErrorMustStore(err)
+			return co.wrapErrorMustEntityExists(err)
 		}
 	}
 
@@ -186,14 +186,14 @@ func (co *NodeMover) MoveToFirst(ctx context.Context, nodeID uint64, condition m
 
 	if currentNode.OrderIndex == 0 {
 		if err = co.storage.RecalcOrderIndex(ctx, 0, 2*uint64(orderIndexStep), condition); err != nil {
-			return co.wrapErrorMustStore(err)
+			return co.errorWrapper.WrapErrorFailed(err)
 		}
 
 		currentNode.OrderIndex = orderIndexStep
 	}
 
 	if err = co.storage.UpdateNode(ctx, currentNode, condition); err != nil {
-		return co.wrapErrorMustStore(err)
+		return co.wrapErrorMustEntityExists(err)
 	}
 
 	co.eventEmitter.Emit(ctx, "MoveToFirst", mrargs.Group{"id": nodeID})
@@ -209,7 +209,7 @@ func (co *NodeMover) MoveToLast(ctx context.Context, nodeID uint64, condition mr
 
 	lastNode, err := co.storage.FetchLastNode(ctx, condition)
 	if err != nil {
-		return co.wrapErrorMustLoad(err)
+		return co.wrapErrorMustEntityExists(err)
 	}
 
 	if lastNode.ID == nodeID {
@@ -220,7 +220,7 @@ func (co *NodeMover) MoveToLast(ctx context.Context, nodeID uint64, condition mr
 			}
 
 			if err = co.storage.UpdateNode(ctx, currentNode, condition); err != nil {
-				return co.wrapErrorMustStore(err)
+				return co.wrapErrorMustEntityExists(err)
 			}
 		}
 
@@ -244,19 +244,19 @@ func (co *NodeMover) MoveToLast(ctx context.Context, nodeID uint64, condition mr
 		}
 
 		if err = co.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullUint64(currentNode.ID), condition); err != nil {
-			return co.wrapErrorMustStore(err)
+			return co.wrapErrorMustEntityExists(err)
 		}
 	}
 
 	if currentNode.PrevID > 0 {
 		if err = co.storage.UpdateNodeNextID(ctx, uint64(currentNode.PrevID), currentNode.NextID, condition); err != nil {
-			return co.wrapErrorMustStore(err)
+			return co.wrapErrorMustEntityExists(err)
 		}
 	}
 
 	if currentNode.NextID > 0 {
 		if err = co.storage.UpdateNodePrevID(ctx, uint64(currentNode.NextID), currentNode.PrevID, condition); err != nil {
-			return co.wrapErrorMustStore(err)
+			return co.wrapErrorMustEntityExists(err)
 		}
 	}
 
@@ -265,7 +265,7 @@ func (co *NodeMover) MoveToLast(ctx context.Context, nodeID uint64, condition mr
 	currentNode.OrderIndex = lastNode.OrderIndex + orderIndexStep
 
 	if err = co.storage.UpdateNode(ctx, currentNode, condition); err != nil {
-		return co.wrapErrorMustStore(err)
+		return co.wrapErrorMustEntityExists(err)
 	}
 
 	co.eventEmitter.Emit(ctx, "MoveToLast", mrargs.Group{"id": nodeID})
@@ -299,7 +299,11 @@ func (co *NodeMover) MoveAfterID(ctx context.Context, nodeID, afterNodeID uint64
 
 	afterNode, err := co.storage.FetchNode(ctx, afterNodeID, condition)
 	if err != nil {
-		return co.wrapErrorAfterNodeNotFound(err, afterNodeID)
+		if errors.Is(err, mr.ErrStorageNoRowFound) {
+			return mrordering.ErrAfterNodeNotFound.Wrap(err, afterNodeID)
+		}
+
+		return co.errorWrapper.WrapErrorFailed(err)
 	}
 
 	afterNextNode := entity.Node{
@@ -308,29 +312,29 @@ func (co *NodeMover) MoveAfterID(ctx context.Context, nodeID, afterNodeID uint64
 
 	if afterNextNode.ID > 0 {
 		if afterNextNode, err = co.storage.FetchNode(ctx, afterNextNode.ID, condition); err != nil {
-			return co.wrapErrorMustLoad(err)
+			return co.wrapErrorMustEntityExists(err)
 		}
 	}
 
 	if err = co.storage.UpdateNodeNextID(ctx, afterNode.ID, mrentity.ZeronullUint64(currentNode.ID), condition); err != nil {
-		return co.wrapErrorMustStore(err)
+		return co.wrapErrorMustEntityExists(err)
 	}
 
 	if afterNextNode.ID > 0 {
 		if err = co.storage.UpdateNodePrevID(ctx, afterNextNode.ID, mrentity.ZeronullUint64(currentNode.ID), condition); err != nil {
-			return co.wrapErrorMustStore(err)
+			return co.wrapErrorMustEntityExists(err)
 		}
 	}
 
 	if currentNode.PrevID > 0 {
 		if err = co.storage.UpdateNodeNextID(ctx, uint64(currentNode.PrevID), currentNode.NextID, condition); err != nil {
-			return co.wrapErrorMustStore(err)
+			return co.wrapErrorMustEntityExists(err)
 		}
 	}
 
 	if currentNode.NextID > 0 {
 		if err = co.storage.UpdateNodePrevID(ctx, uint64(currentNode.NextID), currentNode.PrevID, condition); err != nil {
-			return co.wrapErrorMustStore(err)
+			return co.wrapErrorMustEntityExists(err)
 		}
 	}
 
@@ -341,7 +345,7 @@ func (co *NodeMover) MoveAfterID(ctx context.Context, nodeID, afterNodeID uint64
 	if currentNode.OrderIndex <= afterNode.OrderIndex {
 		if afterNextNode.ID > 0 {
 			if err := co.storage.RecalcOrderIndex(ctx, uint64(afterNode.OrderIndex), uint64(orderIndexStep)*2, condition); err != nil {
-				return co.wrapErrorMustStore(err)
+				return co.wrapErrorMustEntityExists(err)
 			}
 		}
 
@@ -349,7 +353,7 @@ func (co *NodeMover) MoveAfterID(ctx context.Context, nodeID, afterNodeID uint64
 	}
 
 	if err := co.storage.UpdateNode(ctx, currentNode, condition); err != nil {
-		return co.wrapErrorMustStore(err)
+		return co.wrapErrorMustEntityExists(err)
 	}
 
 	co.eventEmitter.Emit(ctx, "MoveAfterId", mrargs.Group{"id": nodeID, "afterId": afterNodeID})
@@ -376,13 +380,13 @@ func (co *NodeMover) Unlink(ctx context.Context, nodeID uint64, condition mrstor
 
 	if currentNode.PrevID > 0 {
 		if err = co.storage.UpdateNodeNextID(ctx, uint64(currentNode.PrevID), currentNode.NextID, condition); err != nil {
-			return co.wrapErrorMustStore(err)
+			return co.wrapErrorMustEntityExists(err)
 		}
 	}
 
 	if currentNode.NextID > 0 {
 		if err = co.storage.UpdateNodePrevID(ctx, uint64(currentNode.NextID), currentNode.PrevID, condition); err != nil {
-			return co.wrapErrorMustStore(err)
+			return co.wrapErrorMustEntityExists(err)
 		}
 	}
 
@@ -391,7 +395,7 @@ func (co *NodeMover) Unlink(ctx context.Context, nodeID uint64, condition mrstor
 	currentNode.OrderIndex = 0
 
 	if err = co.storage.UpdateNode(ctx, currentNode, condition); err != nil {
-		return co.wrapErrorMustStore(err)
+		return co.wrapErrorMustEntityExists(err)
 	}
 
 	co.eventEmitter.Emit(ctx, "Unlink", mrargs.Group{"id": nodeID})
@@ -399,24 +403,8 @@ func (co *NodeMover) Unlink(ctx context.Context, nodeID uint64, condition mrstor
 	return nil
 }
 
-func (co *NodeMover) wrapErrorAfterNodeNotFound(err error, afterNodeID uint64) error {
+func (co *NodeMover) wrapErrorMustEntityExists(err error) error {
 	if errors.Is(err, mr.ErrStorageNoRowFound) {
-		return mrordering.ErrAfterNodeNotFound.New(afterNodeID)
-	}
-
-	return co.errorWrapper.WrapErrorFailed(err)
-}
-
-func (co *NodeMover) wrapErrorMustLoad(err error) error {
-	if errors.Is(err, mr.ErrStorageNoRowFound) {
-		return mr.ErrInternal.Wrap(err)
-	}
-
-	return co.errorWrapper.WrapErrorFailed(err)
-}
-
-func (co *NodeMover) wrapErrorMustStore(err error) error {
-	if co.errorWrapper.IsNotFoundOrNotAffectedError(err) {
 		return mr.ErrInternal.Wrap(err)
 	}
 

@@ -45,7 +45,7 @@ func NewCreateUser(
 		storageUser:      storageUser,
 		storageUserRealm: storageUserNamespace,
 		notifierAPI:      notifierAPI,
-		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameUser),
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.CreateUser"),
 		logger:           logger,
 	}
 }
@@ -60,7 +60,7 @@ func (uc *CreateUser) Execute(ctx context.Context, payload []byte) (u dto.UserIn
 
 	user, err := uc.storageUser.FetchOneByLogin(ctx, contactaddress.NewEmail(payloadDTO.Email))
 	if err != nil {
-		if !mr.ErrStorageNoRowFound.Is(err) {
+		if !uc.errorWrapper.IsNotFoundError(err) {
 			return dto.UserInRealm{}, uc.errorWrapper.WrapErrorFailed(err)
 		}
 	}

@@ -48,7 +48,7 @@ func NewCheckUserPostgres(
 	}
 }
 
-// UserIDByEmail - возвращает список сообщений по их указанным SettingID.
+// UserIDByEmail - возвращает список сообщений по их указанным ID.
 func (re *CheckUserPostgres) UserIDByEmail(ctx context.Context, userEmail string) (rowID uuid.UUID, err error) {
 	rowID, err = re.repoUserIDByEmail.Fetch(ctx, userEmail)
 	if err != nil {
@@ -58,7 +58,7 @@ func (re *CheckUserPostgres) UserIDByEmail(ctx context.Context, userEmail string
 	return rowID, nil
 }
 
-// UserIDByPhone - возвращает список сообщений по их указанным SettingID.
+// UserIDByPhone - возвращает список сообщений по их указанным ID.
 func (re *CheckUserPostgres) UserIDByPhone(ctx context.Context, userPhone uint64) (rowID uuid.UUID, err error) {
 	rowID, err = re.repoUserIDByPhone.Fetch(ctx, userPhone)
 	if err != nil {

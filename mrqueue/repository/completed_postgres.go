@@ -42,7 +42,7 @@ func (re *CompletedPostgres) Insert(ctx context.Context, rowID uint64) error {
 }
 
 // Delete - удаляет ограниченный список записей из успешно обработанных.
-// Возвращает SettingID записей, которые были удалены.
+// Возвращает ID записей, которые были удалены.
 func (re *CompletedPostgres) Delete(ctx context.Context, expiry time.Duration, limit int) (rowsIDs []uint64, err error) {
 	sql := `
 		WITH completed_expired_items as (

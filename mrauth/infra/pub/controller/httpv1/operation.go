@@ -1,6 +1,7 @@
 package httpv1
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/mondegor/go-sysmess/mrerr"
@@ -9,6 +10,7 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/validate"
@@ -21,28 +23,34 @@ const (
 )
 
 // Operation - comment struct.
-type Operation struct {
-	parser                   validate.RequestParser
-	sender                   mrserver.ResponseSender
-	useCaseConfirmOperation  mrauth.ConfirmOperationUseCase
-	useCaseResendConfirmCode mrauth.ResendConfirmCodeUseCase
-	factoryOperationResponse factoryOperationResponse
-}
+type (
+	Operation struct {
+		parser                   validate.RequestParser
+		sender                   mrserver.ResponseSender
+		useCaseConfirmOperation  confirmOperationUseCase
+		useCaseResendConfirmCode resendConfirmCodeUseCase
+		operationResponse        confirmOperationResponse
+	}
+
+	resendConfirmCodeUseCase interface {
+		Execute(ctx context.Context, langCode, operationToken string) (entity.SecureOperation, error)
+	}
+)
 
 // NewOperation - создаёт объект Operation.
 func NewOperation(
 	parser validate.RequestParser,
 	sender mrserver.ResponseSender,
-	useCaseConfirmOperation mrauth.ConfirmOperationUseCase,
-	useCaseResendConfirmCode mrauth.ResendConfirmCodeUseCase,
-	factoryOperationResponse factoryOperationResponse,
+	useCaseConfirmOperation confirmOperationUseCase,
+	useCaseResendConfirmCode resendConfirmCodeUseCase,
+	operationResponse confirmOperationResponse,
 ) *Operation {
 	return &Operation{
 		parser:                   parser,
 		sender:                   sender,
 		useCaseConfirmOperation:  useCaseConfirmOperation,
 		useCaseResendConfirmCode: useCaseResendConfirmCode,
-		factoryOperationResponse: factoryOperationResponse,
+		operationResponse:        operationResponse,
 	}
 }
 
@@ -65,7 +73,7 @@ func (ht *Operation) Confirm(w http.ResponseWriter, r *http.Request) error {
 
 	lz := ht.parser.Localizer(r)
 
-	op, err := ht.useCaseConfirmOperation.Perform(r.Context(), lz.Language(), request.Token, request.Secret)
+	op, err := ht.useCaseConfirmOperation.Execute(r.Context(), lz.Language(), request.Token, request.Secret)
 	if err != nil {
 		if !mrauth.ErrConfirmCodeIsIncorrect.Is(err) && !mrauth.ErrNoAttemptsToConfirmOperation.Is(err) {
 			return ht.wrapError(err)
@@ -74,7 +82,7 @@ func (ht *Operation) Confirm(w http.ResponseWriter, r *http.Request) error {
 		return ht.sender.Send(
 			w,
 			http.StatusBadRequest,
-			ht.factoryOperationResponse.NewErrorConfirmOperation(op, lz, err),
+			ht.operationResponse.NewErrorConfirmOperation(op, lz, err),
 		)
 	}
 
@@ -83,7 +91,7 @@ func (ht *Operation) Confirm(w http.ResponseWriter, r *http.Request) error {
 		return ht.sender.Send(
 			w,
 			http.StatusOK,
-			ht.factoryOperationResponse.NewConfirmOperation(
+			ht.operationResponse.NewConfirmOperation(
 				op,
 				lz.Translate("your account has been success registered"),
 			),
@@ -104,7 +112,7 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 
 	lz := ht.parser.Localizer(r)
 
-	op, err := ht.useCaseResendConfirmCode.Perform(r.Context(), lz.Language(), request.Token)
+	op, err := ht.useCaseResendConfirmCode.Execute(r.Context(), lz.Language(), request.Token)
 	if err != nil {
 		if mr.ErrUseCaseEntityNotFound.Is(err) {
 			return mrauth.ErrTokenNotFoundOrExpired.Wrap(err)
@@ -114,7 +122,7 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 			return ht.sender.Send(
 				w,
 				http.StatusBadRequest,
-				ht.factoryOperationResponse.NewErrorConfirmOperation(op, lz, mrerr.NewCustomError("token", err)),
+				ht.operationResponse.NewErrorConfirmOperation(op, lz, mrerr.NewCustomError("token", err)),
 			)
 		}
 
@@ -124,7 +132,7 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
-		ht.factoryOperationResponse.NewConfirmOperation(
+		ht.operationResponse.NewConfirmOperation(
 			op,
 			lz.Translate("The confirmation code has been sent successfully"),
 		),

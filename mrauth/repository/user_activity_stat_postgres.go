@@ -37,7 +37,7 @@ func NewUserActivityStatPostgres(
 	}
 }
 
-// FetchOne - возвращает список сообщений по их указанным SettingID.
+// FetchOne - возвращает список сообщений по их указанным ID.
 func (re *UserActivityStatPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row entity.UserActivityStat, err error) {
 	sql := `
 		SELECT
@@ -70,7 +70,7 @@ func (re *UserActivityStatPostgres) FetchOne(ctx context.Context, userID uuid.UU
 	return row, nil
 }
 
-// InsertOrUpdate - возвращает список сообщений по их указанным SettingID.
+// InsertOrUpdate - возвращает список сообщений по их указанным ID.
 func (re *UserActivityStatPostgres) InsertOrUpdate(ctx context.Context, row entity.UserActivityStat) error {
 	sql := `
 		INSERT INTO ` + re.table.Name + `

@@ -5,10 +5,8 @@ import (
 
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrmailer"
-	"github.com/mondegor/go-components/mrmailer/entity"
 	"github.com/mondegor/go-components/mrqueue"
 )
 
@@ -33,7 +31,7 @@ func New(
 		txManager:    txManager,
 		storage:      storage,
 		useCaseQueue: useCaseQueue,
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameMessage),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrmailer.MessageCleaner"),
 	}
 }
 
@@ -55,9 +53,7 @@ func (co *MessageCleaner) RemoveCompletedMessages(ctx context.Context, limit int
 
 		if len(itemsIDs) > 0 {
 			if err = co.storage.DeleteByIDs(ctx, itemsIDs); err != nil {
-				if !mr.ErrStorageRowsNotAffected.Is(err) {
-					return co.errorWrapper.WrapErrorFailed(err)
-				}
+				return co.errorWrapper.WrapErrorFailed(err)
 			}
 		}
 
@@ -75,9 +71,7 @@ func (co *MessageCleaner) RemoveBrokenMessages(ctx context.Context, limit int) e
 
 		if len(itemsIDs) > 0 {
 			if err = co.storage.DeleteByIDs(ctx, itemsIDs); err != nil {
-				if !mr.ErrStorageRowsNotAffected.Is(err) {
-					return co.errorWrapper.WrapErrorFailed(err)
-				}
+				return co.errorWrapper.WrapErrorFailed(err)
 			}
 		}
 

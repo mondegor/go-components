@@ -18,8 +18,9 @@ import (
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service"
+	"github.com/mondegor/go-components/mrauth/service/check"
+	session2 "github.com/mondegor/go-components/mrauth/service/session"
 	usecaseauth "github.com/mondegor/go-components/mrauth/usecase/auth"
-	"github.com/mondegor/go-components/mrauth/usecase/check"
 	"github.com/mondegor/go-components/mrauth/usecase/operation"
 	"github.com/mondegor/go-components/mrauth/usecase/session"
 	"github.com/mondegor/go-components/mrauth/usecase/session/handler"
@@ -31,6 +32,7 @@ func initUnitAuthController(
 	logger mrlog.Logger,
 	eventEmitter mrevent.Emitter,
 	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
+	serviceErrorWrapper mrerr.ErrorWrapper,
 	dbConnManager mrstorage.DBConnManager,
 	storageUser *repository.UserPostgres,
 	storageCheckUser *repository.CheckUserPostgres,
@@ -48,18 +50,17 @@ func initUnitAuthController(
 	userRealms []auth.UserRealm,
 	jwtConfig auth.JWT,
 ) (mrserver.HttpController, error) {
-	contactAddressParser := contactaddress.NewParser()
-
-	checkUserUseCase := check.NewAuthHelper(
+	checkUserService := check.NewUserLogin(
 		storageCheckUser,
 		storageUserRealm,
-		contactAddressParser,
-		useCaseErrorWrapper,
+		serviceErrorWrapper,
 	)
+
+	contactAddressParser := contactaddress.NewParser()
 
 	useCaseCreateUser := usecaseauth.NewCreateUser(
 		dbConnManager,
-		checkUserUseCase,
+		checkUserService,
 		storageSecureOperation,
 		notifierAPI,
 		locker,
@@ -68,9 +69,9 @@ func initUnitAuthController(
 		mapping.OptionUserRealmsToConfirmCreateUserRealms(userRealms),
 	)
 
-	useCaseConfirmAuthSession := usecaseauth.NewCreateSession(
+	useCaseConfirmAuthUser := usecaseauth.NewCreateSession( // ?????????????????????? CreateSession
 		dbConnManager,
-		checkUserUseCase,
+		checkUserService,
 		storageSecureOperation,
 		notifierAPI,
 		contactAddressParser,
@@ -93,11 +94,16 @@ func initUnitAuthController(
 		mapping.OptionUserRealmsToConfirmCreateSessionRealms(userRealms),
 	)
 
-	useCaseCreateSession := session.NewSession(
-		dbConnManager,
+	serviceAuthToken := session2.NewAuthToken(
 		storageAuthToken,
+		serviceErrorWrapper,
+		logger,
+		mapping.OptionUserRealmsToCreateSessionRealms(userRealms, jwtConfig),
+	)
+
+	useCaseOpenSession := session.NewOpenSession(
+		dbConnManager,
 		storageUserActivityStat,
-		storageSecureOperation,
 		handler.NewCreateUser(
 			dbConnManager,
 			storageUser,
@@ -113,10 +119,22 @@ func initUnitAuthController(
 			useCaseErrorWrapper,
 			logger,
 		),
+		serviceAuthToken,
+		useCaseErrorWrapper,
+	)
+
+	useCaseContinueSession := session.NewContinueSession(
+		dbConnManager,
+		storageAuthToken,
+		serviceAuthToken,
 		eventEmitter,
 		useCaseErrorWrapper,
 		logger,
-		mapping.OptionUserRealmsToCreateSessionRealms(userRealms, jwtConfig),
+	)
+
+	useCaseCloseSession := session.NewCloseSession(
+		serviceAuthToken,
+		useCaseErrorWrapper,
 	)
 
 	useCaseUserInfo := usecaseauth.NewUserInfo(
@@ -132,9 +150,11 @@ func initUnitAuthController(
 		requestParser,
 		responseSender,
 		useCaseCreateUser,
-		useCaseConfirmAuthSession,
+		useCaseConfirmAuthUser,
 		useCaseConfirmOperation,
-		useCaseCreateSession,
+		useCaseOpenSession,
+		useCaseContinueSession,
+		useCaseCloseSession,
 		useCaseUserInfo,
 		bag.NewOperationResponse(withDebugInfo),
 	)

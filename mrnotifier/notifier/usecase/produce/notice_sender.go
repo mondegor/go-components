@@ -47,7 +47,7 @@ func New(
 		sequenceGenerator: sequenceGenerator,
 		storage:           storage,
 		useCaseQueue:      useCaseQueue,
-		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameNotice),
+		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrnotifier.NoticeSender"),
 		traceManager:      traceManager,
 		retryAttempts:     defaultRetryAttempts,
 	}

@@ -24,7 +24,7 @@ func NewStatistic(
 ) *Statistic {
 	return &Statistic{
 		storageLog:   storageLog,
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSecureOperation),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.Statistic"),
 	}
 }
 

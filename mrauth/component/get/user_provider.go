@@ -8,7 +8,6 @@ import (
 	"github.com/mondegor/go-webcore/mraccess"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/repository"
 )
 
@@ -37,7 +36,7 @@ func New(
 
 	return &UserProvider{
 		storage:       storage,
-		errorWrapper:  mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameAuthToken),
+		errorWrapper:  mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.UserProvider"),
 		userGroups:    userGroups,
 		allowedRealms: allowedRealmsMap,
 	}
@@ -51,7 +50,7 @@ func (co *UserProvider) UserByToken(ctx context.Context, value string) (mraccess
 
 	authToken, err := co.storage.FetchOne(ctx, value)
 	if err != nil {
-		if repository.ErrTokenExpired.Is(err) || co.errorWrapper.IsNotFoundOrNotAffectedError(err) {
+		if repository.ErrTokenExpired.Is(err) || co.errorWrapper.IsNotFoundError(err) {
 			// возвращаемая ошибка специально обобщается
 			return nil, mrauth.ErrTokenNotFoundOrExpired.Wrap(mr.ErrUseCaseEntityNotFound)
 		}

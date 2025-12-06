@@ -38,25 +38,25 @@ func NewUserInfo(
 		storageUser2FA:   storageUser2FA,
 		storageUserStat:  storageUserStat,
 		storageUserRealm: storageUserRealm,
-		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameUser),
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.UserInfo"),
 	}
 }
 
-// Get - возвращает строковое значение настройки с указанным идентификатором.
-func (uc *UserInfo) Get(ctx context.Context, userID uuid.UUID) (userInfo entity.UserInfo, err error) {
+// Execute - возвращает строковое значение настройки с указанным идентификатором.
+func (uc *UserInfo) Execute(ctx context.Context, userID uuid.UUID) (userInfo entity.UserInfo, err error) {
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		if userInfo.User, err = uc.storageUser.FetchOne(ctx, userID); err != nil {
 			return uc.errorWrapper.WrapErrorFailed(err) // the user must be
 		}
 
 		if userInfo.Auth2fa, err = uc.storageUser2FA.FetchOne(ctx, userID); err != nil {
-			if !uc.errorWrapper.IsNotFoundOrNotAffectedError(err) {
+			if !uc.errorWrapper.IsNotFoundError(err) {
 				return uc.errorWrapper.WrapErrorFailed(err)
 			}
 		}
 
 		if userInfo.Stat, err = uc.storageUserStat.FetchOne(ctx, userID); err != nil {
-			if !uc.errorWrapper.IsNotFoundOrNotAffectedError(err) {
+			if !uc.errorWrapper.IsNotFoundError(err) {
 				return uc.errorWrapper.WrapErrorFailed(err)
 			}
 		}

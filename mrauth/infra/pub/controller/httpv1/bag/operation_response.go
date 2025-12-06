@@ -12,9 +12,11 @@ import (
 )
 
 // OperationResponse - comment struct.
-type OperationResponse struct {
-	withDebugInfo bool
-}
+type (
+	OperationResponse struct {
+		withDebugInfo bool
+	}
+)
 
 // NewOperationResponse - создаёт объект OperationResponse.
 func NewOperationResponse(withDebugInfo bool) *OperationResponse {
@@ -24,7 +26,10 @@ func NewOperationResponse(withDebugInfo bool) *OperationResponse {
 }
 
 // NewConfirmOperation - comment method.
-func (r *OperationResponse) NewConfirmOperation(operation entity.SecureOperation, message string) model.WaitingConfirmOperationResponse {
+func (r *OperationResponse) NewConfirmOperation(
+	operation entity.SecureOperation,
+	message string,
+) model.WaitingConfirmOperationResponse {
 	return model.WaitingConfirmOperationResponse{
 		Token:             operation.Token,
 		ConfirmMethod:     r.operationAction(&operation).Method,
@@ -38,7 +43,11 @@ func (r *OperationResponse) NewConfirmOperation(operation entity.SecureOperation
 }
 
 // NewErrorConfirmOperation - comment method.
-func (r *OperationResponse) NewErrorConfirmOperation(operation entity.SecureOperation, lz mrcore.Localizer, err error) model.ErrorConfirmOperationResponse {
+func (r *OperationResponse) NewErrorConfirmOperation(
+	operation entity.SecureOperation,
+	lz mrcore.Localizer,
+	err error,
+) model.ErrorConfirmOperationResponse {
 	return model.ErrorConfirmOperationResponse{
 		OperationStatus: r.newOperationStatus(&operation),
 		Errors: []mrresp.ErrorAttribute{

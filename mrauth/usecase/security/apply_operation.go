@@ -10,7 +10,6 @@ import (
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
@@ -34,7 +33,7 @@ func NewApplyOperation(
 	return &ApplyOperation{
 		txManager:        txManager,
 		storageOperation: storageOperation,
-		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSecureOperation),
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.ApplyOperation"),
 		handlerMap:       handlerMap,
 	}
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/mondegor/go-sysmess/mrevent"
 
 	"github.com/mondegor/go-components/mrqueue"
-	"github.com/mondegor/go-components/mrqueue/entity"
 )
 
 const (
@@ -40,8 +39,8 @@ func New(
 ) *QueueCleaner {
 	co := &QueueCleaner{
 		storage:         storage,
-		eventEmitter:    mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameItem),
-		errorWrapper:    mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameItem),
+		eventEmitter:    mrevent.NewSourceEmitter(eventEmitter, "mrqueue.QueueCleaner"),
+		errorWrapper:    mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrqueue.QueueCleaner"),
 		completedExpiry: defaultCompletedExpiry,
 		brokenExpiry:    defaultBrokenExpiry,
 	}
@@ -62,9 +61,7 @@ func (co *QueueCleaner) RemoveItemsWithoutAttempts(ctx context.Context, limit in
 
 	itemsIDs, err = co.storage.DeleteRetryWithoutAttempts(ctx, limit)
 	if err != nil {
-		if !mr.ErrStorageRowsNotAffected.Is(err) {
-			return nil, co.errorWrapper.WrapErrorFailed(err)
-		}
+		return nil, co.errorWrapper.WrapErrorFailed(err)
 	}
 
 	co.eventEmitter.Emit(ctx, "RemoveItemsWithoutAttempts", mrargs.Group{"count": len(itemsIDs)})
@@ -85,9 +82,7 @@ func (co *QueueCleaner) RemoveCompletedItems(ctx context.Context, limit int) (it
 
 	itemsIDs, err = co.storageCompleted.Delete(ctx, co.completedExpiry, limit)
 	if err != nil {
-		if !mr.ErrStorageRowsNotAffected.Is(err) {
-			return nil, co.errorWrapper.WrapErrorFailed(err)
-		}
+		return nil, co.errorWrapper.WrapErrorFailed(err)
 	}
 
 	co.eventEmitter.Emit(ctx, "RemoveCompletedItems", mrargs.Group{"count": len(itemsIDs)})
@@ -108,9 +103,7 @@ func (co *QueueCleaner) RemoveBrokenItems(ctx context.Context, limit int) (items
 
 	itemsIDs, err = co.storageBroken.Delete(ctx, co.brokenExpiry, limit)
 	if err != nil {
-		if !mr.ErrStorageRowsNotAffected.Is(err) {
-			return nil, co.errorWrapper.WrapErrorFailed(err)
-		}
+		return nil, co.errorWrapper.WrapErrorFailed(err)
 	}
 
 	co.eventEmitter.Emit(ctx, "RemoveBrokenItems", mrargs.Group{"count": len(itemsIDs)})

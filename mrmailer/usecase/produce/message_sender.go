@@ -49,7 +49,7 @@ func New(
 		sequenceGenerator: sequenceGenerator,
 		storage:           storage,
 		useCaseQueue:      useCaseQueue,
-		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameMessage),
+		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrmailer.MessageSender"),
 		traceManager:      traceManager,
 		retryAttempts:     defaultRetryAttempts,
 		delayCorrection:   defaultDelayCorrection,

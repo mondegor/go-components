@@ -20,13 +20,11 @@ import (
 type (
 	// UserPostgres - comment struct.
 	UserPostgres struct {
-		client            mrstorage.DBConnManager
-		table             mrsql.DBTableInfo
-		repoUserIDByEmail db.FieldFetcher[string, uuid.UUID]
-		repoUserIDByPhone db.FieldFetcher[uint64, uuid.UUID]
-		repoEmail         db.FieldUpdater[uuid.UUID, string]
-		repoPhone         db.FieldUpdater[uuid.UUID, uint64]
-		errorWrapper      mrerr.ErrorWrapper
+		client       mrstorage.DBConnManager
+		table        mrsql.DBTableInfo
+		repoEmail    db.FieldUpdater[uuid.UUID, string]
+		repoPhone    db.FieldUpdater[uuid.UUID, uint64]
+		errorWrapper mrerr.ErrorWrapper
 	}
 )
 
@@ -57,12 +55,12 @@ func NewUserPostgres(
 	}
 }
 
-// FetchOne - возвращает список сообщений по их указанным SettingID.
+// FetchOne - возвращает список сообщений по их указанным ID.
 func (re *UserPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row entity.User, err error) {
 	return re.fetchOneBy(ctx, "user_id", userID)
 }
 
-// FetchOneByLogin - возвращает список сообщений по их указанным SettingID.
+// FetchOneByLogin - возвращает список сообщений по их указанным ID.
 func (re *UserPostgres) FetchOneByLogin(ctx context.Context, userLogin contactaddress.ContactAddress) (row entity.User, err error) {
 	if userLogin.Type == addresstype.Email {
 		return re.fetchOneBy(ctx, "user_email", userLogin.Value)
@@ -119,27 +117,7 @@ func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldV
 	return row, nil
 }
 
-// UserIDByEmail - возвращает список сообщений по их указанным SettingID.
-func (re *UserPostgres) UserIDByEmail(ctx context.Context, userEmail string) (rowID uuid.UUID, err error) {
-	rowID, err = re.repoUserIDByEmail.Fetch(ctx, userEmail)
-	if err != nil {
-		return uuid.Nil, re.errorWrapper.WrapError(err)
-	}
-
-	return rowID, nil
-}
-
-// UserIDByPhone - возвращает список сообщений по их указанным SettingID.
-func (re *UserPostgres) UserIDByPhone(ctx context.Context, userPhone uint64) (rowID uuid.UUID, err error) {
-	rowID, err = re.repoUserIDByPhone.Fetch(ctx, userPhone)
-	if err != nil {
-		return uuid.Nil, re.errorWrapper.WrapError(err)
-	}
-
-	return rowID, nil
-}
-
-// Insert - возвращает список сообщений по их указанным SettingID.
+// Insert - возвращает список сообщений по их указанным ID.
 func (re *UserPostgres) Insert(ctx context.Context, row entity.User) (rowID uuid.UUID, err error) {
 	sql := `
 		INSERT INTO ` + re.table.Name + `

@@ -7,7 +7,6 @@ import (
 	"github.com/mondegor/go-sysmess/mrerr"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/entity"
 )
 
 type (
@@ -28,7 +27,7 @@ func NewOperationCleaner(
 	return &OperationCleaner{
 		storage:      storage,
 		storageLog:   storageLog,
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSecureOperation),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.OperationCleaner"),
 	}
 }
 

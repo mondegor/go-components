@@ -37,8 +37,8 @@ func New(
 	co := &QueueConsumer{
 		txManager:    txManager,
 		storage:      storage,
-		eventEmitter: mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameItem),
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameItem),
+		eventEmitter: mrevent.NewSourceEmitter(eventEmitter, "mrqueue.QueueConsumer"),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrqueue.QueueConsumer"),
 	}
 
 	for _, opt := range opts {
@@ -73,9 +73,10 @@ func (co *QueueConsumer) CancelItems(ctx context.Context, itemsIDs []uint64) err
 	}
 
 	if err := co.storage.UpdateStatusProcessingToReady(ctx, itemsIDs); err != nil {
-		if !mr.ErrStorageRowsNotAffected.Is(err) {
-			return co.errorWrapper.WrapErrorFailed(err)
-		}
+		// if mr.ErrStorageRowsNotAffected.Is(err) {
+		// 	return nil // TODO: залогировать, что записей не оказалось
+		// }
+		return co.errorWrapper.WrapErrorFailed(err)
 	}
 
 	co.eventEmitter.Emit(ctx, "CancelItems", mrargs.Group{"count": len(itemsIDs)})
@@ -115,16 +116,12 @@ func (co *QueueConsumer) Reject(ctx context.Context, itemID uint64, causeErr err
 	}
 
 	return co.txManager.Do(ctx, func(ctx context.Context) error {
-		eventName := "Reject"
-
 		// :TODO: если ошибка causeErr типа INTERNAL, то не делать больше попыток
-
 		if err := co.storage.UpdateStatusProcessingToRetry(ctx, itemID); err != nil {
-			if !mr.ErrStorageRowsNotAffected.Is(err) {
-				return co.errorWrapper.WrapErrorFailed(err)
-			}
-
-			eventName += "Skipped"
+			// if mr.ErrStorageRowsNotAffected.Is(err) {
+			// 	return nil // TODO: залогировать, что записи не оказалось
+			// }
+			return co.errorWrapper.WrapErrorFailed(err)
 		}
 
 		if co.storageBroken != nil {
@@ -138,7 +135,7 @@ func (co *QueueConsumer) Reject(ctx context.Context, itemID uint64, causeErr err
 			}
 		}
 
-		co.eventEmitter.Emit(ctx, eventName, mrargs.Group{"id": itemID})
+		co.eventEmitter.Emit(ctx, "Reject", mrargs.Group{"id": itemID})
 
 		return nil
 	})

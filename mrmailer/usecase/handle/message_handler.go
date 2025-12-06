@@ -33,7 +33,7 @@ func New(
 		clientEmail:     nop.New(trace), // disabled by default
 		clientSMS:       nop.New(trace), // disabled by default
 		clientMessenger: nop.New(trace), // disabled by default
-		errorWrapper:    mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameMessage),
+		errorWrapper:    mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrmailer.MessageHandler"),
 	}
 
 	for _, opt := range opts {

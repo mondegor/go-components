@@ -196,10 +196,14 @@ func (re *Repository) UpdateNode(ctx context.Context, row entity.Node, condition
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	if err != nil {
+		if mr.ErrStorageRowsNotAffected.Is(err) {
+			err = mr.ErrStorageNoRowFound.Wrap(err)
+		}
+
 		return re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"id": row.ID})
 	}
 
-	return err
+	return nil
 }
 
 // UpdateNodePrevID - обновляет местоположение элемента в списке с учётом указанного условия.
@@ -237,7 +241,8 @@ func (re *Repository) RecalcOrderIndex(ctx context.Context, minBorder, step uint
 		sql,
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
-	if err != nil {
+	// если это внутренняя ошибка
+	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
 		return re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"orderIndex": minBorder, "step": step})
 	}
 
@@ -314,6 +319,10 @@ func (re *Repository) updateNodeNeighborID(
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	if err != nil {
+		if mr.ErrStorageRowsNotAffected.Is(err) {
+			err = mr.ErrStorageNoRowFound.Wrap(err)
+		}
+
 		return re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"id": rowID})
 	}
 

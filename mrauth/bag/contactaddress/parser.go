@@ -14,7 +14,9 @@ const (
 )
 
 // Parser - comments struct.
-type Parser struct{}
+type (
+	Parser struct{}
+)
 
 // NewParser - создаёт объект Parser.
 func NewParser() *Parser {

@@ -48,7 +48,7 @@ func NewApplyTOTPGenerator(
 		storage:          storage,
 		storageOperation: storageOperation,
 		notifierAPI:      notifierAPI,
-		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSecureOperation),
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.ApplyTOTPGenerator"),
 		issuer:           issuer,
 	}
 }

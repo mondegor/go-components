@@ -39,8 +39,8 @@ func New(
 		formatter:    formatter,
 		storage:      storage,
 		storageLog:   storageLog,
-		eventEmitter: mrevent.NewSourceEmitter(eventEmitter, entity.ModelNameSetting+".Setter"),
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSetting+".Setter"),
+		eventEmitter: mrevent.NewSourceEmitter(eventEmitter, "mrsettings.SettingsSetter"),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrsettings.SettingsSetter"),
 	}
 }
 

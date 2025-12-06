@@ -8,7 +8,6 @@ import (
 	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/entity"
 )
 
 type (
@@ -26,12 +25,12 @@ func NewRevokeOperation(
 ) *RevokeOperation {
 	return &RevokeOperation{
 		storageOperation: storageOperation,
-		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSecureOperation),
+		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.RevokeOperation"),
 	}
 }
 
-// Perform - comments method.
-func (co *RevokeOperation) Perform(ctx context.Context, operationToken string) error {
+// Execute - comments method.
+func (co *RevokeOperation) Execute(ctx context.Context, operationToken string) error {
 	if operationToken == "" {
 		return mr.ErrUseCaseIncorrectInputData.New("operationToken is empty")
 	}

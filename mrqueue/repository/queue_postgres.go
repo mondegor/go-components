@@ -8,6 +8,7 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrqueue/entity"
 	"github.com/mondegor/go-components/mrqueue/enum"
@@ -242,7 +243,7 @@ func (re *QueuePostgres) FetchAndUpdateStatusRetryToReady(ctx context.Context, d
 }
 
 // DeleteRetryWithoutAttempts - удаляет из очереди ограниченный список записей находящихся
-// в статусе RETRY и с нулевым кол-вом попыток в целях разгрузки очереди. Возвращает SettingID записей, которые были удалены.
+// в статусе RETRY и с нулевым кол-вом попыток в целях разгрузки очереди. Возвращает ID записей, которые были удалены.
 func (re *QueuePostgres) DeleteRetryWithoutAttempts(ctx context.Context, limit int) (rowsIDs []uint64, err error) {
 	sql := `
 		WITH retry_without_attempts as (
@@ -275,7 +276,7 @@ func (re *QueuePostgres) DeleteRetryWithoutAttempts(ctx context.Context, limit i
 	)
 }
 
-// Delete - удаляет запись из очереди по указанному SettingID и находящеюся в указанном статусе.
+// Delete - удаляет запись из очереди по указанному rowID и находящеюся в указанном статусе.
 func (re *QueuePostgres) Delete(ctx context.Context, rowID uint64, status enum.ItemStatus) error {
 	sql := `
 		DELETE FROM
@@ -283,10 +284,15 @@ func (re *QueuePostgres) Delete(ctx context.Context, rowID uint64, status enum.I
 		WHERE
 			` + re.table.PrimaryKey + ` = $1 AND item_status = $2;`
 
-	return re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		rowID,
 		status,
 	)
+	if err != nil && mr.ErrStorageRowsNotAffected.Is(err) {
+		return mr.ErrStorageNoRowFound.Wrap(err)
+	}
+
+	return err
 }

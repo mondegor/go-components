@@ -5,6 +5,7 @@ import (
 
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrnotifier/notifier/entity"
 )
@@ -25,7 +26,7 @@ func NewNoticePostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) 
 	}
 }
 
-// FetchByIDs - возвращает список уведомлений по их указанным SettingID.
+// FetchByIDs - возвращает список уведомлений по их указанным ID.
 func (re *NoticePostgres) FetchByIDs(ctx context.Context, rowsIDs []uint64) ([]entity.Notice, error) {
 	sql := `
 		SELECT
@@ -89,7 +90,7 @@ func (re *NoticePostgres) Insert(ctx context.Context, row entity.Notice) error {
 	)
 }
 
-// DeleteByIDs - удаляет уведомления по их указанным SettingID.
+// DeleteByIDs - удаляет уведомления по их указанным ID.
 func (re *NoticePostgres) DeleteByIDs(ctx context.Context, rowsIDs []uint64) error {
 	sql := `
 		DELETE FROM
@@ -97,9 +98,15 @@ func (re *NoticePostgres) DeleteByIDs(ctx context.Context, rowsIDs []uint64) err
 		WHERE
 			` + re.table.PrimaryKey + ` = ANY($1);`
 
-	return re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		rowsIDs,
 	)
+	// если это внутренняя ошибка
+	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
+		return err
+	}
+
+	return nil
 }

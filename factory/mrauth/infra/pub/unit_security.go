@@ -5,12 +5,10 @@ import (
 
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrlib/crypt/password"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation/action"
@@ -18,7 +16,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service"
-	"github.com/mondegor/go-components/mrauth/usecase/check"
+	"github.com/mondegor/go-components/mrauth/service/check"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/handler"
 	"github.com/mondegor/go-components/mrauth/validate"
@@ -28,6 +26,7 @@ import (
 func initSecurityController(
 	logger mrlog.Logger,
 	useCaseErrorWrapper mrerr.UseCaseErrorWrapper,
+	serviceErrorWrapper mrerr.ErrorWrapper,
 	dbConnManager mrstorage.DBConnManager,
 	storageUser *repository.UserPostgres,
 	storageCheckUser *repository.CheckUserPostgres,
@@ -39,64 +38,97 @@ func initSecurityController(
 	notifierAPI mrnotifier.NoticeProducer,
 	withDebugInfo bool,
 ) (mrserver.HttpController, error) {
-	useCase := security.NewChangeProperty(
+	checkUserService := check.NewUserLogin(
+		storageCheckUser,
+		storageUserRealm,
+		serviceErrorWrapper,
+	)
+
+	factoryConfirm2FA := service.NewFactoryConfirm2FA(
+		storageUser,
+		storageAuth2fa,
+		action.NewConfirmBy2fa(
+			[]action.Option{
+				action.WithMaxAttempts(5), // TODO: в настройки
+				action.WithExpiry(30 * time.Minute),
+			},
+			[]action.Option{
+				action.WithMaxAttempts(5), // TODO: в настройки
+				action.WithExpiry(30 * time.Minute),
+			},
+		),
+		useCaseErrorWrapper,
+	)
+
+	useCaseChangeEmailProperty := security.NewChangeEmailProperty(
 		dbConnManager,
 		storageSecureOperation,
-		check.NewAuthHelper(
-			storageCheckUser,
-			storageUserRealm,
-			contactaddress.NewParser(), // ??????
-			useCaseErrorWrapper,
-		),
+		checkUserService,
 		notifierAPI,
-		service.NewFactoryConfirm2FA(
-			storageUser,
-			storageAuth2fa,
-			action.NewConfirmBy2fa(
-				[]action.Option{
-					action.WithMaxAttempts(5), // TODO: в настройки
-					action.WithExpiry(30 * time.Minute),
-				},
-				[]action.Option{
-					action.WithMaxAttempts(5), // TODO: в настройки
-					action.WithExpiry(30 * time.Minute),
-				},
-			),
-			useCaseErrorWrapper,
-		),
+		factoryConfirm2FA,
 		secureoperation.NewChangeEmail(
 			crypt.NewTokenGenerator(64),
 			crypt.NewCodeGenerator(6),
 			action.WithMaxAttempts(5), // TODO: в настройки
 			action.WithExpiry(30*time.Minute),
 		),
+		useCaseErrorWrapper,
+	)
+
+	useCaseChangePhoneProperty := security.NewChangePhoneProperty(
+		dbConnManager,
+		storageSecureOperation,
+		checkUserService,
+		notifierAPI,
+		factoryConfirm2FA,
 		secureoperation.NewChangePhone(
 			crypt.NewTokenGenerator(64),
 			crypt.NewCodeGenerator(6),
 			action.WithMaxAttempts(5), // TODO: в настройки
 			action.WithExpiry(30*time.Minute),
 		),
+		useCaseErrorWrapper,
+	)
+
+	useCaseChangePasswordProperty := security.NewChangePasswordProperty(
+		dbConnManager,
+		storageSecureOperation,
+		notifierAPI,
+		factoryConfirm2FA,
 		secureoperation.NewChangePassword(
 			crypt.NewTokenGenerator(64),
 			crypt.NewCodeGenerator(6),
 			action.WithMaxAttempts(5), // TODO: в настройки
 			action.WithExpiry(30*time.Minute),
 		),
+		useCaseErrorWrapper,
+	)
+
+	useCaseChangeTOTPProperty := security.NewChangeTOTPGeneratorProperty(
+		dbConnManager,
+		storageSecureOperation,
+		notifierAPI,
+		factoryConfirm2FA,
 		secureoperation.NewChangeTOTP(
 			crypt.NewTokenGenerator(64),
 			crypt.NewCodeGenerator(6),
 			action.WithMaxAttempts(5), // TODO: в настройки
 			action.WithExpiry(30*time.Minute),
 		),
+		useCaseErrorWrapper,
+	)
+
+	useCaseDisable2FA := security.NewDisable2FA(
+		dbConnManager,
+		storageSecureOperation,
+		notifierAPI,
+		factoryConfirm2FA,
 		secureoperation.NewDisable2FA(
 			crypt.NewTokenGenerator(64),
 			crypt.NewCodeGenerator(6),
 			action.WithMaxAttempts(5), // TODO: в настройки
 			action.WithExpiry(30*time.Minute),
 		),
-		func() string {
-			return password.NewGenerator().Generate(16, password.CharAll) // TODO: в настройки
-		},
 		useCaseErrorWrapper,
 	)
 
@@ -144,7 +176,11 @@ func initSecurityController(
 	controller := httpv1.NewSecurity(
 		requestParser,
 		responseFileSender,
-		useCase,
+		useCaseChangeEmailProperty,
+		useCaseChangePhoneProperty,
+		useCaseChangePasswordProperty,
+		useCaseChangeTOTPProperty,
+		useCaseDisable2FA,
 		useCaseApplyTOTPGenerator,
 		useCaseApplyOperation,
 		bag.NewOperationResponse(withDebugInfo),

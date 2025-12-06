@@ -37,7 +37,7 @@ func NewChangePassword(
 	return &ChangePassword{
 		storage:      storage,
 		notifierAPI:  notifierAPI,
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameAuth2fa),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.ChangePassword"),
 		logger:       logger,
 	}
 }

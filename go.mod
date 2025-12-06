@@ -5,9 +5,9 @@ go 1.24.0
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
-	github.com/mondegor/go-storage v0.17.2-0.20251202155317-460e51bd738f
-	github.com/mondegor/go-sysmess v0.15.4-0.20251202154514-e962b350a5ef
-	github.com/mondegor/go-webcore v0.29.3-0.20251202155112-9431d9096ee8
+	github.com/mondegor/go-storage v0.17.2-0.20251206141616-aff8014d1409
+	github.com/mondegor/go-sysmess v0.15.4-0.20251206134308-2061d68cc806
+	github.com/mondegor/go-webcore v0.29.3-0.20251206135339-0d470b969e3c
 	github.com/pquerna/otp v1.5.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.45.0
@@ -79,7 +79,7 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/minio v0.40.0 // indirect
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.40.0 // indirect
 	github.com/testcontainers/testcontainers-go/modules/redis v0.40.0 // indirect
-	github.com/tinylib/msgp v1.5.0 // indirect
+	github.com/tinylib/msgp v1.6.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect

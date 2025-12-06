@@ -43,12 +43,12 @@ func NewConfirmOperation(
 		storageOperation:  storageOperation,
 		notifierAPI:       notifierAPI,
 		operationPreparer: operationPreparer,
-		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameSecureOperation),
+		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.ConfirmOperation"),
 	}
 }
 
-// Perform - возвращает строковое значение настройки с указанным идентификатором.
-func (co *ConfirmOperation) Perform(ctx context.Context, langCode, operationToken, confirmCode string) (entity.SecureOperation, error) {
+// Execute - возвращает строковое значение настройки с указанным идентификатором.
+func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToken, confirmCode string) (entity.SecureOperation, error) {
 	if operationToken == "" {
 		return entity.SecureOperation{}, mr.ErrUseCaseIncorrectInputData.New("operationToken is empty")
 	}

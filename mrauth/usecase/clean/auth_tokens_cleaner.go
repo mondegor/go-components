@@ -6,7 +6,6 @@ import (
 	"github.com/mondegor/go-sysmess/mrerr"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/entity"
 )
 
 type (
@@ -24,7 +23,7 @@ func NewAuthTokenCleaner(
 ) *AuthTokenCleaner {
 	return &AuthTokenCleaner{
 		storage:      storage,
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, entity.ModelNameAuthToken),
+		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.AuthTokenCleaner"),
 	}
 }
 

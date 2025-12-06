@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/mrerr/mr"
 
 	"github.com/mondegor/go-components/mrauth/entity"
 )
@@ -77,7 +78,7 @@ func (re *UserRealmPostgres) Fetch(ctx context.Context, userID uuid.UUID) ([]ent
 	return rows, cursor.Err()
 }
 
-// FetchOne - возвращает список сообщений по их указанным SettingID.
+// FetchOne - возвращает список сообщений по их указанным ID.
 func (re *UserRealmPostgres) FetchOne(ctx context.Context, userID uuid.UUID, realm string) (row entity.UserRealm, err error) {
 	sql := `
 		SELECT
@@ -106,7 +107,7 @@ func (re *UserRealmPostgres) FetchOne(ctx context.Context, userID uuid.UUID, rea
 	return row, nil
 }
 
-// Insert - возвращает список сообщений по их указанным SettingID.
+// Insert - возвращает список сообщений по их указанным ID.
 func (re *UserRealmPostgres) Insert(ctx context.Context, row entity.UserRealm) error {
 	sql := `
 		INSERT INTO ` + re.tableName + `
@@ -132,7 +133,7 @@ func (re *UserRealmPostgres) Insert(ctx context.Context, row entity.UserRealm) e
 	return nil
 }
 
-// UpdateKind - возвращает список сообщений по их указанным SettingID.
+// UpdateKind - возвращает список сообщений по их указанным ID.
 func (re *UserRealmPostgres) UpdateKind(ctx context.Context, row entity.UserRealm) error {
 	sql := `
         UPDATE
@@ -151,6 +152,10 @@ func (re *UserRealmPostgres) UpdateKind(ctx context.Context, row entity.UserReal
 		row.Kind,
 	)
 	if err != nil {
+		if mr.ErrStorageRowsNotAffected.Is(err) {
+			err = mr.ErrStorageNoRowFound.Wrap(err)
+		}
+
 		return re.errorWrapper.WrapError(err)
 	}
 
@@ -165,10 +170,19 @@ func (re *UserRealmPostgres) Delete(ctx context.Context, userID uuid.UUID, realm
 		WHERE
 			user_id = $1 AND user_realm = $2;`
 
-	return re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		userID,
 		realm,
 	)
+	if err != nil {
+		if mr.ErrStorageRowsNotAffected.Is(err) {
+			err = mr.ErrStorageNoRowFound.Wrap(err)
+		}
+
+		return re.errorWrapper.WrapError(err)
+	}
+
+	return nil
 }
