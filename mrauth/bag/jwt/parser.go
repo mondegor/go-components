@@ -1,12 +1,11 @@
 package jwt
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth/dto"
 )
@@ -28,13 +27,13 @@ type (
 
 var (
 	// ErrTokenInvalid - token is invalid.
-	ErrTokenInvalid = mrerr.NewKindUser("TokenInvalid", "jwt token is invalid")
+	ErrTokenInvalid = errors.NewUserProto("TokenInvalid", "jwt token is invalid")
 
 	// ErrTokenSectionInvalid - token section is invalid.
-	ErrTokenSectionInvalid = mrerr.NewKindUser("TokenSectionInvalid", "jwt token section '{Key}' is invalid")
+	ErrTokenSectionInvalid = errors.NewUserProto("TokenSectionInvalid", "jwt token section '{Key}' is invalid")
 
 	// ErrTokenExpired - token is expired.
-	ErrTokenExpired = mrerr.NewKindUser("TokenExpired", "jwt token is expired")
+	ErrTokenExpired = errors.NewUserProto("TokenExpired", "jwt token is expired")
 )
 
 // NewParser - создаёт объект Parser.
@@ -57,14 +56,14 @@ func (p *Parser) Parse(value string) (dto.AuthTokenScopes, error) {
 	})
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
-			return dto.AuthTokenScopes{}, ErrTokenExpired.New()
+			return dto.AuthTokenScopes{}, ErrTokenExpired
 		}
 
 		return dto.AuthTokenScopes{}, ErrTokenInvalid.Wrap(err)
 	}
 
 	if !token.Valid {
-		return dto.AuthTokenScopes{}, ErrTokenInvalid.New()
+		return dto.AuthTokenScopes{}, ErrTokenInvalid
 	}
 
 	realm, err := p.parseString(sectionAudiences, claims)

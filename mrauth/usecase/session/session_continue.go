@@ -5,11 +5,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrargs"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrevent"
 	"github.com/mondegor/go-sysmess/mrlog"
+	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -23,7 +22,7 @@ type (
 		storage        mrauth.AuthTokenStorage
 		tokenRecreator tokenRecreator
 		eventEmitter   mrevent.Emitter
-		errorWrapper   mrerr.UseCaseErrorWrapper
+		errorWrapper   errors.Wrapper
 		logger         mrlog.Logger
 	}
 
@@ -39,7 +38,6 @@ func NewContinueSession(
 	storage mrauth.AuthTokenStorage,
 	tokenRecreator tokenRecreator,
 	eventEmitter mrevent.Emitter,
-	errorWrapper mrerr.UseCaseErrorWrapper,
 	logger mrlog.Logger,
 ) *ContinueSession {
 	return &ContinueSession{
@@ -47,7 +45,7 @@ func NewContinueSession(
 		storage:        storage,
 		tokenRecreator: tokenRecreator,
 		eventEmitter:   eventEmitter,
-		errorWrapper:   mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.ContinueSession"),
+		errorWrapper:   errors.NewUseCaseWrapper(),
 		logger:         logger,
 	}
 }
@@ -55,23 +53,23 @@ func NewContinueSession(
 // Execute - возвращает строковое значение настройки с указанным идентификатором.
 func (uc *ContinueSession) Execute(ctx context.Context, _, refreshToken string) (authToken dto.AuthToken, err error) {
 	if refreshToken == "" {
-		return dto.AuthToken{}, mr.ErrUseCaseIncorrectInputData.New("refreshToken is empty")
+		return dto.AuthToken{}, errors.ErrUseCaseIncorrectInputData.New("refreshToken is empty")
 	}
 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		userScopes, err := uc.storage.Revoke(ctx, refreshToken)
 		if err != nil {
-			if repository.ErrTokenAlreadyRevoked.Is(err) {
+			if errors.Is(err, repository.ErrTokenAlreadyRevoked) {
 				if err := uc.storage.UpdateToCloseAll(ctx, userScopes.UserID); err != nil {
 					uc.logger.Error(ctx, "RevokeAlert.UpdateToCloseAll", "error", err)
 				}
 
 				// TODO: отправлять предупреждение пользователю
 
-				// err := uc.notifierAPI.SendNotice(
+				// err := uc.notifierAPI.Send(
 				//	 ctx,
 				//	 "user.revoke.token.alert",
-				//	 mrargs.Group{
+				//	 conv.Group{
 				//		 "langCode": langCode,
 				//		 "to": rights.UserID,
 				//	 },
@@ -80,18 +78,16 @@ func (uc *ContinueSession) Execute(ctx context.Context, _, refreshToken string) 
 				// 	 uc.logger.Error(ctx, "Notice 'user.revoke.token.alert' not send", "error", err)
 				// }
 
-				uc.eventEmitter.Emit(ctx, "RevokeAlert", mrargs.Group{"userId": userScopes.UserID})
+				uc.eventEmitter.Emit(ctx, "RevokeAlert", conv.Group{"userId": userScopes.UserID})
 
-				// возвращаемая ошибка специально обобщается
-				return mrauth.ErrTokenNotFoundOrExpired.Wrap(mr.ErrUseCaseEntityNotFound)
+				return mrauth.ErrTokenNotFoundOrExpired
 			}
 
-			if uc.errorWrapper.IsNotFoundError(err) || repository.ErrTokenExpired.Is(err) {
-				// возвращаемая ошибка специально обобщается
-				return mrauth.ErrTokenNotFoundOrExpired.Wrap(mr.ErrUseCaseEntityNotFound)
+			if errors.Is(err, errors.ErrEventStorageNoRowFound) || errors.Is(err, repository.ErrTokenExpired) {
+				return mrauth.ErrTokenNotFoundOrExpired
 			}
 
-			return uc.errorWrapper.WrapErrorFailed(err)
+			return uc.errorWrapper.Wrap(err)
 		}
 
 		authToken, err = uc.tokenRecreator.Create(ctx, userScopes.Realm, userScopes.UserKind, userScopes.LangCode, userScopes.UserID)

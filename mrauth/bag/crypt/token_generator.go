@@ -1,8 +1,8 @@
 package crypt
 
 import (
-	"github.com/mondegor/go-sysmess/mrerr/mr"
-	"github.com/mondegor/go-sysmess/mrlib/crypt"
+	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/util/crypt"
 )
 
 type (
@@ -36,7 +36,7 @@ func (t *TokenGenerator) GenTokenLen(length int) (string, error) {
 func (t *TokenGenerator) genToken(length int) (string, error) {
 	token, err := crypt.GenerateToken(length)
 	if err != nil {
-		return "", mr.ErrInternal.Wrap(err, "details", "invalid GenToken")
+		return "", errors.WrapInternalError(err, "invalid GenToken")
 	}
 
 	return token, nil

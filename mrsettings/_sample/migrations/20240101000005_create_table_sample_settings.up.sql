@@ -19,7 +19,7 @@ CREATE INDEX ix_sample_settings_updated_at ON sample_schema.sample_settings (upd
 
 -- --------------------------------------------------------------------------------------------------
 
-CREATE TABLE sample_schema.settings_log (
+CREATE TABLE sample_schema.sample_settings_log (
     setting_id int8 NOT NULL,
     setting_name character varying(64) NOT NULL,
     setting_new_value text NOT NULL,
@@ -27,5 +27,5 @@ CREATE TABLE sample_schema.settings_log (
     created_at timestamp with time zone NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX ix_settings_log_setting_id ON sample_schema.settings_log (setting_id);
-CREATE INDEX ix_settings_log_created_at ON sample_schema.settings_log (created_at);
+CREATE INDEX ix_sample_settings_log_setting_id ON sample_schema.sample_settings_log (setting_id);
+CREATE INDEX ix_sample_settings_log_created_at ON sample_schema.sample_settings_log (created_at);

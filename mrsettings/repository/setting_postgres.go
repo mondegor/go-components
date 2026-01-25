@@ -6,9 +6,8 @@ import (
 
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrargs"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrsettings/entity"
 )
@@ -22,7 +21,7 @@ type (
 	// SettingPostgres - репозиторий для хранения элементов настроек.
 	SettingPostgres struct {
 		client       mrstorage.DBConnManager
-		errorWrapper mrerr.ErrorWrapper
+		errorWrapper errors.Wrapper
 		table        mrsql.DBTableInfo
 		condBuilder  mrstorage.SQLConditionBuilder
 		condition    mrstorage.SQLPartFunc // OPTIONAL
@@ -32,7 +31,6 @@ type (
 // NewSettingPostgres - создаёт объект SettingPostgres.
 func NewSettingPostgres(
 	client mrstorage.DBConnManager,
-	errorWrapper mrerr.ErrorWrapper,
 	table mrsql.DBTableInfo,
 	whereBuilder mrstorage.SQLConditionBuilder,
 	condition mrstorage.SQLPartFunc, // OPTIONAL
@@ -47,7 +45,7 @@ func NewSettingPostgres(
 
 	return &SettingPostgres{
 		client:       client,
-		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
+		errorWrapper: errors.NewInfraStorageWrapper(),
 		table:        table,
 		condBuilder:  whereBuilder,
 		condition:    condition,
@@ -149,7 +147,7 @@ func (re *SettingPostgres) FetchOne(ctx context.Context, id uint64) (entity.Sett
 		&row.Value,
 	)
 	if err != nil {
-		return entity.Setting{}, re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"id": id})
+		return entity.Setting{}, re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"id": id})
 	}
 
 	return row, nil
@@ -183,11 +181,11 @@ func (re *SettingPostgres) Update(ctx context.Context, row entity.Setting) error
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	if err != nil {
-		if mr.ErrStorageRowsNotAffected.Is(err) {
-			err = mr.ErrStorageNoRowFound.Wrap(err)
+		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+			return errors.ErrEventStorageNoRowFound
 		}
 
-		return re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"id": row.ID, "type": row.Type, "where": whereStr})
+		return re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"id": row.ID, "type": row.Type, "where": whereStr})
 	}
 
 	return nil

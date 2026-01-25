@@ -26,7 +26,7 @@ func NewParser() *Parser {
 // Parse - comments method.
 func (p *Parser) Parse(value string) (ContactAddress, error) {
 	if len(value) < minEmailLength || len(value) > maxLength {
-		return ContactAddress{}, ErrLoginIsInvalid.New()
+		return ContactAddress{}, ErrLoginIsInvalid
 	}
 
 	if address, err := p.parseEmail(value); err == nil {
@@ -37,13 +37,13 @@ func (p *Parser) Parse(value string) (ContactAddress, error) {
 		return address, nil
 	}
 
-	return ContactAddress{}, ErrLoginIsInvalid.New()
+	return ContactAddress{}, ErrLoginIsInvalid
 }
 
 // ParseEmail - comments method.
 func (p *Parser) ParseEmail(value string) (ContactAddress, error) {
 	if len(value) < minEmailLength || len(value) > maxLength {
-		return ContactAddress{}, ErrEmailIsInvalid.New()
+		return ContactAddress{}, ErrEmailIsInvalid
 	}
 
 	return p.parseEmail(value)
@@ -52,7 +52,7 @@ func (p *Parser) ParseEmail(value string) (ContactAddress, error) {
 // ParsePhone - comments method.
 func (p *Parser) ParsePhone(value string) (ContactAddress, error) {
 	if len(value) < minPhoneLength || len(value) > maxLength {
-		return ContactAddress{}, ErrPhoneIsInvalid.New()
+		return ContactAddress{}, ErrPhoneIsInvalid
 	}
 
 	return p.parseEmail(value)
@@ -60,7 +60,7 @@ func (p *Parser) ParsePhone(value string) (ContactAddress, error) {
 
 func (p *Parser) parseEmail(value string) (ContactAddress, error) {
 	if !ValidateEmail(value) {
-		return ContactAddress{}, ErrEmailIsInvalid.New()
+		return ContactAddress{}, ErrEmailIsInvalid
 	}
 
 	return ContactAddress{
@@ -72,7 +72,7 @@ func (p *Parser) parseEmail(value string) (ContactAddress, error) {
 
 func (p *Parser) parsePhone(value string) (ContactAddress, error) {
 	if !ValidatePhone(value) {
-		return ContactAddress{}, ErrPhoneIsInvalid.New()
+		return ContactAddress{}, ErrPhoneIsInvalid
 	}
 
 	phoneString := strings.Map(
@@ -87,7 +87,7 @@ func (p *Parser) parsePhone(value string) (ContactAddress, error) {
 	)
 
 	if len(phoneString) < minPhoneLength || len(phoneString) > maxPhoneLength {
-		return ContactAddress{}, ErrPhoneIsInvalid.New()
+		return ContactAddress{}, ErrPhoneIsInvalid
 	}
 
 	return ContactAddress{

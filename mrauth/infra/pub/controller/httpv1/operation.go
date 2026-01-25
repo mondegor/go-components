@@ -4,8 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-webcore/mraccess"
 	"github.com/mondegor/go-webcore/mrserver"
 
@@ -75,15 +74,15 @@ func (ht *Operation) Confirm(w http.ResponseWriter, r *http.Request) error {
 
 	op, err := ht.useCaseConfirmOperation.Execute(r.Context(), lz.Language(), request.Token, request.Secret)
 	if err != nil {
-		if !mrauth.ErrConfirmCodeIsIncorrect.Is(err) && !mrauth.ErrNoAttemptsToConfirmOperation.Is(err) {
-			return ht.wrapError(err)
+		if errors.Is(err, mrauth.ErrConfirmCodeIsIncorrect) || errors.Is(err, mrauth.ErrNoAttemptsToConfirmOperation) {
+			return ht.sender.Send(
+				w,
+				http.StatusBadRequest,
+				ht.operationResponse.NewErrorConfirmOperation(op, lz, "secret", err),
+			)
 		}
 
-		return ht.sender.Send(
-			w,
-			http.StatusBadRequest,
-			ht.operationResponse.NewErrorConfirmOperation(op, lz, err),
-		)
+		return ht.wrapError(err)
 	}
 
 	// если необходимо дополнительное подтверждение (2fa)
@@ -114,15 +113,15 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 
 	op, err := ht.useCaseResendConfirmCode.Execute(r.Context(), lz.Language(), request.Token)
 	if err != nil {
-		if mr.ErrUseCaseEntityNotFound.Is(err) {
-			return mrauth.ErrTokenNotFoundOrExpired.Wrap(err)
+		if errors.Is(err, errors.ErrUseCaseEntityNotFound) {
+			return mrauth.ErrTokenNotFoundOrExpired
 		}
 
-		if mrauth.ErrSendingNewMessagesIsTemporarilyRestricted.Is(err) {
+		if errors.Is(err, mrauth.ErrSendingNewMessagesIsTemporarilyRestricted) {
 			return ht.sender.Send(
 				w,
 				http.StatusBadRequest,
-				ht.operationResponse.NewErrorConfirmOperation(op, lz, mrerr.NewCustomError("token", err)),
+				ht.operationResponse.NewErrorConfirmOperation(op, lz, "token", err),
 			)
 		}
 

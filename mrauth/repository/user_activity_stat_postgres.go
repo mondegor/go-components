@@ -8,7 +8,7 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrtype"
 
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -19,7 +19,7 @@ type (
 	// UserActivityStatPostgres - comment struct.
 	UserActivityStatPostgres struct {
 		client       mrstorage.DBConnManager
-		errorWrapper mrerr.ErrorWrapper
+		errorWrapper errors.Wrapper
 		table        mrsql.DBTableInfo
 	}
 )
@@ -27,12 +27,11 @@ type (
 // NewUserActivityStatPostgres - создаёт объект UserActivityStatPostgres.
 func NewUserActivityStatPostgres(
 	client mrstorage.DBConnManager,
-	errorWrapper mrerr.ErrorWrapper,
 	table mrsql.DBTableInfo,
 ) *UserActivityStatPostgres {
 	return &UserActivityStatPostgres{
 		client:       client,
-		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
+		errorWrapper: errors.NewInfraStorageWrapper(),
 		table:        table,
 	}
 }
@@ -62,7 +61,7 @@ func (re *UserActivityStatPostgres) FetchOne(ctx context.Context, userID uuid.UU
 		&row.LastVisitedAt,
 	)
 	if err != nil {
-		return entity.UserActivityStat{}, re.errorWrapper.WrapError(err)
+		return entity.UserActivityStat{}, re.errorWrapper.Wrap(err)
 	}
 
 	row.LastLoginIP = mrtype.NewDetailedIP(lastLoginIP, 0)
@@ -105,7 +104,7 @@ func (re *UserActivityStatPostgres) InsertOrUpdate(ctx context.Context, row enti
 		row.LastVisitedAt,
 	)
 	if err != nil {
-		return re.errorWrapper.WrapError(err)
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil

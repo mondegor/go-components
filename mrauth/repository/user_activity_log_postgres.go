@@ -7,8 +7,7 @@ import (
 
 	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth/entity"
 )
@@ -17,7 +16,7 @@ type (
 	// UserActivityLogPostgres - репозиторий для хранения элементов настроек.
 	UserActivityLogPostgres struct {
 		client       mrstorage.DBConnManager
-		errorWrapper mrerr.ErrorWrapper
+		errorWrapper errors.Wrapper
 		tableName    string
 	}
 )
@@ -25,12 +24,11 @@ type (
 // NewUserActivityLogPostgres - создаёт объект UserActivityLogPostgres.
 func NewUserActivityLogPostgres(
 	client mrstorage.DBConnManager,
-	errorWrapper mrerr.ErrorWrapper,
 	tableName string,
 ) *UserActivityLogPostgres {
 	return &UserActivityLogPostgres{
 		client:       client,
-		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, tableName),
+		errorWrapper: errors.NewInfraStorageWrapper(),
 		tableName:    tableName,
 	}
 }
@@ -120,8 +118,8 @@ func (re *UserActivityLogPostgres) DeleteBeforeDate(ctx context.Context, datetim
 		limit,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
-		return re.errorWrapper.WrapError(err)
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil

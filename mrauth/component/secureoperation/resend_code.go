@@ -31,7 +31,7 @@ func NewResendCode(
 // Prepare - comments method.
 func (o *ResendCode) Prepare(op entity.SecureOperation) (entity.SecureOperation, error) {
 	if time.Now().After(op.ExpiresAt) {
-		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyExpired.New()
+		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyExpired
 	}
 
 	// if item.Payload["audience"] == "" {
@@ -43,7 +43,7 @@ func (o *ResendCode) Prepare(op entity.SecureOperation) (entity.SecureOperation,
 	// }
 
 	if op.Status != operationstatus.Opened {
-		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyConfirmed.New() // operation is not opened
+		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyConfirmed // operation is not opened
 	}
 
 	confirmingAction, err := op.NextNotConfirmedAction()
@@ -60,7 +60,7 @@ func (o *ResendCode) Prepare(op entity.SecureOperation) (entity.SecureOperation,
 	}
 
 	if time.Now().Before(op.ResendsAt) {
-		return op, mrauth.ErrSendingNewMessagesIsTemporarilyRestricted.New() // WARNING: 'op' используется с этой ошибкой
+		return op, mrauth.ErrSendingNewMessagesIsTemporarilyRestricted // WARNING: 'op' используется с этой ошибкой
 	}
 
 	op.Token, err = o.tokenGenerator.GenTokenLen(len(op.Token))

@@ -6,8 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -18,28 +17,27 @@ type (
 	// AuthTokenPostgres - comment struct.
 	AuthTokenPostgres struct {
 		client       mrstorage.DBConnManager
-		errorWrapper mrerr.ErrorWrapper
+		errorWrapper errors.Wrapper
 		table        mrsql.DBTableInfo
 	}
 )
 
 var (
 	// ErrTokenExpired - token is expired.
-	ErrTokenExpired = mrerr.NewKindInternal("token is expired", mrerr.WithDisabledCaller(), mrerr.WithDisabledOnCreated())
+	ErrTokenExpired = errors.New("token is expired")
 
 	// ErrTokenAlreadyRevoked - token is already revoked.
-	ErrTokenAlreadyRevoked = mrerr.NewKindInternal("token is already revoked", mrerr.WithDisabledCaller(), mrerr.WithDisabledOnCreated())
+	ErrTokenAlreadyRevoked = errors.New("token is already revoked")
 )
 
 // NewAuthTokenPostgres - создаёт объект AuthTokenPostgres.
 func NewAuthTokenPostgres(
 	client mrstorage.DBConnManager,
-	errorWrapper mrerr.ErrorWrapper,
 	table mrsql.DBTableInfo,
 ) *AuthTokenPostgres {
 	return &AuthTokenPostgres{
 		client:       client,
-		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
+		errorWrapper: errors.NewInfraStorageWrapper(),
 		table:        table,
 	}
 }
@@ -73,7 +71,7 @@ func (re *AuthTokenPostgres) FetchOne(ctx context.Context, accessToken string) (
 		&isExpired,
 	)
 	if err != nil {
-		return dto.AuthTokenScopes{}, re.errorWrapper.WrapError(err)
+		return dto.AuthTokenScopes{}, re.errorWrapper.Wrap(err)
 	}
 
 	if isExpired {
@@ -120,7 +118,7 @@ func (re *AuthTokenPostgres) Insert(ctx context.Context, row entity.AuthToken) e
 		row.ExpiresAt,
 	)
 	if err != nil {
-		return re.errorWrapper.WrapError(err)
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil
@@ -144,11 +142,11 @@ func (re *AuthTokenPostgres) UpdateToClose(ctx context.Context, accessToken stri
 		authtokenstatus.Closed,
 	)
 	if err != nil {
-		if mr.ErrStorageRowsNotAffected.Is(err) {
-			err = mr.ErrStorageNoRowFound.Wrap(err)
+		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+			err = errors.ErrEventStorageNoRowFound
 		}
 
-		return re.errorWrapper.WrapError(err)
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil
@@ -189,7 +187,7 @@ func (re *AuthTokenPostgres) Revoke(ctx context.Context, refreshToken string) (r
 		&isAlreadyRevoked,
 	)
 	if err != nil {
-		return dto.AuthTokenScopes{}, re.errorWrapper.WrapError(err)
+		return dto.AuthTokenScopes{}, re.errorWrapper.Wrap(err)
 	}
 
 	if isExpired {
@@ -224,8 +222,8 @@ func (re *AuthTokenPostgres) UpdateToCloseAll(ctx context.Context, userID uuid.U
 		authtokenstatus.Closed,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
-		return re.errorWrapper.WrapError(err)
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil
@@ -258,8 +256,8 @@ func (re *AuthTokenPostgres) DeleteExpired(ctx context.Context, limit int) error
 		limit,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
-		return re.errorWrapper.WrapError(err)
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil

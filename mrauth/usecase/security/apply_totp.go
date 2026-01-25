@@ -3,16 +3,14 @@ package security
 import (
 	"bytes"
 	"context"
-	"errors"
 	"image/jpeg"
 	"io"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrargs"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrtype"
+	"github.com/mondegor/go-sysmess/util/conv"
 	"github.com/pquerna/otp/totp"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -28,8 +26,8 @@ type (
 		txManager        mrstorage.DBTxManager
 		storage          mrauth.User2faStorage
 		storageOperation mrauth.SecureOperationStorage
-		notifierAPI      mrnotifier.NoticeProducer
-		errorWrapper     mrerr.UseCaseErrorWrapper
+		notifierAPI      mrnotifier.NoteProducer
+		errorWrapper     errors.Wrapper
 		issuer           string
 	}
 )
@@ -39,8 +37,7 @@ func NewApplyTOTPGenerator(
 	txManager mrstorage.DBTxManager,
 	storage mrauth.User2faStorage,
 	storageOperation mrauth.SecureOperationStorage,
-	notifierAPI mrnotifier.NoticeProducer,
-	errorWrapper mrerr.UseCaseErrorWrapper,
+	notifierAPI mrnotifier.NoteProducer,
 	issuer string,
 ) *ApplyTOTPGenerator {
 	return &ApplyTOTPGenerator{
@@ -48,7 +45,7 @@ func NewApplyTOTPGenerator(
 		storage:          storage,
 		storageOperation: storageOperation,
 		notifierAPI:      notifierAPI,
-		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.ApplyTOTPGenerator"),
+		errorWrapper:     errors.NewUseCaseWrapper(),
 		issuer:           issuer,
 	}
 }
@@ -59,16 +56,16 @@ func NewApplyTOTPGenerator(
 // Execute - comments method.
 func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, operationToken string) (totpQRcode mrtype.Image, err error) {
 	if operationToken == "" {
-		return mrtype.Image{}, mr.ErrUseCaseEntityNotFound.New() // TODO: ?может ошибку, что параметр некорректен выдавать?
+		return mrtype.Image{}, errors.ErrUseCaseEntityNotFound // TODO: ?может ошибку, что параметр некорректен выдавать?
 	}
 
 	op, err := uc.storageOperation.FetchOne(ctx, operationToken)
 	if err != nil {
-		return mrtype.Image{}, uc.errorWrapper.WrapErrorNotFoundOrFailed(err)
+		return mrtype.Image{}, uc.errorWrapper.Wrap(err)
 	}
 
 	if userID == uuid.Nil || userID != op.UserID {
-		return mrtype.Image{}, mr.ErrUseCaseAccessForbidden.New()
+		return mrtype.Image{}, errors.ErrUseCaseAccessForbidden
 	}
 
 	// TODO: проверить, что пользователь не заблокирован !!!!!!!
@@ -85,12 +82,12 @@ func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, ope
 		SecretSize:  64,
 	})
 	if err != nil {
-		return mrtype.Image{}, uc.errorWrapper.WrapErrorFailed(err)
+		return mrtype.Image{}, uc.errorWrapper.Wrap(err)
 	}
 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		if err = uc.storageOperation.Delete(ctx, op.Token); err != nil {
-			return uc.errorWrapper.WrapErrorFailed(err)
+			return uc.errorWrapper.Wrap(err)
 		}
 
 		// TODO: Add Operation log:op! ????
@@ -104,31 +101,31 @@ func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, ope
 			},
 		)
 		if err != nil {
-			return uc.errorWrapper.WrapErrorFailed(err)
+			return uc.errorWrapper.Wrap(err)
 		}
 
-		if err = uc.notifierAPI.SendNotice(ctx, "user.totp.changed", mrargs.Group{"to": userEmail}); err != nil {
-			return uc.errorWrapper.WrapErrorFailed(err)
+		if err = uc.notifierAPI.Send(ctx, "user.totp.changed", conv.Group{"to": userEmail}); err != nil {
+			return uc.errorWrapper.Wrap(err)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return mrtype.Image{}, uc.errorWrapper.WrapErrorFailed(err)
+		return mrtype.Image{}, uc.errorWrapper.Wrap(err)
 	}
 
 	img, err := secret.Image(384, 384)
 	if err != nil {
-		return mrtype.Image{}, uc.errorWrapper.WrapErrorFailed(err)
+		return mrtype.Image{}, uc.errorWrapper.Wrap(err)
 	}
 
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, img, nil); err != nil {
-		return mrtype.Image{}, uc.errorWrapper.WrapErrorFailed(err)
+		return mrtype.Image{}, uc.errorWrapper.Wrap(err)
 	}
 
 	if buf.Len() < 0 {
-		return mrtype.Image{}, uc.errorWrapper.WrapErrorFailed(errors.New("buffer is negative"))
+		return mrtype.Image{}, uc.errorWrapper.Wrap(errors.New("buffer is negative"))
 	}
 
 	// вынести отдельно

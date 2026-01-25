@@ -4,8 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth"
 )
@@ -14,38 +13,37 @@ type (
 	// RevokeOperation - comment struct.
 	RevokeOperation struct {
 		storageOperation mrauth.SecureOperationStorage
-		errorWrapper     mrerr.UseCaseErrorWrapper
+		errorWrapper     errors.Wrapper
 	}
 )
 
 // NewRevokeOperation - создаёт объект NewRevokeOperation.
 func NewRevokeOperation(
 	storageOperation mrauth.SecureOperationStorage,
-	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *RevokeOperation {
 	return &RevokeOperation{
 		storageOperation: storageOperation,
-		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.RevokeOperation"),
+		errorWrapper:     errors.NewUseCaseWrapper(),
 	}
 }
 
 // Execute - comments method.
 func (co *RevokeOperation) Execute(ctx context.Context, operationToken string) error {
 	if operationToken == "" {
-		return mr.ErrUseCaseIncorrectInputData.New("operationToken is empty")
+		return errors.ErrUseCaseIncorrectInputData.New("operationToken is empty")
 	}
 
 	op, err := co.storageOperation.FetchOne(ctx, operationToken)
 	if err != nil {
-		return co.errorWrapper.WrapErrorNotFoundOrFailed(err)
+		return co.errorWrapper.Wrap(err)
 	}
 
 	if time.Now().After(op.ExpiresAt) {
-		return mrauth.ErrOperationAlreadyExpired.New()
+		return mrauth.ErrOperationAlreadyExpired
 	}
 
 	if err = co.storageOperation.Delete(ctx, operationToken); err != nil {
-		return co.errorWrapper.WrapErrorFailed(err)
+		return co.errorWrapper.Wrap(err)
 	}
 
 	// TODO: Add Operation log:op! ????

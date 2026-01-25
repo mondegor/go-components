@@ -2,12 +2,10 @@ package security
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
@@ -18,7 +16,7 @@ type (
 	ApplyOperation struct {
 		txManager        mrstorage.DBTxManager
 		storageOperation mrauth.SecureOperationStorage
-		errorWrapper     mrerr.UseCaseErrorWrapper
+		errorWrapper     errors.Wrapper
 		handlerMap       map[string]mrauth.OperationHandler
 	}
 )
@@ -27,13 +25,12 @@ type (
 func NewApplyOperation(
 	txManager mrstorage.DBTxManager,
 	storageOperation mrauth.SecureOperationStorage,
-	errorWrapper mrerr.UseCaseErrorWrapper,
 	handlerMap map[string]mrauth.OperationHandler,
 ) *ApplyOperation {
 	return &ApplyOperation{
 		txManager:        txManager,
 		storageOperation: storageOperation,
-		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.ApplyOperation"),
+		errorWrapper:     errors.NewUseCaseWrapper(),
 		handlerMap:       handlerMap,
 	}
 }
@@ -44,16 +41,16 @@ func NewApplyOperation(
 // Execute - comments method.
 func (uc *ApplyOperation) Execute(ctx context.Context, userID uuid.UUID, operationToken string) error {
 	if operationToken == "" {
-		return mr.ErrUseCaseEntityNotFound.New() // TODO: ?может ошибку, что параметр некорректен выдавать?
+		return errors.ErrUseCaseEntityNotFound // TODO: ?может ошибку, что параметр некорректен выдавать?
 	}
 
 	op, err := uc.storageOperation.FetchOne(ctx, operationToken)
 	if err != nil {
-		return uc.errorWrapper.WrapErrorNotFoundOrFailed(err)
+		return uc.errorWrapper.Wrap(err)
 	}
 
 	if userID == uuid.Nil || userID != op.UserID {
-		return mr.ErrUseCaseAccessForbidden.New()
+		return errors.ErrUseCaseAccessForbidden
 	}
 
 	// TODO: проверить, что пользователь не заблокирован !!!!!!!
@@ -69,7 +66,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, userID uuid.UUID, operati
 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		if err = uc.storageOperation.Delete(ctx, op.Token); err != nil {
-			return uc.errorWrapper.WrapErrorFailed(err)
+			return uc.errorWrapper.Wrap(err)
 		}
 
 		// TODO: Add Operation log:op! ????
@@ -77,7 +74,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, userID uuid.UUID, operati
 		return handler.Execute(ctx, op.UserID, op.Payload)
 	})
 	if err != nil {
-		return uc.errorWrapper.WrapErrorFailed(err)
+		return uc.errorWrapper.Wrap(err)
 	}
 
 	return nil

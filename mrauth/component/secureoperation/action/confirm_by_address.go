@@ -1,9 +1,7 @@
 package action
 
 import (
-	"errors"
-
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -36,5 +34,9 @@ func (a *ConfirmByAddress) Create(address contactaddress.ContactAddress, confirm
 		return a.confirmByEmail.Create(address, confirmCode)
 	}
 
-	return dto.ConfirmAction{}, mr.ErrInternal.Wrap(errors.New("invalid contactAddress type")).WithAttr("address", address)
+	return dto.ConfirmAction{},
+		errors.NewInternalError(
+			"contactAddress type is invalid",
+			"address", address,
+		)
 }

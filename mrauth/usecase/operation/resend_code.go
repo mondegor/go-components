@@ -4,9 +4,8 @@ import (
 	"context"
 
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrargs"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -19,9 +18,9 @@ type (
 	ResendCode struct {
 		txManager         mrstorage.DBTxManager
 		storageOperation  mrauth.SecureOperationStorage
-		notifierAPI       mrnotifier.NoticeProducer
+		notifierAPI       mrnotifier.NoteProducer
 		operationPreparer resendOperationPreparer
-		errorWrapper      mrerr.UseCaseErrorWrapper
+		errorWrapper      errors.Wrapper
 	}
 
 	resendOperationPreparer interface {
@@ -33,59 +32,58 @@ type (
 func NewResendCode(
 	txManager mrstorage.DBTxManager,
 	storageOperation mrauth.SecureOperationStorage,
-	notifierAPI mrnotifier.NoticeProducer,
+	notifierAPI mrnotifier.NoteProducer,
 	operationPreparer resendOperationPreparer,
-	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *ResendCode {
 	return &ResendCode{
 		txManager:         txManager,
 		storageOperation:  storageOperation,
 		notifierAPI:       notifierAPI,
 		operationPreparer: operationPreparer,
-		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.ResendCode"),
+		errorWrapper:      errors.NewUseCaseWrapper(),
 	}
 }
 
 // Execute - comments method.
 func (co *ResendCode) Execute(ctx context.Context, langCode, operationToken string) (entity.SecureOperation, error) {
 	if operationToken == "" {
-		return entity.SecureOperation{}, mr.ErrUseCaseIncorrectInputData.New("operationToken is empty")
+		return entity.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("operationToken is empty")
 	}
 
 	op, err := co.storageOperation.FetchOne(ctx, operationToken)
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.WrapErrorNotFoundOrFailed(err)
+		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	op, err = co.operationPreparer.Prepare(op)
 	if err != nil {
-		if mrauth.ErrSendingNewMessagesIsTemporarilyRestricted.Is(err) {
+		if errors.Is(err, mrauth.ErrSendingNewMessagesIsTemporarilyRestricted) {
 			return op, err // WARNING: 'op' используется с этой ошибкой
 		}
 
-		return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(err)
+		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	err = co.txManager.Do(ctx, func(ctx context.Context) error {
 		if err = co.storageOperation.Update(ctx, operationToken, op); err != nil {
-			return co.errorWrapper.WrapErrorFailed(err)
+			return co.errorWrapper.Wrap(err)
 		}
 
 		confirmingAction, err := op.NextNotConfirmedAction()
 		if err != nil {
-			return co.errorWrapper.WrapErrorFailed(err)
+			return co.errorWrapper.Wrap(err)
 		}
 
 		// TODO: Add Operation log:op!
 
 		if confirmingAction.Method != confirmmethod.Email {
-			return mr.ErrInternal.New("reason", "confirm operation method is not email")
+			return errors.NewInternalError("confirm operation method is not email")
 		}
 
-		return co.notifierAPI.SendNotice(
+		return co.notifierAPI.Send(
 			ctx,
 			"confirm.operation.by.email",
-			mrargs.Group{
+			conv.Group{
 				"lang":        langCode,
 				"operation":   op.Name,
 				"to":          confirmingAction.Address,
@@ -94,7 +92,7 @@ func (co *ResendCode) Execute(ctx context.Context, langCode, operationToken stri
 		)
 	})
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(err)
+		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	return op, nil

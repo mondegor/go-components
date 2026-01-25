@@ -1,10 +1,9 @@
 package action
 
 import (
-	"errors"
 	"time"
 
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -24,20 +23,24 @@ type (
 
 // NewConfirmByPhone - создаёт объект ConfirmByPhone.
 func NewConfirmByPhone(opts ...Option) *ConfirmByPhone {
-	co := newConfirmOptions(opts)
+	o := newConfirmOptions(opts)
 
 	return &ConfirmByPhone{
-		maxAttempts:   co.maxAttempts,
-		maxResends:    co.maxResends,
-		minResendTime: co.minResendTime,
-		expiry:        co.expiry,
+		maxAttempts:   o.maxAttempts,
+		maxResends:    o.maxResends,
+		minResendTime: o.minResendTime,
+		expiry:        o.expiry,
 	}
 }
 
 // Create - comments method.
 func (a *ConfirmByPhone) Create(phone contactaddress.ContactAddress, confirmCode string) (dto.ConfirmAction, error) {
 	if phone.Type != addresstype.Phone {
-		return dto.ConfirmAction{}, mr.ErrInternal.Wrap(errors.New("invalid contactAddress type")).WithAttr("phone", phone)
+		return dto.ConfirmAction{},
+			errors.NewInternalError(
+				"contactAddress type is invalid",
+				"phone", phone,
+			)
 	}
 
 	return dto.ConfirmAction{

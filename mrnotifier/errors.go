@@ -1,6 +1,8 @@
 package mrnotifier
 
-import "github.com/mondegor/go-sysmess/mrerr"
+import (
+	"github.com/mondegor/go-sysmess/errors"
+)
 
-// ErrTemplateNotRegistered - no template is registered for the notification with lang.
-var ErrTemplateNotRegistered = mrerr.NewKindInternal("no template is registered for the notification with lang (template={Realm}, lang={Lang}")
+// ErrSystemTemplateNotRegistered - no template is registered for the notification with lang (attrs: template, lang, status).
+var ErrSystemTemplateNotRegistered = errors.NewSystemProto("no template is registered for the notification with lang")

@@ -1,9 +1,7 @@
 package action
 
 import (
-	"errors"
-
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
@@ -35,5 +33,9 @@ func (a *ConfirmBy2fa) Create(auth2fa auth2fatype.Enum, secret string) (dto.Conf
 		return a.confirmByTOTP.Create(secret), nil
 	}
 
-	return dto.ConfirmAction{}, mr.ErrInternal.Wrap(errors.New("invalid auth2fa type")).WithAttr("auth2fa", auth2fa)
+	return dto.ConfirmAction{},
+		errors.NewInternalError(
+			"auth2fa type is invalid",
+			"auth2fa", auth2fa,
+		)
 }

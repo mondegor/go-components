@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -19,7 +19,7 @@ type (
 		storageUser2FA   mrauth.User2faStorage
 		storageUserStat  mrauth.UserActivityStatStorage
 		storageUserRealm mrauth.UserRealmStorage
-		errorWrapper     mrerr.UseCaseErrorWrapper
+		errorWrapper     errors.Wrapper
 	}
 )
 
@@ -30,7 +30,6 @@ func NewUserInfo(
 	storageUser2FA mrauth.User2faStorage,
 	storageUserStat mrauth.UserActivityStatStorage,
 	storageUserRealm mrauth.UserRealmStorage,
-	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *UserInfo {
 	return &UserInfo{
 		txManager:        txManager,
@@ -38,7 +37,7 @@ func NewUserInfo(
 		storageUser2FA:   storageUser2FA,
 		storageUserStat:  storageUserStat,
 		storageUserRealm: storageUserRealm,
-		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.UserInfo"),
+		errorWrapper:     errors.NewUseCaseWrapper(),
 	}
 }
 
@@ -46,23 +45,23 @@ func NewUserInfo(
 func (uc *UserInfo) Execute(ctx context.Context, userID uuid.UUID) (userInfo entity.UserInfo, err error) {
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		if userInfo.User, err = uc.storageUser.FetchOne(ctx, userID); err != nil {
-			return uc.errorWrapper.WrapErrorFailed(err) // the user must be
+			return uc.errorWrapper.Wrap(err) // the user must be
 		}
 
 		if userInfo.Auth2fa, err = uc.storageUser2FA.FetchOne(ctx, userID); err != nil {
-			if !uc.errorWrapper.IsNotFoundError(err) {
-				return uc.errorWrapper.WrapErrorFailed(err)
+			if !errors.Is(err, errors.ErrEventStorageNoRowFound) {
+				return uc.errorWrapper.Wrap(err)
 			}
 		}
 
 		if userInfo.Stat, err = uc.storageUserStat.FetchOne(ctx, userID); err != nil {
-			if !uc.errorWrapper.IsNotFoundError(err) {
-				return uc.errorWrapper.WrapErrorFailed(err)
+			if !errors.Is(err, errors.ErrEventStorageNoRowFound) {
+				return uc.errorWrapper.Wrap(err)
 			}
 		}
 
 		if userInfo.Realms, err = uc.storageUserRealm.Fetch(ctx, userID); err != nil {
-			return uc.errorWrapper.WrapErrorFailed(err)
+			return uc.errorWrapper.Wrap(err)
 		}
 
 		return nil

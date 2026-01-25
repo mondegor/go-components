@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrargs"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrlog"
+	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -21,8 +20,8 @@ type (
 	// ChangePassword - comment struct.
 	ChangePassword struct {
 		storage      mrauth.User2faStorage
-		notifierAPI  mrnotifier.NoticeProducer
-		errorWrapper mrerr.UseCaseErrorWrapper
+		notifierAPI  mrnotifier.NoteProducer
+		errorWrapper errors.Wrapper
 		logger       mrlog.Logger
 	}
 )
@@ -30,14 +29,13 @@ type (
 // NewChangePassword - создаёт объект ChangePassword.
 func NewChangePassword(
 	storage mrauth.User2faStorage,
-	notifierAPI mrnotifier.NoticeProducer,
-	errorWrapper mrerr.UseCaseErrorWrapper,
+	notifierAPI mrnotifier.NoteProducer,
 	logger mrlog.Logger,
 ) *ChangePassword {
 	return &ChangePassword{
 		storage:      storage,
 		notifierAPI:  notifierAPI,
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.ChangePassword"),
+		errorWrapper: errors.NewUseCaseWrapper(),
 		logger:       logger,
 	}
 }
@@ -47,7 +45,7 @@ func (uc *ChangePassword) Execute(ctx context.Context, userID uuid.UUID, payload
 	payloadDTO := dto.ChangePasswordOperation{}
 
 	if err := json.Unmarshal(payload, &payloadDTO); err != nil {
-		return mr.ErrUseCaseIncorrectInternalInputData.Wrap(err, "payload", payload)
+		return errors.ErrInternalIncorrectInputData.WithError(err, "ChangePassword", "payload", payload)
 	}
 
 	err := uc.storage.InsertOrUpdate(
@@ -59,11 +57,11 @@ func (uc *ChangePassword) Execute(ctx context.Context, userID uuid.UUID, payload
 		},
 	)
 	if err != nil {
-		return uc.errorWrapper.WrapErrorFailed(err)
+		return uc.errorWrapper.Wrap(err)
 	}
 
 	// TODO: если важно, чтобы пользователь получил сообщение, то нужно завернуть в транзакцию
-	if err := uc.notifierAPI.SendNotice(ctx, "user.password.changed", mrargs.Group{"to": payloadDTO.NotifyByEmail}); err != nil {
+	if err := uc.notifierAPI.Send(ctx, "user.password.changed", conv.Group{"to": payloadDTO.NotifyByEmail}); err != nil {
 		uc.logger.Error(ctx, "After ChangePassword message not send", "error", err)
 	}
 

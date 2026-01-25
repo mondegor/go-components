@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-webcore/mraccess"
 	"github.com/mondegor/go-webcore/mrserver"
 
@@ -71,8 +71,8 @@ func (ht *Check) CheckLogin(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	if err := ht.serviceLogin.CheckAvailabilityRealm(r.Context(), request.Realm, request.UserLogin); err != nil {
-		if mrauth.ErrEmailAlreadyExists.Is(err) || mrauth.ErrPhoneAlreadyExists.Is(err) {
-			return mrerr.NewCustomError("userLogin", err)
+		if errors.Is(err, mrauth.ErrEmailAlreadyExists) || errors.Is(err, mrauth.ErrPhoneAlreadyExists) {
+			return errors.WithCustomCode(err, "userLogin")
 		}
 
 		return err

@@ -4,9 +4,8 @@ import (
 	"context"
 
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrargs"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
@@ -22,10 +21,10 @@ type (
 		txManager             mrstorage.DBTxManager
 		userChecker           userLoginChecker
 		storageOperation      mrauth.SecureOperationStorage
-		notifierAPI           mrnotifier.NoticeProducer
+		notifierAPI           mrnotifier.NoteProducer
 		loginParser           loginParser
 		factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA
-		errorWrapper          mrerr.UseCaseErrorWrapper
+		errorWrapper          errors.Wrapper
 		realm2operation       map[string]createSessionOperation
 	}
 
@@ -53,10 +52,9 @@ func NewCreateSession(
 	txManager mrstorage.DBTxManager,
 	userChecker userLoginChecker,
 	storageOperation mrauth.SecureOperationStorage,
-	notifierAPI mrnotifier.NoticeProducer,
+	notifierAPI mrnotifier.NoteProducer,
 	loginParser loginParser,
 	factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA,
-	errorWrapper mrerr.UseCaseErrorWrapper,
 	allowedRealms []CreateSessionRealm,
 ) *CreateSession {
 	realm2operation := make(map[string]createSessionOperation, len(allowedRealms))
@@ -70,7 +68,7 @@ func NewCreateSession(
 		storageOperation:      storageOperation,
 		notifierAPI:           notifierAPI,
 		loginParser:           loginParser,
-		errorWrapper:          mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.CreateSession"),
+		errorWrapper:          errors.NewUseCaseWrapper(),
 		factoryUserConfirm2FA: factoryUserConfirm2FA,
 		realm2operation:       realm2operation,
 	}
@@ -79,58 +77,58 @@ func NewCreateSession(
 // Execute - возвращает строковое значение настройки с указанным идентификатором.
 func (co *CreateSession) Execute(ctx context.Context, realm, langCode, userLogin string) (entity.SecureOperation, error) {
 	if userLogin == "" {
-		return entity.SecureOperation{}, mr.ErrUseCaseIncorrectInputData.New("userLogin is empty")
+		return entity.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("userLogin is empty")
 	}
 
 	operationCreator, ok := co.realm2operation[realm]
 	if !ok {
-		return entity.SecureOperation{}, mr.ErrUseCaseIncorrectInputData.New("realm is unknown", "realm", realm)
+		return entity.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("realm is unknown")
 	}
 
 	parsedLogin, err := co.loginParser.Parse(userLogin)
 	if err != nil {
-		return entity.SecureOperation{}, mr.ErrUseCaseIncorrectInputData.New(err)
+		return entity.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New(err)
 	}
 
 	err = co.userChecker.CheckAvailabilityRealm(ctx, realm, parsedLogin)
 	if err == nil {
-		return entity.SecureOperation{}, mrauth.ErrLoginNotExists.New()
+		return entity.SecureOperation{}, mrauth.ErrLoginNotExists
 	}
 
-	if !mrauth.ErrEmailAlreadyExists.Is(err) && !mrauth.ErrPhoneAlreadyExists.Is(err) {
-		return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(err)
+	if !errors.Is(err, mrauth.ErrEmailAlreadyExists) && !errors.Is(err, mrauth.ErrPhoneAlreadyExists) {
+		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	user2FA, err := co.factoryUserConfirm2FA.CreateByUserLogin(ctx, parsedLogin)
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(err)
+		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	op, err := operationCreator.Create(user2FA, realm, langCode, parsedLogin)
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(err)
+		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	err = co.txManager.Do(ctx, func(ctx context.Context) error {
 		if err = co.storageOperation.Insert(ctx, op); err != nil {
-			return co.errorWrapper.WrapErrorFailed(err)
+			return co.errorWrapper.Wrap(err)
 		}
 
 		confirmingAction, err := op.NextNotConfirmedAction()
 		if err != nil {
-			return co.errorWrapper.WrapErrorFailed(err)
+			return co.errorWrapper.Wrap(err)
 		}
 
 		if confirmingAction.Method != confirmmethod.Email {
-			return mr.ErrInternal.New("reason", "confirm operation method is not email")
+			return errors.NewInternalError("confirm operation method is not email")
 		}
 
 		// TODO: Add Operation log:op!
 
-		return co.notifierAPI.SendNotice(
+		return co.notifierAPI.Send(
 			ctx,
 			"confirm.create.session.by.email",
-			mrargs.Group{
+			conv.Group{
 				"lang":        langCode,
 				"to":          user2FA.Email,
 				"confirmCode": confirmingAction.Secret,
@@ -138,7 +136,7 @@ func (co *CreateSession) Execute(ctx context.Context, realm, langCode, userLogin
 		)
 	})
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(err)
+		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	return op, nil

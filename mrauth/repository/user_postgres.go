@@ -2,15 +2,13 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrpostgres/db"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -24,19 +22,18 @@ type (
 		table        mrsql.DBTableInfo
 		repoEmail    db.FieldUpdater[uuid.UUID, string]
 		repoPhone    db.FieldUpdater[uuid.UUID, uint64]
-		errorWrapper mrerr.ErrorWrapper
+		errorWrapper errors.Wrapper
 	}
 )
 
 // NewUserPostgres - создаёт объект UserPostgres.
 func NewUserPostgres(
 	client mrstorage.DBConnManager,
-	errorWrapper mrerr.ErrorWrapper,
 	table mrsql.DBTableInfo,
 ) *UserPostgres {
 	return &UserPostgres{
 		client:       client,
-		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
+		errorWrapper: errors.NewInfraStorageWrapper(),
 		table:        table,
 		repoEmail: db.NewFieldUpdater[uuid.UUID, string](
 			client,
@@ -69,13 +66,13 @@ func (re *UserPostgres) FetchOneByLogin(ctx context.Context, userLogin contactad
 	if userLogin.Type == addresstype.Phone {
 		userLoginPhone, err := strconv.ParseUint(userLogin.Value, 10, 64)
 		if err != nil {
-			return entity.User{}, mr.ErrInternal.Wrap(errors.New("userLoginPhone is incorrect"))
+			return entity.User{}, errors.NewInternalError("userLoginPhone is incorrect")
 		}
 
 		return re.fetchOneBy(ctx, "user_phone", userLoginPhone)
 	}
 
-	return entity.User{}, mr.ErrInternal.Wrap(errors.New("userLogin is incorrect"))
+	return entity.User{}, errors.NewInternalError("userLogin is incorrect")
 }
 
 func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldValue any) (row entity.User, err error) {
@@ -106,7 +103,7 @@ func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldV
 		&row.Status,
 	)
 	if err != nil {
-		return entity.User{}, re.errorWrapper.WrapError(err)
+		return entity.User{}, re.errorWrapper.Wrap(err)
 	}
 
 	// from nullable user_phone field
@@ -151,7 +148,7 @@ func (re *UserPostgres) Insert(ctx context.Context, row entity.User) (rowID uuid
 		&row.ID,
 	)
 	if err != nil {
-		return uuid.Nil, re.errorWrapper.WrapError(err)
+		return uuid.Nil, re.errorWrapper.Wrap(err)
 	}
 
 	return row.ID, nil

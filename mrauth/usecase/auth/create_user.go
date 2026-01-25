@@ -6,9 +6,8 @@ import (
 
 	"github.com/mondegor/go-storage/mrlock"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrargs"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
@@ -27,10 +26,10 @@ type (
 		txManager        mrstorage.DBTxManager
 		userChecker      userLoginChecker
 		storageOperation mrauth.SecureOperationStorage
-		notifierAPI      mrnotifier.NoticeProducer
+		notifierAPI      mrnotifier.NoteProducer
 		locker           mrlock.Locker
 		loginParser      loginEmailParser
-		errorWrapper     mrerr.UseCaseErrorWrapper
+		errorWrapper     errors.Wrapper
 		realm2operation  map[string]createUserOperation
 	}
 
@@ -54,10 +53,9 @@ func NewCreateUser(
 	txManager mrstorage.DBTxManager,
 	userChecker userLoginChecker,
 	storageOperation mrauth.SecureOperationStorage,
-	notifierAPI mrnotifier.NoticeProducer,
+	notifierAPI mrnotifier.NoteProducer,
 	locker mrlock.Locker,
 	loginParser loginEmailParser,
-	errorWrapper mrerr.UseCaseErrorWrapper,
 	allowedRealms []CreateUserRealm,
 ) *CreateUser {
 	realm2operation := make(map[string]createUserOperation, len(allowedRealms))
@@ -72,7 +70,7 @@ func NewCreateUser(
 		notifierAPI:      notifierAPI,
 		locker:           locker,
 		loginParser:      loginParser,
-		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.CreateUser"),
+		errorWrapper:     errors.NewUseCaseWrapper(),
 		realm2operation:  realm2operation,
 	}
 }
@@ -81,21 +79,21 @@ func NewCreateUser(
 func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail string) (op entity.SecureOperation, err error) {
 	operationCreator, ok := co.realm2operation[realm]
 	if !ok {
-		return entity.SecureOperation{}, mr.ErrUseCaseIncorrectInputData.New("realm is unknown", "realm", realm)
+		return entity.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("realm is unknown")
 	}
 
 	parsedLogin, err := co.loginParser.ParseEmail(userEmail)
 	if err != nil {
-		return entity.SecureOperation{}, mr.ErrUseCaseIncorrectInputData.New(err, "userEmail", userEmail)
+		return entity.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New(err)
 	}
 
 	unlockEmail, err := co.locker.LockWithExpiry(ctx, createUserLockKeyPrefix+realm+":"+parsedLogin.Value, createUserLockTimeout)
 	if err != nil {
-		if mrlock.ErrStorageLockKeyNotObtained.Is(err) {
-			return entity.SecureOperation{}, mrauth.ErrEmailAlreadyExists.New()
+		if errors.Is(err, mrlock.ErrSystemStorageLockKeyNotObtained) {
+			return entity.SecureOperation{}, mrauth.ErrEmailAlreadyExists
 		}
 
-		return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(err)
+		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	defer func() {
@@ -107,30 +105,30 @@ func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail st
 	}()
 
 	if err = co.userChecker.CheckAvailabilityRealm(ctx, realm, parsedLogin); err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(err)
+		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	op, err = operationCreator.Create(langCode, parsedLogin)
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(err)
+		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	err = co.txManager.Do(ctx, func(ctx context.Context) error {
 		if err = co.storageOperation.Insert(ctx, op); err != nil {
-			return co.errorWrapper.WrapErrorFailed(err)
+			return co.errorWrapper.Wrap(err)
 		}
 
 		confirmingAction, err := op.NextNotConfirmedAction()
 		if err != nil {
-			return co.errorWrapper.WrapErrorFailed(err)
+			return co.errorWrapper.Wrap(err)
 		}
 
 		// TODO: Add Operation log:op!
 
-		return co.notifierAPI.SendNotice(
+		return co.notifierAPI.Send(
 			ctx,
 			"confirm.user.activation",
-			mrargs.Group{
+			conv.Group{
 				"lang":        langCode,
 				"to":          parsedLogin.Value,
 				"confirmCode": confirmingAction.Secret,
@@ -138,7 +136,7 @@ func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail st
 		)
 	})
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(err)
+		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	return op, nil

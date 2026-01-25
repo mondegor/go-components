@@ -5,8 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrlog"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -18,7 +17,7 @@ type (
 	// AuthToken - comment struct.
 	AuthToken struct {
 		storage           mrauth.AuthTokenStorage
-		errorWrapper      mrerr.ErrorWrapper
+		errorWrapper      errors.Wrapper
 		logger            mrlog.Logger
 		realm2tokenIssuer map[string]mrauth.TokenIssuer
 	}
@@ -33,7 +32,6 @@ type (
 // NewAuthToken - создаёт объект AuthToken.
 func NewAuthToken(
 	storage mrauth.AuthTokenStorage,
-	errorWrapper mrerr.ErrorWrapper,
 	logger mrlog.Logger,
 	allowedRealms []AuthTokenRealm,
 ) *AuthToken {
@@ -44,7 +42,7 @@ func NewAuthToken(
 
 	return &AuthToken{
 		storage:           storage,
-		errorWrapper:      mrerr.NewErrorWrapper(errorWrapper, entity.ModelNameAuthToken),
+		errorWrapper:      errors.NewServiceWrapper(),
 		logger:            logger,
 		realm2tokenIssuer: realm2tokenIssuer,
 	}
@@ -54,12 +52,12 @@ func NewAuthToken(
 func (uc *AuthToken) Create(ctx context.Context, realm, userKind, langCode string, userID uuid.UUID) (token dto.AuthToken, err error) {
 	tokenIssuer, ok := uc.realm2tokenIssuer[realm]
 	if !ok {
-		return dto.AuthToken{}, mr.ErrUseCaseIncorrectInputData.New("realm is unknown", "realm", realm)
+		return dto.AuthToken{}, errors.ErrUseCaseIncorrectInputData.New("realm is unknown")
 	}
 
 	token, err = tokenIssuer.Create(realm, userKind, langCode, userID)
 	if err != nil {
-		return dto.AuthToken{}, uc.errorWrapper.WrapError(err)
+		return dto.AuthToken{}, uc.errorWrapper.Wrap(err)
 	}
 
 	authToken := entity.AuthToken{
@@ -82,7 +80,7 @@ func (uc *AuthToken) Create(ctx context.Context, realm, userKind, langCode strin
 	}
 
 	if err = uc.storage.Insert(ctx, authToken); err != nil {
-		return dto.AuthToken{}, uc.errorWrapper.WrapError(err)
+		return dto.AuthToken{}, uc.errorWrapper.Wrap(err)
 	}
 
 	return token, nil
@@ -92,7 +90,7 @@ func (uc *AuthToken) Create(ctx context.Context, realm, userKind, langCode strin
 func (uc *AuthToken) Revoke(ctx context.Context, refreshToken string) (row dto.AuthTokenScopes, err error) {
 	row, err = uc.storage.Revoke(ctx, refreshToken)
 	if err != nil {
-		return dto.AuthTokenScopes{}, uc.errorWrapper.WrapError(err)
+		return dto.AuthTokenScopes{}, uc.errorWrapper.Wrap(err)
 	}
 
 	return row, nil
@@ -101,7 +99,7 @@ func (uc *AuthToken) Revoke(ctx context.Context, refreshToken string) (row dto.A
 // Close - comments method.
 func (uc *AuthToken) Close(ctx context.Context, accessToken string) error {
 	if err := uc.storage.UpdateToClose(ctx, accessToken); err != nil {
-		return uc.errorWrapper.WrapError(err)
+		return uc.errorWrapper.Wrap(err)
 	}
 
 	return nil

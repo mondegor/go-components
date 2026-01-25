@@ -1,40 +1,19 @@
 package clean
 
-import (
-	"time"
-
-	"github.com/mondegor/go-components/mrqueue"
-)
+import "context"
 
 type (
 	// Option - настройка объекта QueueCleaner.
-	Option func(co *QueueCleaner)
+	Option func(o *options)
+
+	options struct {
+		cleaner *QueueCleaner
+	}
 )
 
-// WithStorageCompleted - устанавливает опцию storageCompleted для QueueCleaner.
-func WithStorageCompleted(value mrqueue.CompletedStorage) Option {
-	return func(co *QueueCleaner) {
-		co.storageCompleted = value
-	}
-}
-
-// WithStorageBroken - устанавливает опцию storageBroken для QueueCleaner.
-func WithStorageBroken(value mrqueue.BrokenStorage) Option {
-	return func(co *QueueCleaner) {
-		co.storageBroken = value
-	}
-}
-
-// WithCompletedExpiry - устанавливает опцию completedExpiry для QueueCleaner.
-func WithCompletedExpiry(value time.Duration) Option {
-	return func(co *QueueCleaner) {
-		co.completedExpiry = value
-	}
-}
-
-// WithBrokenExpiry - устанавливает опцию brokenExpiry для QueueCleaner.
-func WithBrokenExpiry(value time.Duration) Option {
-	return func(co *QueueCleaner) {
-		co.brokenExpiry = value
+// WithAfterClean - устанавливает опцию afterCleanFunc для QueueCleaner.
+func WithAfterClean(value func(ctx context.Context, itemsIDs []uint64) error) Option {
+	return func(o *options) {
+		o.cleaner.afterCleanFunc = value
 	}
 }

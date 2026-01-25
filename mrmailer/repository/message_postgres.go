@@ -7,7 +7,7 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrmailer/entity"
 )
@@ -130,7 +130,7 @@ func (re *MessagePostgres) DeleteByIDs(ctx context.Context, rowsIDs []uint64) er
 		rowsIDs,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
 		return err
 	}
 

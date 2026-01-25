@@ -17,15 +17,17 @@ type (
 
 // New - создаёт объект RequestHandler.
 func New(useCase mrauth.UserStatisticUseCase, opts ...Option) *RequestHandler {
-	co := &RequestHandler{
-		useCase: useCase,
+	o := options{
+		handler: &RequestHandler{
+			useCase: useCase,
+		},
 	}
 
 	for _, opt := range opts {
-		opt(co)
+		opt(&o)
 	}
 
-	return co
+	return o.handler
 }
 
 // Execute - подбирает провайдера, для конкретного сообщения

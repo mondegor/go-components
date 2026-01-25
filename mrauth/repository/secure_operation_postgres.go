@@ -6,8 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
@@ -17,7 +16,7 @@ type (
 	// SecureOperationPostgres - comment struct.
 	SecureOperationPostgres struct {
 		client       mrstorage.DBConnManager
-		errorWrapper mrerr.ErrorWrapper
+		errorWrapper errors.Wrapper
 		table        mrsql.DBTableInfo
 	}
 )
@@ -25,12 +24,11 @@ type (
 // NewSecureOperationPostgres - создаёт объект SecureOperationPostgres.
 func NewSecureOperationPostgres(
 	client mrstorage.DBConnManager,
-	errorWrapper mrerr.ErrorWrapper,
 	table mrsql.DBTableInfo,
 ) *SecureOperationPostgres {
 	return &SecureOperationPostgres{
 		client:       client,
-		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
+		errorWrapper: errors.NewInfraStorageWrapper(),
 		table:        table,
 	}
 }
@@ -74,7 +72,7 @@ func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (
 		&row.ExpiresAt,
 	)
 	if err != nil {
-		return entity.SecureOperation{}, re.errorWrapper.WrapError(err)
+		return entity.SecureOperation{}, re.errorWrapper.Wrap(err)
 	}
 
 	// from nullable user_id field
@@ -126,7 +124,7 @@ func (re *SecureOperationPostgres) Insert(ctx context.Context, row entity.Secure
 		row.ExpiresAt,
 	)
 	if err != nil {
-		return re.errorWrapper.WrapError(err)
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil
@@ -162,11 +160,11 @@ func (re *SecureOperationPostgres) Update(ctx context.Context, currentToken stri
 		row.ExpiresAt,
 	)
 	if err != nil {
-		if mr.ErrStorageRowsNotAffected.Is(err) {
-			err = mr.ErrStorageNoRowFound.Wrap(err)
+		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+			return errors.ErrEventStorageNoRowFound
 		}
 
-		return re.errorWrapper.WrapError(err)
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil
@@ -193,7 +191,7 @@ func (re *SecureOperationPostgres) UpdateFailedAttempt(ctx context.Context, toke
 		&attempts,
 	)
 	if err != nil {
-		return 0, re.errorWrapper.WrapError(err)
+		return 0, re.errorWrapper.Wrap(err)
 	}
 
 	return attempts, nil
@@ -213,11 +211,11 @@ func (re *SecureOperationPostgres) Delete(ctx context.Context, token string) err
 		token,
 	)
 	if err != nil {
-		if mr.ErrStorageRowsNotAffected.Is(err) {
-			err = mr.ErrStorageNoRowFound.Wrap(err)
+		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+			return errors.ErrEventStorageNoRowFound
 		}
 
-		return re.errorWrapper.WrapError(err)
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil
@@ -250,8 +248,8 @@ func (re *SecureOperationPostgres) DeleteExpired(ctx context.Context, limit int)
 		limit,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
-		return re.errorWrapper.WrapError(err)
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil

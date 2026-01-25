@@ -5,9 +5,9 @@ go 1.24.0
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
-	github.com/mondegor/go-storage v0.17.2-0.20251206141616-aff8014d1409
-	github.com/mondegor/go-sysmess v0.15.4-0.20251206134308-2061d68cc806
-	github.com/mondegor/go-webcore v0.29.3-0.20251206135339-0d470b969e3c
+	github.com/mondegor/go-storage v0.17.2-0.20260125122915-e98673b7e11a
+	github.com/mondegor/go-sysmess v0.15.4-0.20260125122500-c01b8859f99b
+	github.com/mondegor/go-webcore v0.29.3-0.20260125142217-cdb32a692401
 	github.com/pquerna/otp v1.5.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.45.0
@@ -50,7 +50,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
-	github.com/lmittmann/tint v1.1.2 // indirect
 	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mdelapenya/tlscert v0.2.0 // indirect

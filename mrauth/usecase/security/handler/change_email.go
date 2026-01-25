@@ -6,9 +6,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrargs"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -20,8 +19,8 @@ type (
 	ChangeEmail struct {
 		txManager    mrstorage.DBTxManager
 		storage      mrauth.UserStorage
-		notifierAPI  mrnotifier.NoticeProducer
-		errorWrapper mrerr.UseCaseErrorWrapper
+		notifierAPI  mrnotifier.NoteProducer
+		errorWrapper errors.Wrapper
 	}
 )
 
@@ -29,14 +28,13 @@ type (
 func NewChangeEmail(
 	txManager mrstorage.DBTxManager,
 	storage mrauth.UserStorage,
-	notifierAPI mrnotifier.NoticeProducer,
-	errorWrapper mrerr.UseCaseErrorWrapper,
+	notifierAPI mrnotifier.NoteProducer,
 ) *ChangeEmail {
 	return &ChangeEmail{
 		txManager:    txManager,
 		storage:      storage,
 		notifierAPI:  notifierAPI,
-		errorWrapper: mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.ChangeEmail"),
+		errorWrapper: errors.NewUseCaseWrapper(),
 	}
 }
 
@@ -45,16 +43,16 @@ func (uc *ChangeEmail) Execute(ctx context.Context, userID uuid.UUID, payload []
 	payloadDTO := dto.ChangeEmailOperation{}
 
 	if err := json.Unmarshal(payload, &payloadDTO); err != nil {
-		return mr.ErrUseCaseIncorrectInternalInputData.Wrap(err, "payload", payload)
+		return errors.ErrInternalIncorrectInputData.WithError(err, "ChangeEmail", "payload", payload)
 	}
 
 	return uc.txManager.Do(ctx, func(ctx context.Context) error {
 		if err := uc.storage.UpdateEmail(ctx, userID, payloadDTO.NewEmail); err != nil {
-			return uc.errorWrapper.WrapErrorFailed(err)
+			return uc.errorWrapper.Wrap(err)
 		}
 
-		if err := uc.notifierAPI.SendNotice(ctx, "user.email.changed", mrargs.Group{"to": payloadDTO.NotifyByEmail}); err != nil {
-			return uc.errorWrapper.WrapErrorFailed(err)
+		if err := uc.notifierAPI.Send(ctx, "user.email.changed", conv.Group{"to": payloadDTO.NotifyByEmail}); err != nil {
+			return uc.errorWrapper.Wrap(err)
 		}
 
 		return nil

@@ -4,9 +4,8 @@ import (
 	"context"
 
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrargs"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -20,9 +19,9 @@ type (
 	ConfirmOperation struct {
 		txManager         mrstorage.DBTxManager
 		storageOperation  mrauth.SecureOperationStorage
-		notifierAPI       mrnotifier.NoticeProducer
+		notifierAPI       mrnotifier.NoteProducer
 		operationPreparer confirmOperationPreparer
-		errorWrapper      mrerr.UseCaseErrorWrapper
+		errorWrapper      errors.Wrapper
 	}
 
 	confirmOperationPreparer interface {
@@ -34,43 +33,42 @@ type (
 func NewConfirmOperation(
 	txManager mrstorage.DBTxManager,
 	storageOperation mrauth.SecureOperationStorage,
-	notifierAPI mrnotifier.NoticeProducer,
+	notifierAPI mrnotifier.NoteProducer,
 	operationPreparer confirmOperationPreparer,
-	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *ConfirmOperation {
 	return &ConfirmOperation{
 		txManager:         txManager,
 		storageOperation:  storageOperation,
 		notifierAPI:       notifierAPI,
 		operationPreparer: operationPreparer,
-		errorWrapper:      mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.ConfirmOperation"),
+		errorWrapper:      errors.NewUseCaseWrapper(),
 	}
 }
 
 // Execute - возвращает строковое значение настройки с указанным идентификатором.
 func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToken, confirmCode string) (entity.SecureOperation, error) {
 	if operationToken == "" {
-		return entity.SecureOperation{}, mr.ErrUseCaseIncorrectInputData.New("operationToken is empty")
+		return entity.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("operationToken is empty")
 	}
 
 	op, err := co.storageOperation.FetchOne(ctx, operationToken)
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.WrapErrorNotFoundOrFailed(err)
+		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	op, err = co.operationPreparer.Prepare(op, confirmCode)
 	if err != nil {
-		if mrauth.ErrNoAttemptsToConfirmOperation.Is(err) {
+		if errors.Is(err, mrauth.ErrNoAttemptsToConfirmOperation) {
 			return op, err // WARNING: 'op' используется с этой ошибкой
 		}
 
-		if !mrauth.ErrConfirmCodeIsIncorrect.Is(err) {
-			return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(err)
+		if !errors.Is(err, mrauth.ErrConfirmCodeIsIncorrect) {
+			return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 		}
 
 		attempts, errUpdate := co.storageOperation.UpdateFailedAttempt(ctx, operationToken)
 		if errUpdate != nil {
-			return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(errUpdate)
+			return entity.SecureOperation{}, co.errorWrapper.Wrap(errUpdate)
 		}
 
 		// TODO: Add Operation log:op!
@@ -85,7 +83,7 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 		// co.eventEmitter.Emit(
 		// 	 ctx,
 		// 	 "Confirm",
-		// 	 mrargs.Group{
+		// 	 conv.Group{
 		// 	 	 "userLogin": nextConfirm.Address,
 		//		 "loginType": nextConfirm.Method,
 		//		 "secretCode": generateSecretCode,
@@ -97,7 +95,7 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 
 	err = co.txManager.Do(ctx, func(ctx context.Context) error {
 		if err = co.storageOperation.Update(ctx, operationToken, op); err != nil {
-			return co.errorWrapper.WrapErrorFailed(err)
+			return co.errorWrapper.Wrap(err)
 		}
 
 		// если все действия подтверждены
@@ -109,16 +107,16 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 		// 2fa подтверждение
 		confirmingAction, err := op.NextNotConfirmedAction()
 		if err != nil {
-			return co.errorWrapper.WrapErrorFailed(err)
+			return co.errorWrapper.Wrap(err)
 		}
 
 		// TODO: Add Operation log:op!
 
 		if confirmingAction.Method == confirmmethod.Email {
-			return co.notifierAPI.SendNotice(
+			return co.notifierAPI.Send(
 				ctx,
 				"confirm.operation.by.email",
-				mrargs.Group{
+				conv.Group{
 					"lang":        langCode,
 					"operation":   op.Name,
 					"to":          confirmingAction.Address,
@@ -128,13 +126,13 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 		}
 
 		if confirmingAction.Method == confirmmethod.Phone {
-			return mr.ErrInternal.New("reason", "ConfirmMethodPhone is not yet supported")
+			return errors.NewInternalError("ConfirmMethodPhone is not yet supported")
 		}
 
 		return nil
 	})
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.WrapErrorFailed(err)
+		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	return op, nil

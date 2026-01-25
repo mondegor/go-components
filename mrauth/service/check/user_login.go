@@ -2,13 +2,10 @@ package check
 
 import (
 	"context"
-	"errors"
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
-	"github.com/mondegor/go-sysmess/mrerrors"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
@@ -22,7 +19,7 @@ type (
 	UserLogin struct {
 		storageCheckUser checkUserStorage
 		storageUserRealm userRealmStorage
-		errorWrapper     mrerr.ErrorWrapper
+		errorWrapper     errors.Wrapper
 	}
 
 	checkUserStorage interface {
@@ -39,12 +36,11 @@ type (
 func NewUserLogin(
 	storageCheckUser checkUserStorage,
 	storageUserRealm userRealmStorage,
-	errorWrapper mrerr.ErrorWrapper,
 ) *UserLogin {
 	return &UserLogin{
 		storageCheckUser: storageCheckUser,
 		storageUserRealm: storageUserRealm,
-		errorWrapper:     mrerr.NewErrorWrapper(errorWrapper, entity.ModelNameUser),
+		errorWrapper:     errors.NewServiceWrapper(),
 	}
 }
 
@@ -63,7 +59,7 @@ func (s *UserLogin) CheckAvailabilityRealm(ctx context.Context, realm string, us
 		return s.CheckAvailabilityRealmPhone(ctx, realm, userLogin.Value)
 	}
 
-	return contactaddress.ErrLoginIsInvalid.New()
+	return contactaddress.ErrLoginIsInvalid
 }
 
 // CheckAvailabilityEmail - проверяет, что указанный email не существует ни в одном realm.
@@ -77,15 +73,15 @@ func (s *UserLogin) CheckAvailabilityEmail(ctx context.Context, userEmail string
 func (s *UserLogin) CheckAvailabilityRealmEmail(ctx context.Context, realm, userEmail string) error {
 	userID, err := s.storageCheckUser.UserIDByEmail(ctx, userEmail)
 	if err != nil {
-		if errors.Is(err, mr.ErrStorageNoRowFound) {
+		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
 			return nil
 		}
 
-		return s.errorWrapper.WrapError(err)
+		return s.errorWrapper.Wrap(err)
 	}
 
 	if realm == "" {
-		return mrauth.ErrEmailAlreadyExists.New()
+		return mrauth.ErrEmailAlreadyExists
 	}
 
 	return s.checkUserRealm(ctx, userID, realm, mrauth.ErrEmailAlreadyExists)
@@ -102,33 +98,33 @@ func (s *UserLogin) CheckAvailabilityPhone(ctx context.Context, userPhone string
 func (s *UserLogin) CheckAvailabilityRealmPhone(ctx context.Context, realm, userPhone string) error {
 	parsedPhone, err := strconv.ParseUint(userPhone, 10, 64)
 	if err != nil {
-		return contactaddress.ErrPhoneIsInvalid.New()
+		return contactaddress.ErrPhoneIsInvalid
 	}
 
 	userID, err := s.storageCheckUser.UserIDByPhone(ctx, parsedPhone)
 	if err != nil {
-		if errors.Is(err, mr.ErrStorageNoRowFound) {
+		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
 			return nil
 		}
 
-		return s.errorWrapper.WrapError(err)
+		return s.errorWrapper.Wrap(err)
 	}
 
 	if realm == "" {
-		return mrauth.ErrPhoneAlreadyExists.New()
+		return mrauth.ErrPhoneAlreadyExists
 	}
 
 	return s.checkUserRealm(ctx, userID, realm, mrauth.ErrPhoneAlreadyExists)
 }
 
-func (s *UserLogin) checkUserRealm(ctx context.Context, userID uuid.UUID, realm string, errIfExists *mrerrors.ProtoError) error {
+func (s *UserLogin) checkUserRealm(ctx context.Context, userID uuid.UUID, realm string, errIfExists error) error {
 	if _, err := s.storageUserRealm.FetchOne(ctx, userID, realm); err != nil {
-		if errors.Is(err, mr.ErrStorageNoRowFound) {
+		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
 			return nil
 		}
 
-		return s.errorWrapper.WrapError(err)
+		return s.errorWrapper.Wrap(err)
 	}
 
-	return errIfExists.New()
+	return errIfExists
 }

@@ -34,20 +34,24 @@ func NewAuthorizeUser(
 	codeGenerator mrauth.CodeGenerator,
 	opts ...AuthorizeUserOption,
 ) *AuthorizeUser {
-	ao := authorizeUserOptions{
-		confirmPhoneByEmail: defaultConfirmPhoneByEmail,
+	o := authorizeUserOptions{
+		authorizer: &AuthorizeUser{
+			tokenGenerator:      tokenGenerator,
+			codeGenerator:       codeGenerator,
+			confirmPhoneByEmail: defaultConfirmPhoneByEmail,
+		},
 	}
 
 	for _, opt := range opts {
-		opt(&ao)
+		opt(&o)
 	}
 
-	return &AuthorizeUser{
-		tokenGenerator:      tokenGenerator,
-		codeGenerator:       codeGenerator,
-		actionCreator:       action.NewConfirmByAddress(ao.confirmByEmail, ao.confirmByPhone),
-		confirmPhoneByEmail: ao.confirmPhoneByEmail,
-	}
+	o.authorizer.actionCreator = action.NewConfirmByAddress(
+		o.confirmByEmail,
+		o.confirmByPhone,
+	)
+
+	return o.authorizer
 }
 
 // Create - comments method.

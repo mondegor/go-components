@@ -1,7 +1,7 @@
 package bag
 
 import (
-	"github.com/mondegor/go-sysmess/mrlib/exttime"
+	"github.com/mondegor/go-sysmess/util/xtime"
 	"github.com/mondegor/go-webcore/mrcore"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
@@ -35,8 +35,8 @@ func (r *OperationResponse) NewConfirmOperation(
 		ConfirmMethod:     r.operationAction(&operation).Method,
 		RemainingAttempts: operation.RemainingAttempts,
 		RemainingResends:  operation.RemainingResends,
-		ResendsIn:         exttime.TimeLeftInSec(operation.ResendsAt),
-		ExpiresIn:         exttime.TimeLeftInSec(operation.ExpiresAt),
+		ResendsIn:         xtime.TimeLeftInSec(operation.ResendsAt),
+		ExpiresIn:         xtime.TimeLeftInSec(operation.ExpiresAt),
 		Message:           message,
 		DebugInfo:         r.debugInfo(&operation),
 	}
@@ -46,12 +46,13 @@ func (r *OperationResponse) NewConfirmOperation(
 func (r *OperationResponse) NewErrorConfirmOperation(
 	operation entity.SecureOperation,
 	lz mrcore.Localizer,
+	code string,
 	err error,
 ) model.ErrorConfirmOperationResponse {
 	return model.ErrorConfirmOperationResponse{
 		OperationStatus: r.newOperationStatus(&operation),
 		Errors: []mrresp.ErrorAttribute{
-			mrresp.NewErrorAttribute(lz, err, r.withDebugInfo),
+			mrresp.NewErrorAttribute(lz, code, err, r.withDebugInfo),
 		},
 	}
 }
@@ -60,8 +61,8 @@ func (r *OperationResponse) newOperationStatus(operation *entity.SecureOperation
 	return model.ConfirmOperationStatus{
 		RemainingAttempts: operation.RemainingAttempts,
 		RemainingResends:  operation.RemainingResends,
-		ResendsIn:         exttime.TimeLeftInSec(operation.ResendsAt),
-		ExpiresIn:         exttime.TimeLeftInSec(operation.ExpiresAt),
+		ResendsIn:         xtime.TimeLeftInSec(operation.ResendsAt),
+		ExpiresIn:         xtime.TimeLeftInSec(operation.ExpiresAt),
 		DebugInfo:         r.debugInfo(operation),
 	}
 }

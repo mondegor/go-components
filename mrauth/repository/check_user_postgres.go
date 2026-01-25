@@ -7,14 +7,14 @@ import (
 	"github.com/mondegor/go-storage/mrpostgres/db"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/errors"
 )
 
 type (
 	// CheckUserPostgres - comment struct.
 	CheckUserPostgres struct {
 		client            mrstorage.DBConnManager
-		errorWrapper      mrerr.ErrorWrapper
+		errorWrapper      errors.Wrapper
 		table             mrsql.DBTableInfo
 		repoUserIDByEmail db.FieldFetcher[string, uuid.UUID]
 		repoUserIDByPhone db.FieldFetcher[uint64, uuid.UUID]
@@ -24,12 +24,11 @@ type (
 // NewCheckUserPostgres - создаёт объект UserPostgres.
 func NewCheckUserPostgres(
 	client mrstorage.DBConnManager,
-	errorWrapper mrerr.ErrorWrapper,
 	table mrsql.DBTableInfo,
 ) *CheckUserPostgres {
 	return &CheckUserPostgres{
 		client:       client,
-		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
+		errorWrapper: errors.NewInfraStorageWrapper(),
 		table:        table,
 		repoUserIDByEmail: db.NewFieldFetcher[string, uuid.UUID](
 			client,
@@ -52,7 +51,7 @@ func NewCheckUserPostgres(
 func (re *CheckUserPostgres) UserIDByEmail(ctx context.Context, userEmail string) (rowID uuid.UUID, err error) {
 	rowID, err = re.repoUserIDByEmail.Fetch(ctx, userEmail)
 	if err != nil {
-		return uuid.Nil, re.errorWrapper.WrapError(err)
+		return uuid.Nil, re.errorWrapper.Wrap(err)
 	}
 
 	return rowID, nil
@@ -62,7 +61,7 @@ func (re *CheckUserPostgres) UserIDByEmail(ctx context.Context, userEmail string
 func (re *CheckUserPostgres) UserIDByPhone(ctx context.Context, userPhone uint64) (rowID uuid.UUID, err error) {
 	rowID, err = re.repoUserIDByPhone.Fetch(ctx, userPhone)
 	if err != nil {
-		return uuid.Nil, re.errorWrapper.WrapError(err)
+		return uuid.Nil, re.errorWrapper.Wrap(err)
 	}
 
 	return rowID, nil

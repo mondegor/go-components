@@ -44,7 +44,7 @@ func NewChangePhone(
 func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone string) (entity.SecureOperation, error) {
 	parsedNewPhone, err := strconv.ParseUint(newPhone, 10, 64)
 	if err != nil {
-		return entity.SecureOperation{}, contactaddress.ErrPhoneIsInvalid.New()
+		return entity.SecureOperation{}, contactaddress.ErrPhoneIsInvalid
 	}
 
 	operationToken, err := o.tokenGenerator.GenToken()

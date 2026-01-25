@@ -2,10 +2,9 @@ package service
 
 import (
 	"context"
-	"errors"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
@@ -21,7 +20,7 @@ type (
 		storageUser    mrauth.UserStorage
 		storageUser2FA mrauth.User2faStorage
 		factoryAction  factoryConfirmAction2FA
-		errorWrapper   mrerr.UseCaseErrorWrapper
+		errorWrapper   errors.Wrapper
 	}
 
 	factoryConfirmAction2FA interface {
@@ -34,13 +33,12 @@ func NewFactoryConfirm2FA(
 	storageUser mrauth.UserStorage,
 	storageUser2FA mrauth.User2faStorage,
 	factoryAction factoryConfirmAction2FA,
-	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *FactoryConfirm2FA {
 	return &FactoryConfirm2FA{
 		storageUser:    storageUser,
 		storageUser2FA: storageUser2FA,
 		factoryAction:  factoryAction,
-		errorWrapper:   mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.FactoryConfirm2FA"),
+		errorWrapper:   errors.NewServiceWrapper(),
 	}
 }
 
@@ -48,7 +46,7 @@ func NewFactoryConfirm2FA(
 func (re *FactoryConfirm2FA) CreateByUserLogin(ctx context.Context, userLogin contactaddress.ContactAddress) (dto.User2FA, error) {
 	user, err := re.storageUser.FetchOneByLogin(ctx, userLogin)
 	if err != nil {
-		return dto.User2FA{}, re.errorWrapper.WrapErrorFailed(err)
+		return dto.User2FA{}, re.errorWrapper.Wrap(err)
 	}
 
 	return re.createUser2FA(ctx, &user)
@@ -58,7 +56,7 @@ func (re *FactoryConfirm2FA) CreateByUserLogin(ctx context.Context, userLogin co
 func (re *FactoryConfirm2FA) CreateByUserID(ctx context.Context, userID uuid.UUID) (dto.User2FA, error) {
 	user, err := re.storageUser.FetchOne(ctx, userID)
 	if err != nil {
-		return dto.User2FA{}, re.errorWrapper.WrapErrorFailed(err)
+		return dto.User2FA{}, re.errorWrapper.Wrap(err)
 	}
 
 	return re.createUser2FA(ctx, &user)
@@ -78,16 +76,16 @@ func (re *FactoryConfirm2FA) createUser2FA(ctx context.Context, user *entity.Use
 
 	auth2fa, err := re.storageUser2FA.FetchOne(ctx, user.ID)
 	if err != nil {
-		if re.errorWrapper.IsNotFoundError(err) {
+		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
 			return user2fa, nil
 		}
 
-		return dto.User2FA{}, re.errorWrapper.WrapErrorFailed(err)
+		return dto.User2FA{}, re.errorWrapper.Wrap(err)
 	}
 
 	user2fa.Action2FA, err = re.factoryAction.Create(auth2fa.Type, auth2fa.Secret)
 	if err != nil {
-		return dto.User2FA{}, re.errorWrapper.WrapErrorFailed(err)
+		return dto.User2FA{}, re.errorWrapper.Wrap(err)
 	}
 
 	return user2fa, nil

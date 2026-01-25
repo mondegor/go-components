@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
-	"github.com/mondegor/go-sysmess/mrlib/casttype"
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrtype"
+	"github.com/mondegor/go-sysmess/util/casttype"
 	"github.com/mondegor/go-webcore/mraccess"
 	"github.com/mondegor/go-webcore/mrcore"
 	"github.com/mondegor/go-webcore/mrserver"
@@ -77,7 +76,7 @@ type (
 
 	confirmOperationResponse interface {
 		NewConfirmOperation(operation entity.SecureOperation, message string) model.WaitingConfirmOperationResponse
-		NewErrorConfirmOperation(operation entity.SecureOperation, lz mrcore.Localizer, err error) model.ErrorConfirmOperationResponse
+		NewErrorConfirmOperation(operation entity.SecureOperation, lz mrcore.Localizer, code string, err error) model.ErrorConfirmOperationResponse
 	}
 )
 
@@ -138,8 +137,8 @@ func (ht *Auth) Signup(w http.ResponseWriter, r *http.Request) error {
 
 	op, err := ht.useCaseCreateUser.Execute(r.Context(), req.Realm, lz.Language(), req.UserEmail)
 	if err != nil {
-		if mrauth.ErrEmailAlreadyExists.Is(err) {
-			return mrerr.NewCustomError("userEmail", err)
+		if errors.Is(err, mrauth.ErrEmailAlreadyExists) {
+			return errors.WithCustomCode(err, "userEmail")
 		}
 
 		return err
@@ -172,8 +171,8 @@ func (ht *Auth) Signin(w http.ResponseWriter, r *http.Request) error {
 
 	op, err := ht.useCaseConfirmAuthUser.Execute(r.Context(), req.Realm, lz.Language(), req.UserLogin)
 	if err != nil {
-		if mrauth.ErrLoginNotExists.Is(err) {
-			return mrerr.NewCustomError("userLogin", err)
+		if errors.Is(err, mrauth.ErrLoginNotExists) {
+			return errors.WithCustomCode(err, "userLogin")
 		}
 
 		return err
@@ -204,16 +203,16 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 	// иначе операцию необходимо сначала подтвердить
 	op, err := ht.useCaseConfirmOperation.Execute(r.Context(), lz.Language(), req.Token, req.Secret)
 	if err != nil {
-		if mrauth.ErrConfirmCodeIsIncorrect.Is(err) || mrauth.ErrNoAttemptsToConfirmOperation.Is(err) {
+		if errors.Is(err, mrauth.ErrConfirmCodeIsIncorrect) || errors.Is(err, mrauth.ErrNoAttemptsToConfirmOperation) {
 			return ht.sender.Send(
 				w,
 				http.StatusBadRequest,
-				ht.operationResponse.NewErrorConfirmOperation(op, lz, mrerr.NewCustomError("secret", err)),
+				ht.operationResponse.NewErrorConfirmOperation(op, lz, "secret", err),
 			)
 		}
 
-		if mr.ErrUseCaseEntityNotFound.Is(err) {
-			return mrauth.ErrTokenNotFoundOrExpired.Wrap(err)
+		if errors.Is(err, errors.ErrUseCaseEntityNotFound) {
+			return mrauth.ErrTokenNotFoundOrExpired
 		}
 
 		return err
@@ -272,8 +271,8 @@ func (ht *Auth) ContinueSession(w http.ResponseWriter, r *http.Request) error {
 
 	tk, err := ht.useCaseContinueSession.Execute(r.Context(), ht.parser.Localizer(r).Language(), refreshToken)
 	if err != nil {
-		if mr.ErrUseCaseEntityNotFound.Is(err) {
-			return mrauth.ErrTokenNotFoundOrExpired.Wrap(err)
+		if errors.Is(err, errors.ErrUseCaseEntityNotFound) {
+			return mrauth.ErrTokenNotFoundOrExpired
 		}
 
 		return err
@@ -300,7 +299,7 @@ func (ht *Auth) ContinueSession(w http.ResponseWriter, r *http.Request) error {
 func (ht *Auth) CloseSession(w http.ResponseWriter, r *http.Request) error {
 	accessToken := request.AccessToken(r)
 	if accessToken == "" {
-		return mr.ErrHttpClientUnauthorized.New()
+		return errors.ErrHttpClientUnauthorized
 	}
 
 	if err := ht.useCaseCloseSession.Execute(r.Context(), accessToken); err != nil {

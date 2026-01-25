@@ -1,12 +1,10 @@
 package entity
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -60,22 +58,24 @@ type (
 		CreatedAt     time.Time
 	}
 
-	// co.eventEmitter.Emit(ctx, "CreateRequest", mrargs.Group{"userEmail": parsedLogin.Value, "secretCode": secretCode}).
+	// co.eventEmitter.Emit(ctx, "CreateRequest", conv.Group{"userEmail": parsedLogin.Value, "secretCode": secretCode}).
 
 	// global log operations: session bad.
 )
 
 // ErrOperationHasOnlyConfirmedActions - operation has only confirmed actions.
-var ErrOperationHasOnlyConfirmedActions = mrerr.NewKindInternal("operation has only confirmed actions")
+var (
+	ErrOperationHasOnlyConfirmedActions = errors.NewInternalProto("operation has only confirmed actions")
+)
 
 // NextNotConfirmedAction - comments method.
 func (so *SecureOperation) NextNotConfirmedAction() (*dto.ConfirmAction, error) {
 	if so.Status != operationstatus.Opened {
-		return nil, mr.ErrInternal.New().WithAttr("details", "operation status must be OPENED")
+		return nil, errors.NewInternalError("operation status must be OPENED")
 	}
 
 	if len(so.Actions) == 0 {
-		return nil, mr.ErrInternal.New().WithAttr("details", "operation does not contain any actions")
+		return nil, errors.NewInternalError("operation does not contain any actions")
 	}
 
 	for i := range so.Actions {
@@ -84,7 +84,10 @@ func (so *SecureOperation) NextNotConfirmedAction() (*dto.ConfirmAction, error) 
 		}
 
 		if so.Actions[i].Method == 0 {
-			return nil, mr.ErrInternalUnexpectedValue.New(fmt.Sprintf("so.Actions[%d].Method", i), 0)
+			return nil, errors.NewInternalError(
+				"operation contains action without method",
+				"index", i,
+			)
 		}
 
 		return &so.Actions[i], nil

@@ -3,6 +3,7 @@ package secureoperation
 import (
 	"time"
 
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/pquerna/otp/totp"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -34,7 +35,7 @@ func NewConfirmCode(
 // Prepare - comments method.
 func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (entity.SecureOperation, error) {
 	if time.Now().After(op.ExpiresAt) {
-		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyExpired.New()
+		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyExpired
 	}
 
 	// if item.Payload["audience"] == "" {
@@ -46,7 +47,7 @@ func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (en
 	// }
 
 	if op.Status != operationstatus.Opened {
-		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyConfirmed.New() // operation is not opened
+		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyConfirmed // operation is not opened
 	}
 
 	confirmingAction, err := op.NextNotConfirmedAction()
@@ -55,7 +56,7 @@ func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (en
 	}
 
 	if op.RemainingAttempts == 0 {
-		return op, mrauth.ErrNoAttemptsToConfirmOperation.New() // :TODO: задокументировать возвращение operation
+		return op, mrauth.ErrNoAttemptsToConfirmOperation // :TODO: задокументировать возвращение operation
 	}
 
 	if err = o.checkCode(confirmingAction, confirmCode); err != nil {
@@ -68,7 +69,7 @@ func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (en
 	// если следующих операций нет, то всё ок!
 	confirmingAction, err = op.NextNotConfirmedAction()
 	if err != nil {
-		if !entity.ErrOperationHasOnlyConfirmedActions.Is(err) {
+		if !errors.Is(err, entity.ErrOperationHasOnlyConfirmedActions) {
 			return entity.SecureOperation{}, err
 		}
 
@@ -123,5 +124,5 @@ func (o *ConfirmCode) checkCode(action *dto.ConfirmAction, confirmCode string) e
 		}
 	}
 
-	return mrauth.ErrConfirmCodeIsIncorrect.New()
+	return mrauth.ErrConfirmCodeIsIncorrect
 }

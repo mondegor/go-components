@@ -17,11 +17,11 @@ type (
 
 // NewConfirmByPassword - создаёт объект ConfirmByPassword.
 func NewConfirmByPassword(opts ...Option) *ConfirmByPassword {
-	co := newConfirmOptions(opts)
+	o := newConfirmOptions(opts)
 
 	return &ConfirmByPassword{
-		maxAttempts: co.maxAttempts,
-		expiry:      co.expiry,
+		maxAttempts: o.maxAttempts,
+		expiry:      o.expiry,
 	}
 }
 

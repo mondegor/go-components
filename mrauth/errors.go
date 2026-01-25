@@ -1,42 +1,44 @@
 package mrauth
 
-import "github.com/mondegor/go-sysmess/mrerr"
+import (
+	"github.com/mondegor/go-sysmess/errors"
+)
 
 var (
 	// ErrTokenInvalid - token is invalid.
-	ErrTokenInvalid = mrerr.NewKindUser("TokenInvalid", "token is invalid")
+	ErrTokenInvalid = errors.NewUserProto("TokenInvalid", "access token is invalid")
 
 	// ErrTokenNotFoundOrExpired - token not found or expired.
-	ErrTokenNotFoundOrExpired = mrerr.NewKindUser("TokenNotFoundOrExpired", "token not found or expired")
+	ErrTokenNotFoundOrExpired = errors.NewUserProto("TokenNotFoundOrExpired", "access token not found or expired")
 
 	// // ErrTokenRejected - token was rejected.
-	// ErrTokenRejected = mrerr.NewKindUser("ErrTokenRejected", "token was rejected: '{Reason}'").
+	// ErrTokenRejected = errors.NewUserProto("ErrTokenRejected", "access token was rejected: '{Reason}'").
 
 	// ErrConfirmCodeIsIncorrect - confirm code is incorrect.
-	ErrConfirmCodeIsIncorrect = mrerr.NewKindUser("ConfirmCodeIsIncorrect", "confirm code is incorrect")
+	ErrConfirmCodeIsIncorrect = errors.NewUserProto("ConfirmCodeIsIncorrect", "confirm code is incorrect")
 
 	// ErrNoAttemptsToConfirmOperation - all attempts to confirm the operation have been used.
-	ErrNoAttemptsToConfirmOperation = mrerr.NewKindUser("NoAttemptsToConfirmOperation", "all attempts to confirm the operation have been used")
+	ErrNoAttemptsToConfirmOperation = errors.NewUserProto("NoAttemptsToConfirmOperation", "all attempts to confirm the operation have been used")
 
 	// ErrSendingNewMessagesIsTemporarilyRestricted - sending new messages is temporarily restricted.
-	ErrSendingNewMessagesIsTemporarilyRestricted = mrerr.NewKindUser(
+	ErrSendingNewMessagesIsTemporarilyRestricted = errors.NewUserProto(
 		"SendingNewMessagesIsTemporarilyRestricted", "sending new messages is temporarily restricted")
 
 	// ErrOperationAlreadyExpired - operation already expired.
-	ErrOperationAlreadyExpired = mrerr.NewKindUser("OperationAlreadyExpired", "operation already expired")
+	ErrOperationAlreadyExpired = errors.NewUserProto("OperationAlreadyExpired", "operation already expired")
 
 	// ErrOperationIsNotConfirmed - operation is not confirmed.
-	ErrOperationIsNotConfirmed = mrerr.NewKindUser("OperationIsNotConfirmed", "operation is not confirmed")
+	ErrOperationIsNotConfirmed = errors.NewUserProto("OperationIsNotConfirmed", "operation is not confirmed")
 
 	// ErrOperationAlreadyConfirmed - operation already confirmed.
-	ErrOperationAlreadyConfirmed = mrerr.NewKindUser("OperationAlreadyConfirmed", "operation already confirmed")
+	ErrOperationAlreadyConfirmed = errors.NewUserProto("OperationAlreadyConfirmed", "operation already confirmed")
 
 	// ErrLoginNotExists - login not exists.
-	ErrLoginNotExists = mrerr.NewKindUser("ErrLoginNotExists", "login not exists")
+	ErrLoginNotExists = errors.NewUserProto("ErrLoginNotExists", "login not exists")
 
 	// ErrEmailAlreadyExists - entity already exists.
-	ErrEmailAlreadyExists = mrerr.NewKindUser("EmailAlreadyExists", "email already exists")
+	ErrEmailAlreadyExists = errors.NewUserProto("EmailAlreadyExists", "email already exists")
 
 	// ErrPhoneAlreadyExists - entity already exists.
-	ErrPhoneAlreadyExists = mrerr.NewKindUser("PhoneAlreadyExists", "phone already exists")
+	ErrPhoneAlreadyExists = errors.NewUserProto("PhoneAlreadyExists", "phone already exists")
 )

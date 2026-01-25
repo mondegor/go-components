@@ -3,8 +3,6 @@ package check
 import (
 	"context"
 
-	"github.com/mondegor/go-sysmess/mrerr"
-
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"
 )
@@ -26,13 +24,11 @@ func NewUserLoginExt(
 	storageCheckUser checkUserStorage,
 	storageUserRealm userRealmStorage,
 	loginParser loginParser,
-	errorWrapper mrerr.ErrorWrapper,
 ) *UserLoginExt {
 	return &UserLoginExt{
 		UserLogin: NewUserLogin(
 			storageCheckUser,
 			storageUserRealm,
-			errorWrapper,
 		),
 		loginParser: loginParser,
 	}

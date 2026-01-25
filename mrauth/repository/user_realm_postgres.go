@@ -5,8 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth/entity"
 )
@@ -15,7 +14,7 @@ type (
 	// UserRealmPostgres - comment struct.
 	UserRealmPostgres struct {
 		client       mrstorage.DBConnManager
-		errorWrapper mrerr.ErrorWrapper
+		errorWrapper errors.Wrapper
 		tableName    string
 	}
 )
@@ -23,12 +22,11 @@ type (
 // NewUserRealmPostgres - создаёт объект UserRealmPostgres.
 func NewUserRealmPostgres(
 	client mrstorage.DBConnManager,
-	errorWrapper mrerr.ErrorWrapper,
 	tableName string,
 ) *UserRealmPostgres {
 	return &UserRealmPostgres{
 		client:       client,
-		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, tableName),
+		errorWrapper: errors.NewInfraStorageWrapper(),
 		tableName:    tableName,
 	}
 }
@@ -98,7 +96,7 @@ func (re *UserRealmPostgres) FetchOne(ctx context.Context, userID uuid.UUID, rea
 		&row.Kind,
 	)
 	if err != nil {
-		return entity.UserRealm{}, re.errorWrapper.WrapError(err)
+		return entity.UserRealm{}, re.errorWrapper.Wrap(err)
 	}
 
 	row.UserID = userID
@@ -127,7 +125,7 @@ func (re *UserRealmPostgres) Insert(ctx context.Context, row entity.UserRealm) e
 		row.Kind,
 	)
 	if err != nil {
-		return re.errorWrapper.WrapError(err)
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil
@@ -152,11 +150,11 @@ func (re *UserRealmPostgres) UpdateKind(ctx context.Context, row entity.UserReal
 		row.Kind,
 	)
 	if err != nil {
-		if mr.ErrStorageRowsNotAffected.Is(err) {
-			err = mr.ErrStorageNoRowFound.Wrap(err)
+		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+			return errors.ErrEventStorageNoRowFound
 		}
 
-		return re.errorWrapper.WrapError(err)
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil
@@ -177,11 +175,11 @@ func (re *UserRealmPostgres) Delete(ctx context.Context, userID uuid.UUID, realm
 		realm,
 	)
 	if err != nil {
-		if mr.ErrStorageRowsNotAffected.Is(err) {
-			err = mr.ErrStorageNoRowFound.Wrap(err)
+		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+			return errors.ErrEventStorageNoRowFound
 		}
 
-		return re.errorWrapper.WrapError(err)
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil

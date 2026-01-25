@@ -6,8 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth/entity"
 )
@@ -16,7 +15,7 @@ type (
 	// Auth2faPostgres - comment struct.
 	Auth2faPostgres struct {
 		client       mrstorage.DBConnManager
-		errorWrapper mrerr.ErrorWrapper
+		errorWrapper errors.Wrapper
 		table        mrsql.DBTableInfo
 	}
 )
@@ -24,12 +23,11 @@ type (
 // NewAuth2faPostgres - создаёт объект Auth2faPostgres.
 func NewAuth2faPostgres(
 	client mrstorage.DBConnManager,
-	errorWrapper mrerr.ErrorWrapper,
 	table mrsql.DBTableInfo,
 ) *Auth2faPostgres {
 	return &Auth2faPostgres{
 		client:       client,
-		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, table.Name),
+		errorWrapper: errors.NewInfraStorageWrapper(),
 		table:        table,
 	}
 }
@@ -57,7 +55,7 @@ func (re *Auth2faPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row 
 		&row.CancelSecret,
 	)
 	if err != nil {
-		return entity.Auth2fa{}, re.errorWrapper.WrapError(err)
+		return entity.Auth2fa{}, re.errorWrapper.Wrap(err)
 	}
 
 	return row, nil
@@ -90,7 +88,7 @@ func (re *Auth2faPostgres) InsertOrUpdate(ctx context.Context, row entity.Auth2f
 		row.CancelSecret,
 	)
 	if err != nil {
-		return re.errorWrapper.WrapError(err)
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil
@@ -110,8 +108,8 @@ func (re *Auth2faPostgres) Delete(ctx context.Context, userID uuid.UUID) error {
 		userID,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !mr.ErrStorageRowsNotAffected.Is(err) {
-		return re.errorWrapper.WrapError(err)
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil

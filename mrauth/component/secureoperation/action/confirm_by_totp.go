@@ -17,11 +17,11 @@ type (
 
 // NewConfirmByTOTP - создаёт объект ConfirmByTOTP.
 func NewConfirmByTOTP(opts ...Option) *ConfirmByTOTP {
-	co := newConfirmOptions(opts)
+	o := newConfirmOptions(opts)
 
 	return &ConfirmByTOTP{
-		maxAttempts: co.maxAttempts,
-		expiry:      co.expiry,
+		maxAttempts: o.maxAttempts,
+		expiry:      o.expiry,
 	}
 }
 

@@ -6,11 +6,9 @@ import (
 
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrtests/infra"
-	"github.com/mondegor/go-webcore/mrsender"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/mondegor/go-components/mrmailer"
-	"github.com/mondegor/go-components/mrmailer/dto"
 	"github.com/mondegor/go-components/mrmailer/entity"
 	"github.com/mondegor/go-components/mrmailer/repository"
 	"github.com/mondegor/go-components/tests"
@@ -31,7 +29,7 @@ func TestMessagePostgresTestSuite(t *testing.T) {
 func (ts *RepositoryTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
 	ts.pgt = infra.NewPostgresTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
-	ts.pgt.ApplyMigrations(tests.AppWorkDir() + "/mrmailer/sample/migrations")
+	ts.pgt.ApplyMigrations(tests.AppWorkDir() + "/mrmailer/_sample/migrations")
 
 	ts.repo = repository.NewMessagePostgres(
 		ts.pgt.ConnManager(),
@@ -56,11 +54,11 @@ func (ts *RepositoryTestSuite) Test_Fetch() {
 	expected := entity.Message{
 		ID:      2,
 		Channel: "mail",
-		Data: dto.MessageData{
+		Data: entity.MessageData{
 			Header: map[string]string{
-				"CorrelationID": "56a8ee4a-7fcf-44c5-849e-e9f6a453e380",
+				mrmailer.HeaderCorrelationID: "56a8ee4a-7fcf-44c5-849e-e9f6a453e380",
 			},
-			Email: &dto.DataEmail{
+			Mail: &entity.DataMail{
 				ContentType: "text/plain",
 				From:        "Ivan Ivanov",
 				To:          "Ivan Ivanov <ivan.ivanov@localhost>",
@@ -84,12 +82,12 @@ func (ts *RepositoryTestSuite) Test_Insert() {
 	expected := entity.Message{
 		ID:      2,
 		Channel: "mail",
-		Data: dto.MessageData{
+		Data: entity.MessageData{
 			Header: map[string]string{
 				mrmailer.HeaderCorrelationID: "56a8ee4a-7fcf-44c5-849e-e9f6a453e380",
 			},
-			Email: &dto.DataEmail{
-				ContentType: mrsender.ContentTypePlain,
+			Mail: &entity.DataMail{
+				ContentType: "text/plain",
 				From:        "Ivan Ivanov",
 				To:          "Ivan Ivanov <ivan.ivanov@localhost>",
 				ReplyTo:     "Ivan Ivanov <reply@localhost>",

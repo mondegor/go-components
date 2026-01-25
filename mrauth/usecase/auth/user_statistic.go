@@ -5,7 +5,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -17,7 +17,7 @@ type (
 	UserStatistic struct {
 		storageActivityStat mrauth.UserActivityStatStorage
 		storageActivityLog  mrauth.UserActivityLogStorage
-		errorWrapper        mrerr.UseCaseErrorWrapper
+		errorWrapper        errors.Wrapper
 	}
 )
 
@@ -25,12 +25,11 @@ type (
 func NewUserStatistic(
 	storageActivityStat mrauth.UserActivityStatStorage,
 	storageActivityLog mrauth.UserActivityLogStorage,
-	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *UserStatistic {
 	return &UserStatistic{
 		storageActivityStat: storageActivityStat,
 		storageActivityLog:  storageActivityLog,
-		errorWrapper:        mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.UserStatistic"),
+		errorWrapper:        errors.NewUseCaseWrapper(),
 	}
 }
 
@@ -77,11 +76,11 @@ func (uc *UserStatistic) Execute(ctx context.Context, list []entity.UserActivity
 	// целостность данных не критична, поэтому единой транзакции не требуется
 
 	if err := uc.storageActivityStat.UpdateLastVisited(ctx, stat); err != nil {
-		return uc.errorWrapper.WrapErrorFailed(err)
+		return uc.errorWrapper.Wrap(err)
 	}
 
 	if err := uc.storageActivityLog.Insert(ctx, list); err != nil {
-		return uc.errorWrapper.WrapErrorFailed(err)
+		return uc.errorWrapper.Wrap(err)
 	}
 
 	return nil

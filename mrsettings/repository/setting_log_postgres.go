@@ -5,8 +5,8 @@ import (
 
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrargs"
-	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/util/conv"
 )
 
 const (
@@ -17,7 +17,7 @@ type (
 	// SettingLogPostgres - репозиторий для хранения элементов настроек.
 	SettingLogPostgres struct {
 		client       mrstorage.DBConnManager
-		errorWrapper mrerr.ErrorWrapper
+		errorWrapper errors.Wrapper
 		tableName    string
 		tableSource  mrsql.DBTableInfo
 	}
@@ -26,7 +26,6 @@ type (
 // NewSettingLogPostgres - создаёт объект SettingLogPostgres.
 func NewSettingLogPostgres(
 	client mrstorage.DBConnManager,
-	errorWrapper mrerr.ErrorWrapper,
 	tableName string,
 	tableSource mrsql.DBTableInfo,
 ) *SettingLogPostgres {
@@ -44,7 +43,7 @@ func NewSettingLogPostgres(
 
 	return &SettingLogPostgres{
 		client:       client,
-		errorWrapper: mrerr.NewErrorWrapper(errorWrapper, tableName),
+		errorWrapper: errors.NewInfraStorageWrapper(),
 		tableName:    tableName,
 		tableSource:  tableSource,
 	}
@@ -79,7 +78,7 @@ func (re *SettingLogPostgres) Insert(ctx context.Context, settingID uint64, newV
 		newValue,
 	)
 	if err != nil {
-		return re.errorWrapper.WrapError(err, "storage-data", mrargs.Group{"id": settingID})
+		return re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"id": settingID})
 	}
 
 	return nil

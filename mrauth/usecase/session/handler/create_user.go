@@ -6,10 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrargs"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrlog"
+	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
@@ -25,8 +24,8 @@ type (
 		txManager        mrstorage.DBTxManager
 		storageUser      mrauth.UserStorage
 		storageUserRealm mrauth.UserRealmStorage
-		notifierAPI      mrnotifier.NoticeProducer
-		errorWrapper     mrerr.UseCaseErrorWrapper
+		notifierAPI      mrnotifier.NoteProducer
+		errorWrapper     errors.Wrapper
 		logger           mrlog.Logger
 	}
 )
@@ -36,8 +35,7 @@ func NewCreateUser(
 	txManager mrstorage.DBTxManager,
 	storageUser mrauth.UserStorage,
 	storageUserNamespace mrauth.UserRealmStorage,
-	notifierAPI mrnotifier.NoticeProducer,
-	errorWrapper mrerr.UseCaseErrorWrapper,
+	notifierAPI mrnotifier.NoteProducer,
 	logger mrlog.Logger,
 ) *CreateUser {
 	return &CreateUser{
@@ -45,7 +43,7 @@ func NewCreateUser(
 		storageUser:      storageUser,
 		storageUserRealm: storageUserNamespace,
 		notifierAPI:      notifierAPI,
-		errorWrapper:     mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.CreateUser"),
+		errorWrapper:     errors.NewUseCaseWrapper(),
 		logger:           logger,
 	}
 }
@@ -55,13 +53,13 @@ func (uc *CreateUser) Execute(ctx context.Context, payload []byte) (u dto.UserIn
 	payloadDTO := dto.CreateUserOperation{}
 
 	if err = json.Unmarshal(payload, &payloadDTO); err != nil {
-		return dto.UserInRealm{}, mr.ErrUseCaseIncorrectInternalInputData.Wrap(err, "payload", payload)
+		return dto.UserInRealm{}, errors.ErrInternalIncorrectInputData.WithError(err, "CreateUser", "payload", payload)
 	}
 
 	user, err := uc.storageUser.FetchOneByLogin(ctx, contactaddress.NewEmail(payloadDTO.Email))
 	if err != nil {
-		if !uc.errorWrapper.IsNotFoundError(err) {
-			return dto.UserInRealm{}, uc.errorWrapper.WrapErrorFailed(err)
+		if !errors.Is(err, errors.ErrEventStorageNoRowFound) {
+			return dto.UserInRealm{}, uc.errorWrapper.Wrap(err)
 		}
 	}
 
@@ -75,7 +73,7 @@ func (uc *CreateUser) Execute(ctx context.Context, payload []byte) (u dto.UserIn
 
 			user.ID, err = uc.storageUser.Insert(ctx, user)
 			if err != nil {
-				return uc.errorWrapper.WrapErrorFailed(err)
+				return uc.errorWrapper.Wrap(err)
 			}
 		}
 
@@ -86,7 +84,7 @@ func (uc *CreateUser) Execute(ctx context.Context, payload []byte) (u dto.UserIn
 		}
 
 		if err = uc.storageUserRealm.Insert(ctx, userRealm); err != nil {
-			return uc.errorWrapper.WrapErrorFailed(err)
+			return uc.errorWrapper.Wrap(err)
 		}
 
 		return nil
@@ -95,10 +93,10 @@ func (uc *CreateUser) Execute(ctx context.Context, payload []byte) (u dto.UserIn
 		return dto.UserInRealm{}, err
 	}
 
-	err = uc.notifierAPI.SendNotice(
+	err = uc.notifierAPI.Send(
 		ctx,
 		"user.registration.success",
-		mrargs.Group{
+		conv.Group{
 			"lang": payloadDTO.LangCode,
 			"to":   payloadDTO.Email,
 		},
@@ -107,10 +105,10 @@ func (uc *CreateUser) Execute(ctx context.Context, payload []byte) (u dto.UserIn
 		uc.logger.Error(ctx, "After CreateUser notice 'user.registration.success' not send", "error", err)
 	}
 
-	err = uc.notifierAPI.SendNotice(
+	err = uc.notifierAPI.Send(
 		ctx,
 		"user.was.registered",
-		mrargs.Group{
+		conv.Group{
 			"lang":      payloadDTO.LangCode,
 			"userRealm": payloadDTO.Realm,
 			"userEmail": payloadDTO.Email,

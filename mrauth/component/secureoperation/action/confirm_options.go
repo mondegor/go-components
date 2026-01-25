@@ -12,60 +12,62 @@ const (
 )
 
 type (
+	// Option - настройка объекта MessageSender.
+	Option func(o *confirmOptions)
+
 	confirmOptions struct {
 		maxAttempts   uint32
 		maxResends    uint32
 		minResendTime time.Duration
 		expiry        time.Duration
 	}
-
-	// Option - настройка объекта MessageSender.
-	Option func(co *confirmOptions)
 )
 
 func newConfirmOptions(opts []Option) confirmOptions {
-	co := confirmOptions{
-		maxAttempts:   defaultMaxAttempts,
-		maxResends:    defaultMaxResends,
+	o := confirmOptions{
 		minResendTime: defaultMinResendTime,
 		expiry:        defaultExpiry,
 	}
 
 	for _, opt := range opts {
-		opt(&co)
+		opt(&o)
 	}
 
-	return co
+	if o.maxAttempts < 1 {
+		o.maxAttempts = defaultMaxAttempts
+	}
+
+	if o.maxResends < 1 {
+		o.maxAttempts = defaultMaxResends
+	}
+
+	return o
 }
 
 // WithMaxAttempts - устанавливает кол-во попыток отправки одного сообщения.
 func WithMaxAttempts(value uint32) Option {
-	return func(co *confirmOptions) {
-		if value > 0 {
-			co.maxAttempts = value
-		}
+	return func(o *confirmOptions) {
+		o.maxAttempts = value
 	}
 }
 
 // WithMaxResends - устанавливает поправку на задержку сообщения.
 func WithMaxResends(value uint32) Option {
-	return func(co *confirmOptions) {
-		co.maxResends = value
+	return func(o *confirmOptions) {
+		o.maxResends = value
 	}
 }
 
 // WithMinResendTime - устанавливает поправку на задержку сообщения.
 func WithMinResendTime(value time.Duration) Option {
-	return func(co *confirmOptions) {
-		co.minResendTime = value
+	return func(o *confirmOptions) {
+		o.minResendTime = value
 	}
 }
 
 // WithExpiry - устанавливает поправку на задержку сообщения.
 func WithExpiry(value time.Duration) Option {
-	return func(co *confirmOptions) {
-		if value > 0 {
-			co.expiry = value
-		}
+	return func(o *confirmOptions) {
+		o.expiry = value
 	}
 }

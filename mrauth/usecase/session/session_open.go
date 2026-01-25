@@ -6,8 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrerr"
-	"github.com/mondegor/go-sysmess/mrerr/mr"
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrtype"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -25,7 +24,7 @@ type (
 		handlerCreateUser     operationHandlerCreateUser
 		handlerBeforeAuthUser operationHandlerBeforeAuthUser
 		tokenCreator          tokenCreator
-		errorWrapper          mrerr.UseCaseErrorWrapper
+		errorWrapper          errors.Wrapper
 	}
 
 	operationHandlerCreateUser interface {
@@ -48,7 +47,6 @@ func NewOpenSession(
 	handlerCreateUser operationHandlerCreateUser,
 	handlerBeforeAuthUser operationHandlerBeforeAuthUser,
 	tokenCreator tokenCreator,
-	errorWrapper mrerr.UseCaseErrorWrapper,
 ) *OpenSession {
 	return &OpenSession{
 		txManager:             txManager,
@@ -56,7 +54,7 @@ func NewOpenSession(
 		handlerCreateUser:     handlerCreateUser,
 		handlerBeforeAuthUser: handlerBeforeAuthUser,
 		tokenCreator:          tokenCreator,
-		errorWrapper:          mrerr.NewUseCaseErrorWrapper(errorWrapper, "mrauth.OpenSession"),
+		errorWrapper:          errors.NewUseCaseWrapper(),
 	}
 }
 
@@ -65,7 +63,7 @@ func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, 
 	var user dto.UserInRealm
 
 	if op.Status != operationstatus.Confirmed {
-		return dto.AuthToken{}, mrauth.ErrOperationIsNotConfirmed.New()
+		return dto.AuthToken{}, mrauth.ErrOperationIsNotConfirmed
 	}
 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
@@ -81,7 +79,7 @@ func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, 
 				return err
 			}
 		default:
-			return mr.ErrUseCaseAccessForbidden.New()
+			return errors.ErrUseCaseAccessForbidden
 		}
 
 		authToken, err = uc.tokenCreator.Create(ctx, user.Realm, user.Kind, user.LangCode, user.ID)
@@ -99,7 +97,7 @@ func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, 
 		return uc.storageUserActivity.InsertOrUpdate(ctx, userActivity)
 	})
 	if err != nil {
-		return dto.AuthToken{}, uc.errorWrapper.WrapErrorFailed(err)
+		return dto.AuthToken{}, uc.errorWrapper.Wrap(err)
 	}
 
 	return authToken, nil

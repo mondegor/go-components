@@ -1,8 +1,8 @@
 package crypt
 
 import (
-	"github.com/mondegor/go-sysmess/mrerr/mr"
-	"github.com/mondegor/go-sysmess/mrlib/crypt"
+	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/util/crypt"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -38,7 +38,7 @@ func (c *CodeGenerator) GenCodeLen(length int) (string, error) {
 func (c *CodeGenerator) HashedCode(code string) (string, error) {
 	hashed, err := bcrypt.GenerateFromPassword([]byte(code), bcrypt.DefaultCost)
 	if err != nil {
-		return "", mr.ErrInternal.Wrap(err, "details", "invalid HashedCode")
+		return "", errors.WrapInternalError(err, "invalid HashedCode")
 	}
 
 	return string(hashed), nil
@@ -67,7 +67,7 @@ func (c *CodeGenerator) CompareCodeAndHash(code, hashedCode string) error {
 func (c *CodeGenerator) genCodeLen(length int) (string, error) {
 	code, err := crypt.GenerateDigits(length)
 	if err != nil {
-		return "", mr.ErrInternal.Wrap(err, "details", "invalid GenCode")
+		return "", errors.WrapInternalError(err, "invalid GenCode")
 	}
 
 	return code, nil
