@@ -3,8 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
-
-	"github.com/mondegor/go-sysmess/util/xstrings"
+	"slices"
 )
 
 // ValidateRealms - comment func.
@@ -50,7 +49,7 @@ func validateRealm(realm UserRealm, allRoles []string) error {
 		}
 
 		for _, role := range kind.Roles {
-			if !xstrings.InArray(role, allRoles) {
+			if !slices.Contains(allRoles, role) {
 				return fmt.Errorf("role of user kind is not found in roles for realm (role='%s', kind='%s', realm='%s')", role, kind.Name, realm.Name)
 			}
 		}
