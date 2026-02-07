@@ -46,7 +46,7 @@ func (co *UserProvider) UserByToken(ctx context.Context, value string) (mraccess
 		return nil, errors.ErrInternalIncorrectInputData.WithDetails("token is empty")
 	}
 
-	authToken, err := co.storage.FetchOne(ctx, value)
+	userScopes, err := co.storage.FetchOne(ctx, value)
 	if err != nil {
 		if errors.Is(err, errors.ErrEventStorageNoRowFound) || errors.Is(err, repository.ErrTokenExpired) {
 			return nil, mrauth.ErrTokenNotFoundOrExpired
@@ -55,14 +55,14 @@ func (co *UserProvider) UserByToken(ctx context.Context, value string) (mraccess
 		return nil, co.errorWrapper.Wrap(err) // "token", trim value[:8]...
 	}
 
-	if !co.allowedRealmsMap[authToken.Realm] {
+	if !co.allowedRealmsMap[userScopes.Realm] {
 		return nil, errors.ErrUseCaseAccessForbidden
 	}
 
 	return mraccess.NewUser(
-		authToken.UserID,
-		authToken.Realm+"/"+authToken.UserKind,
-		authToken.LangCode,
+		userScopes.UserID,
+		userScopes.Realm+"/"+userScopes.Kind,
+		userScopes.LangCode,
 		co.userGroups,
 	), nil
 }

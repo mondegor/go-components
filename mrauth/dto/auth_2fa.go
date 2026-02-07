@@ -2,6 +2,8 @@ package dto
 
 import (
 	"github.com/google/uuid"
+
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 type (
@@ -10,7 +12,7 @@ type (
 		ID        uuid.UUID
 		Email     string
 		Phone     uint64
-		Action2FA ConfirmAction
+		Action2FA secureoperation.ConfirmAction
 	}
 
 	// Auth2faCancel - comment struct.

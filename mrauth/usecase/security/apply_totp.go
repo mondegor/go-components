@@ -13,7 +13,6 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 	"github.com/pquerna/otp/totp"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
@@ -24,19 +23,23 @@ type (
 	// ApplyTOTPGenerator - comment struct.
 	ApplyTOTPGenerator struct {
 		txManager        mrstorage.DBTxManager
-		storage          mrauth.User2faStorage
-		storageOperation mrauth.SecureOperationStorage
+		storage          user2faCreator
+		storageOperation operationFetcher
 		notifierAPI      mrnotifier.NoteProducer
 		errorWrapper     errors.Wrapper
 		issuer           string
+	}
+
+	user2faCreator interface {
+		InsertOrUpdate(ctx context.Context, row entity.Auth2fa) error
 	}
 )
 
 // NewApplyTOTPGenerator - создаёт объект ApplyTOTPGenerator.
 func NewApplyTOTPGenerator(
 	txManager mrstorage.DBTxManager,
-	storage mrauth.User2faStorage,
-	storageOperation mrauth.SecureOperationStorage,
+	storage user2faCreator,
+	storageOperation operationFetcher,
 	notifierAPI mrnotifier.NoteProducer,
 	issuer string,
 ) *ApplyTOTPGenerator {

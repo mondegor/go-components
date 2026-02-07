@@ -3,9 +3,9 @@ package action
 import (
 	"github.com/mondegor/go-sysmess/errors"
 
-	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
-	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"
+	"github.com/mondegor/go-components/mrauth/model/contactaddress"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 type (
@@ -25,16 +25,16 @@ func NewConfirmByAddress(emailOpts, phoneOpts []Option) *ConfirmByAddress {
 }
 
 // Create - comments method.
-func (a *ConfirmByAddress) Create(address contactaddress.ContactAddress, confirmCode string) (dto.ConfirmAction, error) {
-	if address.Type == addresstype.Phone {
+func (a *ConfirmByAddress) Create(address contactaddress.ContactAddress, confirmCode string) (secureoperation.ConfirmAction, error) {
+	if address.Is(addresstype.Phone) {
 		return a.confirmByPhone.Create(address, confirmCode)
 	}
 
-	if address.Type == addresstype.Email {
+	if address.Is(addresstype.Email) {
 		return a.confirmByEmail.Create(address, confirmCode)
 	}
 
-	return dto.ConfirmAction{},
+	return secureoperation.ConfirmAction{},
 		errors.NewInternalError(
 			"contactAddress type is invalid",
 			"address", address,

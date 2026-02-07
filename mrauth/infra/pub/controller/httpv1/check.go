@@ -10,6 +10,7 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
+	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/validate"
 )
 
@@ -29,7 +30,7 @@ type (
 	}
 
 	loginService interface {
-		CheckAvailabilityRealm(ctx context.Context, realm, userLogin string) error
+		CheckAvailabilityRealm(ctx context.Context, realm string, userLogin contactaddress.ContactAddress) error
 	}
 
 	passwordService interface {
@@ -70,7 +71,12 @@ func (ht *Check) CheckLogin(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	if err := ht.serviceLogin.CheckAvailabilityRealm(r.Context(), request.Realm, request.UserLogin); err != nil {
+	parsedLogin, err := contactaddress.Parse(request.UserLogin)
+	if err != nil {
+		return errors.WithCustomCode(errors.ErrUseCaseIncorrectInputData.New(err), "userLogin")
+	}
+
+	if err := ht.serviceLogin.CheckAvailabilityRealm(r.Context(), request.Realm, parsedLogin); err != nil {
 		if errors.Is(err, mrauth.ErrEmailAlreadyExists) || errors.Is(err, mrauth.ErrPhoneAlreadyExists) {
 			return errors.WithCustomCode(err, "userLogin")
 		}

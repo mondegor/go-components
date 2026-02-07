@@ -5,8 +5,9 @@ import (
 	"time"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/util/operation"
 )
 
 type (
@@ -29,9 +30,9 @@ func NewResendCode(
 }
 
 // Prepare - comments method.
-func (o *ResendCode) Prepare(op entity.SecureOperation) (entity.SecureOperation, error) {
+func (o *ResendCode) Prepare(op secureoperation.SecureOperation) (secureoperation.SecureOperation, error) {
 	if time.Now().After(op.ExpiresAt) {
-		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyExpired
+		return secureoperation.SecureOperation{}, mrauth.ErrOperationAlreadyExpired
 	}
 
 	// if item.Payload["audience"] == "" {
@@ -43,20 +44,20 @@ func (o *ResendCode) Prepare(op entity.SecureOperation) (entity.SecureOperation,
 	// }
 
 	if op.Status != operationstatus.Opened {
-		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyConfirmed // operation is not opened
+		return secureoperation.SecureOperation{}, mrauth.ErrOperationAlreadyConfirmed // operation is not opened
 	}
 
-	confirmingAction, err := op.NextNotConfirmedAction()
+	confirmingAction, err := operation.NextConfirmingAction(&op)
 	if err != nil {
-		return entity.SecureOperation{}, err
+		return secureoperation.SecureOperation{}, err
 	}
 
 	if confirmingAction.MaxResends == 0 {
-		return entity.SecureOperation{}, errors.New("operation not support resends")
+		return secureoperation.SecureOperation{}, errors.New("operation not support resends")
 	}
 
 	if op.RemainingResends == 0 {
-		return entity.SecureOperation{}, errors.New("operation failed resends")
+		return secureoperation.SecureOperation{}, errors.New("operation failed resends")
 	}
 
 	if time.Now().Before(op.ResendsAt) {
@@ -65,12 +66,12 @@ func (o *ResendCode) Prepare(op entity.SecureOperation) (entity.SecureOperation,
 
 	op.Token, err = o.tokenGenerator.GenTokenLen(len(op.Token))
 	if err != nil {
-		return entity.SecureOperation{}, err
+		return secureoperation.SecureOperation{}, err
 	}
 
 	confirmingAction.Secret, err = o.codeGenerator.GenCodeLen(len(confirmingAction.Secret))
 	if err != nil {
-		return entity.SecureOperation{}, err
+		return secureoperation.SecureOperation{}, err
 	}
 
 	op.RemainingAttempts = confirmingAction.MaxAttempts

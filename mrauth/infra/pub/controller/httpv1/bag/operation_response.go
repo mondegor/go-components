@@ -5,10 +5,9 @@ import (
 	"github.com/mondegor/go-webcore/mrcore"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
-	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 // OperationResponse - comment struct.
@@ -27,7 +26,7 @@ func NewOperationResponse(withDebugInfo bool) *OperationResponse {
 
 // NewConfirmOperation - comment method.
 func (r *OperationResponse) NewConfirmOperation(
-	operation entity.SecureOperation,
+	operation secureoperation.SecureOperation,
 	message string,
 ) model.WaitingConfirmOperationResponse {
 	return model.WaitingConfirmOperationResponse{
@@ -44,7 +43,7 @@ func (r *OperationResponse) NewConfirmOperation(
 
 // NewErrorConfirmOperation - comment method.
 func (r *OperationResponse) NewErrorConfirmOperation(
-	operation entity.SecureOperation,
+	operation secureoperation.SecureOperation,
 	lz mrcore.Localizer,
 	code string,
 	err error,
@@ -57,7 +56,7 @@ func (r *OperationResponse) NewErrorConfirmOperation(
 	}
 }
 
-func (r *OperationResponse) newOperationStatus(operation *entity.SecureOperation) model.ConfirmOperationStatus {
+func (r *OperationResponse) newOperationStatus(operation *secureoperation.SecureOperation) model.ConfirmOperationStatus {
 	return model.ConfirmOperationStatus{
 		RemainingAttempts: operation.RemainingAttempts,
 		RemainingResends:  operation.RemainingResends,
@@ -67,17 +66,17 @@ func (r *OperationResponse) newOperationStatus(operation *entity.SecureOperation
 	}
 }
 
-func (r *OperationResponse) operationAction(operation *entity.SecureOperation) dto.ConfirmAction {
+func (r *OperationResponse) operationAction(operation *secureoperation.SecureOperation) secureoperation.ConfirmAction {
 	for i := range operation.Actions {
 		if !operation.Actions[i].Confirmed {
 			return operation.Actions[i]
 		}
 	}
 
-	return dto.ConfirmAction{}
+	return secureoperation.ConfirmAction{}
 }
 
-func (r *OperationResponse) debugInfo(operation *entity.SecureOperation) string {
+func (r *OperationResponse) debugInfo(operation *secureoperation.SecureOperation) string {
 	if !r.withDebugInfo {
 		return ""
 	}

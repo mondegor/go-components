@@ -5,21 +5,23 @@ import (
 	"time"
 
 	"github.com/mondegor/go-sysmess/errors"
-
-	"github.com/mondegor/go-components/mrauth"
 )
 
 type (
 	// UserCleaner - объект очищающий очередь от обработанных/сломанных уведомлений.
 	UserCleaner struct {
-		storageLog   mrauth.UserActivityLogStorage
+		storageLog   userActivityLogStorage
 		errorWrapper errors.Wrapper
+	}
+
+	userActivityLogStorage interface {
+		DeleteBeforeDate(ctx context.Context, datetime time.Time, limit int) error
 	}
 )
 
 // NewUserCleaner - создаёт объект UserCleaner.
 func NewUserCleaner(
-	storageLog mrauth.UserActivityLogStorage,
+	storageLog userActivityLogStorage,
 ) *UserCleaner {
 	return &UserCleaner{
 		storageLog:   storageLog,

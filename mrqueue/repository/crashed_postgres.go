@@ -15,16 +15,23 @@ import (
 type (
 	// CrashedPostgres - репозиторий для хранения ошибок записей, которые случились при их обработке.
 	CrashedPostgres struct {
-		client mrstorage.DBConnManager
-		table  mrsql.DBTableInfo
+		client           mrstorage.DBConnManager
+		table            mrsql.DBTableInfo
+		insertArgsHelper placeholdedvalues.SQL
 	}
 )
 
 // NewCrashedPostgres - создаёт объект CrashedPostgres.
 func NewCrashedPostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *CrashedPostgres {
+	const countLineArgs = 2
+
 	return &CrashedPostgres{
 		client: client,
 		table:  table,
+
+		insertArgsHelper: placeholdedvalues.New(
+			placeholdedvalues.WithCountLineArgs(countLineArgs),
+		),
 	}
 }
 
@@ -44,20 +51,13 @@ func (re *CrashedPostgres) Insert(ctx context.Context, rows []entity.CrashedItem
 			)
 		VALUES `)
 
-	const countLineArgs = 2
-
 	// generate: ($1, $2), ...
-	sqlValues := placeholdedvalues.New(
-		&sql,
-		placeholdedvalues.WithCountArgs(countLineArgs),
-	)
-
-	values := make([]any, 0, len(rows)*countLineArgs)
-	argumentNumber := sqlValues.WriteFirstLine()
+	values := make([]any, 0, len(rows)*re.insertArgsHelper.CountLineArgs())
+	argumentNumber := re.insertArgsHelper.WriteFirstLine(&sql)
 
 	for i, row := range rows {
 		if i > 0 {
-			argumentNumber = sqlValues.WriteNextLine(argumentNumber)
+			argumentNumber = re.insertArgsHelper.WriteNextLine(&sql, argumentNumber)
 		}
 
 		values = append(values, row.ID, row.Cause)

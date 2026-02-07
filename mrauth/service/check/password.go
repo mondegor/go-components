@@ -19,11 +19,11 @@ func NewPassword(length int) *Password {
 }
 
 // CalcStrength - comments method.
-func (s *Password) CalcStrength(userPassword string) (strength string) {
+func (sv *Password) CalcStrength(userPassword string) (strength string) {
 	return password.CalcStrength(userPassword).String()
 }
 
 // Generate - comments method.
-func (s *Password) Generate() (strength string) {
-	return password.NewGenerator().Generate(s.length, password.CharAll) // TODO: в настройки
+func (sv *Password) Generate() (strength string) {
+	return password.NewGenerator().Generate(sv.length, password.CharAll) // TODO: в настройки
 }

@@ -22,16 +22,11 @@ func NewAuthTokenJWT(secret string) *AuthTokenJWT {
 }
 
 // FetchOne - возвращает список сообщений по их указанным ID.
-func (re *AuthTokenJWT) FetchOne(_ context.Context, accessToken string) (row dto.AuthTokenScopes, err error) {
+func (re *AuthTokenJWT) FetchOne(_ context.Context, accessToken string) (row dto.UserScopes, err error) {
 	scopes, err := re.parser.Parse(accessToken)
 	if err != nil {
-		return dto.AuthTokenScopes{}, err
+		return dto.UserScopes{}, err
 	}
 
-	return dto.AuthTokenScopes{
-		Realm:    scopes.Realm,
-		UserKind: scopes.UserKind,
-		LangCode: scopes.LangCode,
-		UserID:   scopes.UserID,
-	}, nil
+	return scopes, nil
 }

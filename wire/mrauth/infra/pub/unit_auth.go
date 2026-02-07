@@ -9,14 +9,14 @@ import (
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-webcore/mrserver"
 
-	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
-	"github.com/mondegor/go-components/mrauth/component/secureoperation/action"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
+	action2 "github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service"
 	"github.com/mondegor/go-components/mrauth/service/check"
 	session2 "github.com/mondegor/go-components/mrauth/service/session"
+	"github.com/mondegor/go-components/mrauth/service/userinfo"
 	usecaseauth "github.com/mondegor/go-components/mrauth/usecase/auth"
 	"github.com/mondegor/go-components/mrauth/usecase/operation"
 	"github.com/mondegor/go-components/mrauth/usecase/session"
@@ -52,15 +52,12 @@ func initUnitAuthController(
 		storageUserRealm,
 	)
 
-	contactAddressParser := contactaddress.NewParser()
-
 	useCaseCreateUser := usecaseauth.NewCreateUser(
 		dbConnManager,
 		checkUserService,
 		storageSecureOperation,
 		notifierAPI,
 		locker,
-		contactAddressParser,
 		mapping.OptionUserRealmsToConfirmCreateUserRealms(userRealms),
 	)
 
@@ -69,18 +66,17 @@ func initUnitAuthController(
 		checkUserService,
 		storageSecureOperation,
 		notifierAPI,
-		contactAddressParser,
 		service.NewFactoryConfirm2FA(
 			storageUser,
 			storageAuth2fa,
-			action.NewConfirmBy2fa(
-				[]action.Option{
-					action.WithMaxAttempts(5), // TODO: в настройки
-					action.WithExpiry(30 * time.Minute),
+			action2.NewConfirmBy2fa(
+				[]action2.Option{
+					action2.WithMaxAttempts(5), // TODO: в настройки
+					action2.WithExpiry(30 * time.Minute),
 				},
-				[]action.Option{
-					action.WithMaxAttempts(5), // TODO: в настройки
-					action.WithExpiry(30 * time.Minute),
+				[]action2.Option{
+					action2.WithMaxAttempts(5), // TODO: в настройки
+					action2.WithExpiry(30 * time.Minute),
 				},
 			),
 		),
@@ -124,7 +120,7 @@ func initUnitAuthController(
 		serviceAuthToken,
 	)
 
-	useCaseUserInfo := usecaseauth.NewUserInfo(
+	serviceUserInfo := userinfo.New(
 		dbConnManager,
 		storageUser,
 		storageAuth2fa,
@@ -141,7 +137,7 @@ func initUnitAuthController(
 		useCaseOpenSession,
 		useCaseContinueSession,
 		useCaseCloseSession,
-		useCaseUserInfo,
+		serviceUserInfo,
 		bag.NewOperationResponse(withDebugInfo),
 	)
 

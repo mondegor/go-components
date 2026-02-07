@@ -9,7 +9,6 @@ import (
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/util/conv"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
@@ -19,16 +18,20 @@ import (
 type (
 	// ChangePassword - comment struct.
 	ChangePassword struct {
-		storage      mrauth.User2faStorage
+		storage      user2faCreator
 		notifierAPI  mrnotifier.NoteProducer
 		errorWrapper errors.Wrapper
 		logger       mrlog.Logger
+	}
+
+	user2faCreator interface {
+		InsertOrUpdate(ctx context.Context, row entity.Auth2fa) error
 	}
 )
 
 // NewChangePassword - создаёт объект ChangePassword.
 func NewChangePassword(
-	storage mrauth.User2faStorage,
+	storage user2faCreator,
 	notifierAPI mrnotifier.NoteProducer,
 	logger mrlog.Logger,
 ) *ChangePassword {

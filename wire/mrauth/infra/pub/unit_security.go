@@ -9,10 +9,10 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
-	"github.com/mondegor/go-components/mrauth/component/secureoperation"
-	"github.com/mondegor/go-components/mrauth/component/secureoperation/action"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
+	action2 "github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service"
 	"github.com/mondegor/go-components/mrauth/service/check"
@@ -43,14 +43,14 @@ func initSecurityController(
 	factoryConfirm2FA := service.NewFactoryConfirm2FA(
 		storageUser,
 		storageAuth2fa,
-		action.NewConfirmBy2fa(
-			[]action.Option{
-				action.WithMaxAttempts(5), // TODO: в настройки
-				action.WithExpiry(30 * time.Minute),
+		action2.NewConfirmBy2fa(
+			[]action2.Option{
+				action2.WithMaxAttempts(5), // TODO: в настройки
+				action2.WithExpiry(30 * time.Minute),
 			},
-			[]action.Option{
-				action.WithMaxAttempts(5), // TODO: в настройки
-				action.WithExpiry(30 * time.Minute),
+			[]action2.Option{
+				action2.WithMaxAttempts(5), // TODO: в настройки
+				action2.WithExpiry(30 * time.Minute),
 			},
 		),
 	)
@@ -61,11 +61,11 @@ func initSecurityController(
 		checkUserService,
 		notifierAPI,
 		factoryConfirm2FA,
-		secureoperation.NewChangeEmail(
+		unit.NewChangeEmail(
 			crypt.NewTokenGenerator(64),
 			crypt.NewCodeGenerator(6),
-			action.WithMaxAttempts(5), // TODO: в настройки
-			action.WithExpiry(30*time.Minute),
+			action2.WithMaxAttempts(5), // TODO: в настройки
+			action2.WithExpiry(30*time.Minute),
 		),
 	)
 
@@ -75,11 +75,11 @@ func initSecurityController(
 		checkUserService,
 		notifierAPI,
 		factoryConfirm2FA,
-		secureoperation.NewChangePhone(
+		unit.NewChangePhone(
 			crypt.NewTokenGenerator(64),
 			crypt.NewCodeGenerator(6),
-			action.WithMaxAttempts(5), // TODO: в настройки
-			action.WithExpiry(30*time.Minute),
+			action2.WithMaxAttempts(5), // TODO: в настройки
+			action2.WithExpiry(30*time.Minute),
 		),
 	)
 
@@ -88,11 +88,11 @@ func initSecurityController(
 		storageSecureOperation,
 		notifierAPI,
 		factoryConfirm2FA,
-		secureoperation.NewChangePassword(
+		unit.NewChangePassword(
 			crypt.NewTokenGenerator(64),
 			crypt.NewCodeGenerator(6),
-			action.WithMaxAttempts(5), // TODO: в настройки
-			action.WithExpiry(30*time.Minute),
+			action2.WithMaxAttempts(5), // TODO: в настройки
+			action2.WithExpiry(30*time.Minute),
 		),
 	)
 
@@ -101,11 +101,11 @@ func initSecurityController(
 		storageSecureOperation,
 		notifierAPI,
 		factoryConfirm2FA,
-		secureoperation.NewChangeTOTP(
+		unit.NewChangeTOTP(
 			crypt.NewTokenGenerator(64),
 			crypt.NewCodeGenerator(6),
-			action.WithMaxAttempts(5), // TODO: в настройки
-			action.WithExpiry(30*time.Minute),
+			action2.WithMaxAttempts(5), // TODO: в настройки
+			action2.WithExpiry(30*time.Minute),
 		),
 	)
 
@@ -114,11 +114,11 @@ func initSecurityController(
 		storageSecureOperation,
 		notifierAPI,
 		factoryConfirm2FA,
-		secureoperation.NewDisable2FA(
+		unit.NewDisable2FA(
 			crypt.NewTokenGenerator(64),
 			crypt.NewCodeGenerator(6),
-			action.WithMaxAttempts(5), // TODO: в настройки
-			action.WithExpiry(30*time.Minute),
+			action2.WithMaxAttempts(5), // TODO: в настройки
+			action2.WithExpiry(30*time.Minute),
 		),
 	)
 
@@ -126,22 +126,22 @@ func initSecurityController(
 		dbConnManager,
 		storageSecureOperation,
 		map[string]mrauth.OperationHandler{
-			secureoperation.NameConfirmChangeEmail: handler.NewChangeEmail(
+			unit.NameConfirmChangeEmail: handler.NewChangeEmail(
 				dbConnManager,
 				storageUser,
 				notifierAPI,
 			),
-			secureoperation.NameConfirmChangePhone: handler.NewChangePhone(
+			unit.NameConfirmChangePhone: handler.NewChangePhone(
 				dbConnManager,
 				storageUser,
 				notifierAPI,
 			),
-			secureoperation.NameConfirmChangePassword: handler.NewChangePassword(
+			unit.NameConfirmChangePassword: handler.NewChangePassword(
 				storageAuth2fa,
 				notifierAPI,
 				logger,
 			),
-			secureoperation.NameConfirmDisable2FA: handler.NewDisable2FA(
+			unit.NameConfirmDisable2FA: handler.NewDisable2FA(
 				dbConnManager,
 				storageAuth2fa,
 				notifierAPI,

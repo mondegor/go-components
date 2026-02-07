@@ -44,7 +44,7 @@ func NewParser(secret string) *Parser {
 }
 
 // Parse - возвращает строковое значение настройки с указанным идентификатором.
-func (p *Parser) Parse(value string) (dto.AuthTokenScopes, error) {
+func (p *Parser) Parse(value string) (dto.UserScopes, error) {
 	claims := jwt.MapClaims{}
 
 	token, err := jwt.ParseWithClaims(value, claims, func(token *jwt.Token) (any, error) {
@@ -56,41 +56,41 @@ func (p *Parser) Parse(value string) (dto.AuthTokenScopes, error) {
 	})
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
-			return dto.AuthTokenScopes{}, ErrTokenExpired
+			return dto.UserScopes{}, ErrTokenExpired
 		}
 
-		return dto.AuthTokenScopes{}, ErrTokenInvalid.Wrap(err)
+		return dto.UserScopes{}, ErrTokenInvalid.Wrap(err)
 	}
 
 	if !token.Valid {
-		return dto.AuthTokenScopes{}, ErrTokenInvalid
+		return dto.UserScopes{}, ErrTokenInvalid
 	}
 
 	realm, err := p.parseString(sectionAudiences, claims)
 	if err != nil {
-		return dto.AuthTokenScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionAudiences)
+		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionAudiences)
 	}
 
 	userID, err := p.parseUserID(claims)
 	if err != nil {
-		return dto.AuthTokenScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionUserID)
+		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionUserID)
 	}
 
 	langCode, err := p.parseString(sectionLangCode, claims)
 	if err != nil {
-		return dto.AuthTokenScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionLangCode)
+		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionLangCode)
 	}
 
 	scope, err := p.parseString(sectionScope, claims)
 	if err != nil {
-		return dto.AuthTokenScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionScope)
+		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionScope)
 	}
 
-	return dto.AuthTokenScopes{
-		Realm:    realm,
-		UserKind: scope,
-		LangCode: langCode,
+	return dto.UserScopes{
 		UserID:   userID,
+		Realm:    realm,
+		Kind:     scope,
+		LangCode: langCode,
 	}, nil
 }
 

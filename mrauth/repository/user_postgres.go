@@ -10,9 +10,9 @@ import (
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/errors"
 
-	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"
+	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 )
 
 type (
@@ -59,12 +59,12 @@ func (re *UserPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row ent
 
 // FetchOneByLogin - возвращает список сообщений по их указанным ID.
 func (re *UserPostgres) FetchOneByLogin(ctx context.Context, userLogin contactaddress.ContactAddress) (row entity.User, err error) {
-	if userLogin.Type == addresstype.Email {
-		return re.fetchOneBy(ctx, "user_email", userLogin.Value)
+	if userLogin.Is(addresstype.Email) {
+		return re.fetchOneBy(ctx, "user_email", userLogin.Value())
 	}
 
-	if userLogin.Type == addresstype.Phone {
-		userLoginPhone, err := strconv.ParseUint(userLogin.Value, 10, 64)
+	if userLogin.Is(addresstype.Phone) {
+		userLoginPhone, err := strconv.ParseUint(userLogin.Value(), 10, 64)
 		if err != nil {
 			return entity.User{}, errors.NewInternalError("userLoginPhone is incorrect")
 		}

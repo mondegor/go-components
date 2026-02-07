@@ -9,22 +9,28 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 type (
 	// ApplyOperation - comment struct.
 	ApplyOperation struct {
 		txManager        mrstorage.DBTxManager
-		storageOperation mrauth.SecureOperationStorage
+		storageOperation operationFetcher
 		errorWrapper     errors.Wrapper
 		handlerMap       map[string]mrauth.OperationHandler
+	}
+
+	operationFetcher interface {
+		FetchOne(ctx context.Context, token string) (row secureoperation.SecureOperation, err error)
+		Delete(ctx context.Context, token string) error
 	}
 )
 
 // NewApplyOperation - создаёт объект ApplyOperation.
 func NewApplyOperation(
 	txManager mrstorage.DBTxManager,
-	storageOperation mrauth.SecureOperationStorage,
+	storageOperation operationFetcher,
 	handlerMap map[string]mrauth.OperationHandler,
 ) *ApplyOperation {
 	return &ApplyOperation{

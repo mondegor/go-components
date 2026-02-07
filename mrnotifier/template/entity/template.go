@@ -20,8 +20,8 @@ type (
 		DefaultValue string
 	}
 
-	// TemplateData - собирательная структура, которая позволяет
-	// хранить один из нескольких типов уведомлений в виде json.
+	// TemplateData - структура позволяющая хранить информацию
+	// одного из нескольких типов уведомлений в виде json.
 	TemplateData struct {
 		Mail      *DataMail      `json:"mail,omitempty"`
 		Messenger *DataMessenger `json:"messenger,omitempty"`

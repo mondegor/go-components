@@ -19,23 +19,28 @@ type (
 	// ContinueSession - comment struct.
 	ContinueSession struct {
 		txManager      mrstorage.DBTxManager
-		storage        mrauth.AuthTokenStorage
+		storage        authTokenStorage
 		tokenRecreator tokenRecreator
 		eventEmitter   mrevent.Emitter
 		errorWrapper   errors.Wrapper
 		logger         mrlog.Logger
 	}
 
+	authTokenStorage interface {
+		Revoke(ctx context.Context, refreshToken string) (row dto.UserScopes, err error)
+		UpdateToCloseAll(ctx context.Context, userID uuid.UUID) error
+	}
+
 	tokenRecreator interface {
-		Create(ctx context.Context, realm, userKind, langCode string, userID uuid.UUID) (token dto.AuthToken, err error)
-		Revoke(ctx context.Context, refreshToken string) (row dto.AuthTokenScopes, err error)
+		Create(ctx context.Context, userScopes dto.UserScopes) (token dto.AuthToken, err error)
+		Revoke(ctx context.Context, refreshToken string) (row dto.UserScopes, err error)
 	}
 )
 
 // NewContinueSession - создаёт объект ContinueSession.
 func NewContinueSession(
 	txManager mrstorage.DBTxManager,
-	storage mrauth.AuthTokenStorage,
+	storage authTokenStorage,
 	tokenRecreator tokenRecreator,
 	eventEmitter mrevent.Emitter,
 	logger mrlog.Logger,
@@ -90,7 +95,7 @@ func (uc *ContinueSession) Execute(ctx context.Context, _, refreshToken string) 
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		authToken, err = uc.tokenRecreator.Create(ctx, userScopes.Realm, userScopes.UserKind, userScopes.LangCode, userScopes.UserID)
+		authToken, err = uc.tokenRecreator.Create(ctx, userScopes)
 
 		return err
 	})

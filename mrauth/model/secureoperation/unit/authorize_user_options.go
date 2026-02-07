@@ -1,7 +1,7 @@
-package secureoperation
+package unit
 
 import (
-	"github.com/mondegor/go-components/mrauth/component/secureoperation/action"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 )
 
 const (

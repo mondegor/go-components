@@ -3,8 +3,8 @@ package action
 import (
 	"time"
 
-	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 type (
@@ -26,8 +26,8 @@ func NewConfirmByPassword(opts ...Option) *ConfirmByPassword {
 }
 
 // Create - comments method.
-func (a *ConfirmByPassword) Create(hashedPassword string) dto.ConfirmAction {
-	return dto.ConfirmAction{
+func (a *ConfirmByPassword) Create(hashedPassword string) secureoperation.ConfirmAction {
+	return secureoperation.ConfirmAction{
 		Method:      confirmmethod.Password,
 		MaxAttempts: a.maxAttempts,
 		Expiry:      a.expiry,

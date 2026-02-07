@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/mondegor/go-components/mrauth/entity"
 )
 
 type (
@@ -14,14 +16,7 @@ type (
 		HasSignature     bool
 		RefreshToken     string
 		RefreshExpiresIn time.Duration
-		Scopes           AuthTokenScopes
-	}
-
-	// AuthTokenScopes - область действия токена доступа.
-	AuthTokenScopes struct {
-		Realm    string    `json:"realm"` // domain + '/' + user_group
-		UserKind string    `json:"kind"`
-		LangCode string    `json:"lang"`
-		UserID   uuid.UUID `json:"-"`
+		UserID           uuid.UUID
+		Scopes           entity.AuthTokenScopes
 	}
 )

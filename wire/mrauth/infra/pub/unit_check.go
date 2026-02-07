@@ -3,7 +3,6 @@ package pub
 import (
 	"github.com/mondegor/go-webcore/mrserver"
 
-	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service/check"
@@ -16,10 +15,9 @@ func initCheckController(
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 ) (mrserver.HttpController, error) {
-	userLoginService := check.NewUserLoginExt(
+	userLoginService := check.NewUserLogin(
 		storageCheckUser,
 		storageUserRealm,
-		contactaddress.NewParser(),
 	)
 
 	controller := httpv1.NewCheck(

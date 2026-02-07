@@ -4,21 +4,23 @@ import (
 	"context"
 
 	"github.com/mondegor/go-sysmess/errors"
-
-	"github.com/mondegor/go-components/mrauth"
 )
 
 type (
 	// AuthTokenCleaner - объект очищающий очередь от обработанных/сломанных уведомлений.
 	AuthTokenCleaner struct {
-		storage      mrauth.AuthTokenStorage
+		storage      authTokenStorage
 		errorWrapper errors.Wrapper
+	}
+
+	authTokenStorage interface {
+		DeleteExpired(ctx context.Context, limit int) error
 	}
 )
 
 // NewAuthTokenCleaner - создаёт объект OperationCleaner.
 func NewAuthTokenCleaner(
-	storage mrauth.AuthTokenStorage,
+	storage authTokenStorage,
 ) *AuthTokenCleaner {
 	return &AuthTokenCleaner{
 		storage:      storage,

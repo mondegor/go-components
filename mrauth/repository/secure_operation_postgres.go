@@ -8,8 +8,8 @@ import (
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/errors"
 
-	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 type (
@@ -34,7 +34,7 @@ func NewSecureOperationPostgres(
 }
 
 // FetchOne - возвращает список сообщений по их указанным ID.
-func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (row entity.SecureOperation, err error) {
+func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (row secureoperation.SecureOperation, err error) {
 	sql := `
 		SELECT
 			operation_name,
@@ -72,7 +72,7 @@ func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (
 		&row.ExpiresAt,
 	)
 	if err != nil {
-		return entity.SecureOperation{}, re.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, re.errorWrapper.Wrap(err)
 	}
 
 	// from nullable user_id field
@@ -84,7 +84,7 @@ func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (
 }
 
 // Insert - возвращает список сообщений по их указанным ID.
-func (re *SecureOperationPostgres) Insert(ctx context.Context, row entity.SecureOperation) error {
+func (re *SecureOperationPostgres) Insert(ctx context.Context, row secureoperation.SecureOperation) error {
 	sql := `
 		INSERT INTO ` + re.table.Name + `
 			(
@@ -131,7 +131,7 @@ func (re *SecureOperationPostgres) Insert(ctx context.Context, row entity.Secure
 }
 
 // Update - comments method.
-func (re *SecureOperationPostgres) Update(ctx context.Context, currentToken string, row entity.SecureOperation) error {
+func (re *SecureOperationPostgres) Update(ctx context.Context, currentToken string, row secureoperation.SecureOperation) error {
 	sql := `
         UPDATE
             ` + re.table.Name + `

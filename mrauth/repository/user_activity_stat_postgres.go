@@ -18,9 +18,10 @@ import (
 type (
 	// UserActivityStatPostgres - comment struct.
 	UserActivityStatPostgres struct {
-		client       mrstorage.DBConnManager
-		errorWrapper errors.Wrapper
-		table        mrsql.DBTableInfo
+		client           mrstorage.DBConnManager
+		errorWrapper     errors.Wrapper
+		table            mrsql.DBTableInfo
+		insertArgsHelper placeholdedvalues.SQL
 	}
 )
 
@@ -29,10 +30,17 @@ func NewUserActivityStatPostgres(
 	client mrstorage.DBConnManager,
 	table mrsql.DBTableInfo,
 ) *UserActivityStatPostgres {
+	const countLineArgs = 2
+
 	return &UserActivityStatPostgres{
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
 		table:        table,
+
+		insertArgsHelper: placeholdedvalues.New(
+			placeholdedvalues.WithCountLineArgs(countLineArgs),
+			placeholdedvalues.WithLine("", "::uuid, ", "::timestamptz"),
+		),
 	}
 }
 
@@ -128,22 +136,13 @@ func (re *UserActivityStatPostgres) UpdateLastVisited(ctx context.Context, rows 
 			VALUES
 		`)
 
-	const countLineArgs = 2
-
 	// generate: ($1::uuid, $2::timestamptz), ...
-	sqlValues := placeholdedvalues.New(
-		&sql,
-		placeholdedvalues.WithLineMiddle(map[int]string{1: "::uuid, "}),
-		placeholdedvalues.WithLinePostfix("::timestamptz"),
-		placeholdedvalues.WithCountArgs(countLineArgs),
-	)
-
-	values := make([]any, 0, len(rows)*countLineArgs)
-	argumentNumber := sqlValues.WriteFirstLine()
+	values := make([]any, 0, len(rows)*re.insertArgsHelper.CountLineArgs())
+	argumentNumber := re.insertArgsHelper.WriteFirstLine(&sql)
 
 	for i, row := range rows {
 		if i > 0 {
-			argumentNumber = sqlValues.WriteNextLine(argumentNumber)
+			argumentNumber = re.insertArgsHelper.WriteNextLine(&sql, argumentNumber)
 		}
 
 		values = append(

@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrlog"
 
@@ -16,10 +15,16 @@ import (
 type (
 	// AuthToken - comment struct.
 	AuthToken struct {
-		storage           mrauth.AuthTokenStorage
+		storage           authTokenStorage
 		errorWrapper      errors.Wrapper
 		logger            mrlog.Logger
 		realm2tokenIssuer map[string]mrauth.TokenIssuer
+	}
+
+	authTokenStorage interface {
+		Insert(ctx context.Context, row entity.AuthToken) error
+		Revoke(ctx context.Context, refreshToken string) (row dto.UserScopes, err error)
+		UpdateToClose(ctx context.Context, accessToken string) error
 	}
 
 	// AuthTokenRealm - сообщение для получателя.
@@ -31,7 +36,7 @@ type (
 
 // NewAuthToken - создаёт объект AuthToken.
 func NewAuthToken(
-	storage mrauth.AuthTokenStorage,
+	storage authTokenStorage,
 	logger mrlog.Logger,
 	allowedRealms []AuthTokenRealm,
 ) *AuthToken {
@@ -49,28 +54,24 @@ func NewAuthToken(
 }
 
 // Create - comments method.
-func (uc *AuthToken) Create(ctx context.Context, realm, userKind, langCode string, userID uuid.UUID) (token dto.AuthToken, err error) {
-	tokenIssuer, ok := uc.realm2tokenIssuer[realm]
+func (sv *AuthToken) Create(ctx context.Context, userScopes dto.UserScopes) (token dto.AuthToken, err error) {
+	tokenIssuer, ok := sv.realm2tokenIssuer[userScopes.Realm]
 	if !ok {
 		return dto.AuthToken{}, errors.ErrUseCaseIncorrectInputData.New("realm is unknown")
 	}
 
-	token, err = tokenIssuer.Create(realm, userKind, langCode, userID)
+	token, err = tokenIssuer.Create(userScopes)
 	if err != nil {
-		return dto.AuthToken{}, uc.errorWrapper.Wrap(err)
+		return dto.AuthToken{}, sv.errorWrapper.Wrap(err)
 	}
 
 	authToken := entity.AuthToken{
 		AccessToken:     token.AccessToken,
 		RefreshToken:    token.RefreshToken,
 		AccessExpiresAt: time.Now().Add(token.ExpiresIn).Round(1 * time.Second),
-		Scopes: dto.AuthTokenScopes{
-			Realm:    token.Scopes.Realm,
-			UserKind: token.Scopes.UserKind,
-			LangCode: token.Scopes.LangCode,
-			UserID:   token.Scopes.UserID,
-		},
-		ExpiresAt: time.Now().Add(token.RefreshExpiresIn).Round(1 * time.Second),
+		UserID:          token.UserID,
+		Scopes:          token.Scopes,
+		ExpiresAt:       time.Now().Add(token.RefreshExpiresIn).Round(1 * time.Second),
 	}
 
 	// accessToken сохраняется в БД только у сессионных токенов,
@@ -79,27 +80,27 @@ func (uc *AuthToken) Create(ctx context.Context, realm, userKind, langCode strin
 		authToken.AccessToken = ""
 	}
 
-	if err = uc.storage.Insert(ctx, authToken); err != nil {
-		return dto.AuthToken{}, uc.errorWrapper.Wrap(err)
+	if err = sv.storage.Insert(ctx, authToken); err != nil {
+		return dto.AuthToken{}, sv.errorWrapper.Wrap(err)
 	}
 
 	return token, nil
 }
 
 // Revoke - comments method.
-func (uc *AuthToken) Revoke(ctx context.Context, refreshToken string) (row dto.AuthTokenScopes, err error) {
-	row, err = uc.storage.Revoke(ctx, refreshToken)
+func (sv *AuthToken) Revoke(ctx context.Context, refreshToken string) (row dto.UserScopes, err error) {
+	row, err = sv.storage.Revoke(ctx, refreshToken)
 	if err != nil {
-		return dto.AuthTokenScopes{}, uc.errorWrapper.Wrap(err)
+		return dto.UserScopes{}, sv.errorWrapper.Wrap(err)
 	}
 
 	return row, nil
 }
 
 // Close - comments method.
-func (uc *AuthToken) Close(ctx context.Context, accessToken string) error {
-	if err := uc.storage.UpdateToClose(ctx, accessToken); err != nil {
-		return uc.errorWrapper.Wrap(err)
+func (sv *AuthToken) Close(ctx context.Context, accessToken string) error {
+	if err := sv.storage.UpdateToClose(ctx, accessToken); err != nil {
+		return sv.errorWrapper.Wrap(err)
 	}
 
 	return nil

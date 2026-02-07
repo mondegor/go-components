@@ -1,4 +1,4 @@
-package dto
+package secureoperation
 
 import (
 	"time"
@@ -7,12 +7,12 @@ import (
 )
 
 type (
-	// ConfirmAction - comment struct.
+	// ConfirmAction - способ подтверждения личности пользователя, хранится в виде json.
 	ConfirmAction struct {
 		Method        confirmmethod.Enum `json:"method"` // email (отправить событие), password, phone (отправить событие), TOTP
-		MaxAttempts   uint32             `json:"maxAttempts"`
-		MaxResends    uint32             `json:"maxResends,omitempty"`
-		MinResendTime time.Duration      `json:"minResendTime,omitempty"`
+		MaxAttempts   uint32             `json:"max_attempts"`
+		MaxResends    uint32             `json:"max_resends,omitempty"`
+		MinResendTime time.Duration      `json:"min_resend_time,omitempty"`
 		Expiry        time.Duration      `json:"expiry"`
 		Address       string             `json:"address,omitempty"`
 

@@ -37,30 +37,22 @@ type (
 		Kind   string
 	}
 
+	// UserActivityLog - информация об активности пользователя.
+	UserActivityLog struct {
+		RecordID      uint64
+		UserID        uuid.UUID
+		UserIP        mrtype.DetailedIP
+		UserAgent     string
+		RequestPath   string
+		RequestStatus uint32
+		VisitedAt     time.Time
+	}
+
 	// UserActivityStat - информация о последней активности пользователя.
 	UserActivityStat struct {
 		UserID        uuid.UUID
 		LastLoginIP   mrtype.DetailedIP
 		LastLoggedAt  time.Time
 		LastVisitedAt time.Time
-	}
-
-	// UserActivityLog - информация об активности пользователя.
-	UserActivityLog struct {
-		RecordID      uint64            `json:"record_id"`
-		UserID        uuid.UUID         `json:"user_id"`
-		UserIP        mrtype.DetailedIP `json:"user_ip"`
-		UserAgent     string            `json:"user_agent"`
-		RequestPath   string            `json:"request_path"`
-		RequestStatus uint32            `json:"request_status"`
-		VisitedAt     time.Time         `json:"visited_at"`
-	}
-
-	// UserInfo - сгруппированная информация о пользователе.
-	UserInfo struct {
-		User    User
-		Stat    UserActivityStat
-		Auth2fa Auth2fa
-		Realms  []UserRealm
 	}
 )

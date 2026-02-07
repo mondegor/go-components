@@ -7,10 +7,10 @@ import (
 	"github.com/pquerna/otp/totp"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/util/operation"
 )
 
 type (
@@ -33,9 +33,9 @@ func NewConfirmCode(
 }
 
 // Prepare - comments method.
-func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (entity.SecureOperation, error) {
+func (o *ConfirmCode) Prepare(op secureoperation.SecureOperation, confirmCode string) (secureoperation.SecureOperation, error) {
 	if time.Now().After(op.ExpiresAt) {
-		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyExpired
+		return secureoperation.SecureOperation{}, mrauth.ErrOperationAlreadyExpired
 	}
 
 	// if item.Payload["audience"] == "" {
@@ -47,12 +47,12 @@ func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (en
 	// }
 
 	if op.Status != operationstatus.Opened {
-		return entity.SecureOperation{}, mrauth.ErrOperationAlreadyConfirmed // operation is not opened
+		return secureoperation.SecureOperation{}, mrauth.ErrOperationAlreadyConfirmed // operation is not opened
 	}
 
-	confirmingAction, err := op.NextNotConfirmedAction()
+	confirmingAction, err := operation.NextConfirmingAction(&op)
 	if err != nil {
-		return entity.SecureOperation{}, err
+		return secureoperation.SecureOperation{}, err
 	}
 
 	if op.RemainingAttempts == 0 {
@@ -67,10 +67,10 @@ func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (en
 	confirmedExpiry := confirmingAction.Expiry
 
 	// если следующих операций нет, то всё ок!
-	confirmingAction, err = op.NextNotConfirmedAction()
+	confirmingAction, err = operation.NextConfirmingAction(&op)
 	if err != nil {
-		if !errors.Is(err, entity.ErrOperationHasOnlyConfirmedActions) {
-			return entity.SecureOperation{}, err
+		if !errors.Is(err, operation.ErrInternalOperationHasOnlyConfirmedActions) {
+			return secureoperation.SecureOperation{}, err
 		}
 
 		op.Actions = nil
@@ -83,7 +83,7 @@ func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (en
 	// для нового подтверждения генерится новый токен
 	op.Token, err = o.tokenGenerator.GenTokenLen(len(op.Token))
 	if err != nil {
-		return entity.SecureOperation{}, err
+		return secureoperation.SecureOperation{}, err
 	}
 
 	op.RemainingAttempts = confirmingAction.MaxAttempts
@@ -92,7 +92,7 @@ func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (en
 	if confirmingAction.Method == confirmmethod.Email || confirmingAction.Method == confirmmethod.Phone {
 		confirmingAction.Secret, err = o.codeGenerator.GenCodeLen(len(confirmingAction.Secret))
 		if err != nil {
-			return entity.SecureOperation{}, err
+			return secureoperation.SecureOperation{}, err
 		}
 
 		op.RemainingResends = confirmingAction.MaxResends
@@ -108,7 +108,7 @@ func (o *ConfirmCode) Prepare(op entity.SecureOperation, confirmCode string) (en
 	return op, nil
 }
 
-func (o *ConfirmCode) checkCode(action *dto.ConfirmAction, confirmCode string) error {
+func (o *ConfirmCode) checkCode(action *secureoperation.ConfirmAction, confirmCode string) error {
 	switch action.Method {
 	case confirmmethod.Password:
 		if err := o.codeGenerator.CompareCodeAndHash(confirmCode, action.Secret); err == nil {

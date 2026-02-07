@@ -8,8 +8,8 @@ import (
 	"github.com/mondegor/go-sysmess/mrtype"
 	"github.com/mondegor/go-webcore/mrserver"
 
-	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
 )
 
@@ -38,23 +38,23 @@ type (
 	}
 
 	changeEmailUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, newEmail string) (entity.SecureOperation, error)
+		Execute(ctx context.Context, userID uuid.UUID, newEmail string) (secureoperation.SecureOperation, error)
 	}
 
 	changePhoneUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, newPhone string) (entity.SecureOperation, error)
+		Execute(ctx context.Context, userID uuid.UUID, newPhone string) (secureoperation.SecureOperation, error)
 	}
 
 	changePasswordUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, newPassword string) (entity.SecureOperation, error)
+		Execute(ctx context.Context, userID uuid.UUID, newPassword string) (secureoperation.SecureOperation, error)
 	}
 
 	changeTOTPGeneratorUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID) (entity.SecureOperation, error)
+		Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error)
 	}
 
 	disable2FAUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID) (entity.SecureOperation, error)
+		Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error)
 	}
 
 	applyOperationTOTPUseCase interface {

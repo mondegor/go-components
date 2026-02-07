@@ -13,8 +13,8 @@ type (
 		Data    MessageData
 	}
 
-	// MessageData - собирательная структура, которая позволяет
-	// хранить один из нескольких типов сообщений в виде json.
+	// MessageData - структура позволяющая хранить информацию
+	// одного из нескольких типов уведомлений в виде json.
 	MessageData struct {
 		Header    map[string]string `json:"header,omitempty"`
 		Mail      *DataMail         `json:"mail,omitempty"`

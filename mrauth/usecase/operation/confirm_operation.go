@@ -8,9 +8,10 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/util/operation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -18,21 +19,27 @@ type (
 	// ConfirmOperation - компонент для извлечения настроек, которые хранятся в хранилище данных.
 	ConfirmOperation struct {
 		txManager         mrstorage.DBTxManager
-		storageOperation  mrauth.SecureOperationStorage
+		storageOperation  operationConfirmer
 		notifierAPI       mrnotifier.NoteProducer
 		operationPreparer confirmOperationPreparer
 		errorWrapper      errors.Wrapper
 	}
 
+	operationConfirmer interface {
+		FetchOne(ctx context.Context, token string) (row secureoperation.SecureOperation, err error)
+		Update(ctx context.Context, currentToken string, row secureoperation.SecureOperation) error
+		UpdateFailedAttempt(ctx context.Context, token string) (attempts uint32, err error)
+	}
+
 	confirmOperationPreparer interface {
-		Prepare(op entity.SecureOperation, confirmCode string) (entity.SecureOperation, error)
+		Prepare(op secureoperation.SecureOperation, confirmCode string) (secureoperation.SecureOperation, error)
 	}
 )
 
 // NewConfirmOperation - создаёт объект NewConfirmOperation.
 func NewConfirmOperation(
 	txManager mrstorage.DBTxManager,
-	storageOperation mrauth.SecureOperationStorage,
+	storageOperation operationConfirmer,
 	notifierAPI mrnotifier.NoteProducer,
 	operationPreparer confirmOperationPreparer,
 ) *ConfirmOperation {
@@ -46,14 +53,14 @@ func NewConfirmOperation(
 }
 
 // Execute - возвращает строковое значение настройки с указанным идентификатором.
-func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToken, confirmCode string) (entity.SecureOperation, error) {
+func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToken, confirmCode string) (secureoperation.SecureOperation, error) {
 	if operationToken == "" {
-		return entity.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("operationToken is empty")
+		return secureoperation.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("operationToken is empty")
 	}
 
 	op, err := co.storageOperation.FetchOne(ctx, operationToken)
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	op, err = co.operationPreparer.Prepare(op, confirmCode)
@@ -63,12 +70,12 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 		}
 
 		if !errors.Is(err, mrauth.ErrConfirmCodeIsIncorrect) {
-			return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
+			return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 		}
 
 		attempts, errUpdate := co.storageOperation.UpdateFailedAttempt(ctx, operationToken)
 		if errUpdate != nil {
-			return entity.SecureOperation{}, co.errorWrapper.Wrap(errUpdate)
+			return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(errUpdate)
 		}
 
 		// TODO: Add Operation log:op!
@@ -105,7 +112,7 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 		}
 
 		// 2fa подтверждение
-		confirmingAction, err := op.NextNotConfirmedAction()
+		confirmingAction, err := operation.NextConfirmingAction(&op)
 		if err != nil {
 			return co.errorWrapper.Wrap(err)
 		}
@@ -132,7 +139,7 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 		return nil
 	})
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	return op, nil

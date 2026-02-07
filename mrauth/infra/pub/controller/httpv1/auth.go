@@ -16,10 +16,10 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
 )
 
@@ -42,24 +42,24 @@ type (
 		useCaseOpenSession      openSessionUseCase
 		useCaseContinueSession  continueSessionUseCase
 		useCaseCloseSession     closeSessionUseCase
-		useCaseUserInfo         userInfoUseCase
+		serviceUserInfo         userInfoService
 		operationResponse       confirmOperationResponse
 	}
 
 	confirmCreateUserUseCase interface {
-		Execute(ctx context.Context, realm, langCode, userEmail string) (entity.SecureOperation, error)
+		Execute(ctx context.Context, realm, langCode, userEmail string) (secureoperation.SecureOperation, error)
 	}
 
 	confirmAuthUserUseCase interface {
-		Execute(ctx context.Context, realm, langCode, userLogin string) (entity.SecureOperation, error)
+		Execute(ctx context.Context, realm, langCode, userLogin string) (secureoperation.SecureOperation, error)
 	}
 
 	confirmOperationUseCase interface {
-		Execute(ctx context.Context, langCode, operationToken, confirmCode string) (entity.SecureOperation, error)
+		Execute(ctx context.Context, langCode, operationToken, confirmCode string) (secureoperation.SecureOperation, error)
 	}
 
 	openSessionUseCase interface {
-		Execute(ctx context.Context, clientIP mrtype.DetailedIP, op entity.SecureOperation) (token dto.AuthToken, err error)
+		Execute(ctx context.Context, clientIP mrtype.DetailedIP, op secureoperation.SecureOperation) (token dto.AuthToken, err error)
 	}
 
 	continueSessionUseCase interface {
@@ -70,13 +70,13 @@ type (
 		Execute(ctx context.Context, accessToken string) error
 	}
 
-	userInfoUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID) (entity.UserInfo, error)
+	userInfoService interface {
+		Get(ctx context.Context, userID uuid.UUID) (dto.UserInfo, error)
 	}
 
 	confirmOperationResponse interface {
-		NewConfirmOperation(operation entity.SecureOperation, message string) model.WaitingConfirmOperationResponse
-		NewErrorConfirmOperation(operation entity.SecureOperation, lz mrcore.Localizer, code string, err error) model.ErrorConfirmOperationResponse
+		NewConfirmOperation(operation secureoperation.SecureOperation, message string) model.WaitingConfirmOperationResponse
+		NewErrorConfirmOperation(operation secureoperation.SecureOperation, lz mrcore.Localizer, code string, err error) model.ErrorConfirmOperationResponse
 	}
 )
 
@@ -90,7 +90,7 @@ func NewAuth(
 	useCaseOpenSession openSessionUseCase,
 	useCaseContinueSession continueSessionUseCase,
 	useCaseCloseSession closeSessionUseCase,
-	useCaseUserInfo userInfoUseCase,
+	serviceUserInfo userInfoService,
 	operationResponse confirmOperationResponse,
 ) *Auth {
 	return &Auth{
@@ -108,7 +108,7 @@ func NewAuth(
 		useCaseOpenSession:      useCaseOpenSession,
 		useCaseContinueSession:  useCaseContinueSession,
 		useCaseCloseSession:     useCaseCloseSession,
-		useCaseUserInfo:         useCaseUserInfo,
+		serviceUserInfo:         serviceUserInfo,
 		operationResponse:       operationResponse,
 	}
 }
@@ -311,7 +311,7 @@ func (ht *Auth) CloseSession(w http.ResponseWriter, r *http.Request) error {
 
 // UserInfo - comment method.
 func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
-	info, err := ht.useCaseUserInfo.Execute(r.Context(), ht.parser.UserID(r))
+	info, err := ht.serviceUserInfo.Get(r.Context(), ht.parser.UserID(r))
 	if err != nil {
 		return err
 	}

@@ -9,7 +9,6 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/util/conv"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrnotifier"
 )
@@ -18,16 +17,20 @@ type (
 	// ChangePhone - comment struct.
 	ChangePhone struct {
 		txManager    mrstorage.DBTxManager
-		storage      mrauth.UserStorage
+		storage      userPhoneChanger
 		notifierAPI  mrnotifier.NoteProducer
 		errorWrapper errors.Wrapper
+	}
+
+	userPhoneChanger interface {
+		UpdatePhone(ctx context.Context, userID uuid.UUID, value uint64) error
 	}
 )
 
 // NewChangePhone - создаёт объект ChangePhone.
 func NewChangePhone(
 	txManager mrstorage.DBTxManager,
-	storage mrauth.UserStorage,
+	storage userPhoneChanger,
 	notifierAPI mrnotifier.NoteProducer,
 ) *ChangePhone {
 	return &ChangePhone{

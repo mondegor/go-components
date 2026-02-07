@@ -10,7 +10,7 @@ import (
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-webcore/mrserver/request"
 
-	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/dto"
 )
 
 type (
@@ -59,7 +59,7 @@ func (rs *UserRequest) Emit(r *http.Request, _ []byte, _ int, _ []byte, _ int, _
 		status = 0
 	}
 
-	activityLog := entity.UserActivityLog{
+	activityLog := dto.UserActivityLogMessage{
 		UserID:        userID,
 		UserIP:        rs.parserClientIP.DetailedIP(r),
 		UserAgent:     r.UserAgent(),
@@ -76,8 +76,7 @@ func (rs *UserRequest) Emit(r *http.Request, _ []byte, _ int, _ []byte, _ int, _
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err = rs.producer.PushMessage(ctx, bytes)
-	if err != nil {
+	if err = rs.producer.PushMessage(ctx, bytes); err != nil {
 		rs.logger.Error(r.Context(), "UserRequest.Producer.PushMessage()", "error", err)
 	}
 }

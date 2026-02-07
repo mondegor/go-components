@@ -9,9 +9,9 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
 )
 
@@ -32,7 +32,7 @@ type (
 	}
 
 	resendConfirmCodeUseCase interface {
-		Execute(ctx context.Context, langCode, operationToken string) (entity.SecureOperation, error)
+		Execute(ctx context.Context, langCode, operationToken string) (secureoperation.SecureOperation, error)
 	}
 )
 

@@ -15,16 +15,23 @@ import (
 type (
 	// MessagePostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
 	MessagePostgres struct {
-		client mrstorage.DBConnManager
-		table  mrsql.DBTableInfo
+		client           mrstorage.DBConnManager
+		table            mrsql.DBTableInfo
+		insertArgsHelper placeholdedvalues.SQL
 	}
 )
 
 // NewMessagePostgres - создаёт объект MessagePostgres.
 func NewMessagePostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *MessagePostgres {
+	const countLineArgs = 3
+
 	return &MessagePostgres{
 		client: client,
 		table:  table,
+
+		insertArgsHelper: placeholdedvalues.New(
+			placeholdedvalues.WithCountLineArgs(countLineArgs),
+		),
 	}
 }
 
@@ -88,20 +95,13 @@ func (re *MessagePostgres) Insert(ctx context.Context, rows []entity.Message) er
 			)
 		VALUES `)
 
-	const countLineArgs = 3
-
 	// generate: ($1, $2, $3), ...
-	sqlValues := placeholdedvalues.New(
-		&sql,
-		placeholdedvalues.WithCountArgs(countLineArgs),
-	)
-
-	values := make([]any, 0, len(rows)*countLineArgs)
-	argumentNumber := sqlValues.WriteFirstLine()
+	values := make([]any, 0, len(rows)*re.insertArgsHelper.CountLineArgs())
+	argumentNumber := re.insertArgsHelper.WriteFirstLine(&sql)
 
 	for i, row := range rows {
 		if i > 0 {
-			argumentNumber = sqlValues.WriteNextLine(argumentNumber)
+			argumentNumber = re.insertArgsHelper.WriteNextLine(&sql, argumentNumber)
 		}
 
 		values = append(values, row.ID, row.Channel, row.Data)

@@ -9,7 +9,6 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/util/conv"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrnotifier"
 )
@@ -18,16 +17,20 @@ type (
 	// ChangeEmail - comment struct.
 	ChangeEmail struct {
 		txManager    mrstorage.DBTxManager
-		storage      mrauth.UserStorage
+		storage      userEmailChanger
 		notifierAPI  mrnotifier.NoteProducer
 		errorWrapper errors.Wrapper
+	}
+
+	userEmailChanger interface {
+		UpdateEmail(ctx context.Context, userID uuid.UUID, value string) error
 	}
 )
 
 // NewChangeEmail - создаёт объект ChangeEmail.
 func NewChangeEmail(
 	txManager mrstorage.DBTxManager,
-	storage mrauth.UserStorage,
+	storage userEmailChanger,
 	notifierAPI mrnotifier.NoteProducer,
 ) *ChangeEmail {
 	return &ChangeEmail{

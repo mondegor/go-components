@@ -10,8 +10,9 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
-	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/model/contactaddress"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/util/operation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -25,10 +26,9 @@ type (
 	CreateUser struct {
 		txManager        mrstorage.DBTxManager
 		userChecker      userLoginChecker
-		storageOperation mrauth.SecureOperationStorage
+		storageOperation operationCreator
 		notifierAPI      mrnotifier.NoteProducer
 		locker           mrlock.Locker
-		loginParser      loginEmailParser
 		errorWrapper     errors.Wrapper
 		realm2operation  map[string]createUserOperation
 	}
@@ -39,12 +39,8 @@ type (
 		Operation createUserOperation
 	}
 
-	loginEmailParser interface {
-		ParseEmail(value string) (contactaddress.ContactAddress, error)
-	}
-
 	createUserOperation interface {
-		Create(langCode string, address contactaddress.ContactAddress) (entity.SecureOperation, error)
+		Create(langCode string, address contactaddress.ContactAddress) (secureoperation.SecureOperation, error)
 	}
 )
 
@@ -52,10 +48,9 @@ type (
 func NewCreateUser(
 	txManager mrstorage.DBTxManager,
 	userChecker userLoginChecker,
-	storageOperation mrauth.SecureOperationStorage,
+	storageOperation operationCreator,
 	notifierAPI mrnotifier.NoteProducer,
 	locker mrlock.Locker,
-	loginParser loginEmailParser,
 	allowedRealms []CreateUserRealm,
 ) *CreateUser {
 	realm2operation := make(map[string]createUserOperation, len(allowedRealms))
@@ -69,31 +64,30 @@ func NewCreateUser(
 		storageOperation: storageOperation,
 		notifierAPI:      notifierAPI,
 		locker:           locker,
-		loginParser:      loginParser,
 		errorWrapper:     errors.NewUseCaseWrapper(),
 		realm2operation:  realm2operation,
 	}
 }
 
 // Execute - возвращает строковое значение настройки с указанным идентификатором.
-func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail string) (op entity.SecureOperation, err error) {
+func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail string) (op secureoperation.SecureOperation, err error) {
 	operationCreator, ok := co.realm2operation[realm]
 	if !ok {
-		return entity.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("realm is unknown")
+		return secureoperation.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("realm is unknown")
 	}
 
-	parsedLogin, err := co.loginParser.ParseEmail(userEmail)
+	parsedLogin, err := contactaddress.ParseEmail(userEmail)
 	if err != nil {
-		return entity.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New(err)
+		return secureoperation.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New(err)
 	}
 
-	unlockEmail, err := co.locker.LockWithExpiry(ctx, createUserLockKeyPrefix+realm+":"+parsedLogin.Value, createUserLockTimeout)
+	unlockEmail, err := co.locker.LockWithExpiry(ctx, createUserLockKeyPrefix+realm+":"+parsedLogin.Value(), createUserLockTimeout)
 	if err != nil {
 		if errors.Is(err, mrlock.ErrSystemStorageLockKeyNotObtained) {
-			return entity.SecureOperation{}, mrauth.ErrEmailAlreadyExists
+			return secureoperation.SecureOperation{}, mrauth.ErrEmailAlreadyExists
 		}
 
-		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	defer func() {
@@ -105,12 +99,12 @@ func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail st
 	}()
 
 	if err = co.userChecker.CheckAvailabilityRealm(ctx, realm, parsedLogin); err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	op, err = operationCreator.Create(langCode, parsedLogin)
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	err = co.txManager.Do(ctx, func(ctx context.Context) error {
@@ -118,7 +112,7 @@ func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail st
 			return co.errorWrapper.Wrap(err)
 		}
 
-		confirmingAction, err := op.NextNotConfirmedAction()
+		confirmingAction, err := operation.NextConfirmingAction(&op)
 		if err != nil {
 			return co.errorWrapper.Wrap(err)
 		}
@@ -130,13 +124,13 @@ func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail st
 			"confirm.user.activation",
 			conv.Group{
 				"lang":        langCode,
-				"to":          parsedLogin.Value,
+				"to":          parsedLogin.Value(),
 				"confirmCode": confirmingAction.Secret,
 			},
 		)
 	})
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	return op, nil

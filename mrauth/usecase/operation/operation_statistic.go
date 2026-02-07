@@ -5,21 +5,24 @@ import (
 
 	"github.com/mondegor/go-sysmess/errors"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
 type (
 	// Statistic - comment struct.
 	Statistic struct {
-		storageLog   mrauth.SecureOperationLogStorage
+		storageLog   operationLogStorage
 		errorWrapper errors.Wrapper
+	}
+
+	operationLogStorage interface {
+		Insert(ctx context.Context, rows []entity.SecureOperationLog) error
 	}
 )
 
 // NewStatistic - создаёт объект Session.
 func NewStatistic(
-	storageLog mrauth.SecureOperationLogStorage,
+	storageLog operationLogStorage,
 ) *Statistic {
 	return &Statistic{
 		storageLog:   storageLog,

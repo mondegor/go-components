@@ -9,7 +9,6 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/util/conv"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrnotifier"
 )
@@ -18,16 +17,20 @@ type (
 	// Disable2FA - comment struct.
 	Disable2FA struct {
 		txManager    mrstorage.DBTxManager
-		storage      mrauth.User2faStorage
+		storage      user2faDisabler
 		notifierAPI  mrnotifier.NoteProducer
 		errorWrapper errors.Wrapper
+	}
+
+	user2faDisabler interface {
+		Delete(ctx context.Context, userID uuid.UUID) error
 	}
 )
 
 // NewDisable2FA - создаёт объект ChangePhone.
 func NewDisable2FA(
 	txManager mrstorage.DBTxManager,
-	storage mrauth.User2faStorage,
+	storage user2faDisabler,
 	notifierAPI mrnotifier.NoteProducer,
 ) *Disable2FA {
 	return &Disable2FA{

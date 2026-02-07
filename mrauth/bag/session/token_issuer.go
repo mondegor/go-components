@@ -3,10 +3,9 @@ package session
 import (
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
 )
 
 type (
@@ -32,7 +31,7 @@ func NewTokenIssuer(
 }
 
 // Create - comments method.
-func (uc *TokenIssuer) Create(realm, userKind, langCode string, userID uuid.UUID) (token dto.AuthToken, err error) {
+func (uc *TokenIssuer) Create(userScopes dto.UserScopes) (token dto.AuthToken, err error) {
 	accessToken, err := uc.tokenGenerator.GenToken()
 	if err != nil {
 		return dto.AuthToken{}, err
@@ -49,11 +48,11 @@ func (uc *TokenIssuer) Create(realm, userKind, langCode string, userID uuid.UUID
 		HasSignature:     false,
 		RefreshToken:     refreshToken,
 		RefreshExpiresIn: uc.refreshExpiry,
-		Scopes: dto.AuthTokenScopes{
-			Realm:    realm,
-			UserKind: userKind,
-			LangCode: langCode,
-			UserID:   userID,
+		UserID:           userScopes.UserID,
+		Scopes: entity.AuthTokenScopes{
+			Realm:    userScopes.Realm,
+			UserKind: userScopes.Kind,
+			LangCode: userScopes.LangCode,
 		},
 	}, nil
 }

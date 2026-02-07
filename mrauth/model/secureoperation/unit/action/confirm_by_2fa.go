@@ -3,8 +3,8 @@ package action
 import (
 	"github.com/mondegor/go-sysmess/errors"
 
-	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 type (
@@ -24,7 +24,7 @@ func NewConfirmBy2fa(passwordOpts, totpOpts []Option) *ConfirmBy2fa {
 }
 
 // Create - comments method.
-func (a *ConfirmBy2fa) Create(auth2fa auth2fatype.Enum, secret string) (dto.ConfirmAction, error) {
+func (a *ConfirmBy2fa) Create(auth2fa auth2fatype.Enum, secret string) (secureoperation.ConfirmAction, error) {
 	if auth2fa == auth2fatype.Password {
 		return a.confirmByPassword.Create(secret), nil
 	}
@@ -33,7 +33,7 @@ func (a *ConfirmBy2fa) Create(auth2fa auth2fatype.Enum, secret string) (dto.Conf
 		return a.confirmByTOTP.Create(secret), nil
 	}
 
-	return dto.ConfirmAction{},
+	return secureoperation.ConfirmAction{},
 		errors.NewInternalError(
 			"auth2fa type is invalid",
 			"auth2fa", auth2fa,

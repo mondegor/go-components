@@ -9,7 +9,8 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/util/operation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -17,7 +18,7 @@ type (
 	// ChangePasswordProperty - comment struct.
 	ChangePasswordProperty struct {
 		txManager                mrstorage.DBTxManager
-		storageOperation         mrauth.SecureOperationStorage
+		storageOperation         operationCreator
 		notifierAPI              mrnotifier.NoteProducer
 		factoryUserConfirm2FA    mrauth.FactoryUserConfirm2FA
 		factoryOperationPassword factoryOperationValue2FA
@@ -28,7 +29,7 @@ type (
 // NewChangePasswordProperty - создаёт объект ChangePasswordProperty.
 func NewChangePasswordProperty(
 	txManager mrstorage.DBTxManager,
-	storageOperation mrauth.SecureOperationStorage,
+	storageOperation operationCreator,
 	notifierAPI mrnotifier.NoteProducer,
 	factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA,
 	factoryOperationPassword factoryOperationValue2FA,
@@ -44,19 +45,19 @@ func NewChangePasswordProperty(
 }
 
 // Execute - comments method.
-func (uc *ChangePasswordProperty) Execute(ctx context.Context, userID uuid.UUID, newPassword string) (entity.SecureOperation, error) {
+func (uc *ChangePasswordProperty) Execute(ctx context.Context, userID uuid.UUID, newPassword string) (secureoperation.SecureOperation, error) {
 	if userID == uuid.Nil {
-		return entity.SecureOperation{}, errors.ErrUseCaseAccessForbidden // TODO 401!!!!
+		return secureoperation.SecureOperation{}, errors.ErrUseCaseAccessForbidden // TODO 401!!!!
 	}
 
 	user2FA, err := uc.factoryUserConfirm2FA.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
 	if err != nil {
-		return entity.SecureOperation{}, uc.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
 	op, err := uc.factoryOperationPassword.Create(user2FA, newPassword)
 	if err != nil {
-		return entity.SecureOperation{}, uc.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
@@ -64,7 +65,7 @@ func (uc *ChangePasswordProperty) Execute(ctx context.Context, userID uuid.UUID,
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		confirmingAction, err := op.NextNotConfirmedAction()
+		confirmingAction, err := operation.NextConfirmingAction(&op)
 		if err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
@@ -85,7 +86,7 @@ func (uc *ChangePasswordProperty) Execute(ctx context.Context, userID uuid.UUID,
 		return nil
 	})
 	if err != nil {
-		return entity.SecureOperation{}, uc.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
 	return op, nil

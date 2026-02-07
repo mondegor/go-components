@@ -5,12 +5,12 @@ import (
 )
 
 var (
-	// ErrLoginIsInvalid - login is invalid.
-	ErrLoginIsInvalid = errors.NewUserProto("LoginIsInvalid", "login is invalid")
+	// ErrAddressIsInvalid - address is invalid.
+	ErrAddressIsInvalid = errors.NewUserProto("AddressIsInvalid", "address is invalid")
 
-	// ErrEmailIsInvalid - login is invalid.
+	// ErrEmailIsInvalid - email is invalid.
 	ErrEmailIsInvalid = errors.NewUserProto("EmailIsInvalid", "email is invalid")
 
-	// ErrPhoneIsInvalid - login is invalid.
+	// ErrPhoneIsInvalid - phone is invalid.
 	ErrPhoneIsInvalid = errors.NewUserProto("PhoneIsInvalid", "phone is invalid")
 )

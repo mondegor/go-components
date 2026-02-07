@@ -10,7 +10,8 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/util/operation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -18,7 +19,7 @@ type (
 	// ChangeTOTPGeneratorProperty - comment struct.
 	ChangeTOTPGeneratorProperty struct {
 		txManager             mrstorage.DBTxManager
-		storageOperation      mrauth.SecureOperationStorage
+		storageOperation      operationCreator
 		notifierAPI           mrnotifier.NoteProducer
 		factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA
 		factoryOperationTOTP  factoryOperation2FA
@@ -26,14 +27,14 @@ type (
 	}
 
 	factoryOperation2FA interface {
-		Create(user2FA dto.User2FA) (entity.SecureOperation, error)
+		Create(user2FA dto.User2FA) (secureoperation.SecureOperation, error)
 	}
 )
 
 // NewChangeTOTPGeneratorProperty - создаёт объект ChangeTOTPGeneratorProperty.
 func NewChangeTOTPGeneratorProperty(
 	txManager mrstorage.DBTxManager,
-	storageOperation mrauth.SecureOperationStorage,
+	storageOperation operationCreator,
 	notifierAPI mrnotifier.NoteProducer,
 	factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA,
 	factoryOperationTOTP factoryOperation2FA,
@@ -49,19 +50,19 @@ func NewChangeTOTPGeneratorProperty(
 }
 
 // Execute - comments method.
-func (uc *ChangeTOTPGeneratorProperty) Execute(ctx context.Context, userID uuid.UUID) (entity.SecureOperation, error) {
+func (uc *ChangeTOTPGeneratorProperty) Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error) {
 	if userID == uuid.Nil {
-		return entity.SecureOperation{}, errors.ErrUseCaseAccessForbidden // TODO 401!!!!
+		return secureoperation.SecureOperation{}, errors.ErrUseCaseAccessForbidden // TODO 401!!!!
 	}
 
 	user2FA, err := uc.factoryUserConfirm2FA.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
 	if err != nil {
-		return entity.SecureOperation{}, uc.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
 	op, err := uc.factoryOperationTOTP.Create(user2FA)
 	if err != nil {
-		return entity.SecureOperation{}, uc.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
@@ -69,7 +70,7 @@ func (uc *ChangeTOTPGeneratorProperty) Execute(ctx context.Context, userID uuid.
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		confirmingAction, err := op.NextNotConfirmedAction()
+		confirmingAction, err := operation.NextConfirmingAction(&op)
 		if err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
@@ -77,13 +78,20 @@ func (uc *ChangeTOTPGeneratorProperty) Execute(ctx context.Context, userID uuid.
 		// TODO: Add Operation log:op!
 
 		if confirmingAction.MaxResends > 0 {
-			return uc.notifierAPI.Send(ctx, "confirm.change.totp", conv.Group{"to": confirmingAction.Address, "confirmCode": confirmingAction.Secret})
+			return uc.notifierAPI.Send(
+				ctx,
+				"confirm.change.totp",
+				conv.Group{
+					"to":          confirmingAction.Address,
+					"confirmCode": confirmingAction.Secret,
+				},
+			)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return entity.SecureOperation{}, uc.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
 	return op, nil

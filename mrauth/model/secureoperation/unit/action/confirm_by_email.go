@@ -5,15 +5,15 @@ import (
 
 	"github.com/mondegor/go-sysmess/errors"
 
-	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
-	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/model/contactaddress"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 type (
-	// ConfirmByPhone - comment struct.
-	ConfirmByPhone struct {
+	// ConfirmByEmail - comment struct.
+	ConfirmByEmail struct {
 		maxAttempts   uint32
 		maxResends    uint32
 		minResendTime time.Duration
@@ -21,11 +21,11 @@ type (
 	}
 )
 
-// NewConfirmByPhone - создаёт объект ConfirmByPhone.
-func NewConfirmByPhone(opts ...Option) *ConfirmByPhone {
+// NewConfirmByEmail - создаёт объект ConfirmByEmail.
+func NewConfirmByEmail(opts ...Option) *ConfirmByEmail {
 	o := newConfirmOptions(opts)
 
-	return &ConfirmByPhone{
+	return &ConfirmByEmail{
 		maxAttempts:   o.maxAttempts,
 		maxResends:    o.maxResends,
 		minResendTime: o.minResendTime,
@@ -34,22 +34,22 @@ func NewConfirmByPhone(opts ...Option) *ConfirmByPhone {
 }
 
 // Create - comments method.
-func (a *ConfirmByPhone) Create(phone contactaddress.ContactAddress, confirmCode string) (dto.ConfirmAction, error) {
-	if phone.Type != addresstype.Phone {
-		return dto.ConfirmAction{},
+func (a *ConfirmByEmail) Create(email contactaddress.ContactAddress, confirmCode string) (secureoperation.ConfirmAction, error) {
+	if !email.Is(addresstype.Email) {
+		return secureoperation.ConfirmAction{},
 			errors.NewInternalError(
 				"contactAddress type is invalid",
-				"phone", phone,
+				"email", email,
 			)
 	}
 
-	return dto.ConfirmAction{
-		Method:        confirmmethod.Phone,
+	return secureoperation.ConfirmAction{
+		Method:        confirmmethod.Email,
 		MaxAttempts:   a.maxAttempts,
 		MaxResends:    a.maxResends,
 		MinResendTime: a.minResendTime,
 		Expiry:        a.expiry,
-		Address:       phone.Value,
+		Address:       email.Value(),
 		Secret:        confirmCode,
 	}, nil
 }

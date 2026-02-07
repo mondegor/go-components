@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
 )
 
 type (
@@ -53,15 +53,8 @@ func NewTokenIssuer(
 }
 
 // Create - comments method.
-func (uc *TokenIssuer) Create(realm, userKind, langCode string, userID uuid.UUID) (token dto.AuthToken, err error) {
-	scopes := dto.AuthTokenScopes{
-		Realm:    realm,
-		UserKind: userKind,
-		LangCode: langCode,
-		UserID:   userID,
-	}
-
-	accessToken, err := uc.createAccessToken(&scopes)
+func (uc *TokenIssuer) Create(userScopes dto.UserScopes) (token dto.AuthToken, err error) {
+	accessToken, err := uc.createAccessToken(&userScopes)
 	if err != nil {
 		return dto.AuthToken{}, err
 	}
@@ -77,19 +70,24 @@ func (uc *TokenIssuer) Create(realm, userKind, langCode string, userID uuid.UUID
 		HasSignature:     true,
 		RefreshToken:     refreshToken,
 		RefreshExpiresIn: uc.refreshExpiry,
-		Scopes:           scopes,
+		UserID:           userScopes.UserID,
+		Scopes: entity.AuthTokenScopes{
+			Realm:    userScopes.Realm,
+			UserKind: userScopes.Kind,
+			LangCode: userScopes.LangCode,
+		},
 	}, nil
 }
 
 // Create - возвращает строковое значение настройки с указанным идентификатором.
-func (uc *TokenIssuer) createAccessToken(scopes *dto.AuthTokenScopes) (string, error) {
+func (uc *TokenIssuer) createAccessToken(userScopes *dto.UserScopes) (string, error) {
 	token := jwt.NewWithClaims(
 		uc.signingMethod,
 		jwt.MapClaims{
-			sectionAudiences: scopes.Realm,
-			sectionUserID:    scopes.UserID.String(),
-			sectionLangCode:  scopes.LangCode,
-			sectionScope:     scopes.UserKind,
+			sectionAudiences: userScopes.Realm,
+			sectionUserID:    userScopes.UserID.String(),
+			sectionLangCode:  userScopes.LangCode,
+			sectionScope:     userScopes.Kind,
 			sectionExpiry:    jwt.NewNumericDate(time.Now().Add(uc.accessExpiry)),
 		},
 	)

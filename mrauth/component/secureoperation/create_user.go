@@ -2,14 +2,12 @@ package secureoperation
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
-	"github.com/mondegor/go-components/mrauth/component/secureoperation/action"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/model/contactaddress"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	action2 "github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 )
 
 const (
@@ -34,27 +32,27 @@ func NewCreateUser(
 	userKind string,
 	tokenGenerator mrauth.TokenGenerator,
 	codeGenerator mrauth.CodeGenerator,
-	confirmByEmailOpts ...action.Option, // TODO: option !!!
+	confirmByEmailOpts ...action2.Option, // TODO: option !!!
 ) *CreateUser {
 	return &CreateUser{
 		realm:          realm,
 		userKind:       userKind,
 		tokenGenerator: tokenGenerator,
 		codeGenerator:  codeGenerator,
-		actionCreator:  action.NewConfirmByEmail(confirmByEmailOpts...),
+		actionCreator:  action2.NewConfirmByEmail(confirmByEmailOpts...),
 	}
 }
 
 // Create - comments method.
-func (o *CreateUser) Create(langCode string, userEmail contactaddress.ContactAddress) (entity.SecureOperation, error) {
+func (o *CreateUser) Create(langCode string, userEmail contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
 	operationToken, err := o.tokenGenerator.GenToken()
 	if err != nil {
-		return entity.SecureOperation{}, err
+		return secureoperation.SecureOperation{}, err
 	}
 
 	confirmCode, err := o.codeGenerator.GenCode()
 	if err != nil {
-		return entity.SecureOperation{}, err
+		return secureoperation.SecureOperation{}, err
 	}
 
 	payload, err := json.Marshal(
@@ -62,27 +60,22 @@ func (o *CreateUser) Create(langCode string, userEmail contactaddress.ContactAdd
 			Realm:    o.realm,
 			UserKind: o.userKind,
 			LangCode: langCode,
-			Email:    userEmail.Value,
+			Email:    userEmail.Value(),
 		},
 	)
 	if err != nil {
-		return entity.SecureOperation{}, err
+		return secureoperation.SecureOperation{}, err
 	}
 
 	confirmAction, err := o.actionCreator.Create(userEmail, confirmCode)
 	if err != nil {
-		return entity.SecureOperation{}, err
+		return secureoperation.SecureOperation{}, err
 	}
 
-	return entity.SecureOperation{
-		Token:             operationToken,
-		Name:              NameConfirmCreateUser,
-		Actions:           []dto.ConfirmAction{confirmAction},
-		RemainingAttempts: confirmAction.MaxAttempts,
-		RemainingResends:  confirmAction.MaxResends,
-		ResendsAt:         time.Now().Add(confirmAction.MinResendTime).Round(1 * time.Second),
-		Payload:           payload,
-		Status:            operationstatus.Opened,
-		ExpiresAt:         time.Now().Add(confirmAction.Expiry).Round(1 * time.Second),
-	}, nil
+	return secureoperation.NewAnonymus(
+		operationToken,
+		NameConfirmCreateUser,
+		[]secureoperation.ConfirmAction{confirmAction},
+		payload,
+	)
 }

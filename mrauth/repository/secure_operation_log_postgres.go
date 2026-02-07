@@ -15,9 +15,10 @@ import (
 type (
 	// SecureOperationLogPostgres - репозиторий для хранения элементов настроек.
 	SecureOperationLogPostgres struct {
-		client       mrstorage.DBConnManager
-		errorWrapper errors.Wrapper
-		tableName    string
+		client           mrstorage.DBConnManager
+		errorWrapper     errors.Wrapper
+		tableName        string
+		insertArgsHelper placeholdedvalues.SQL
 	}
 )
 
@@ -26,10 +27,16 @@ func NewSecureOperationLogPostgres(
 	client mrstorage.DBConnManager,
 	tableName string,
 ) *SecureOperationLogPostgres {
+	const countLineArgs = 4
+
 	return &SecureOperationLogPostgres{
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
 		tableName:    tableName,
+
+		insertArgsHelper: placeholdedvalues.New(
+			placeholdedvalues.WithCountLineArgs(countLineArgs),
+		),
 	}
 }
 
@@ -51,20 +58,13 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 			)
 		VALUES `)
 
-	const countLineArgs = 6
-
 	// generate: ($1, $2, $3, $4), ...
-	sqlValues := placeholdedvalues.New(
-		&sql,
-		placeholdedvalues.WithCountArgs(countLineArgs),
-	)
-
-	values := make([]any, 0, len(rows)*countLineArgs)
-	argumentNumber := sqlValues.WriteFirstLine()
+	values := make([]any, 0, len(rows)*re.insertArgsHelper.CountLineArgs())
+	argumentNumber := re.insertArgsHelper.WriteFirstLine(&sql)
 
 	for i, row := range rows {
 		if i > 0 {
-			argumentNumber = sqlValues.WriteNextLine(argumentNumber)
+			argumentNumber = re.insertArgsHelper.WriteNextLine(&sql, argumentNumber)
 		}
 
 		values = append(

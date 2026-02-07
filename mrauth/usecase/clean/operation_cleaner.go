@@ -5,23 +5,29 @@ import (
 	"time"
 
 	"github.com/mondegor/go-sysmess/errors"
-
-	"github.com/mondegor/go-components/mrauth"
 )
 
 type (
 	// OperationCleaner - объект очищающий очередь от обработанных/сломанных уведомлений.
 	OperationCleaner struct {
-		storage      mrauth.SecureOperationStorage
-		storageLog   mrauth.SecureOperationLogStorage
+		storage      operationStorage
+		storageLog   operationLogStorage
 		errorWrapper errors.Wrapper
+	}
+
+	operationStorage interface {
+		DeleteExpired(ctx context.Context, limit int) error
+	}
+
+	operationLogStorage interface {
+		DeleteBeforeDate(ctx context.Context, datetime time.Time, limit int) error
 	}
 )
 
 // NewOperationCleaner - создаёт объект OperationCleaner.
 func NewOperationCleaner(
-	storage mrauth.SecureOperationStorage,
-	storageLog mrauth.SecureOperationLogStorage,
+	storage operationStorage,
+	storageLog operationLogStorage,
 ) *OperationCleaner {
 	return &OperationCleaner{
 		storage:      storage,

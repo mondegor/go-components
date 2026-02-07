@@ -3,7 +3,7 @@ package entity
 import (
 	"time"
 
-	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/google/uuid"
 )
 
 const (
@@ -20,7 +20,15 @@ type (
 		RefreshToken    string
 		AccessToken     string
 		AccessExpiresAt time.Time
-		Scopes          dto.AuthTokenScopes
+		UserID          uuid.UUID
+		Scopes          AuthTokenScopes
 		ExpiresAt       time.Time
+	}
+
+	// AuthTokenScopes - область действия токена доступа, хранится в виде json.
+	AuthTokenScopes struct {
+		Realm    string `json:"realm"` // domain + '/' + user_group
+		UserKind string `json:"kind"`
+		LangCode string `json:"lang"`
 	}
 )

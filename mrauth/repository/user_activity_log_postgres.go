@@ -9,15 +9,16 @@ import (
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/errors"
 
-	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/dto"
 )
 
 type (
 	// UserActivityLogPostgres - репозиторий для хранения элементов настроек.
 	UserActivityLogPostgres struct {
-		client       mrstorage.DBConnManager
-		errorWrapper errors.Wrapper
-		tableName    string
+		client           mrstorage.DBConnManager
+		errorWrapper     errors.Wrapper
+		tableName        string
+		insertArgsHelper placeholdedvalues.SQL
 	}
 )
 
@@ -26,15 +27,21 @@ func NewUserActivityLogPostgres(
 	client mrstorage.DBConnManager,
 	tableName string,
 ) *UserActivityLogPostgres {
+	const countLineArgs = 7
+
 	return &UserActivityLogPostgres{
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
 		tableName:    tableName,
+
+		insertArgsHelper: placeholdedvalues.New(
+			placeholdedvalues.WithCountLineArgs(countLineArgs),
+		),
 	}
 }
 
 // Insert - фиксирует изменение настройки.
-func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []entity.UserActivityLog) error {
+func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserActivityLogMessage) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -54,20 +61,13 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []entity.Use
 			)
 		VALUES `)
 
-	const countLineArgs = 7
-
 	// generate: ($1, $2, $3, $4, $5, $6, $7), ...
-	sqlValues := placeholdedvalues.New(
-		&sql,
-		placeholdedvalues.WithCountArgs(countLineArgs),
-	)
-
-	values := make([]any, 0, len(rows)*countLineArgs)
-	argumentNumber := sqlValues.WriteFirstLine()
+	values := make([]any, 0, len(rows)*re.insertArgsHelper.CountLineArgs())
+	argumentNumber := re.insertArgsHelper.WriteFirstLine(&sql)
 
 	for i, row := range rows {
 		if i > 0 {
-			argumentNumber = sqlValues.WriteNextLine(argumentNumber)
+			argumentNumber = re.insertArgsHelper.WriteNextLine(&sql, argumentNumber)
 		}
 
 		realIP, _, err := row.UserIP.ToUint()

@@ -10,11 +10,10 @@ import (
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/util/conv"
 
-	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/userstatus"
+	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -22,26 +21,35 @@ type (
 	// CreateUser - компонент для извлечения настроек, которые хранятся в хранилище данных.
 	CreateUser struct {
 		txManager        mrstorage.DBTxManager
-		storageUser      mrauth.UserStorage
-		storageUserRealm mrauth.UserRealmStorage
+		storageUser      userCreator
+		storageUserRealm userRealmCreator
 		notifierAPI      mrnotifier.NoteProducer
 		errorWrapper     errors.Wrapper
 		logger           mrlog.Logger
+	}
+
+	userCreator interface {
+		FetchOneByLogin(ctx context.Context, userLogin contactaddress.ContactAddress) (entity.User, error)
+		Insert(ctx context.Context, row entity.User) (userID uuid.UUID, err error)
+	}
+
+	userRealmCreator interface {
+		Insert(ctx context.Context, row entity.UserRealm) error
 	}
 )
 
 // NewCreateUser - создаёт объект CreateUser.
 func NewCreateUser(
 	txManager mrstorage.DBTxManager,
-	storageUser mrauth.UserStorage,
-	storageUserNamespace mrauth.UserRealmStorage,
+	storageUser userCreator,
+	storageUserRealm userRealmCreator,
 	notifierAPI mrnotifier.NoteProducer,
 	logger mrlog.Logger,
 ) *CreateUser {
 	return &CreateUser{
 		txManager:        txManager,
 		storageUser:      storageUser,
-		storageUserRealm: storageUserNamespace,
+		storageUserRealm: storageUserRealm,
 		notifierAPI:      notifierAPI,
 		errorWrapper:     errors.NewUseCaseWrapper(),
 		logger:           logger,
@@ -49,17 +57,17 @@ func NewCreateUser(
 }
 
 // Execute - возвращает строковое значение настройки с указанным идентификатором.
-func (uc *CreateUser) Execute(ctx context.Context, payload []byte) (u dto.UserInRealm, err error) {
+func (uc *CreateUser) Execute(ctx context.Context, payload []byte) (u dto.UserScopes, err error) {
 	payloadDTO := dto.CreateUserOperation{}
 
 	if err = json.Unmarshal(payload, &payloadDTO); err != nil {
-		return dto.UserInRealm{}, errors.ErrInternalIncorrectInputData.WithError(err, "CreateUser", "payload", payload)
+		return dto.UserScopes{}, errors.ErrInternalIncorrectInputData.WithError(err, "CreateUser", "payload", payload)
 	}
 
 	user, err := uc.storageUser.FetchOneByLogin(ctx, contactaddress.NewEmail(payloadDTO.Email))
 	if err != nil {
 		if !errors.Is(err, errors.ErrEventStorageNoRowFound) {
-			return dto.UserInRealm{}, uc.errorWrapper.Wrap(err)
+			return dto.UserScopes{}, uc.errorWrapper.Wrap(err)
 		}
 	}
 
@@ -90,7 +98,7 @@ func (uc *CreateUser) Execute(ctx context.Context, payload []byte) (u dto.UserIn
 		return nil
 	})
 	if err != nil {
-		return dto.UserInRealm{}, err
+		return dto.UserScopes{}, err
 	}
 
 	err = uc.notifierAPI.Send(
@@ -118,8 +126,8 @@ func (uc *CreateUser) Execute(ctx context.Context, payload []byte) (u dto.UserIn
 		uc.logger.Error(ctx, "After CreateUser notice 'user.was.registered' not send", "error", err)
 	}
 
-	return dto.UserInRealm{
-		ID:       user.ID,
+	return dto.UserScopes{
+		UserID:   user.ID,
 		Realm:    payloadDTO.Realm,
 		Kind:     payloadDTO.UserKind,
 		LangCode: user.LangCode,

@@ -7,19 +7,25 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 type (
 	// RevokeOperation - comment struct.
 	RevokeOperation struct {
-		storageOperation mrauth.SecureOperationStorage
+		storageOperation operationRevoker
 		errorWrapper     errors.Wrapper
+	}
+
+	operationRevoker interface {
+		FetchOne(ctx context.Context, token string) (row secureoperation.SecureOperation, err error)
+		Delete(ctx context.Context, token string) error
 	}
 )
 
 // NewRevokeOperation - создаёт объект NewRevokeOperation.
 func NewRevokeOperation(
-	storageOperation mrauth.SecureOperationStorage,
+	storageOperation operationRevoker,
 ) *RevokeOperation {
 	return &RevokeOperation{
 		storageOperation: storageOperation,

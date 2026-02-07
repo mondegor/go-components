@@ -7,24 +7,30 @@ import (
 
 	"github.com/mondegor/go-sysmess/errors"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/entity"
 )
 
 type (
 	// UserStatistic - comment struct.
 	UserStatistic struct {
-		storageActivityStat mrauth.UserActivityStatStorage
-		storageActivityLog  mrauth.UserActivityLogStorage
+		storageActivityStat userActivityStatUpdater
+		storageActivityLog  userActivityLogStorage
 		errorWrapper        errors.Wrapper
+	}
+
+	userActivityStatUpdater interface {
+		UpdateLastVisited(ctx context.Context, rows []dto.UserActivityLastVisited) error
+	}
+
+	userActivityLogStorage interface {
+		Insert(ctx context.Context, rows []dto.UserActivityLogMessage) error
 	}
 )
 
 // NewUserStatistic - создаёт объект Session.
 func NewUserStatistic(
-	storageActivityStat mrauth.UserActivityStatStorage,
-	storageActivityLog mrauth.UserActivityLogStorage,
+	storageActivityStat userActivityStatUpdater,
+	storageActivityLog userActivityLogStorage,
 ) *UserStatistic {
 	return &UserStatistic{
 		storageActivityStat: storageActivityStat,
@@ -34,14 +40,14 @@ func NewUserStatistic(
 }
 
 // Execute - comments method.
-func (uc *UserStatistic) Execute(ctx context.Context, list []entity.UserActivityLog) error {
-	if len(list) == 0 {
+func (uc *UserStatistic) Execute(ctx context.Context, messages []dto.UserActivityLogMessage) error {
+	if len(messages) == 0 {
 		return nil
 	}
 
 	usersN := 1
 
-	slices.SortFunc(list, func(a, b entity.UserActivityLog) int {
+	slices.SortFunc(messages, func(a, b dto.UserActivityLogMessage) int {
 		if cmp := bytes.Compare(a.UserID[:], b.UserID[:]); cmp != 0 {
 			usersN++ // подсчёт уникальных пользователей
 
@@ -54,22 +60,22 @@ func (uc *UserStatistic) Execute(ctx context.Context, list []entity.UserActivity
 	stat := make([]dto.UserActivityLastVisited, usersN)
 
 	stat[0] = dto.UserActivityLastVisited{
-		UserID:        list[0].UserID,
-		LastVisitedAt: list[0].VisitedAt,
+		UserID:        messages[0].UserID,
+		LastVisitedAt: messages[0].VisitedAt,
 	}
 
 	j := 0
 
-	for i := 1; i < len(list); i++ {
-		if list[i].UserID == stat[j].UserID {
+	for i := 1; i < len(messages); i++ {
+		if messages[i].UserID == stat[j].UserID {
 			continue
 		}
 
 		j++
 
 		stat[j] = dto.UserActivityLastVisited{
-			UserID:        list[i].UserID,
-			LastVisitedAt: list[i].VisitedAt,
+			UserID:        messages[i].UserID,
+			LastVisitedAt: messages[i].VisitedAt,
 		}
 	}
 
@@ -79,7 +85,7 @@ func (uc *UserStatistic) Execute(ctx context.Context, list []entity.UserActivity
 		return uc.errorWrapper.Wrap(err)
 	}
 
-	if err := uc.storageActivityLog.Insert(ctx, list); err != nil {
+	if err := uc.storageActivityLog.Insert(ctx, messages); err != nil {
 		return uc.errorWrapper.Wrap(err)
 	}
 

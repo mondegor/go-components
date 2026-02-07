@@ -8,8 +8,9 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/util/operation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -17,21 +18,26 @@ type (
 	// ResendCode - comment struct.
 	ResendCode struct {
 		txManager         mrstorage.DBTxManager
-		storageOperation  mrauth.SecureOperationStorage
+		storageOperation  operationResender
 		notifierAPI       mrnotifier.NoteProducer
 		operationPreparer resendOperationPreparer
 		errorWrapper      errors.Wrapper
 	}
 
+	operationResender interface {
+		FetchOne(ctx context.Context, token string) (row secureoperation.SecureOperation, err error)
+		Update(ctx context.Context, currentToken string, row secureoperation.SecureOperation) error
+	}
+
 	resendOperationPreparer interface {
-		Prepare(op entity.SecureOperation) (entity.SecureOperation, error)
+		Prepare(op secureoperation.SecureOperation) (secureoperation.SecureOperation, error)
 	}
 )
 
 // NewResendCode - создаёт объект NewResendCode.
 func NewResendCode(
 	txManager mrstorage.DBTxManager,
-	storageOperation mrauth.SecureOperationStorage,
+	storageOperation operationResender,
 	notifierAPI mrnotifier.NoteProducer,
 	operationPreparer resendOperationPreparer,
 ) *ResendCode {
@@ -45,14 +51,14 @@ func NewResendCode(
 }
 
 // Execute - comments method.
-func (co *ResendCode) Execute(ctx context.Context, langCode, operationToken string) (entity.SecureOperation, error) {
+func (co *ResendCode) Execute(ctx context.Context, langCode, operationToken string) (secureoperation.SecureOperation, error) {
 	if operationToken == "" {
-		return entity.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("operationToken is empty")
+		return secureoperation.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("operationToken is empty")
 	}
 
 	op, err := co.storageOperation.FetchOne(ctx, operationToken)
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	op, err = co.operationPreparer.Prepare(op)
@@ -61,7 +67,7 @@ func (co *ResendCode) Execute(ctx context.Context, langCode, operationToken stri
 			return op, err // WARNING: 'op' используется с этой ошибкой
 		}
 
-		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	err = co.txManager.Do(ctx, func(ctx context.Context) error {
@@ -69,7 +75,7 @@ func (co *ResendCode) Execute(ctx context.Context, langCode, operationToken stri
 			return co.errorWrapper.Wrap(err)
 		}
 
-		confirmingAction, err := op.NextNotConfirmedAction()
+		confirmingAction, err := operation.NextConfirmingAction(&op)
 		if err != nil {
 			return co.errorWrapper.Wrap(err)
 		}
@@ -92,7 +98,7 @@ func (co *ResendCode) Execute(ctx context.Context, langCode, operationToken stri
 		)
 	})
 	if err != nil {
-		return entity.SecureOperation{}, co.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	return op, nil

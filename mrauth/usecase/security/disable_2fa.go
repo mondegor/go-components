@@ -9,7 +9,8 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/util/operation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -17,7 +18,7 @@ type (
 	// Disable2FA - comment struct.
 	Disable2FA struct {
 		txManager                  mrstorage.DBTxManager
-		storageOperation           mrauth.SecureOperationStorage
+		storageOperation           operationCreator
 		notifierAPI                mrnotifier.NoteProducer
 		factoryUserConfirm2FA      mrauth.FactoryUserConfirm2FA
 		factoryOperationDisable2FA factoryOperation2FA
@@ -28,7 +29,7 @@ type (
 // NewDisable2FA - создаёт объект Disable2FA.
 func NewDisable2FA(
 	txManager mrstorage.DBTxManager,
-	storageOperation mrauth.SecureOperationStorage,
+	storageOperation operationCreator,
 	notifierAPI mrnotifier.NoteProducer,
 	factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA,
 	factoryOperationDisable2FA factoryOperation2FA,
@@ -44,14 +45,14 @@ func NewDisable2FA(
 }
 
 // Execute - comments method.
-func (uc *Disable2FA) Execute(ctx context.Context, userID uuid.UUID) (entity.SecureOperation, error) {
+func (uc *Disable2FA) Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error) {
 	if userID == uuid.Nil {
-		return entity.SecureOperation{}, errors.ErrUseCaseAccessForbidden // TODO 401!!!!
+		return secureoperation.SecureOperation{}, errors.ErrUseCaseAccessForbidden // TODO 401!!!!
 	}
 
 	user2FA, err := uc.factoryUserConfirm2FA.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
 	if err != nil {
-		return entity.SecureOperation{}, uc.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
 	// if user2FA.Action2FA.Method == 0 {
@@ -60,7 +61,7 @@ func (uc *Disable2FA) Execute(ctx context.Context, userID uuid.UUID) (entity.Sec
 
 	op, err := uc.factoryOperationDisable2FA.Create(user2FA)
 	if err != nil {
-		return entity.SecureOperation{}, uc.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
@@ -68,7 +69,7 @@ func (uc *Disable2FA) Execute(ctx context.Context, userID uuid.UUID) (entity.Sec
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		confirmingAction, err := op.NextNotConfirmedAction()
+		confirmingAction, err := operation.NextConfirmingAction(&op)
 		if err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
@@ -76,13 +77,20 @@ func (uc *Disable2FA) Execute(ctx context.Context, userID uuid.UUID) (entity.Sec
 		// TODO: Add Operation log:op!
 
 		if confirmingAction.MaxResends > 0 {
-			return uc.notifierAPI.Send(ctx, "confirm.disable.2fa", conv.Group{"to": confirmingAction.Address, "confirmCode": confirmingAction.Secret})
+			return uc.notifierAPI.Send(
+				ctx,
+				"confirm.disable.2fa",
+				conv.Group{
+					"to":          confirmingAction.Address,
+					"confirmCode": confirmingAction.Secret,
+				},
+			)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return entity.SecureOperation{}, uc.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
 	return op, nil

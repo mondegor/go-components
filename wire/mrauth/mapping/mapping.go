@@ -6,7 +6,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/bag/jwt"
 	bagsession "github.com/mondegor/go-components/mrauth/bag/session"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
-	"github.com/mondegor/go-components/mrauth/component/secureoperation/action"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 	"github.com/mondegor/go-components/mrauth/service/session"
 	usecaseauth "github.com/mondegor/go-components/mrauth/usecase/auth"
 	auth "github.com/mondegor/go-components/wire/mrauth/config"
@@ -63,22 +64,22 @@ func OptionUserRealmsToConfirmCreateSessionRealms(realms []auth.UserRealm) []use
 			mappedRealms,
 			usecaseauth.CreateSessionRealm{
 				Name: realm.Name,
-				Operation: secureoperation.NewAuthorizeUser(
+				Operation: unit.NewAuthorizeUser(
 					crypt.NewTokenGenerator(int(realm.AuthToken.Length)),
 					crypt.NewCodeGenerator(int(realm.OperationConfirm.CodeLength)),
-					secureoperation.WithAuthorizeUserConfirmByEmailOpts(
+					unit.WithAuthorizeUserConfirmByEmailOpts(
 						action.WithMaxAttempts(realm.OperationConfirm.SendByEmail.MaxAttempts),
 						action.WithMaxResends(realm.OperationConfirm.SendByEmail.MaxResends),
 						action.WithMinResendTime(realm.OperationConfirm.SendByEmail.MinResendTime),
 						action.WithExpiry(realm.OperationConfirm.SessionExpiry),
 					),
-					secureoperation.WithAuthorizeUserConfirmByPhoneOpts(
+					unit.WithAuthorizeUserConfirmByPhoneOpts(
 						action.WithMaxAttempts(realm.OperationConfirm.SendByPhone.MaxAttempts),
 						action.WithMaxResends(realm.OperationConfirm.SendByPhone.MaxResends),
 						action.WithMinResendTime(realm.OperationConfirm.SendByPhone.MinResendTime),
 						action.WithExpiry(realm.OperationConfirm.SessionExpiry),
 					),
-					secureoperation.WithAuthorizeUserConfirmPhoneByEmail(true),
+					unit.WithAuthorizeUserConfirmPhoneByEmail(true),
 				),
 			},
 		)

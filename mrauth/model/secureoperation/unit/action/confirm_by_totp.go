@@ -3,8 +3,8 @@ package action
 import (
 	"time"
 
-	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 type (
@@ -26,8 +26,8 @@ func NewConfirmByTOTP(opts ...Option) *ConfirmByTOTP {
 }
 
 // Create - comments method.
-func (a *ConfirmByTOTP) Create(secret string) dto.ConfirmAction {
-	return dto.ConfirmAction{
+func (a *ConfirmByTOTP) Create(secret string) secureoperation.ConfirmAction {
+	return secureoperation.ConfirmAction{
 		Method:      confirmmethod.TOTP,
 		MaxAttempts: a.maxAttempts,
 		Expiry:      a.expiry,

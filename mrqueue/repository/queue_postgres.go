@@ -17,16 +17,24 @@ import (
 type (
 	// QueuePostgres - репозиторий для организации очереди и хранения в ней записей.
 	QueuePostgres struct {
-		client mrstorage.DBConnManager
-		table  mrsql.DBTableInfo
+		client           mrstorage.DBConnManager
+		table            mrsql.DBTableInfo
+		insertArgsHelper placeholdedvalues.SQL
 	}
 )
 
 // NewQueuePostgres - создаёт объект QueuePostgres.
 func NewQueuePostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *QueuePostgres {
+	const countLineArgs = 3
+
 	return &QueuePostgres{
 		client: client,
 		table:  table,
+
+		insertArgsHelper: placeholdedvalues.New(
+			placeholdedvalues.WithCountLineArgs(countLineArgs),
+			placeholdedvalues.WithLine("", "", "", ", NOW() + INTERVAL '1 second' * "),
+		),
 	}
 }
 
@@ -49,21 +57,13 @@ func (re *QueuePostgres) Insert(ctx context.Context, rows []dto.Item) error {
 			)
 		VALUES `)
 
-	const countLineArgs = 4
-
 	// generate: ($1, $2, $3, NOW() + INTERVAL '1 second' * $4), ...
-	sqlValues := placeholdedvalues.New(
-		&sql,
-		placeholdedvalues.WithCountArgs(countLineArgs),
-		placeholdedvalues.WithLineMiddle(map[int]string{countLineArgs - 1: ", NOW() + INTERVAL '1 second' * "}),
-	)
-
-	values := make([]any, 0, len(rows)*countLineArgs)
-	argumentNumber := sqlValues.WriteFirstLine()
+	values := make([]any, 0, len(rows)*re.insertArgsHelper.CountLineArgs())
+	argumentNumber := re.insertArgsHelper.WriteFirstLine(&sql)
 
 	for i, row := range rows {
 		if i > 0 {
-			argumentNumber = sqlValues.WriteNextLine(argumentNumber)
+			argumentNumber = re.insertArgsHelper.WriteNextLine(&sql, argumentNumber)
 		}
 
 		values = append(values, row.ID, row.RetryAttempts, itemstatus.Ready, row.ReadyDelayed.Seconds())

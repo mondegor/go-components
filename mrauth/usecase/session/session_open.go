@@ -14,36 +14,42 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	secureoperation2 "github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
 type (
 	// OpenSession - comment struct.
 	OpenSession struct {
 		txManager             mrstorage.DBTxManager
-		storageUserActivity   mrauth.UserActivityStatStorage
+		storageUserActivity   userActivityStatCreator
 		handlerCreateUser     operationHandlerCreateUser
 		handlerBeforeAuthUser operationHandlerBeforeAuthUser
 		tokenCreator          tokenCreator
 		errorWrapper          errors.Wrapper
 	}
 
+	userActivityStatCreator interface {
+		InsertOrUpdate(ctx context.Context, row entity.UserActivityStat) error
+	}
+
 	operationHandlerCreateUser interface {
-		Execute(ctx context.Context, payload []byte) (user dto.UserInRealm, err error) // сделать DTO и объединить CreateUser + BeforeAuthUser интерфейсы
+		Execute(ctx context.Context, payload []byte) (userScopes dto.UserScopes, err error) // сделать DTO и объединить CreateUser + BeforeAuthUser интерфейсы
 	}
 
 	operationHandlerBeforeAuthUser interface {
-		Execute(ctx context.Context, userID uuid.UUID, payload []byte) (user dto.UserInRealm, err error) // сделать DTO
+		Execute(ctx context.Context, userID uuid.UUID, payload []byte) (userScopes dto.UserScopes, err error) // сделать DTO
 	}
 
 	tokenCreator interface {
-		Create(ctx context.Context, realm, userKind, langCode string, userID uuid.UUID) (token dto.AuthToken, err error)
+		Create(ctx context.Context, userScopes dto.UserScopes) (token dto.AuthToken, err error)
 	}
 )
 
 // NewOpenSession - создаёт объект OpenSession.
 func NewOpenSession(
 	txManager mrstorage.DBTxManager,
-	storageUserActivity mrauth.UserActivityStatStorage,
+	storageUserActivity userActivityStatCreator,
 	handlerCreateUser operationHandlerCreateUser,
 	handlerBeforeAuthUser operationHandlerBeforeAuthUser,
 	tokenCreator tokenCreator,
@@ -59,8 +65,8 @@ func NewOpenSession(
 }
 
 // Execute - comments method.
-func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, op entity.SecureOperation) (authToken dto.AuthToken, err error) {
-	var user dto.UserInRealm
+func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, op secureoperation2.SecureOperation) (authToken dto.AuthToken, err error) {
+	var userScopes dto.UserScopes
 
 	if op.Status != operationstatus.Confirmed {
 		return dto.AuthToken{}, mrauth.ErrOperationIsNotConfirmed
@@ -69,12 +75,12 @@ func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		switch op.Name {
 		case secureoperation.NameConfirmCreateUser:
-			user, err = uc.handlerCreateUser.Execute(ctx, op.Payload)
+			userScopes, err = uc.handlerCreateUser.Execute(ctx, op.Payload)
 			if err != nil {
 				return err
 			}
-		case secureoperation.NameAuthorizeUser:
-			user, err = uc.handlerBeforeAuthUser.Execute(ctx, op.UserID, op.Payload)
+		case unit.NameAuthorizeUser:
+			userScopes, err = uc.handlerBeforeAuthUser.Execute(ctx, op.UserID, op.Payload)
 			if err != nil {
 				return err
 			}
@@ -82,13 +88,13 @@ func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, 
 			return errors.ErrUseCaseAccessForbidden
 		}
 
-		authToken, err = uc.tokenCreator.Create(ctx, user.Realm, user.Kind, user.LangCode, user.ID)
+		authToken, err = uc.tokenCreator.Create(ctx, userScopes)
 		if err != nil {
 			return err
 		}
 
 		userActivity := entity.UserActivityStat{
-			UserID:        user.ID,
+			UserID:        userScopes.UserID,
 			LastLoginIP:   clientIP,
 			LastLoggedAt:  time.Now(),
 			LastVisitedAt: time.Now(),

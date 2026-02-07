@@ -43,7 +43,7 @@ func NewAuthTokenPostgres(
 }
 
 // FetchOne - возвращает список сообщений по их указанным ID.
-func (re *AuthTokenPostgres) FetchOne(ctx context.Context, accessToken string) (row dto.AuthTokenScopes, err error) {
+func (re *AuthTokenPostgres) FetchOne(ctx context.Context, accessToken string) (row dto.UserScopes, err error) {
 	sql := `
 		SELECT
 			user_id,
@@ -71,11 +71,11 @@ func (re *AuthTokenPostgres) FetchOne(ctx context.Context, accessToken string) (
 		&isExpired,
 	)
 	if err != nil {
-		return dto.AuthTokenScopes{}, re.errorWrapper.Wrap(err)
+		return dto.UserScopes{}, re.errorWrapper.Wrap(err)
 	}
 
 	if isExpired {
-		return dto.AuthTokenScopes{}, ErrTokenExpired
+		return dto.UserScopes{}, ErrTokenExpired
 	}
 
 	// дозаполняется структура userID полученного из отдельного поля
@@ -112,7 +112,7 @@ func (re *AuthTokenPostgres) Insert(ctx context.Context, row entity.AuthToken) e
 		row.RefreshToken,
 		accessToken,
 		row.AccessExpiresAt,
-		row.Scopes.UserID,
+		row.UserID,
 		row.Scopes, // userID будет исключён, т.к. он сохраняется в отдельном поле
 		authtokenstatus.Opened,
 		row.ExpiresAt,
@@ -153,7 +153,7 @@ func (re *AuthTokenPostgres) UpdateToClose(ctx context.Context, accessToken stri
 }
 
 // Revoke - comments method.
-func (re *AuthTokenPostgres) Revoke(ctx context.Context, refreshToken string) (row dto.AuthTokenScopes, err error) {
+func (re *AuthTokenPostgres) Revoke(ctx context.Context, refreshToken string) (row dto.UserScopes, err error) {
 	sql := `
         UPDATE
             ` + re.table.Name + `
@@ -187,11 +187,11 @@ func (re *AuthTokenPostgres) Revoke(ctx context.Context, refreshToken string) (r
 		&isAlreadyRevoked,
 	)
 	if err != nil {
-		return dto.AuthTokenScopes{}, re.errorWrapper.Wrap(err)
+		return dto.UserScopes{}, re.errorWrapper.Wrap(err)
 	}
 
 	if isExpired {
-		return dto.AuthTokenScopes{}, ErrTokenExpired
+		return dto.UserScopes{}, ErrTokenExpired
 	}
 
 	// дозаполняется структура userID полученного из отдельного поля

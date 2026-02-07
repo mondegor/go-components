@@ -2,15 +2,14 @@ package check
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/bag/contactaddress"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"
+	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 )
 
 type (
@@ -45,85 +44,76 @@ func NewUserLogin(
 }
 
 // CheckAvailability - проверяет, что указанный логин не существует ни в одном realm.
-func (s *UserLogin) CheckAvailability(ctx context.Context, userLogin contactaddress.ContactAddress) error {
-	return s.CheckAvailabilityRealm(ctx, "", userLogin)
-}
-
-// CheckAvailabilityRealm - проверяет, что указанный логин не существует в указанном realm.
-func (s *UserLogin) CheckAvailabilityRealm(ctx context.Context, realm string, userLogin contactaddress.ContactAddress) error {
-	if userLogin.Type == addresstype.Email {
-		return s.CheckAvailabilityRealmEmail(ctx, realm, userLogin.Value)
-	}
-
-	if userLogin.Type == addresstype.Phone {
-		return s.CheckAvailabilityRealmPhone(ctx, realm, userLogin.Value)
-	}
-
-	return contactaddress.ErrLoginIsInvalid
+func (sv *UserLogin) CheckAvailability(ctx context.Context, userLogin contactaddress.ContactAddress) error {
+	return sv.CheckAvailabilityRealm(ctx, "", userLogin)
 }
 
 // CheckAvailabilityEmail - проверяет, что указанный email не существует ни в одном realm.
 // Если email существует, то вернётся mrauth.ErrEmailAlreadyExists.
-func (s *UserLogin) CheckAvailabilityEmail(ctx context.Context, userEmail string) error {
-	return s.CheckAvailabilityRealmEmail(ctx, "", userEmail)
+func (sv *UserLogin) CheckAvailabilityEmail(ctx context.Context, userEmail contactaddress.ContactAddress) error {
+	return sv.checkAvailabilityRealmEmail(ctx, "", userEmail.Value())
 }
 
-// CheckAvailabilityRealmEmail - проверяет, что указанный email не существует в указанном realm.
-// Если email существует, то вернётся mrauth.ErrEmailAlreadyExists.
-func (s *UserLogin) CheckAvailabilityRealmEmail(ctx context.Context, realm, userEmail string) error {
-	userID, err := s.storageCheckUser.UserIDByEmail(ctx, userEmail)
+// CheckAvailabilityRealm - проверяет, что указанный логин не существует в указанном realm.
+func (sv *UserLogin) CheckAvailabilityRealm(ctx context.Context, realm string, userLogin contactaddress.ContactAddress) error {
+	if userLogin.Is(addresstype.Email) {
+		return sv.checkAvailabilityRealmEmail(ctx, realm, userLogin.Value())
+	}
+
+	if userLogin.Is(addresstype.Phone) {
+		return sv.checkAvailabilityRealmPhone(ctx, realm, userLogin.DigitValue())
+	}
+
+	return contactaddress.ErrAddressIsInvalid
+}
+
+func (sv *UserLogin) checkAvailabilityRealmEmail(ctx context.Context, realm, userEmail string) error {
+	userID, err := sv.storageCheckUser.UserIDByEmail(ctx, userEmail)
 	if err != nil {
 		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
 			return nil
 		}
 
-		return s.errorWrapper.Wrap(err)
+		return sv.errorWrapper.Wrap(err)
 	}
 
 	if realm == "" {
 		return mrauth.ErrEmailAlreadyExists
 	}
 
-	return s.checkUserRealm(ctx, userID, realm, mrauth.ErrEmailAlreadyExists)
+	return sv.checkUserRealm(ctx, userID, realm, mrauth.ErrEmailAlreadyExists)
 }
 
 // CheckAvailabilityPhone - проверяет, что указанный телефон не существует ни в одном realm.
 // Если телефон существует, то вернётся mrauth.ErrPhoneAlreadyExists.
-func (s *UserLogin) CheckAvailabilityPhone(ctx context.Context, userPhone string) error {
-	return s.CheckAvailabilityRealmPhone(ctx, "", userPhone)
+func (sv *UserLogin) CheckAvailabilityPhone(ctx context.Context, userPhone contactaddress.ContactAddress) error {
+	return sv.checkAvailabilityRealmPhone(ctx, "", userPhone.DigitValue())
 }
 
-// CheckAvailabilityRealmPhone - проверяет, что указанный телефон не существует в указанном realm.
-// Если телефон существует, то вернётся mrauth.ErrPhoneAlreadyExists.
-func (s *UserLogin) CheckAvailabilityRealmPhone(ctx context.Context, realm, userPhone string) error {
-	parsedPhone, err := strconv.ParseUint(userPhone, 10, 64)
-	if err != nil {
-		return contactaddress.ErrPhoneIsInvalid
-	}
-
-	userID, err := s.storageCheckUser.UserIDByPhone(ctx, parsedPhone)
+func (sv *UserLogin) checkAvailabilityRealmPhone(ctx context.Context, realm string, userPhone uint64) error {
+	userID, err := sv.storageCheckUser.UserIDByPhone(ctx, userPhone)
 	if err != nil {
 		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
 			return nil
 		}
 
-		return s.errorWrapper.Wrap(err)
+		return sv.errorWrapper.Wrap(err)
 	}
 
 	if realm == "" {
 		return mrauth.ErrPhoneAlreadyExists
 	}
 
-	return s.checkUserRealm(ctx, userID, realm, mrauth.ErrPhoneAlreadyExists)
+	return sv.checkUserRealm(ctx, userID, realm, mrauth.ErrPhoneAlreadyExists)
 }
 
-func (s *UserLogin) checkUserRealm(ctx context.Context, userID uuid.UUID, realm string, errIfExists error) error {
-	if _, err := s.storageUserRealm.FetchOne(ctx, userID, realm); err != nil {
+func (sv *UserLogin) checkUserRealm(ctx context.Context, userID uuid.UUID, realm string, errIfExists error) error {
+	if _, err := sv.storageUserRealm.FetchOne(ctx, userID, realm); err != nil {
 		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
 			return nil
 		}
 
-		return s.errorWrapper.Wrap(err)
+		return sv.errorWrapper.Wrap(err)
 	}
 
 	return errIfExists

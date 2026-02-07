@@ -9,26 +9,34 @@ import (
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/util/conv"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
 	// BeforeAuthUser - comment struct.
 	BeforeAuthUser struct {
-		storageUser      mrauth.UserStorage
-		storageUserRealm mrauth.UserRealmStorage
+		storageUser      userFetcher
+		storageUserRealm userRealmFetcher
 		notifierAPI      mrnotifier.NoteProducer
 		errorWrapper     errors.Wrapper
 		logger           mrlog.Logger
+	}
+
+	userFetcher interface {
+		FetchOne(ctx context.Context, userID uuid.UUID) (entity.User, error)
+	}
+
+	userRealmFetcher interface {
+		FetchOne(ctx context.Context, userID uuid.UUID, realm string) (row entity.UserRealm, err error)
 	}
 )
 
 // NewBeforeAuthUser - создаёт объект BeforeAuthUser.
 func NewBeforeAuthUser(
-	storageUser mrauth.UserStorage,
-	storageUserNamespace mrauth.UserRealmStorage,
+	storageUser userFetcher,
+	storageUserNamespace userRealmFetcher,
 	notifierAPI mrnotifier.NoteProducer,
 	logger mrlog.Logger,
 ) *BeforeAuthUser {
@@ -42,25 +50,25 @@ func NewBeforeAuthUser(
 }
 
 // Execute - возвращает строковое значение настройки с указанным идентификатором.
-func (uc *BeforeAuthUser) Execute(ctx context.Context, userID uuid.UUID, payload []byte) (u dto.UserInRealm, err error) {
+func (uc *BeforeAuthUser) Execute(ctx context.Context, userID uuid.UUID, payload []byte) (u dto.UserScopes, err error) {
 	if userID == uuid.Nil {
-		return dto.UserInRealm{}, errors.ErrInternalIncorrectInputData.WithDetails("userID is zero")
+		return dto.UserScopes{}, errors.ErrInternalIncorrectInputData.WithDetails("userID is zero")
 	}
 
 	payloadDTO := dto.AuthorizeUserOperation{}
 
 	if err := json.Unmarshal(payload, &payloadDTO); err != nil {
-		return dto.UserInRealm{}, errors.ErrInternalIncorrectInputData.WithError(err, "BeforeAuthUser", "payload", payload)
+		return dto.UserScopes{}, errors.ErrInternalIncorrectInputData.WithError(err, "BeforeAuthUser", "payload", payload)
 	}
 
 	user, err := uc.storageUser.FetchOne(ctx, userID)
 	if err != nil {
-		return dto.UserInRealm{}, uc.errorWrapper.Wrap(err, "userId", userID)
+		return dto.UserScopes{}, uc.errorWrapper.Wrap(err, "userId", userID)
 	}
 
 	userRealm, err := uc.storageUserRealm.FetchOne(ctx, userID, payloadDTO.Realm)
 	if err != nil {
-		return dto.UserInRealm{}, uc.errorWrapper.Wrap(err, "userId", userID, "realm", payloadDTO.Realm)
+		return dto.UserScopes{}, uc.errorWrapper.Wrap(err, "userId", userID, "realm", payloadDTO.Realm)
 	}
 
 	// TODO: добавить логику, чтобы отправлять сообщение, если авторизация произошла на новом устройстве
@@ -69,8 +77,8 @@ func (uc *BeforeAuthUser) Execute(ctx context.Context, userID uuid.UUID, payload
 		uc.logger.Error(ctx, "After BeforeAuthUser notice 'user.authorization.success' not send", "error", err)
 	}
 
-	return dto.UserInRealm{
-		ID:       user.ID,
+	return dto.UserScopes{
+		UserID:   user.ID,
 		Realm:    userRealm.Realm,
 		Kind:     userRealm.Kind,
 		LangCode: user.LangCode,
