@@ -74,7 +74,7 @@ func (o *Disable2FA) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 		actions = append(actions, user2FA.Action2FA)
 	}
 
-	return secureoperation.New(
+	return secureoperation.NewOperation(
 		operationToken,
 		NameConfirmDisable2FA,
 		user2FA.ID,

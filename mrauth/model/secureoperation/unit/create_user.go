@@ -1,7 +1,9 @@
-package secureoperation
+package unit
 
 import (
 	"encoding/json"
+
+	"github.com/google/uuid"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -72,9 +74,10 @@ func (o *CreateUser) Create(langCode string, userEmail contactaddress.ContactAdd
 		return secureoperation.SecureOperation{}, err
 	}
 
-	return secureoperation.NewAnonymus(
+	return secureoperation.NewOperation(
 		operationToken,
 		NameConfirmCreateUser,
+		uuid.Nil,
 		[]secureoperation.ConfirmAction{confirmAction},
 		payload,
 	)

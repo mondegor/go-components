@@ -21,7 +21,7 @@ type (
 		AccessType    string        `yaml:"access_type"`
 		AccessExpiry  time.Duration `yaml:"access_expiry"`
 		RefreshExpiry time.Duration `yaml:"refresh_expiry"`
-		Length        uint32        `yaml:"length"`
+		Length        uint16        `yaml:"length"`
 	}
 
 	// UserKind - comment struct.
@@ -33,8 +33,8 @@ type (
 
 	// OperationConfirm - comment struct.
 	OperationConfirm struct {
-		TokenLength   uint32        `yaml:"token_length"`
-		CodeLength    uint32        `yaml:"code_length"`
+		TokenLength   uint16        `yaml:"token_length"`
+		CodeLength    uint8         `yaml:"code_length"`
 		SessionExpiry time.Duration `yaml:"session_expiry"`
 		SendByEmail   CodeSender    `yaml:"send_by_email"`
 		SendByPhone   CodeSender    `yaml:"send_by_phone"`
@@ -42,8 +42,8 @@ type (
 
 	// CodeSender - comment struct.
 	CodeSender struct {
-		MaxAttempts   uint32        `yaml:"max_attempts"`
-		MaxResends    uint32        `yaml:"max_resends"`
+		MaxAttempts   uint8         `yaml:"max_attempts"`
+		MaxResends    uint8         `yaml:"max_resends"`
 		MinResendTime time.Duration `yaml:"min_resend_time"`
 	}
 

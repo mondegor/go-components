@@ -65,13 +65,13 @@ func (sv *UserInfo) Get(ctx context.Context, userID uuid.UUID) (userInfo dto.Use
 		}
 
 		if userInfo.Auth2fa, err = sv.storageUser2FA.FetchOne(ctx, userID); err != nil {
-			if !errors.Is(err, errors.ErrEventStorageNoRowFound) {
+			if !errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 				return sv.errorWrapper.Wrap(err)
 			}
 		}
 
 		if userInfo.Stat, err = sv.storageUserStat.FetchOne(ctx, userID); err != nil {
-			if !errors.Is(err, errors.ErrEventStorageNoRowFound) {
+			if !errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 				return sv.errorWrapper.Wrap(err)
 			}
 		}

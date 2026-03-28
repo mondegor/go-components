@@ -1,13 +1,8 @@
 package secureoperation
 
 import (
-	"errors"
-	"time"
-
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/util/operation"
 )
 
 type (
@@ -31,10 +26,6 @@ func NewResendCode(
 
 // Prepare - comments method.
 func (o *ResendCode) Prepare(op secureoperation.SecureOperation) (secureoperation.SecureOperation, error) {
-	if time.Now().After(op.ExpiresAt) {
-		return secureoperation.SecureOperation{}, mrauth.ErrOperationAlreadyExpired
-	}
-
 	// if item.Payload["audience"] == "" {
 	// 	return 0, errors.New("invalid operation token")
 	// }
@@ -42,42 +33,18 @@ func (o *ResendCode) Prepare(op secureoperation.SecureOperation) (secureoperatio
 	// if item.Payload["visitor_id"] == "" {
 	// 	return 0, errors.New("invalid operation token")
 	// }
-
-	if op.Status != operationstatus.Opened {
-		return secureoperation.SecureOperation{}, mrauth.ErrOperationAlreadyConfirmed // operation is not opened
-	}
-
-	confirmingAction, err := operation.NextConfirmingAction(&op)
+	token, err := o.tokenGenerator.GenToken()
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
 
-	if confirmingAction.MaxResends == 0 {
-		return secureoperation.SecureOperation{}, errors.New("operation not support resends")
-	}
-
-	if op.RemainingResends == 0 {
-		return secureoperation.SecureOperation{}, errors.New("operation failed resends")
-	}
-
-	if time.Now().Before(op.ResendsAt) {
-		return op, mrauth.ErrSendingNewMessagesIsTemporarilyRestricted // WARNING: 'op' используется с этой ошибкой
-	}
-
-	op.Token, err = o.tokenGenerator.GenTokenLen(len(op.Token))
-	if err != nil {
+	if err = op.ActivateResendCode(token); err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
 
-	confirmingAction.Secret, err = o.codeGenerator.GenCodeLen(len(confirmingAction.Secret))
-	if err != nil {
+	if err = op.InitConfirmCode(o.codeGenerator.GenCode); err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
-
-	op.RemainingAttempts = confirmingAction.MaxAttempts
-	op.RemainingResends--
-	op.ResendsAt = time.Now().Add(confirmingAction.MinResendTime).Round(1 * time.Second)
-	op.ExpiresAt = time.Now().Add(confirmingAction.Expiry).Round(1 * time.Second)
 
 	return op, nil
 }

@@ -70,7 +70,7 @@ func (o *ChangeEmail) Create(user2FA dto.User2FA, newEmail string) (secureoperat
 		actions = append(actions, user2FA.Action2FA)
 	}
 
-	return secureoperation.New(
+	return secureoperation.NewOperation(
 		operationToken,
 		NameConfirmChangeEmail,
 		user2FA.ID,

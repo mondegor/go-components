@@ -10,7 +10,7 @@ type (
 )
 
 // WithRetryAttempts - устанавливает кол-во попыток отправки одного уведомления.
-func WithRetryAttempts(value uint32) Option {
+func WithRetryAttempts(value int16) Option {
 	return func(o *options) {
 		o.producer.retryAttempts = value
 	}

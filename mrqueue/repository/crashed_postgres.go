@@ -2,10 +2,8 @@ package repository
 
 import (
 	"context"
-	"strings"
 	"time"
 
-	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 
@@ -15,23 +13,16 @@ import (
 type (
 	// CrashedPostgres - репозиторий для хранения ошибок записей, которые случились при их обработке.
 	CrashedPostgres struct {
-		client           mrstorage.DBConnManager
-		table            mrsql.DBTableInfo
-		insertArgsHelper placeholdedvalues.SQL
+		client mrstorage.DBConnManager
+		table  mrsql.DBTableInfo
 	}
 )
 
 // NewCrashedPostgres - создаёт объект CrashedPostgres.
 func NewCrashedPostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *CrashedPostgres {
-	const countLineArgs = 2
-
 	return &CrashedPostgres{
 		client: client,
 		table:  table,
-
-		insertArgsHelper: placeholdedvalues.New(
-			placeholdedvalues.WithCountLineArgs(countLineArgs),
-		),
 	}
 }
 
@@ -41,34 +32,30 @@ func (re *CrashedPostgres) Insert(ctx context.Context, rows []entity.CrashedItem
 		return nil
 	}
 
-	var sql strings.Builder
+	ids := make([]uint64, 0, len(rows))
+	causes := make([]string, 0, len(rows))
 
-	sql.WriteString(`
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+		causes = append(causes, row.Cause)
+	}
+
+	sql := `
 		INSERT INTO ` + re.table.Name + `
 			(
 				` + re.table.PrimaryKey + `,
 				error_message
 			)
-		VALUES `)
-
-	// generate: ($1, $2), ...
-	values := make([]any, 0, len(rows)*re.insertArgsHelper.CountLineArgs())
-	argumentNumber := re.insertArgsHelper.WriteFirstLine(&sql)
-
-	for i, row := range rows {
-		if i > 0 {
-			argumentNumber = re.insertArgsHelper.WriteNextLine(&sql, argumentNumber)
-		}
-
-		values = append(values, row.ID, row.Cause)
-	}
-
-	sql.WriteByte(';')
+		SELECT *
+		FROM
+			UNNEST($1::int8[], $2::text[])
+			as t(id, error_message);`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,
-		sql.String(),
-		values...,
+		sql,
+		ids,
+		causes,
 	)
 }
 

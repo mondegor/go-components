@@ -36,7 +36,7 @@ func NewApplyOperation(
 	return &ApplyOperation{
 		txManager:        txManager,
 		storageOperation: storageOperation,
-		errorWrapper:     errors.NewUseCaseWrapper(),
+		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
 		handlerMap:       handlerMap,
 	}
 }
@@ -46,8 +46,12 @@ func NewApplyOperation(
 
 // Execute - comments method.
 func (uc *ApplyOperation) Execute(ctx context.Context, userID uuid.UUID, operationToken string) error {
+	if userID == uuid.Nil {
+		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
+	}
+
 	if operationToken == "" {
-		return errors.ErrUseCaseEntityNotFound // TODO: ?может ошибку, что параметр некорректен выдавать?
+		return errors.ErrRecordNotFound // TODO: ?может ошибку, что параметр некорректен выдавать?
 	}
 
 	op, err := uc.storageOperation.FetchOne(ctx, operationToken)
@@ -55,13 +59,13 @@ func (uc *ApplyOperation) Execute(ctx context.Context, userID uuid.UUID, operati
 		return uc.errorWrapper.Wrap(err)
 	}
 
-	if userID == uuid.Nil || userID != op.UserID {
-		return errors.ErrUseCaseAccessForbidden
+	if userID != op.UserID {
+		return errors.ErrAccessForbidden
 	}
 
 	// TODO: проверить, что пользователь не заблокирован !!!!!!!
 
-	if op.Status != operationstatus.Confirmed {
+	if !op.Is(operationstatus.Confirmed) {
 		return errors.New("operation id not confirmed")
 	}
 

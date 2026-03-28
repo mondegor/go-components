@@ -47,7 +47,7 @@ func NewFactoryConfirm2FA(
 		storageUser:    storageUser,
 		storageUser2FA: storageUser2FA,
 		factoryAction:  factoryAction,
-		errorWrapper:   errors.NewServiceWrapper(),
+		errorWrapper:   errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
@@ -85,7 +85,7 @@ func (sv *FactoryConfirm2FA) createUser2FA(ctx context.Context, user *entity.Use
 
 	auth2fa, err := sv.storageUser2FA.FetchOne(ctx, user.ID)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 			return user2fa, nil
 		}
 

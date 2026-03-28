@@ -26,7 +26,7 @@ func NewStatistic(
 ) *Statistic {
 	return &Statistic{
 		storageLog:   storageLog,
-		errorWrapper: errors.NewUseCaseWrapper(),
+		errorWrapper: errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 

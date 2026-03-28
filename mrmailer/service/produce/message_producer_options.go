@@ -12,7 +12,7 @@ type (
 )
 
 // WithRetryAttempts - устанавливает кол-во попыток отправки одного сообщения.
-func WithRetryAttempts(value uint32) Option {
+func WithRetryAttempts(value int16) Option {
 	return func(o *options) {
 		o.sender.retryAttempts = value
 	}

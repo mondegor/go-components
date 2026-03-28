@@ -37,7 +37,7 @@ func NewDisable2FA(
 		txManager:    txManager,
 		storage:      storage,
 		notifierAPI:  notifierAPI,
-		errorWrapper: errors.NewUseCaseWrapper(),
+		errorWrapper: errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 

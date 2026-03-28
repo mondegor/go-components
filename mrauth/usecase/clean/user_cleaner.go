@@ -25,7 +25,7 @@ func NewUserCleaner(
 ) *UserCleaner {
 	return &UserCleaner{
 		storageLog:   storageLog,
-		errorWrapper: errors.NewUseCaseWrapper(),
+		errorWrapper: errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 

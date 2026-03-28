@@ -10,7 +10,7 @@ type (
 	Notice struct {
 		Channel       string
 		SendAfter     time.Time
-		RetryAttempts uint32
+		RetryAttempts int16
 		Data          NoticeData
 	}
 

@@ -42,7 +42,7 @@ func NewSettingsSetter(
 		formatter:    formatter,
 		storage:      storage,
 		storageLog:   storageLog,
-		errorWrapper: errors.NewServiceWrapper(),
+		errorWrapper: errors.NewServiceOperationFailedWrapper(),
 	}
 }
 

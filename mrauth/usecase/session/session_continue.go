@@ -50,7 +50,7 @@ func NewContinueSession(
 		storage:        storage,
 		tokenRecreator: tokenRecreator,
 		eventEmitter:   eventEmitter,
-		errorWrapper:   errors.NewUseCaseWrapper(),
+		errorWrapper:   errors.NewServiceRecordNotFoundWrapper(),
 		logger:         logger,
 	}
 }
@@ -58,7 +58,7 @@ func NewContinueSession(
 // Execute - возвращает строковое значение настройки с указанным идентификатором.
 func (uc *ContinueSession) Execute(ctx context.Context, _, refreshToken string) (authToken dto.AuthToken, err error) {
 	if refreshToken == "" {
-		return dto.AuthToken{}, errors.ErrUseCaseIncorrectInputData.New("refreshToken is empty")
+		return dto.AuthToken{}, errors.ErrIncorrectInputData.New("refreshToken is empty")
 	}
 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
@@ -88,7 +88,7 @@ func (uc *ContinueSession) Execute(ctx context.Context, _, refreshToken string) 
 				return mrauth.ErrTokenNotFoundOrExpired
 			}
 
-			if errors.Is(err, errors.ErrEventStorageNoRowFound) || errors.Is(err, repository.ErrTokenExpired) {
+			if errors.Is(err, errors.ErrEventStorageNoRecordFound) || errors.Is(err, repository.ErrTokenExpired) {
 				return mrauth.ErrTokenNotFoundOrExpired
 			}
 

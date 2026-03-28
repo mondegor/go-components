@@ -5,7 +5,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/jwt"
 	bagsession "github.com/mondegor/go-components/mrauth/bag/session"
-	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 	"github.com/mondegor/go-components/mrauth/service/session"
@@ -38,13 +37,13 @@ func OptionUserRealmsToConfirmCreateUserRealms(realms []auth.UserRealm) []usecas
 			mappedRealms,
 			usecaseauth.CreateUserRealm{
 				Name: realm.Name,
-				Operation: secureoperation.NewCreateUser(
+				Operation: unit.NewCreateUser(
 					realm.Name,
 					realm.RegisterUserKind,
 					crypt.NewTokenGenerator(int(realm.AuthToken.Length)),
 					crypt.NewCodeGenerator(int(realm.OperationConfirm.CodeLength)),
-					action.WithMaxAttempts(realm.OperationConfirm.SendByEmail.MaxAttempts),
-					action.WithMaxResends(realm.OperationConfirm.SendByEmail.MaxResends),
+					action.WithMaxAttempts(int16(realm.OperationConfirm.SendByEmail.MaxAttempts)),
+					action.WithMaxResends(int16(realm.OperationConfirm.SendByEmail.MaxResends)),
 					action.WithMinResendTime(realm.OperationConfirm.SendByEmail.MinResendTime),
 					action.WithExpiry(realm.OperationConfirm.SessionExpiry),
 				),
@@ -68,14 +67,14 @@ func OptionUserRealmsToConfirmCreateSessionRealms(realms []auth.UserRealm) []use
 					crypt.NewTokenGenerator(int(realm.AuthToken.Length)),
 					crypt.NewCodeGenerator(int(realm.OperationConfirm.CodeLength)),
 					unit.WithAuthorizeUserConfirmByEmailOpts(
-						action.WithMaxAttempts(realm.OperationConfirm.SendByEmail.MaxAttempts),
-						action.WithMaxResends(realm.OperationConfirm.SendByEmail.MaxResends),
+						action.WithMaxAttempts(int16(realm.OperationConfirm.SendByEmail.MaxAttempts)),
+						action.WithMaxResends(int16(realm.OperationConfirm.SendByEmail.MaxResends)),
 						action.WithMinResendTime(realm.OperationConfirm.SendByEmail.MinResendTime),
 						action.WithExpiry(realm.OperationConfirm.SessionExpiry),
 					),
 					unit.WithAuthorizeUserConfirmByPhoneOpts(
-						action.WithMaxAttempts(realm.OperationConfirm.SendByPhone.MaxAttempts),
-						action.WithMaxResends(realm.OperationConfirm.SendByPhone.MaxResends),
+						action.WithMaxAttempts(int16(realm.OperationConfirm.SendByPhone.MaxAttempts)),
+						action.WithMaxResends(int16(realm.OperationConfirm.SendByPhone.MaxResends)),
 						action.WithMinResendTime(realm.OperationConfirm.SendByPhone.MinResendTime),
 						action.WithExpiry(realm.OperationConfirm.SessionExpiry),
 					),
@@ -89,7 +88,7 @@ func OptionUserRealmsToConfirmCreateSessionRealms(realms []auth.UserRealm) []use
 }
 
 // OptionUserRealmsToCreateSessionRealms - comment func.
-func OptionUserRealmsToCreateSessionRealms(realms []auth.UserRealm, jwt2 auth.JWT) []session.AuthTokenRealm {
+func OptionUserRealmsToCreateSessionRealms(realms []auth.UserRealm, authJwt auth.JWT) []session.AuthTokenRealm {
 	mappedRealms := make([]session.AuthTokenRealm, 0, len(realms))
 
 	for _, realm := range realms {
@@ -101,8 +100,8 @@ func OptionUserRealmsToCreateSessionRealms(realms []auth.UserRealm, jwt2 auth.JW
 				crypt.NewTokenGenerator(int(realm.AuthToken.Length)),
 				realm.AuthToken.AccessExpiry,
 				realm.AuthToken.RefreshExpiry,
-				jwt2.Method,
-				jwt2.Secret,
+				authJwt.Method,
+				authJwt.Secret,
 			)
 		default:
 			tokenIssuer = bagsession.NewTokenIssuer(

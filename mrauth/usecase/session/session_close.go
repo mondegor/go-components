@@ -26,20 +26,20 @@ func NewCloseSession(
 ) *CloseSession {
 	return &CloseSession{
 		tokenCloser:  tokenCloser,
-		errorWrapper: errors.NewUseCaseWrapper(),
+		errorWrapper: errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
 // Execute - comments method.
 func (uc *CloseSession) Execute(ctx context.Context, accessToken string) error {
 	if accessToken == "" {
-		return errors.ErrUseCaseIncorrectInputData.New("accessToken is empty")
+		return errors.ErrIncorrectInputData.New("accessToken is empty")
 	}
 
 	// :TODO можно закрывать сессию по refresh token при jwt, иначе сейчас генерируется ошибка 404
 
 	if err := uc.tokenCloser.Close(ctx, accessToken); err != nil {
-		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 			return mrauth.ErrTokenNotFoundOrExpired
 		}
 

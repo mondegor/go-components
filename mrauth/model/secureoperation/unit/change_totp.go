@@ -69,7 +69,7 @@ func (o *ChangeTOTP) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 		actions = append(actions, user2FA.Action2FA)
 	}
 
-	return secureoperation.New(
+	return secureoperation.NewOperation(
 		operationToken,
 		NameConfirmChangeTOTP,
 		user2FA.ID,

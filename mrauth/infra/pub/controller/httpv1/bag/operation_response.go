@@ -1,11 +1,11 @@
 package bag
 
 import (
+	"github.com/mondegor/go-sysmess/errors/runtime/hint"
 	"github.com/mondegor/go-sysmess/util/xtime"
 	"github.com/mondegor/go-webcore/mrcore"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
-	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
@@ -51,7 +51,17 @@ func (r *OperationResponse) NewErrorConfirmOperation(
 	return model.ErrorConfirmOperationResponse{
 		OperationStatus: r.newOperationStatus(&operation),
 		Errors: []mrresp.ErrorAttribute{
-			mrresp.NewErrorAttribute(lz, code, err, r.withDebugInfo),
+			mrresp.NewErrorAttribute(
+				code,
+				lz.TranslateError(err),
+				func() string { // TODO: переделать !!!!!!!!!!!!!!
+					if !r.withDebugInfo {
+						return ""
+					}
+
+					return hint.DetailedError(err)
+				}(),
+			),
 		},
 	}
 }
@@ -66,26 +76,28 @@ func (r *OperationResponse) newOperationStatus(operation *secureoperation.Secure
 	}
 }
 
-func (r *OperationResponse) operationAction(operation *secureoperation.SecureOperation) secureoperation.ConfirmAction {
-	for i := range operation.Actions {
-		if !operation.Actions[i].Confirmed {
-			return operation.Actions[i]
-		}
+func (r *OperationResponse) operationAction(op *secureoperation.SecureOperation) secureoperation.ConfirmAction {
+	actions := op.Actions()
+
+	if len(actions) != 0 {
+		return actions[0]
 	}
 
 	return secureoperation.ConfirmAction{}
 }
 
-func (r *OperationResponse) debugInfo(operation *secureoperation.SecureOperation) string {
+func (r *OperationResponse) debugInfo(op *secureoperation.SecureOperation) string {
 	if !r.withDebugInfo {
 		return ""
 	}
 
-	action := r.operationAction(operation)
+	action := r.operationAction(op)
 
-	if action.Method == confirmmethod.Email || action.Method == confirmmethod.Phone {
-		return "Confirm code: " + action.Secret
+	info := "Method: " + action.Method.String()
+
+	if action.Sendable() {
+		info += ", to: " + action.Address + ", code: " + action.ConfirmCode
 	}
 
-	return ""
+	return info
 }

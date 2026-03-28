@@ -14,25 +14,6 @@ var (
 	// // ErrTokenRejected - token was rejected.
 	// ErrTokenRejected = errors.NewUserProto("ErrTokenRejected", "access token was rejected: '{Reason}'").
 
-	// ErrConfirmCodeIsIncorrect - confirm code is incorrect.
-	ErrConfirmCodeIsIncorrect = errors.NewUserProto("ConfirmCodeIsIncorrect", "confirm code is incorrect")
-
-	// ErrNoAttemptsToConfirmOperation - all attempts to confirm the operation have been used.
-	ErrNoAttemptsToConfirmOperation = errors.NewUserProto("NoAttemptsToConfirmOperation", "all attempts to confirm the operation have been used")
-
-	// ErrSendingNewMessagesIsTemporarilyRestricted - sending new messages is temporarily restricted.
-	ErrSendingNewMessagesIsTemporarilyRestricted = errors.NewUserProto(
-		"SendingNewMessagesIsTemporarilyRestricted", "sending new messages is temporarily restricted")
-
-	// ErrOperationAlreadyExpired - operation already expired.
-	ErrOperationAlreadyExpired = errors.NewUserProto("OperationAlreadyExpired", "operation already expired")
-
-	// ErrOperationIsNotConfirmed - operation is not confirmed.
-	ErrOperationIsNotConfirmed = errors.NewUserProto("OperationIsNotConfirmed", "operation is not confirmed")
-
-	// ErrOperationAlreadyConfirmed - operation already confirmed.
-	ErrOperationAlreadyConfirmed = errors.NewUserProto("OperationAlreadyConfirmed", "operation already confirmed")
-
 	// ErrLoginNotExists - login not exists.
 	ErrLoginNotExists = errors.NewUserProto("ErrLoginNotExists", "login not exists")
 

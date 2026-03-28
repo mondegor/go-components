@@ -51,7 +51,7 @@ func NewCreateUser(
 		storageUser:      storageUser,
 		storageUserRealm: storageUserRealm,
 		notifierAPI:      notifierAPI,
-		errorWrapper:     errors.NewUseCaseWrapper(),
+		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
 		logger:           logger,
 	}
 }
@@ -66,7 +66,7 @@ func (uc *CreateUser) Execute(ctx context.Context, payload []byte) (u dto.UserSc
 
 	user, err := uc.storageUser.FetchOneByLogin(ctx, contactaddress.NewEmail(payloadDTO.Email))
 	if err != nil {
-		if !errors.Is(err, errors.ErrEventStorageNoRowFound) {
+		if !errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 			return dto.UserScopes{}, uc.errorWrapper.Wrap(err)
 		}
 	}

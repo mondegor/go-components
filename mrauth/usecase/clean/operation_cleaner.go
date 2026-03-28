@@ -32,7 +32,7 @@ func NewOperationCleaner(
 	return &OperationCleaner{
 		storage:      storage,
 		storageLog:   storageLog,
-		errorWrapper: errors.NewUseCaseWrapper(),
+		errorWrapper: errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 

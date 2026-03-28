@@ -29,7 +29,7 @@ type (
 		useCaseQueue      mrqueue.Producer
 		errorWrapper      errors.Wrapper
 		traceManager      mrtrace.ContextManager
-		retryAttempts     uint32
+		retryAttempts     int16
 		delayCorrection   time.Duration
 	}
 
@@ -53,7 +53,7 @@ func New(
 			sequenceGenerator: sequenceGenerator,
 			storage:           storage,
 			useCaseQueue:      useCaseQueue,
-			errorWrapper:      errors.NewServiceWrapper(),
+			errorWrapper:      errors.NewServiceOperationFailedWrapper(),
 			traceManager:      traceManager,
 			retryAttempts:     defaultRetryAttempts,
 			delayCorrection:   defaultDelayCorrection,
@@ -205,7 +205,7 @@ func (sv *MessageProducer) getReadyDelayed(message dto.Message) time.Duration {
 	return 0
 }
 
-func (sv *MessageProducer) getRetryAttempts(message dto.Message) uint32 {
+func (sv *MessageProducer) getRetryAttempts(message dto.Message) int16 {
 	if message.RetryAttempts > 0 {
 		return message.RetryAttempts
 	}

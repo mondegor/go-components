@@ -142,8 +142,8 @@ func (re *AuthTokenPostgres) UpdateToClose(ctx context.Context, accessToken stri
 		authtokenstatus.Closed,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
-			err = errors.ErrEventStorageNoRowFound
+		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+			err = errors.ErrEventStorageNoRecordFound
 		}
 
 		return re.errorWrapper.Wrap(err)
@@ -222,7 +222,7 @@ func (re *AuthTokenPostgres) UpdateToCloseAll(ctx context.Context, userID uuid.U
 		authtokenstatus.Closed,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
 		return re.errorWrapper.Wrap(err)
 	}
 
@@ -256,7 +256,7 @@ func (re *AuthTokenPostgres) DeleteExpired(ctx context.Context, limit int) error
 		limit,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
 		return re.errorWrapper.Wrap(err)
 	}
 

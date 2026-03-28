@@ -14,8 +14,8 @@ import (
 type (
 	// ConfirmByPhone - comment struct.
 	ConfirmByPhone struct {
-		maxAttempts   uint32
-		maxResends    uint32
+		maxAttempts   int16
+		maxResends    int16
 		minResendTime time.Duration
 		expiry        time.Duration
 	}
@@ -50,6 +50,6 @@ func (a *ConfirmByPhone) Create(phone contactaddress.ContactAddress, confirmCode
 		MinResendTime: a.minResendTime,
 		Expiry:        a.expiry,
 		Address:       phone.Value(),
-		Secret:        confirmCode,
+		ConfirmCode:   confirmCode,
 	}, nil
 }

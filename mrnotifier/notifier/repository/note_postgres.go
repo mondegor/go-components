@@ -107,7 +107,7 @@ func (re *NotePostgres) DeleteByIDs(ctx context.Context, rowsIDs []uint64) error
 		rowsIDs,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
 		return err
 	}
 

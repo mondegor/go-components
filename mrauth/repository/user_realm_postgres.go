@@ -150,8 +150,8 @@ func (re *UserRealmPostgres) UpdateKind(ctx context.Context, row entity.UserReal
 		row.Kind,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
-			return errors.ErrEventStorageNoRowFound
+		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+			return errors.ErrEventStorageNoRecordFound
 		}
 
 		return re.errorWrapper.Wrap(err)
@@ -175,8 +175,8 @@ func (re *UserRealmPostgres) Delete(ctx context.Context, userID uuid.UUID, realm
 		realm,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
-			return errors.ErrEventStorageNoRowFound
+		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+			return errors.ErrEventStorageNoRecordFound
 		}
 
 		return re.errorWrapper.Wrap(err)

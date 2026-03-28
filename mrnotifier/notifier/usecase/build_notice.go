@@ -50,7 +50,7 @@ func New(
 			serviceTemplate: serviceTemplate,
 			noticeBuilder:   buildnotice.NewBuildManager(templater.NewTemplater("{{", "}}")),
 			channelPrefix:   defaultChannelPrefix,
-			errorWrapper:    errors.NewUseCaseWrapper(),
+			errorWrapper:    errors.NewServiceRecordNotFoundWrapper(),
 		},
 	}
 

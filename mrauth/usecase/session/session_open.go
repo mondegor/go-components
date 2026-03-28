@@ -9,8 +9,6 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrtype"
 
-	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
@@ -60,7 +58,7 @@ func NewOpenSession(
 		handlerCreateUser:     handlerCreateUser,
 		handlerBeforeAuthUser: handlerBeforeAuthUser,
 		tokenCreator:          tokenCreator,
-		errorWrapper:          errors.NewUseCaseWrapper(),
+		errorWrapper:          errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
@@ -68,13 +66,13 @@ func NewOpenSession(
 func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, op secureoperation2.SecureOperation) (authToken dto.AuthToken, err error) {
 	var userScopes dto.UserScopes
 
-	if op.Status != operationstatus.Confirmed {
-		return dto.AuthToken{}, mrauth.ErrOperationIsNotConfirmed
+	if !op.Is(operationstatus.Confirmed) {
+		return dto.AuthToken{}, secureoperation2.ErrOperationIsNotConfirmed
 	}
 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		switch op.Name {
-		case secureoperation.NameConfirmCreateUser:
+		case unit.NameConfirmCreateUser:
 			userScopes, err = uc.handlerCreateUser.Execute(ctx, op.Payload)
 			if err != nil {
 				return err
@@ -85,7 +83,7 @@ func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, 
 				return err
 			}
 		default:
-			return errors.ErrUseCaseAccessForbidden
+			return errors.ErrAccessForbidden
 		}
 
 		authToken, err = uc.tokenCreator.Create(ctx, userScopes)

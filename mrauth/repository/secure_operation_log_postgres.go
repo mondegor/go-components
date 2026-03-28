@@ -2,23 +2,22 @@ package repository
 
 import (
 	"context"
-	"strings"
 	"time"
 
-	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
+	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 )
 
 type (
 	// SecureOperationLogPostgres - репозиторий для хранения элементов настроек.
 	SecureOperationLogPostgres struct {
-		client           mrstorage.DBConnManager
-		errorWrapper     errors.Wrapper
-		tableName        string
-		insertArgsHelper placeholdedvalues.SQL
+		client       mrstorage.DBConnManager
+		errorWrapper errors.Wrapper
+		tableName    string
 	}
 )
 
@@ -27,16 +26,10 @@ func NewSecureOperationLogPostgres(
 	client mrstorage.DBConnManager,
 	tableName string,
 ) *SecureOperationLogPostgres {
-	const countLineArgs = 4
-
 	return &SecureOperationLogPostgres{
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
 		tableName:    tableName,
-
-		insertArgsHelper: placeholdedvalues.New(
-			placeholdedvalues.WithCountLineArgs(countLineArgs),
-		),
 	}
 }
 
@@ -46,9 +39,19 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 		return nil
 	}
 
-	var sql strings.Builder
+	ids := make([]uuid.UUID, 0, len(rows))
+	operations := make([]string, 0, len(rows))
+	methods := make([]confirmmethod.Enum, 0, len(rows))
+	statuses := make([]string, 0, len(rows))
 
-	sql.WriteString(`
+	for _, row := range rows {
+		ids = append(ids, row.VisitorID)
+		operations = append(operations, row.OperationName)
+		methods = append(methods, row.ConfirmMethod)
+		statuses = append(statuses, row.LogStatus)
+	}
+
+	sql := `
 		INSERT INTO ` + re.tableName + `
 			(
 				visitor_id,
@@ -56,29 +59,18 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 				confirm_method,
 				log_status
 			)
-		VALUES `)
-
-	// generate: ($1, $2, $3, $4), ...
-	values := make([]any, 0, len(rows)*re.insertArgsHelper.CountLineArgs())
-	argumentNumber := re.insertArgsHelper.WriteFirstLine(&sql)
-
-	for i, row := range rows {
-		if i > 0 {
-			argumentNumber = re.insertArgsHelper.WriteNextLine(&sql, argumentNumber)
-		}
-
-		values = append(
-			values,
-			row.VisitorID, row.OperationName, row.ConfirmMethod, row.LogStatus,
-		)
-	}
-
-	sql.WriteByte(';')
+		SELECT *
+		FROM
+			UNNEST($1::int8[], $2::text[], $3::int2, $4::text[])
+			as t(visitor_id, operation_name, confirm_method, log_status);`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,
-		sql.String(),
-		values...,
+		sql,
+		ids,
+		operations,
+		methods,
+		statuses,
 	)
 }
 
@@ -110,7 +102,7 @@ func (re *SecureOperationLogPostgres) DeleteBeforeDate(ctx context.Context, date
 		limit,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
 		return re.errorWrapper.Wrap(err)
 	}
 

@@ -38,7 +38,7 @@ func New(
 		cleaner: &CompletedItemsCleaner{
 			txManager:       txManager,
 			storage:         storage,
-			errorWrapper:    errors.NewUseCaseWrapper(),
+			errorWrapper:    errors.NewServiceRecordNotFoundWrapper(),
 			completedExpiry: defaultCompletedExpiry,
 		},
 	}

@@ -8,12 +8,12 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrtrace"
-	processconsume "github.com/mondegor/go-webcore/mrworker/process/consume"
+	"github.com/mondegor/go-webcore/mrworker/process/consume"
 
+	"github.com/mondegor/go-components/mrmailer/entity"
 	"github.com/mondegor/go-components/mrmailer/infra/handler"
 	"github.com/mondegor/go-components/mrmailer/repository"
 	"github.com/mondegor/go-components/mrmailer/sendmessage/provider"
-	"github.com/mondegor/go-components/mrmailer/service/consume"
 	queuerepository "github.com/mondegor/go-components/mrqueue/repository"
 	queueconsume "github.com/mondegor/go-components/mrqueue/service/consume"
 )
@@ -38,16 +38,16 @@ func InitService(
 	messageTable mrsql.DBTableInfo,
 	queueTable mrsql.DBTableInfo,
 	opts ...Option,
-) *processconsume.MessageProcessor {
+) *consume.MessageProcessor[entity.Message] {
 	o := options{
-		processorOpts: []processconsume.Option{
-			processconsume.WithCaptionPrefix(defaultCaptionPrefix),
-			processconsume.WithReadyTimeout(defaultReadyTimeout),
-			processconsume.WithReadPeriod(defaultReadPeriod),
-			processconsume.WithConsumerTimeout(defaultConsumerReadTimeout, defaultConsumerWriteTimeout),
-			processconsume.WithHandlerTimeout(defaultHandlerTimeout),
-			processconsume.WithQueueSize(defaultQueueSize),
-			processconsume.WithWorkersCount(defaultWorkersCount),
+		processorOpts: []consume.Option[entity.Message]{
+			consume.WithCaptionPrefix[entity.Message](defaultCaptionPrefix),
+			consume.WithReadyTimeout[entity.Message](defaultReadyTimeout),
+			consume.WithReadPeriod[entity.Message](defaultReadPeriod),
+			consume.WithConsumerTimeout[entity.Message](defaultConsumerReadTimeout, defaultConsumerWriteTimeout),
+			consume.WithHandlerTimeout[entity.Message](defaultHandlerTimeout),
+			consume.WithQueueSize[entity.Message](defaultQueueSize),
+			consume.WithWorkersCount[entity.Message](defaultWorkersCount),
 		},
 		providerOpts: nil,
 	}
@@ -74,10 +74,10 @@ func InitService(
 		},
 	)
 
-	messageConsumer := consume.New(
+	messageConsumer := queueconsume.NewMessageConsumer[entity.Message](
 		client,
 		storageMessage,
-		queueconsume.New(
+		queueconsume.NewQueueConsumer(
 			client,
 			storageQueue,
 			queueconsume.WithStorageCompleted(storageQueueCompleted),
@@ -85,7 +85,7 @@ func InitService(
 		),
 	)
 
-	return processconsume.NewMessageProcessor(
+	return consume.NewMessageProcessor[entity.Message](
 		messageConsumer,
 		handler.NewSendMessage(
 			provider.New(o.providerOpts...),

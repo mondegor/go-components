@@ -12,7 +12,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/util/operation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -66,7 +65,7 @@ func NewCreateSession(
 		userChecker:           userChecker,
 		storageOperation:      storageOperation,
 		notifierAPI:           notifierAPI,
-		errorWrapper:          errors.NewUseCaseWrapper(),
+		errorWrapper:          errors.NewServiceRecordNotFoundWrapper(),
 		factoryUserConfirm2FA: factoryUserConfirm2FA,
 		realm2operation:       realm2operation,
 	}
@@ -75,17 +74,17 @@ func NewCreateSession(
 // Execute - возвращает строковое значение настройки с указанным идентификатором.
 func (co *CreateSession) Execute(ctx context.Context, realm, langCode, userLogin string) (secureoperation.SecureOperation, error) {
 	if userLogin == "" {
-		return secureoperation.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("userLogin is empty")
+		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("userLogin is empty")
 	}
 
 	operationCreator, ok := co.realm2operation[realm]
 	if !ok {
-		return secureoperation.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("realm is unknown")
+		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("realm is unknown")
 	}
 
 	parsedLogin, err := contactaddress.Parse(userLogin)
 	if err != nil {
-		return secureoperation.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New(err)
+		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New(err)
 	}
 
 	err = co.userChecker.CheckAvailabilityRealm(ctx, realm, parsedLogin)
@@ -112,24 +111,23 @@ func (co *CreateSession) Execute(ctx context.Context, realm, langCode, userLogin
 			return co.errorWrapper.Wrap(err)
 		}
 
-		confirmingAction, err := operation.NextConfirmingAction(&op)
-		if err != nil {
-			return co.errorWrapper.Wrap(err)
-		}
-
-		if confirmingAction.Method != confirmmethod.Email {
-			return errors.NewInternalError("confirm operation method is not email")
-		}
-
 		// TODO: Add Operation log:op!
 
-		return co.notifierAPI.Send(
-			ctx,
-			"confirm.create.session.by.email",
-			conv.Group{
-				"lang":        langCode,
-				"to":          user2FA.Email, // confirmingAction.Address
-				"confirmCode": confirmingAction.Secret,
+		return op.Notify(
+			func(method confirmmethod.Enum, address, confirmCode string) error {
+				if method != confirmmethod.Email {
+					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
+				}
+
+				return co.notifierAPI.Send(
+					ctx,
+					"confirm.create.session.by.email",
+					conv.Group{
+						"lang":        langCode,
+						"to":          address, // user2FA.Email
+						"confirmCode": confirmCode,
+					},
+				)
 			},
 		)
 	})

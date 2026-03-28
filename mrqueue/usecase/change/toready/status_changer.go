@@ -33,7 +33,7 @@ func New(
 	o := options{
 		changer: &RetryToReadyChanger{
 			storage:      storage,
-			errorWrapper: errors.NewUseCaseWrapper(),
+			errorWrapper: errors.NewServiceRecordNotFoundWrapper(),
 			retryDelayed: defaultRetryDelayed,
 		},
 	}

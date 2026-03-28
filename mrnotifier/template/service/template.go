@@ -50,7 +50,7 @@ func New(
 	return &Template{
 		storage:      storage,
 		storageVar:   storageVars,
-		errorWrapper: errors.NewServiceWrapper(),
+		errorWrapper: errors.NewServiceOperationFailedWrapper(),
 		logger:       logger,
 		defaultLang:  defaultLang,
 	}
@@ -91,7 +91,7 @@ func (uc *Template) GetItemByKey(ctx context.Context, key, lang string) (dto.Tem
 func (uc *Template) getItemByKey(ctx context.Context, key, lang string) (entity.Template, error) {
 	item, err := uc.storage.FetchOneByKey(ctx, key, lang)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 			if lang == uc.defaultLang {
 				return entity.Template{}, mrnotifier.ErrSystemTemplateNotRegistered.Wrap(err, "template", key, "lang", lang)
 			}
@@ -109,7 +109,7 @@ func (uc *Template) getItemByKey(ctx context.Context, key, lang string) (entity.
 
 		uc.logger.Warn(ctx, "Template is not available for the notification", "template", key, "lang", lang, "template_status", item.Status)
 
-		return entity.Template{}, errors.ErrEventStorageNoRowFound
+		return entity.Template{}, errors.ErrEventStorageNoRecordFound
 	}
 
 	return item, nil

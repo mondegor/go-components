@@ -46,3 +46,8 @@ type (
 		Content string `json:"content"`
 	}
 )
+
+// MessageID - comments method.
+func (e Message) MessageID() uint64 {
+	return e.ID
+}

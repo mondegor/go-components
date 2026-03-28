@@ -10,9 +10,9 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/util/operation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -64,7 +64,7 @@ func NewCreateUser(
 		storageOperation: storageOperation,
 		notifierAPI:      notifierAPI,
 		locker:           locker,
-		errorWrapper:     errors.NewUseCaseWrapper(),
+		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
 		realm2operation:  realm2operation,
 	}
 }
@@ -73,12 +73,12 @@ func NewCreateUser(
 func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail string) (op secureoperation.SecureOperation, err error) {
 	operationCreator, ok := co.realm2operation[realm]
 	if !ok {
-		return secureoperation.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("realm is unknown")
+		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("realm is unknown")
 	}
 
 	parsedLogin, err := contactaddress.ParseEmail(userEmail)
 	if err != nil {
-		return secureoperation.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New(err)
+		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New(err)
 	}
 
 	unlockEmail, err := co.locker.LockWithExpiry(ctx, createUserLockKeyPrefix+realm+":"+parsedLogin.Value(), createUserLockTimeout)
@@ -112,20 +112,23 @@ func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail st
 			return co.errorWrapper.Wrap(err)
 		}
 
-		confirmingAction, err := operation.NextConfirmingAction(&op)
-		if err != nil {
-			return co.errorWrapper.Wrap(err)
-		}
-
 		// TODO: Add Operation log:op!
 
-		return co.notifierAPI.Send(
-			ctx,
-			"confirm.user.activation",
-			conv.Group{
-				"lang":        langCode,
-				"to":          parsedLogin.Value(),
-				"confirmCode": confirmingAction.Secret,
+		return op.Notify(
+			func(method confirmmethod.Enum, address, confirmCode string) error {
+				if method != confirmmethod.Email {
+					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
+				}
+
+				return co.notifierAPI.Send(
+					ctx,
+					"confirm.user.activation",
+					conv.Group{
+						"lang":        langCode,
+						"to":          address, // parsedLogin.Value()
+						"confirmCode": confirmCode,
+					},
+				)
 			},
 		)
 	})

@@ -52,7 +52,10 @@ func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (
 			` + re.table.PrimaryKey + ` = $1
 		LIMIT 1;`
 
-	var userID *uuid.UUID
+	var (
+		userID  *uuid.UUID
+		actions []secureoperation.ConfirmAction
+	)
 
 	row.Token = token
 
@@ -63,7 +66,7 @@ func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (
 	).Scan(
 		&row.Name,
 		&userID,
-		&row.Actions,
+		&actions,
 		&row.RemainingAttempts,
 		&row.RemainingResends,
 		&row.ResendsAt,
@@ -78,6 +81,10 @@ func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (
 	// from nullable user_id field
 	if userID != nil {
 		row.UserID = *userID
+	}
+
+	if err = secureoperation.WakeUp(&row, actions); err != nil {
+		return secureoperation.SecureOperation{}, re.errorWrapper.Wrap(err)
 	}
 
 	return row, nil
@@ -115,7 +122,7 @@ func (re *SecureOperationPostgres) Insert(ctx context.Context, row secureoperati
 		row.Token,
 		row.Name,
 		userID,
-		row.Actions,
+		row.Actions(),
 		row.RemainingAttempts,
 		row.RemainingResends,
 		row.ResendsAt,
@@ -130,8 +137,8 @@ func (re *SecureOperationPostgres) Insert(ctx context.Context, row secureoperati
 	return nil
 }
 
-// Update - comments method.
-func (re *SecureOperationPostgres) Update(ctx context.Context, currentToken string, row secureoperation.SecureOperation) error {
+// Replace - comments method.
+func (re *SecureOperationPostgres) Replace(ctx context.Context, currentToken string, row secureoperation.SecureOperation) error {
 	sql := `
         UPDATE
             ` + re.table.Name + `
@@ -152,7 +159,7 @@ func (re *SecureOperationPostgres) Update(ctx context.Context, currentToken stri
 		currentToken,
 		operationstatus.Opened,
 		row.Token,
-		row.Actions,
+		row.Actions(),
 		row.RemainingAttempts,
 		row.RemainingResends,
 		row.ResendsAt,
@@ -160,8 +167,8 @@ func (re *SecureOperationPostgres) Update(ctx context.Context, currentToken stri
 		row.ExpiresAt,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
-			return errors.ErrEventStorageNoRowFound
+		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+			return errors.ErrEventStorageNoRecordFound
 		}
 
 		return re.errorWrapper.Wrap(err)
@@ -171,7 +178,7 @@ func (re *SecureOperationPostgres) Update(ctx context.Context, currentToken stri
 }
 
 // UpdateFailedAttempt - comments method.
-func (re *SecureOperationPostgres) UpdateFailedAttempt(ctx context.Context, token string) (attempts uint32, err error) {
+func (re *SecureOperationPostgres) UpdateFailedAttempt(ctx context.Context, token string) (attempts int16, err error) {
 	sql := `
         UPDATE
             ` + re.table.Name + `
@@ -211,8 +218,8 @@ func (re *SecureOperationPostgres) Delete(ctx context.Context, token string) err
 		token,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
-			return errors.ErrEventStorageNoRowFound
+		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+			return errors.ErrEventStorageNoRecordFound
 		}
 
 		return re.errorWrapper.Wrap(err)
@@ -248,7 +255,7 @@ func (re *SecureOperationPostgres) DeleteExpired(ctx context.Context, limit int)
 		limit,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
 		return re.errorWrapper.Wrap(err)
 	}
 

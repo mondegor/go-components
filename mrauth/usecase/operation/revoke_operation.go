@@ -2,11 +2,9 @@ package operation
 
 import (
 	"context"
-	"time"
 
 	"github.com/mondegor/go-sysmess/errors"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -29,26 +27,23 @@ func NewRevokeOperation(
 ) *RevokeOperation {
 	return &RevokeOperation{
 		storageOperation: storageOperation,
-		errorWrapper:     errors.NewUseCaseWrapper(),
+		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
 // Execute - comments method.
 func (co *RevokeOperation) Execute(ctx context.Context, operationToken string) error {
 	if operationToken == "" {
-		return errors.ErrUseCaseIncorrectInputData.New("operationToken is empty")
+		return errors.ErrIncorrectInputData.New("operationToken is empty")
 	}
 
+	// TODO: нужно ли выбирать всю запись?
 	op, err := co.storageOperation.FetchOne(ctx, operationToken)
 	if err != nil {
 		return co.errorWrapper.Wrap(err)
 	}
 
-	if time.Now().After(op.ExpiresAt) {
-		return mrauth.ErrOperationAlreadyExpired
-	}
-
-	if err = co.storageOperation.Delete(ctx, operationToken); err != nil {
+	if err = co.storageOperation.Delete(ctx, op.Token); err != nil {
 		return co.errorWrapper.Wrap(err)
 	}
 

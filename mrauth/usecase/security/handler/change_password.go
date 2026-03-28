@@ -38,7 +38,7 @@ func NewChangePassword(
 	return &ChangePassword{
 		storage:      storage,
 		notifierAPI:  notifierAPI,
-		errorWrapper: errors.NewUseCaseWrapper(),
+		errorWrapper: errors.NewServiceRecordNotFoundWrapper(),
 		logger:       logger,
 	}
 }

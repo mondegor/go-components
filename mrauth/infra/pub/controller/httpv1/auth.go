@@ -36,8 +36,8 @@ type (
 		parser                  validate.RequestParser
 		sender                  mrserver.ResponseSender
 		refreshTokenCookie      *bag.RefreshTokenCookie
-		useCaseCreateUser       confirmCreateUserUseCase
-		useCaseConfirmAuthUser  confirmAuthUserUseCase
+		useCaseCreateUser       createUserUseCase
+		useCaseAuthUser         authUserUseCase
 		useCaseConfirmOperation confirmOperationUseCase
 		useCaseOpenSession      openSessionUseCase
 		useCaseContinueSession  continueSessionUseCase
@@ -46,11 +46,11 @@ type (
 		operationResponse       confirmOperationResponse
 	}
 
-	confirmCreateUserUseCase interface {
+	createUserUseCase interface {
 		Execute(ctx context.Context, realm, langCode, userEmail string) (secureoperation.SecureOperation, error)
 	}
 
-	confirmAuthUserUseCase interface {
+	authUserUseCase interface {
 		Execute(ctx context.Context, realm, langCode, userLogin string) (secureoperation.SecureOperation, error)
 	}
 
@@ -84,8 +84,8 @@ type (
 func NewAuth(
 	parser validate.RequestParser,
 	sender mrserver.ResponseSender,
-	useCaseCreateUser confirmCreateUserUseCase,
-	useCaseConfirmAuthUser confirmAuthUserUseCase,
+	useCaseCreateUser createUserUseCase,
+	useCaseConfirmAuthUser authUserUseCase,
 	useCaseConfirmOperation confirmOperationUseCase,
 	useCaseOpenSession openSessionUseCase,
 	useCaseContinueSession continueSessionUseCase,
@@ -103,7 +103,7 @@ func NewAuth(
 			180*24*time.Hour, // TODO: options !!!!!!!
 		),
 		useCaseCreateUser:       useCaseCreateUser,
-		useCaseConfirmAuthUser:  useCaseConfirmAuthUser,
+		useCaseAuthUser:         useCaseConfirmAuthUser,
 		useCaseConfirmOperation: useCaseConfirmOperation,
 		useCaseOpenSession:      useCaseOpenSession,
 		useCaseContinueSession:  useCaseContinueSession,
@@ -149,7 +149,7 @@ func (ht *Auth) Signup(w http.ResponseWriter, r *http.Request) error {
 		http.StatusOK,
 		ht.operationResponse.NewConfirmOperation(
 			op,
-			lz.Translate("Confirm the creation of the user"),
+			lz.Translate("Confirm the creation of the user by code"),
 		),
 	)
 }
@@ -169,7 +169,7 @@ func (ht *Auth) Signin(w http.ResponseWriter, r *http.Request) error {
 
 	// TODO: проверить, что открыто не более X сессий
 
-	op, err := ht.useCaseConfirmAuthUser.Execute(r.Context(), req.Realm, lz.Language(), req.UserLogin)
+	op, err := ht.useCaseAuthUser.Execute(r.Context(), req.Realm, lz.Language(), req.UserLogin)
 	if err != nil {
 		if errors.Is(err, mrauth.ErrLoginNotExists) {
 			return errors.WithCustomCode(err, "userLogin")
@@ -183,7 +183,7 @@ func (ht *Auth) Signin(w http.ResponseWriter, r *http.Request) error {
 		http.StatusOK,
 		ht.operationResponse.NewConfirmOperation(
 			op,
-			lz.Translate("Confirm your identity to sign in"),
+			lz.Translate("Confirm your identity to sign in by code"),
 		),
 	)
 }
@@ -198,12 +198,10 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 
 	lz := ht.parser.Localizer(r)
 
-	// TODO: useCaseConfirmOperation и useCaseSession вложить в useCaseGroup
-
-	// иначе операцию необходимо сначала подтвердить
+	// сначала операцию необходимо подтвердить
 	op, err := ht.useCaseConfirmOperation.Execute(r.Context(), lz.Language(), req.Token, req.Secret)
 	if err != nil {
-		if errors.Is(err, mrauth.ErrConfirmCodeIsIncorrect) || errors.Is(err, mrauth.ErrNoAttemptsToConfirmOperation) {
+		if errors.Is(err, secureoperation.ErrConfirmCodeIsIncorrect) || errors.Is(err, secureoperation.ErrNoAttemptsToConfirmOperation) {
 			return ht.sender.Send(
 				w,
 				http.StatusBadRequest,
@@ -211,7 +209,7 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 			)
 		}
 
-		if errors.Is(err, errors.ErrUseCaseEntityNotFound) {
+		if errors.Is(err, errors.ErrRecordNotFound) {
 			return mrauth.ErrTokenNotFoundOrExpired
 		}
 
@@ -219,13 +217,13 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// если необходимо дополнительное подтверждение (2fa)
-	if op.Status == operationstatus.Opened {
+	if op.Is(operationstatus.Opened) {
 		return ht.sender.Send(
 			w,
 			http.StatusOK,
 			ht.operationResponse.NewConfirmOperation(
 				op,
-				lz.Translate("your account has been success registered"),
+				lz.Translate("Confirm your identity to sign in by 2fa"),
 			),
 		)
 	}
@@ -236,7 +234,7 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 		return ht.wrapError(err)
 	}
 
-	if req.UseCookie {
+	if r.Header.Get("X-Use-Cookie") == "true" {
 		// for web version
 		ht.refreshTokenCookie.SetValue(w, tk.RefreshToken)
 		tk.RefreshToken = ""
@@ -271,7 +269,7 @@ func (ht *Auth) ContinueSession(w http.ResponseWriter, r *http.Request) error {
 
 	tk, err := ht.useCaseContinueSession.Execute(r.Context(), ht.parser.Localizer(r).Language(), refreshToken)
 	if err != nil {
-		if errors.Is(err, errors.ErrUseCaseEntityNotFound) {
+		if errors.Is(err, errors.ErrRecordNotFound) {
 			return mrauth.ErrTokenNotFoundOrExpired
 		}
 

@@ -34,7 +34,7 @@ func New(
 
 	return &UserProvider{
 		storage:          storage,
-		errorWrapper:     errors.NewServiceWrapper(),
+		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 		userGroups:       userGroups,
 		allowedRealmsMap: allowedRealmsMap,
 	}
@@ -48,15 +48,15 @@ func (co *UserProvider) UserByToken(ctx context.Context, value string) (mraccess
 
 	userScopes, err := co.storage.FetchOne(ctx, value)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageNoRowFound) || errors.Is(err, repository.ErrTokenExpired) {
-			return nil, mrauth.ErrTokenNotFoundOrExpired
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) || errors.Is(err, repository.ErrTokenExpired) {
+			return nil, mrauth.ErrTokenNotFoundOrExpired // новая ошибка специально обобщает
 		}
 
 		return nil, co.errorWrapper.Wrap(err) // "token", trim value[:8]...
 	}
 
 	if !co.allowedRealmsMap[userScopes.Realm] {
-		return nil, errors.ErrUseCaseAccessForbidden
+		return nil, errors.ErrAccessForbidden
 	}
 
 	return mraccess.NewUser(

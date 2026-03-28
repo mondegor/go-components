@@ -21,28 +21,28 @@ type (
 	// WaitingConfirmOperationResponse - информация для подтверждения операции.
 	WaitingConfirmOperationResponse struct {
 		Token             string             `json:"token"`
-		ConfirmMethod     confirmmethod.Enum `json:"confirmMethod"`
-		RemainingAttempts uint32             `json:"remainingAttempts"`
-		RemainingResends  uint32             `json:"remainingResends,omitempty"`
-		ResendsIn         int64              `json:"resendsIn,omitempty"`
-		ExpiresIn         int64              `json:"expiresIn"`
+		ConfirmMethod     confirmmethod.Enum `json:"confirm_method"`
+		RemainingAttempts int16              `json:"remaining_attempts"`
+		RemainingResends  int16              `json:"remaining_resends,omitempty"`
+		ResendsIn         int64              `json:"resends_in,omitempty"`
+		ExpiresIn         int64              `json:"expires_in"`
 		Message           string             `json:"message,omitempty"`
-		DebugInfo         string             `json:"debugInfo,omitempty"`
+		DebugInfo         string             `json:"debug_info,omitempty"`
 	}
 
 	// ErrorConfirmOperationResponse - .
 	ErrorConfirmOperationResponse struct {
-		OperationStatus ConfirmOperationStatus  `json:"operationStatus,omitempty"`
+		OperationStatus ConfirmOperationStatus  `json:"operation_status,omitempty"`
 		Errors          []mrresp.ErrorAttribute `json:"errors"`
 	}
 
 	// ConfirmOperationStatus - информация об оставшихся попытках и времени действия операции.
 	// Поля RemainingResends и ResendsIn не используются для пароля и TOTP.
 	ConfirmOperationStatus struct {
-		RemainingAttempts uint32 `json:"remainingAttempts"`
-		RemainingResends  uint32 `json:"remainingResends"`
-		ResendsIn         int64  `json:"resendsIn"`
-		ExpiresIn         int64  `json:"expiresIn"`
-		DebugInfo         string `json:"debugInfo,omitempty"`
+		RemainingAttempts int16  `json:"remaining_attempts"`
+		RemainingResends  int16  `json:"remaining_resends"`
+		ResendsIn         int64  `json:"resends_in"`
+		ExpiresIn         int64  `json:"expires_in"`
+		DebugInfo         string `json:"debug_info,omitempty"`
 	}
 )

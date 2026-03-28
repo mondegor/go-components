@@ -31,7 +31,7 @@ func NewSettingsGetter(
 	return &SettingsGetter{
 		parser:       parser,
 		storage:      storage,
-		errorWrapper: errors.NewServiceWrapper(),
+		errorWrapper: errors.NewServiceOperationFailedWrapper(),
 	}
 }
 

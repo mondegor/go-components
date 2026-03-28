@@ -29,28 +29,21 @@ func NewSendMessage(
 
 // Execute - подбирает провайдера, для конкретного сообщения
 // и через него отправляет его конечному получателю.
-func (h *SendMessage) Execute(_ context.Context, message any) (commit func(ctx context.Context) error, err error) {
-	if msg, ok := message.(entity.Message); ok {
-		sender, err := h.senderProvider.Sender(msg.Data)
-		if err != nil {
-			return nil, errors.WrapInternalError(
-				err,
-				"error getting client",
-				"message", msg.Data,
-			)
-		}
-
-		return func(ctx context.Context) error {
-			if id, ok := msg.Data.Header[mrmailer.HeaderCorrelationID]; ok && id != "" {
-				ctx = tracectx.WithCorrelationID(ctx, id)
-			}
-
-			return sender.Send(ctx, msg)
-		}, nil
+func (h *SendMessage) Execute(_ context.Context, message entity.Message) (commit func(ctx context.Context) error, err error) {
+	sender, err := h.senderProvider.Sender(message.Data)
+	if err != nil {
+		return nil, errors.WrapInternalError(
+			err,
+			"error getting client",
+			"message", message.Data,
+		)
 	}
 
-	return nil, errors.ErrInternalInvalidType.New(
-		"type", "unknown",
-		"expected", entity.ModelNameMessage,
-	)
+	return func(ctx context.Context) error {
+		if id, ok := message.Data.Header[mrmailer.HeaderCorrelationID]; ok && id != "" {
+			ctx = tracectx.WithCorrelationID(ctx, id)
+		}
+
+		return sender.Send(ctx, message)
+	}, nil
 }

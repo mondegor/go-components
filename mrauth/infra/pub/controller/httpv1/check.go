@@ -65,18 +65,18 @@ func (ht *Check) Handlers() []mrserver.HttpHandler {
 
 // CheckLogin - comment method.
 func (ht *Check) CheckLogin(w http.ResponseWriter, r *http.Request) error {
-	request := model.CheckLoginRequest{}
+	req := model.CheckLoginRequest{}
 
-	if err := ht.parser.Validate(r, &request); err != nil {
+	if err := ht.parser.Validate(r, &req); err != nil {
 		return err
 	}
 
-	parsedLogin, err := contactaddress.Parse(request.UserLogin)
+	parsedLogin, err := contactaddress.Parse(req.UserLogin)
 	if err != nil {
-		return errors.WithCustomCode(errors.ErrUseCaseIncorrectInputData.New(err), "userLogin")
+		return errors.WithCustomCode(errors.ErrIncorrectInputData.New(err), "userLogin")
 	}
 
-	if err := ht.serviceLogin.CheckAvailabilityRealm(r.Context(), request.Realm, parsedLogin); err != nil {
+	if err := ht.serviceLogin.CheckAvailabilityRealm(r.Context(), req.Realm, parsedLogin); err != nil {
 		if errors.Is(err, mrauth.ErrEmailAlreadyExists) || errors.Is(err, mrauth.ErrPhoneAlreadyExists) {
 			return errors.WithCustomCode(err, "userLogin")
 		}
@@ -89,9 +89,9 @@ func (ht *Check) CheckLogin(w http.ResponseWriter, r *http.Request) error {
 
 // CalcPasswordStrength - comment method.
 func (ht *Check) CalcPasswordStrength(w http.ResponseWriter, r *http.Request) error {
-	request := model.CalcPasswordStrengthRequest{}
+	req := model.CalcPasswordStrengthRequest{}
 
-	if err := ht.parser.Validate(r, &request); err != nil {
+	if err := ht.parser.Validate(r, &req); err != nil {
 		return err
 	}
 
@@ -99,7 +99,7 @@ func (ht *Check) CalcPasswordStrength(w http.ResponseWriter, r *http.Request) er
 		w,
 		http.StatusOK,
 		model.CalcPasswordStrengthResponse{
-			Strength: ht.servicePassword.CalcStrength(request.Password),
+			Strength: ht.servicePassword.CalcStrength(req.Password),
 		},
 	)
 }

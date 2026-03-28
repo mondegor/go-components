@@ -76,7 +76,7 @@ func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone string) (secureoperat
 		actions = append(actions, user2FA.Action2FA)
 	}
 
-	return secureoperation.New(
+	return secureoperation.NewOperation(
 		operationToken,
 		NameConfirmChangePhone,
 		user2FA.ID,

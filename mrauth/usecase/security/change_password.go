@@ -9,8 +9,8 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/util/operation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -40,14 +40,14 @@ func NewChangePasswordProperty(
 		notifierAPI:              notifierAPI,
 		factoryUserConfirm2FA:    factoryUserConfirm2FA,
 		factoryOperationPassword: factoryOperationPassword,
-		errorWrapper:             errors.NewUseCaseWrapper(),
+		errorWrapper:             errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
 // Execute - comments method.
 func (uc *ChangePasswordProperty) Execute(ctx context.Context, userID uuid.UUID, newPassword string) (secureoperation.SecureOperation, error) {
 	if userID == uuid.Nil {
-		return secureoperation.SecureOperation{}, errors.ErrUseCaseAccessForbidden // TODO 401!!!!
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
 	user2FA, err := uc.factoryUserConfirm2FA.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
@@ -65,25 +65,22 @@ func (uc *ChangePasswordProperty) Execute(ctx context.Context, userID uuid.UUID,
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		confirmingAction, err := operation.NextConfirmingAction(&op)
-		if err != nil {
-			return uc.errorWrapper.Wrap(err)
-		}
+		return op.Notify(
+			func(method confirmmethod.Enum, address, confirmCode string) error {
+				if method != confirmmethod.Email {
+					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
+				}
 
-		// TODO: Add Operation log:op!
-
-		if confirmingAction.MaxResends > 0 {
-			return uc.notifierAPI.Send(
-				ctx,
-				"confirm.change.password",
-				conv.Group{
-					"to":          confirmingAction.Address,
-					"confirmCode": confirmingAction.Secret,
-				},
-			)
-		}
-
-		return nil
+				return uc.notifierAPI.Send(
+					ctx,
+					"confirm.change.password",
+					conv.Group{
+						"to":          address,
+						"confirmCode": confirmCode,
+					},
+				)
+			},
+		)
 	})
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)

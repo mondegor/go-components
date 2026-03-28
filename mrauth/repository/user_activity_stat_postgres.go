@@ -2,10 +2,9 @@ package repository
 
 import (
 	"context"
-	"strings"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/errors"
@@ -18,10 +17,9 @@ import (
 type (
 	// UserActivityStatPostgres - comment struct.
 	UserActivityStatPostgres struct {
-		client           mrstorage.DBConnManager
-		errorWrapper     errors.Wrapper
-		table            mrsql.DBTableInfo
-		insertArgsHelper placeholdedvalues.SQL
+		client       mrstorage.DBConnManager
+		errorWrapper errors.Wrapper
+		table        mrsql.DBTableInfo
 	}
 )
 
@@ -30,17 +28,10 @@ func NewUserActivityStatPostgres(
 	client mrstorage.DBConnManager,
 	table mrsql.DBTableInfo,
 ) *UserActivityStatPostgres {
-	const countLineArgs = 2
-
 	return &UserActivityStatPostgres{
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
 		table:        table,
-
-		insertArgsHelper: placeholdedvalues.New(
-			placeholdedvalues.WithCountLineArgs(countLineArgs),
-			placeholdedvalues.WithLine("", "::uuid, ", "::timestamptz"),
-		),
 	}
 }
 
@@ -125,40 +116,33 @@ func (re *UserActivityStatPostgres) UpdateLastVisited(ctx context.Context, rows 
 		return nil
 	}
 
-	var sql strings.Builder
+	userIDs := make([]uuid.UUID, 0, len(rows))
+	visitedAts := make([]time.Time, 0, len(rows))
 
-	sql.WriteString(`
+	for _, row := range rows {
+		userIDs = append(userIDs, row.UserID)
+		visitedAts = append(visitedAts, row.LastVisitedAt)
+	}
+
+	sql := `
 		UPDATE
 			` + re.table.Name + ` t1
 		SET
 			last_visited_at = GREATEST(t1.last_visited_at, t2.last_visited_at)
-		FROM (
-			VALUES
-		`)
-
-	// generate: ($1::uuid, $2::timestamptz), ...
-	values := make([]any, 0, len(rows)*re.insertArgsHelper.CountLineArgs())
-	argumentNumber := re.insertArgsHelper.WriteFirstLine(&sql)
-
-	for i, row := range rows {
-		if i > 0 {
-			argumentNumber = re.insertArgsHelper.WriteNextLine(&sql, argumentNumber)
-		}
-
-		values = append(
-			values,
-			row.UserID, row.LastVisitedAt,
-		)
-	}
-
-	sql.WriteString(`
-			) as t2 (user_id, last_visited_at)
+		FROM
+		  	(
+				SELECT *
+				FROM
+					UNNEST($1::uuid[], $2::timestamptz[])
+					as t(user_id, last_visited_at)
+			) t2
 		WHERE
-			t1.` + re.table.PrimaryKey + ` = t2.user_id;`)
+			t1.` + re.table.PrimaryKey + ` = t2.user_id;`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,
-		sql.String(),
-		values...,
+		sql,
+		userIDs,
+		visitedAts,
 	)
 }

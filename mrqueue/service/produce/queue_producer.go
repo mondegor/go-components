@@ -26,7 +26,7 @@ func New(
 ) *QueueProducer {
 	return &QueueProducer{
 		storage:      storage,
-		errorWrapper: errors.NewServiceWrapper(),
+		errorWrapper: errors.NewServiceOperationFailedWrapper(),
 	}
 }
 

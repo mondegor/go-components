@@ -2,6 +2,8 @@ package processor
 
 import (
 	"github.com/mondegor/go-webcore/mrworker/process/consume"
+
+	"github.com/mondegor/go-components/mrnotifier/notifier/entity"
 )
 
 type (
@@ -10,7 +12,7 @@ type (
 
 	options struct {
 		defaultLang   string
-		processorOpts []consume.Option
+		processorOpts []consume.Option[entity.Note]
 	}
 )
 
@@ -22,7 +24,7 @@ func WithDefaultLang(value string) Option {
 }
 
 // WithNoticeProcessorOpts - устанавливает опцию processorOpts для consume.MessageProcessor.
-func WithNoticeProcessorOpts(value ...consume.Option) Option {
+func WithNoticeProcessorOpts(value ...consume.Option[entity.Note]) Option {
 	return func(o *options) {
 		o.processorOpts = append(o.processorOpts, value...)
 	}

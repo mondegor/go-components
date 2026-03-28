@@ -10,9 +10,9 @@ import (
 	"github.com/mondegor/go-sysmess/mrtrace"
 	"github.com/mondegor/go-webcore/mrworker/process/collect"
 
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/usecase/auth"
-	"github.com/mondegor/go-components/mrauth/usecase/auth/handle"
 )
 
 const (
@@ -33,17 +33,16 @@ func NewService(
 	userActivityStatTable mrsql.DBTableInfo,
 	userActivityLogTable string,
 	opts ...Option,
-) *collect.MessageCollector {
+) *collect.MessageCollector[dto.UserActivityLogMessage] {
 	o := options{
-		collectorOpts: []collect.Option{
-			collect.WithCaptionPrefix(defaultCaptionPrefix),
-			collect.WithReadyTimeout(defaultReadyTimeout),
-			collect.WithFlushPeriod(defaultFlushPeriod),
-			collect.WithHandlerTimeout(defaultHandlerTimeout),
-			collect.WithBatchSize(defaultBatchSize),
-			collect.WithWorkersCount(defaultWorkersCount),
+		collectorOpts: []collect.Option[dto.UserActivityLogMessage]{
+			collect.WithCaptionPrefix[dto.UserActivityLogMessage](defaultCaptionPrefix),
+			collect.WithReadyTimeout[dto.UserActivityLogMessage](defaultReadyTimeout),
+			collect.WithFlushPeriod[dto.UserActivityLogMessage](defaultFlushPeriod),
+			collect.WithHandlerTimeout[dto.UserActivityLogMessage](defaultHandlerTimeout),
+			collect.WithBatchSize[dto.UserActivityLogMessage](defaultBatchSize),
+			collect.WithWorkersCount[dto.UserActivityLogMessage](defaultWorkersCount),
 		},
-		handlerOpts: nil,
 	}
 
 	for _, opt := range opts {
@@ -61,11 +60,8 @@ func NewService(
 		),
 	)
 
-	return collect.NewMessageCollector(
-		handle.New(
-			userStatistic,
-			o.handlerOpts...,
-		),
+	return collect.NewMessageCollector[dto.UserActivityLogMessage](
+		userStatistic,
 		errorHandler,
 		logger,
 		traceManager,

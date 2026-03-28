@@ -39,8 +39,8 @@ type (
 
 var errSystemNoProcessingRowFound = errors.NewSystemProto("no processing row found")
 
-// New - создаёт объект QueueConsumer.
-func New(
+// NewQueueConsumer - создаёт объект QueueConsumer.
+func NewQueueConsumer(
 	txManager mrstorage.DBTxManager,
 	storage itemStorage,
 	opts ...Option,
@@ -49,7 +49,7 @@ func New(
 		consumer: &QueueConsumer{
 			txManager:    txManager,
 			storage:      storage,
-			errorWrapper: errors.NewServiceWrapper(),
+			errorWrapper: errors.NewServiceOperationFailedWrapper(),
 		},
 	}
 
@@ -83,7 +83,7 @@ func (sv *QueueConsumer) CancelItems(ctx context.Context, itemsIDs []uint64) err
 	}
 
 	if err := sv.storage.UpdateStatusProcessingToReady(ctx, itemsIDs); err != nil {
-		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
 			return nil
 		}
 
@@ -127,7 +127,7 @@ func (sv *QueueConsumer) Reject(ctx context.Context, itemID uint64, causeErr err
 		switch kind.Extract(causeErr) {
 		case kind.System:
 			if err := sv.storage.UpdateStatusProcessingToRetry(ctx, itemID); err != nil {
-				if !errors.Is(err, errors.ErrEventStorageNoRowFound) {
+				if !errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 					return sv.errorWrapper.Wrap(err)
 				}
 

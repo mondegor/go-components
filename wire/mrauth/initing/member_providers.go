@@ -117,8 +117,8 @@ func createUserProviderGroup(
 					dbConnManager,
 					userGroups,
 					testUser,
-					jwtSecret,
 					tokenType,
+					jwtSecret,
 					realms,
 				),
 			},
@@ -137,8 +137,8 @@ func createUserProviderByTokenType(
 	dbConnManager mrstorage.DBConnManager,
 	userGroups mraccess.RightsGetter,
 	testUser authcfg.AuthorizedUser,
-	jwtSecret string,
 	tokenType string,
+	jwtSecret string,
 	allowedRealms []string,
 ) mraccess.UserProvider {
 	// если указан тестовый пользователь, то при успешной проверки realm будет возвращаться тестовый провайдер

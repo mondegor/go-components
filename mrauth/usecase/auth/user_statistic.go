@@ -35,7 +35,7 @@ func NewUserStatistic(
 	return &UserStatistic{
 		storageActivityStat: storageActivityStat,
 		storageActivityLog:  storageActivityLog,
-		errorWrapper:        errors.NewUseCaseWrapper(),
+		errorWrapper:        errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 

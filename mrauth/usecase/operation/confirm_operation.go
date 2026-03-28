@@ -7,11 +7,9 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/util/conv"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/util/operation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -27,8 +25,8 @@ type (
 
 	operationConfirmer interface {
 		FetchOne(ctx context.Context, token string) (row secureoperation.SecureOperation, err error)
-		Update(ctx context.Context, currentToken string, row secureoperation.SecureOperation) error
-		UpdateFailedAttempt(ctx context.Context, token string) (attempts uint32, err error)
+		Replace(ctx context.Context, currentToken string, row secureoperation.SecureOperation) error
+		UpdateFailedAttempt(ctx context.Context, token string) (attempts int16, err error)
 	}
 
 	confirmOperationPreparer interface {
@@ -48,14 +46,14 @@ func NewConfirmOperation(
 		storageOperation:  storageOperation,
 		notifierAPI:       notifierAPI,
 		operationPreparer: operationPreparer,
-		errorWrapper:      errors.NewUseCaseWrapper(),
+		errorWrapper:      errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
 // Execute - возвращает строковое значение настройки с указанным идентификатором.
 func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToken, confirmCode string) (secureoperation.SecureOperation, error) {
 	if operationToken == "" {
-		return secureoperation.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New("operationToken is empty")
+		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("operationToken is empty")
 	}
 
 	op, err := co.storageOperation.FetchOne(ctx, operationToken)
@@ -65,11 +63,11 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 
 	op, err = co.operationPreparer.Prepare(op, confirmCode)
 	if err != nil {
-		if errors.Is(err, mrauth.ErrNoAttemptsToConfirmOperation) {
+		if errors.Is(err, secureoperation.ErrNoAttemptsToConfirmOperation) {
 			return op, err // WARNING: 'op' используется с этой ошибкой
 		}
 
-		if !errors.Is(err, mrauth.ErrConfirmCodeIsIncorrect) {
+		if !errors.Is(err, secureoperation.ErrConfirmCodeIsIncorrect) {
 			return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 		}
 
@@ -97,46 +95,41 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 		//	 },
 		// )
 
-		return op, mrauth.ErrNoAttemptsToConfirmOperation.Wrap(err) // WARNING: 'op' используется с этой ошибкой
+		return op, secureoperation.ErrNoAttemptsToConfirmOperation.Wrap(err) // WARNING: 'op' используется с этой ошибкой
 	}
 
 	err = co.txManager.Do(ctx, func(ctx context.Context) error {
-		if err = co.storageOperation.Update(ctx, operationToken, op); err != nil {
-			return co.errorWrapper.Wrap(err)
-		}
-
-		// если все действия подтверждены
-		if op.Status == operationstatus.Confirmed {
-			// TODO: асинхронный запуск каких либо работ после подтверждения операции
-			return nil
-		}
-
-		// 2fa подтверждение
-		confirmingAction, err := operation.NextConfirmingAction(&op)
-		if err != nil {
+		if err = co.storageOperation.Replace(ctx, operationToken, op); err != nil {
 			return co.errorWrapper.Wrap(err)
 		}
 
 		// TODO: Add Operation log:op!
 
-		if confirmingAction.Method == confirmmethod.Email {
-			return co.notifierAPI.Send(
-				ctx,
-				"confirm.operation.by.email",
-				conv.Group{
-					"lang":        langCode,
-					"operation":   op.Name,
-					"to":          confirmingAction.Address,
-					"confirmCode": confirmingAction.Secret,
-				},
-			)
+		// если все действия подтверждены
+		if op.Is(operationstatus.Confirmed) {
+			// TODO: асинхронный запуск каких либо работ после подтверждения операции
+			return nil
 		}
 
-		if confirmingAction.Method == confirmmethod.Phone {
-			return errors.NewInternalError("ConfirmMethodPhone is not yet supported")
-		}
+		// 2fa подтверждение
+		return op.Notify(
+			func(method confirmmethod.Enum, address, confirmCode string) error {
+				if method != confirmmethod.Email {
+					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
+				}
 
-		return nil
+				return co.notifierAPI.Send(
+					ctx,
+					"confirm.operation.by.email",
+					conv.Group{
+						"lang":        langCode,
+						"operation":   op.Name,
+						"to":          address,
+						"confirmCode": confirmCode,
+					},
+				)
+			},
+		)
 	})
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)

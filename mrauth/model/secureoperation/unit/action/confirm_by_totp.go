@@ -10,7 +10,7 @@ import (
 type (
 	// ConfirmByTOTP - comment struct.
 	ConfirmByTOTP struct {
-		maxAttempts uint32
+		maxAttempts int16
 		expiry      time.Duration
 	}
 )
@@ -26,11 +26,11 @@ func NewConfirmByTOTP(opts ...Option) *ConfirmByTOTP {
 }
 
 // Create - comments method.
-func (a *ConfirmByTOTP) Create(secret string) secureoperation.ConfirmAction {
+func (a *ConfirmByTOTP) Create(_ string) secureoperation.ConfirmAction {
 	return secureoperation.ConfirmAction{
 		Method:      confirmmethod.TOTP,
 		MaxAttempts: a.maxAttempts,
 		Expiry:      a.expiry,
-		Secret:      secret,
+		// ConfirmCode:     secret,
 	}
 }

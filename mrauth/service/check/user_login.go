@@ -39,7 +39,7 @@ func NewUserLogin(
 	return &UserLogin{
 		storageCheckUser: storageCheckUser,
 		storageUserRealm: storageUserRealm,
-		errorWrapper:     errors.NewServiceWrapper(),
+		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
@@ -70,7 +70,7 @@ func (sv *UserLogin) CheckAvailabilityRealm(ctx context.Context, realm string, u
 func (sv *UserLogin) checkAvailabilityRealmEmail(ctx context.Context, realm, userEmail string) error {
 	userID, err := sv.storageCheckUser.UserIDByEmail(ctx, userEmail)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 			return nil
 		}
 
@@ -93,7 +93,7 @@ func (sv *UserLogin) CheckAvailabilityPhone(ctx context.Context, userPhone conta
 func (sv *UserLogin) checkAvailabilityRealmPhone(ctx context.Context, realm string, userPhone uint64) error {
 	userID, err := sv.storageCheckUser.UserIDByPhone(ctx, userPhone)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 			return nil
 		}
 
@@ -109,7 +109,7 @@ func (sv *UserLogin) checkAvailabilityRealmPhone(ctx context.Context, realm stri
 
 func (sv *UserLogin) checkUserRealm(ctx context.Context, userID uuid.UUID, realm string, errIfExists error) error {
 	if _, err := sv.storageUserRealm.FetchOne(ctx, userID, realm); err != nil {
-		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 			return nil
 		}
 

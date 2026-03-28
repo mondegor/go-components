@@ -10,7 +10,7 @@ import (
 type (
 	// ConfirmByPassword - comment struct.
 	ConfirmByPassword struct {
-		maxAttempts uint32
+		maxAttempts int16
 		expiry      time.Duration
 	}
 )
@@ -26,11 +26,11 @@ func NewConfirmByPassword(opts ...Option) *ConfirmByPassword {
 }
 
 // Create - comments method.
-func (a *ConfirmByPassword) Create(hashedPassword string) secureoperation.ConfirmAction {
+func (a *ConfirmByPassword) Create(_ string) secureoperation.ConfirmAction {
 	return secureoperation.ConfirmAction{
 		Method:      confirmmethod.Password,
 		MaxAttempts: a.maxAttempts,
 		Expiry:      a.expiry,
-		Secret:      hashedPassword,
+		// ConfirmCode:     hashedPassword,
 	}
 }

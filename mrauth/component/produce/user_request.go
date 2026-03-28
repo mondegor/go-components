@@ -2,7 +2,6 @@ package produce
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -23,7 +22,7 @@ type (
 	}
 
 	userLogProducer interface {
-		PushMessage(ctx context.Context, message []byte) error
+		PushMessage(ctx context.Context, message dto.UserActivityLogMessage) error
 	}
 )
 
@@ -68,15 +67,10 @@ func (rs *UserRequest) Emit(r *http.Request, _ []byte, _ int, _ []byte, _ int, _
 		VisitedAt:     time.Now(),
 	}
 
-	bytes, err := json.Marshal(activityLog)
-	if err != nil {
-		rs.logger.Error(r.Context(), "UserRequest.Json.Marshal()", "error", err)
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err = rs.producer.PushMessage(ctx, bytes); err != nil {
+	if err := rs.producer.PushMessage(ctx, activityLog); err != nil {
 		rs.logger.Error(r.Context(), "UserRequest.Producer.PushMessage()", "error", err)
 	}
 }

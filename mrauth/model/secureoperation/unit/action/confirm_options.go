@@ -16,8 +16,8 @@ type (
 	Option func(o *confirmOptions)
 
 	confirmOptions struct {
-		maxAttempts   uint32
-		maxResends    uint32
+		maxAttempts   int16
+		maxResends    int16
 		minResendTime time.Duration
 		expiry        time.Duration
 	}
@@ -45,14 +45,14 @@ func newConfirmOptions(opts []Option) confirmOptions {
 }
 
 // WithMaxAttempts - устанавливает кол-во попыток отправки одного сообщения.
-func WithMaxAttempts(value uint32) Option {
+func WithMaxAttempts(value int16) Option {
 	return func(o *confirmOptions) {
 		o.maxAttempts = value
 	}
 }
 
 // WithMaxResends - устанавливает поправку на задержку сообщения.
-func WithMaxResends(value uint32) Option {
+func WithMaxResends(value int16) Option {
 	return func(o *confirmOptions) {
 		o.maxResends = value
 	}

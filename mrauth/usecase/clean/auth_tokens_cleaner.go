@@ -24,7 +24,7 @@ func NewAuthTokenCleaner(
 ) *AuthTokenCleaner {
 	return &AuthTokenCleaner{
 		storage:      storage,
-		errorWrapper: errors.NewUseCaseWrapper(),
+		errorWrapper: errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 

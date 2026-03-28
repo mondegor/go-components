@@ -3,7 +3,7 @@ package collector
 import (
 	"github.com/mondegor/go-webcore/mrworker/process/collect"
 
-	"github.com/mondegor/go-components/mrauth/usecase/auth/handle"
+	"github.com/mondegor/go-components/mrauth/dto"
 )
 
 type (
@@ -11,21 +11,13 @@ type (
 	Option func(o *options)
 
 	options struct {
-		collectorOpts []collect.Option
-		handlerOpts   []handle.Option
+		collectorOpts []collect.Option[dto.UserActivityLogMessage]
 	}
 )
 
 // WithMessageCollectorOpts - устанавливает опцию collectorOpts для ComponentService.
-func WithMessageCollectorOpts(value ...collect.Option) Option {
+func WithMessageCollectorOpts(value ...collect.Option[dto.UserActivityLogMessage]) Option {
 	return func(o *options) {
 		o.collectorOpts = append(o.collectorOpts, value...)
-	}
-}
-
-// WithMessageHandlerOpts - устанавливает опцию handlerOpts для ComponentService.
-func WithMessageHandlerOpts(value ...handle.Option) Option {
-	return func(o *options) {
-		o.handlerOpts = append(o.handlerOpts, value...)
 	}
 }

@@ -108,7 +108,7 @@ func (re *Auth2faPostgres) Delete(ctx context.Context, userID uuid.UUID) error {
 		userID,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
 		return re.errorWrapper.Wrap(err)
 	}
 

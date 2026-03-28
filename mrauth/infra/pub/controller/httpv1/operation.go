@@ -64,17 +64,17 @@ func (ht *Operation) Handlers() []mrserver.HttpHandler {
 
 // Confirm - comment method.
 func (ht *Operation) Confirm(w http.ResponseWriter, r *http.Request) error {
-	request := model.ConfirmOperationRequest{}
+	req := model.ConfirmOperationRequest{}
 
-	if err := ht.parser.Validate(r, &request); err != nil {
+	if err := ht.parser.Validate(r, &req); err != nil {
 		return err
 	}
 
 	lz := ht.parser.Localizer(r)
 
-	op, err := ht.useCaseConfirmOperation.Execute(r.Context(), lz.Language(), request.Token, request.Secret)
+	op, err := ht.useCaseConfirmOperation.Execute(r.Context(), lz.Language(), req.Token, req.Secret)
 	if err != nil {
-		if errors.Is(err, mrauth.ErrConfirmCodeIsIncorrect) || errors.Is(err, mrauth.ErrNoAttemptsToConfirmOperation) {
+		if errors.Is(err, secureoperation.ErrConfirmCodeIsIncorrect) || errors.Is(err, secureoperation.ErrNoAttemptsToConfirmOperation) {
 			return ht.sender.Send(
 				w,
 				http.StatusBadRequest,
@@ -86,13 +86,13 @@ func (ht *Operation) Confirm(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// если необходимо дополнительное подтверждение (2fa)
-	if op.Status == operationstatus.Opened {
+	if op.Is(operationstatus.Opened) {
 		return ht.sender.Send(
 			w,
 			http.StatusOK,
 			ht.operationResponse.NewConfirmOperation(
 				op,
-				lz.Translate("your account has been success registered"),
+				lz.Translate("Confirm your operation by 2fa"),
 			),
 		)
 	}
@@ -103,21 +103,21 @@ func (ht *Operation) Confirm(w http.ResponseWriter, r *http.Request) error {
 
 // Resend - comment method.
 func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
-	request := model.OperationTokenRequest{}
+	req := model.OperationTokenRequest{}
 
-	if err := ht.parser.Validate(r, &request); err != nil {
+	if err := ht.parser.Validate(r, &req); err != nil {
 		return err
 	}
 
 	lz := ht.parser.Localizer(r)
 
-	op, err := ht.useCaseResendConfirmCode.Execute(r.Context(), lz.Language(), request.Token)
+	op, err := ht.useCaseResendConfirmCode.Execute(r.Context(), lz.Language(), req.Token)
 	if err != nil {
-		if errors.Is(err, errors.ErrUseCaseEntityNotFound) {
+		if errors.Is(err, errors.ErrRecordNotFound) {
 			return mrauth.ErrTokenNotFoundOrExpired
 		}
 
-		if errors.Is(err, mrauth.ErrSendingNewMessagesIsTemporarilyRestricted) {
+		if errors.Is(err, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted) {
 			return ht.sender.Send(
 				w,
 				http.StatusBadRequest,
@@ -139,13 +139,13 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 }
 
 // func (ht *Operation) Revoke(w http.ResponseWriter, r *http.Request) error {
-// 	request := OperationRequest{}
+// 	req := OperationRequest{}
 //
-// 	if err := ht.parser.Validate(r, &request); err != nil {
+// 	if err := ht.parser.Validate(r, &req); err != nil {
 // 		return err
 // 	}
 //
-// 	if err := ht.useCase.Revoke(r.Context(), request.AuthToken); err != nil {
+// 	if err := ht.useCase.Revoke(r.Context(), req.AuthToken); err != nil {
 // 		return ht.wrapError(err)
 // 	}
 //

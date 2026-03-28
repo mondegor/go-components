@@ -90,7 +90,7 @@ func (o *AuthorizeUser) Create(user2FA dto.User2FA, realm, langCode string, user
 		return secureoperation.SecureOperation{}, err
 	}
 
-	return secureoperation.New(
+	return secureoperation.NewOperation(
 		operationToken,
 		NameAuthorizeUser,
 		user2FA.ID,

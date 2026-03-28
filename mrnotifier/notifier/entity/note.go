@@ -13,3 +13,8 @@ type (
 		Data map[string]string
 	}
 )
+
+// MessageID - comment method.
+func (e Note) MessageID() uint64 {
+	return e.ID
+}

@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mrtype"
+	"github.com/mondegor/go-sysmess/mrmodel"
 	"github.com/mondegor/go-sysmess/util/conv"
 	"github.com/pquerna/otp/totp"
 
@@ -48,7 +48,7 @@ func NewApplyTOTPGenerator(
 		storage:          storage,
 		storageOperation: storageOperation,
 		notifierAPI:      notifierAPI,
-		errorWrapper:     errors.NewUseCaseWrapper(),
+		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
 		issuer:           issuer,
 	}
 }
@@ -57,24 +57,28 @@ func NewApplyTOTPGenerator(
 // change_totp.go отдельный метод
 
 // Execute - comments method.
-func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, operationToken string) (totpQRcode mrtype.Image, err error) {
+func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, operationToken string) (totpQRcode mrmodel.Image, err error) {
+	if userID == uuid.Nil {
+		return mrmodel.Image{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
+	}
+
 	if operationToken == "" {
-		return mrtype.Image{}, errors.ErrUseCaseEntityNotFound // TODO: ?может ошибку, что параметр некорректен выдавать?
+		return mrmodel.Image{}, errors.ErrRecordNotFound // TODO: ?может ошибку, что параметр некорректен выдавать?
 	}
 
 	op, err := uc.storageOperation.FetchOne(ctx, operationToken)
 	if err != nil {
-		return mrtype.Image{}, uc.errorWrapper.Wrap(err)
+		return mrmodel.Image{}, uc.errorWrapper.Wrap(err)
 	}
 
-	if userID == uuid.Nil || userID != op.UserID {
-		return mrtype.Image{}, errors.ErrUseCaseAccessForbidden
+	if userID != op.UserID {
+		return mrmodel.Image{}, errors.ErrAccessForbidden
 	}
 
 	// TODO: проверить, что пользователь не заблокирован !!!!!!!
 
-	if op.Status != operationstatus.Confirmed {
-		return mrtype.Image{}, errors.New("operation id not confirmed")
+	if !op.Is(operationstatus.Confirmed) {
+		return mrmodel.Image{}, errors.New("operation id not confirmed")
 	}
 
 	userEmail := string(op.Payload)
@@ -85,7 +89,7 @@ func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, ope
 		SecretSize:  64,
 	})
 	if err != nil {
-		return mrtype.Image{}, uc.errorWrapper.Wrap(err)
+		return mrmodel.Image{}, uc.errorWrapper.Wrap(err)
 	}
 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
@@ -114,32 +118,32 @@ func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, ope
 		return nil
 	})
 	if err != nil {
-		return mrtype.Image{}, uc.errorWrapper.Wrap(err)
+		return mrmodel.Image{}, uc.errorWrapper.Wrap(err)
 	}
 
 	img, err := secret.Image(384, 384)
 	if err != nil {
-		return mrtype.Image{}, uc.errorWrapper.Wrap(err)
+		return mrmodel.Image{}, uc.errorWrapper.Wrap(err)
 	}
 
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, img, nil); err != nil {
-		return mrtype.Image{}, uc.errorWrapper.Wrap(err)
+		return mrmodel.Image{}, uc.errorWrapper.Wrap(err)
 	}
 
 	if buf.Len() < 0 {
-		return mrtype.Image{}, uc.errorWrapper.Wrap(errors.New("buffer is negative"))
+		return mrmodel.Image{}, uc.errorWrapper.Wrap(errors.New("buffer is negative"))
 	}
 
 	// вынести отдельно
-	return mrtype.Image{
-		ImageInfo: mrtype.ImageInfo{
+	return mrmodel.Image{
+		ImageInfo: mrmodel.ImageInfo{
 			ContentType: "image/jpeg",
 			// OriginalName: "qr",
 			// Realm:         "rq",
 			Width:  384,
 			Height: 384,
-			Size:   uint64(buf.Len()), //nolint:gosec
+			Size:   int64(buf.Len()),
 		},
 		Body: io.NopCloser(bytes.NewReader(buf.Bytes())),
 	}, nil

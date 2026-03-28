@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrtype"
+	"github.com/mondegor/go-sysmess/mrmodel"
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
@@ -58,7 +58,7 @@ type (
 	}
 
 	applyOperationTOTPUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, operationToken string) (totpURL mrtype.Image, err error)
+		Execute(ctx context.Context, userID uuid.UUID, operationToken string) (totpURL mrmodel.Image, err error)
 	}
 
 	applyOperationUseCase interface {
@@ -108,13 +108,13 @@ func (ht *Security) Handlers() []mrserver.HttpHandler {
 
 // ChangeEmail - comment method.
 func (ht *Security) ChangeEmail(w http.ResponseWriter, r *http.Request) error {
-	request := model.ChangeEmailRequest{}
+	req := model.ChangeEmailRequest{}
 
-	if err := ht.parser.Validate(r, &request); err != nil {
+	if err := ht.parser.Validate(r, &req); err != nil {
 		return err
 	}
 
-	op, err := ht.useCaseChangeEmailProperty.Execute(r.Context(), ht.parser.UserID(r), request.NewEmail)
+	op, err := ht.useCaseChangeEmailProperty.Execute(r.Context(), ht.parser.UserID(r), req.NewEmail)
 	if err != nil {
 		return err
 	}
@@ -124,20 +124,20 @@ func (ht *Security) ChangeEmail(w http.ResponseWriter, r *http.Request) error {
 		http.StatusOK,
 		ht.operationResponse.NewConfirmOperation(
 			op,
-			ht.parser.Localizer(r).Translate("your account has been success registered"),
+			ht.parser.Localizer(r).Translate("Confirm your operation 'change email' by code"),
 		),
 	)
 }
 
 // ChangePhone - comment method.
 func (ht *Security) ChangePhone(w http.ResponseWriter, r *http.Request) error {
-	request := model.ChangePhoneRequest{}
+	req := model.ChangePhoneRequest{}
 
-	if err := ht.parser.Validate(r, &request); err != nil {
+	if err := ht.parser.Validate(r, &req); err != nil {
 		return err
 	}
 
-	op, err := ht.useCaseChangePhoneProperty.Execute(r.Context(), ht.parser.UserID(r), request.NewPhone)
+	op, err := ht.useCaseChangePhoneProperty.Execute(r.Context(), ht.parser.UserID(r), req.NewPhone)
 	if err != nil {
 		return err
 	}
@@ -147,20 +147,20 @@ func (ht *Security) ChangePhone(w http.ResponseWriter, r *http.Request) error {
 		http.StatusOK,
 		ht.operationResponse.NewConfirmOperation(
 			op,
-			ht.parser.Localizer(r).Translate("msgChangePhoneRequestCreatedSuccessfully"),
+			ht.parser.Localizer(r).Translate("Confirm your operation 'change phone' by code"),
 		),
 	)
 }
 
 // ChangePassword - comment method.
 func (ht *Security) ChangePassword(w http.ResponseWriter, r *http.Request) error {
-	request := model.ChangePasswordRequest{}
+	req := model.ChangePasswordRequest{}
 
-	if err := ht.parser.Validate(r, &request); err != nil {
+	if err := ht.parser.Validate(r, &req); err != nil {
 		return err
 	}
 
-	op, err := ht.useCaseChangePasswordProperty.Execute(r.Context(), ht.parser.UserID(r), request.NewPassword)
+	op, err := ht.useCaseChangePasswordProperty.Execute(r.Context(), ht.parser.UserID(r), req.NewPassword)
 	if err != nil {
 		return err
 	}
@@ -170,7 +170,7 @@ func (ht *Security) ChangePassword(w http.ResponseWriter, r *http.Request) error
 		http.StatusOK,
 		ht.operationResponse.NewConfirmOperation(
 			op,
-			ht.parser.Localizer(r).Translate("msgChangePasswordRequestCreatedSuccessfully"),
+			ht.parser.Localizer(r).Translate("Confirm your operation 'change password' by code"),
 		),
 	)
 }
@@ -187,7 +187,7 @@ func (ht *Security) ChangeTOTPGenerator(w http.ResponseWriter, r *http.Request) 
 		http.StatusOK,
 		ht.operationResponse.NewConfirmOperation(
 			op,
-			ht.parser.Localizer(r).Translate("msgDisable2FARequestCreatedSuccessfully"),
+			ht.parser.Localizer(r).Translate("Confirm your operation 'change TOTP generator' by code"),
 		),
 	)
 }
@@ -204,20 +204,20 @@ func (ht *Security) Disable2FA(w http.ResponseWriter, r *http.Request) error {
 		http.StatusOK,
 		ht.operationResponse.NewConfirmOperation(
 			op,
-			ht.parser.Localizer(r).Translate("msgDisable2FARequestCreatedSuccessfully"),
+			ht.parser.Localizer(r).Translate("Confirm your operation 'disable 2fa' by code"),
 		),
 	)
 }
 
 // ApplyTOTPGenerator - comment method.
 func (ht *Security) ApplyTOTPGenerator(w http.ResponseWriter, r *http.Request) error {
-	request := model.ApplyOperationRequest{}
+	req := model.ApplyOperationRequest{}
 
-	if err := ht.parser.Validate(r, &request); err != nil {
+	if err := ht.parser.Validate(r, &req); err != nil {
 		return err
 	}
 
-	totpImage, err := ht.useCaseApplyOperationTOTP.Execute(r.Context(), ht.parser.UserID(r), request.Token)
+	totpImage, err := ht.useCaseApplyOperationTOTP.Execute(r.Context(), ht.parser.UserID(r), req.Token)
 	if err != nil {
 		return err
 	}
@@ -231,13 +231,13 @@ func (ht *Security) ApplyTOTPGenerator(w http.ResponseWriter, r *http.Request) e
 
 // ApplyOperation - comment method.
 func (ht *Security) ApplyOperation(w http.ResponseWriter, r *http.Request) error {
-	request := model.ApplyOperationRequest{}
+	req := model.ApplyOperationRequest{}
 
-	if err := ht.parser.Validate(r, &request); err != nil {
+	if err := ht.parser.Validate(r, &req); err != nil {
 		return err
 	}
 
-	if err := ht.useCaseApplyOperation.Execute(r.Context(), ht.parser.UserID(r), request.Token); err != nil {
+	if err := ht.useCaseApplyOperation.Execute(r.Context(), ht.parser.UserID(r), req.Token); err != nil {
 		return err
 	}
 

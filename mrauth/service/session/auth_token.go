@@ -47,7 +47,7 @@ func NewAuthToken(
 
 	return &AuthToken{
 		storage:           storage,
-		errorWrapper:      errors.NewServiceWrapper(),
+		errorWrapper:      errors.NewServiceOperationFailedWrapper(),
 		logger:            logger,
 		realm2tokenIssuer: realm2tokenIssuer,
 	}
@@ -57,7 +57,7 @@ func NewAuthToken(
 func (sv *AuthToken) Create(ctx context.Context, userScopes dto.UserScopes) (token dto.AuthToken, err error) {
 	tokenIssuer, ok := sv.realm2tokenIssuer[userScopes.Realm]
 	if !ok {
-		return dto.AuthToken{}, errors.ErrUseCaseIncorrectInputData.New("realm is unknown")
+		return dto.AuthToken{}, errors.ErrIncorrectInputData.New("realm is unknown")
 	}
 
 	token, err = tokenIssuer.Create(userScopes)

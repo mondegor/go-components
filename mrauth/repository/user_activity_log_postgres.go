@@ -2,10 +2,9 @@ package repository
 
 import (
 	"context"
-	"strings"
 	"time"
 
-	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
+	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/errors"
 
@@ -15,10 +14,9 @@ import (
 type (
 	// UserActivityLogPostgres - репозиторий для хранения элементов настроек.
 	UserActivityLogPostgres struct {
-		client           mrstorage.DBConnManager
-		errorWrapper     errors.Wrapper
-		tableName        string
-		insertArgsHelper placeholdedvalues.SQL
+		client       mrstorage.DBConnManager
+		errorWrapper errors.Wrapper
+		tableName    string
 	}
 )
 
@@ -27,16 +25,10 @@ func NewUserActivityLogPostgres(
 	client mrstorage.DBConnManager,
 	tableName string,
 ) *UserActivityLogPostgres {
-	const countLineArgs = 7
-
 	return &UserActivityLogPostgres{
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
 		tableName:    tableName,
-
-		insertArgsHelper: placeholdedvalues.New(
-			placeholdedvalues.WithCountLineArgs(countLineArgs),
-		),
 	}
 }
 
@@ -46,9 +38,30 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserAc
 		return nil
 	}
 
-	var sql strings.Builder
+	userIDs := make([]uuid.UUID, 0, len(rows))
+	userIPs := make([]uint32, 0, len(rows))
+	userIPSs := make([]string, 0, len(rows))
+	userAgents := make([]string, 0, len(rows))
+	requestPaths := make([]string, 0, len(rows))
+	requestStatuses := make([]uint32, 0, len(rows))
+	visitedAts := make([]time.Time, 0, len(rows))
 
-	sql.WriteString(`
+	for _, row := range rows {
+		realIP, _, err := row.UserIP.ToUint()
+		if err != nil {
+			return err // TODO: можно логировать ошибку
+		}
+
+		userIDs = append(userIDs, row.UserID)
+		userIPs = append(userIPs, realIP)
+		userIPSs = append(userIPSs, row.UserIP.String())
+		userAgents = append(userAgents, row.UserAgent)
+		requestPaths = append(requestPaths, row.RequestPath)
+		requestStatuses = append(requestStatuses, row.RequestStatus)
+		visitedAts = append(visitedAts, row.VisitedAt)
+	}
+
+	sql := `
 		INSERT INTO ` + re.tableName + `
 			(
 				user_id,
@@ -59,34 +72,21 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserAc
 				request_status,
 				visited_at
 			)
-		VALUES `)
-
-	// generate: ($1, $2, $3, $4, $5, $6, $7), ...
-	values := make([]any, 0, len(rows)*re.insertArgsHelper.CountLineArgs())
-	argumentNumber := re.insertArgsHelper.WriteFirstLine(&sql)
-
-	for i, row := range rows {
-		if i > 0 {
-			argumentNumber = re.insertArgsHelper.WriteNextLine(&sql, argumentNumber)
-		}
-
-		realIP, _, err := row.UserIP.ToUint()
-		if err != nil {
-			return err // TODO: можно логировать ошибку
-		}
-
-		values = append(
-			values,
-			row.UserID, realIP, row.UserIP.String(), row.UserAgent, row.RequestPath, row.RequestStatus, row.VisitedAt,
-		)
-	}
-
-	sql.WriteByte(';')
+		SELECT *
+		FROM
+			UNNEST($1::uuid[], $2::int8[], $3::text[], $4::text[], $5::text[], $6::int4[], $7::timestamptz[])
+			as t(user_id, user_ip, user_ip_string, user_agent, request_path, request_status, visited_at);`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,
-		sql.String(),
-		values...,
+		sql,
+		userIDs,
+		userIPs,
+		userIPSs,
+		userAgents,
+		requestPaths,
+		requestStatuses,
+		visitedAts,
 	)
 }
 
@@ -118,7 +118,7 @@ func (re *UserActivityLogPostgres) DeleteBeforeDate(ctx context.Context, datetim
 		limit,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
 		return re.errorWrapper.Wrap(err)
 	}
 

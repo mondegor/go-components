@@ -202,8 +202,8 @@ func (re *NodePostgres) UpdateNode(ctx context.Context, row entity.Node, conditi
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
-			return errors.ErrEventStorageNoRowFound
+		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+			return errors.ErrEventStorageNoRecordFound
 		}
 
 		return re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"id": row.ID})
@@ -248,7 +248,7 @@ func (re *NodePostgres) RecalcOrderIndex(ctx context.Context, minBorder, step ui
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
 		return re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"orderIndex": minBorder, "step": step})
 	}
 
@@ -325,8 +325,8 @@ func (re *NodePostgres) updateNodeNeighborID(
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
-			return errors.ErrEventStorageNoRowFound
+		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+			return errors.ErrEventStorageNoRecordFound
 		}
 
 		return re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"id": rowID})

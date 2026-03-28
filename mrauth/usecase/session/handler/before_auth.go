@@ -44,7 +44,7 @@ func NewBeforeAuthUser(
 		storageUser:      storageUser,
 		storageUserRealm: storageUserNamespace,
 		notifierAPI:      notifierAPI,
-		errorWrapper:     errors.NewUseCaseWrapper(),
+		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
 		logger:           logger,
 	}
 }

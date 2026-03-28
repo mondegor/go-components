@@ -2,36 +2,28 @@ package repository
 
 import (
 	"context"
-	"strings"
 
-	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/errors"
 
+	"github.com/mondegor/go-components/mrmailer/dto"
 	"github.com/mondegor/go-components/mrmailer/entity"
 )
 
 type (
 	// MessagePostgres - репозиторий для хранения сообщений подготовленных для отправки различным получателям.
 	MessagePostgres struct {
-		client           mrstorage.DBConnManager
-		table            mrsql.DBTableInfo
-		insertArgsHelper placeholdedvalues.SQL
+		client mrstorage.DBConnManager
+		table  mrsql.DBTableInfo
 	}
 )
 
 // NewMessagePostgres - создаёт объект MessagePostgres.
 func NewMessagePostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *MessagePostgres {
-	const countLineArgs = 3
-
 	return &MessagePostgres{
 		client: client,
 		table:  table,
-
-		insertArgsHelper: placeholdedvalues.New(
-			placeholdedvalues.WithCountLineArgs(countLineArgs),
-		),
 	}
 }
 
@@ -84,35 +76,34 @@ func (re *MessagePostgres) Insert(ctx context.Context, rows []entity.Message) er
 		return nil
 	}
 
-	var sql strings.Builder
+	ids := make([]uint64, 0, len(rows))
+	channels := make([]string, 0, len(rows))
+	datas := make([]dto.MessageData, 0, len(rows))
 
-	sql.WriteString(`
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+		channels = append(channels, row.Channel)
+		datas = append(datas, row.Data)
+	}
+
+	sql := `
 		INSERT INTO ` + re.table.Name + `
 			(
 				` + re.table.PrimaryKey + `,
 				message_channel,
 				message_data
 			)
-		VALUES `)
-
-	// generate: ($1, $2, $3), ...
-	values := make([]any, 0, len(rows)*re.insertArgsHelper.CountLineArgs())
-	argumentNumber := re.insertArgsHelper.WriteFirstLine(&sql)
-
-	for i, row := range rows {
-		if i > 0 {
-			argumentNumber = re.insertArgsHelper.WriteNextLine(&sql, argumentNumber)
-		}
-
-		values = append(values, row.ID, row.Channel, row.Data)
-	}
-
-	sql.WriteByte(';')
+		SELECT *
+		FROM
+			UNNEST($1::int8[], $2::text[], $3::jsonb[])
+			as t(id, message_channel, message_data);`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,
-		sql.String(),
-		values...,
+		sql,
+		ids,
+		channels,
+		datas,
 	)
 }
 
@@ -130,7 +121,7 @@ func (re *MessagePostgres) DeleteByIDs(ctx context.Context, rowsIDs []uint64) er
 		rowsIDs,
 	)
 	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
+	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
 		return err
 	}
 

@@ -8,12 +8,12 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrtrace"
-	processconsume "github.com/mondegor/go-webcore/mrworker/process/consume"
+	"github.com/mondegor/go-webcore/mrworker/process/consume"
 
 	"github.com/mondegor/go-components/mrnotifier"
+	"github.com/mondegor/go-components/mrnotifier/notifier/entity"
 	"github.com/mondegor/go-components/mrnotifier/notifier/infra/handler"
 	"github.com/mondegor/go-components/mrnotifier/notifier/repository"
-	"github.com/mondegor/go-components/mrnotifier/notifier/service/consume"
 	"github.com/mondegor/go-components/mrnotifier/notifier/usecase"
 	templaterepository "github.com/mondegor/go-components/mrnotifier/template/repository"
 	templateservice "github.com/mondegor/go-components/mrnotifier/template/service"
@@ -46,17 +46,17 @@ func InitService(
 	templateTableName string,
 	templateVarName string,
 	opts ...Option,
-) *processconsume.MessageProcessor {
+) *consume.MessageProcessor[entity.Note] {
 	o := options{
 		defaultLang: defaultDefaultLang,
-		processorOpts: []processconsume.Option{
-			processconsume.WithCaptionPrefix(defaultCaptionPrefix),
-			processconsume.WithReadyTimeout(defaultReadyTimeout),
-			processconsume.WithReadPeriod(defaultReadPeriod),
-			processconsume.WithConsumerTimeout(defaultConsumerReadTimeout, defaultConsumerWriteTimeout),
-			processconsume.WithHandlerTimeout(defaultHandlerTimeout),
-			processconsume.WithQueueSize(defaultQueueSize),
-			processconsume.WithWorkersCount(defaultWorkersCount),
+		processorOpts: []consume.Option[entity.Note]{
+			consume.WithCaptionPrefix[entity.Note](defaultCaptionPrefix),
+			consume.WithReadyTimeout[entity.Note](defaultReadyTimeout),
+			consume.WithReadPeriod[entity.Note](defaultReadPeriod),
+			consume.WithConsumerTimeout[entity.Note](defaultConsumerReadTimeout, defaultConsumerWriteTimeout),
+			consume.WithHandlerTimeout[entity.Note](defaultHandlerTimeout),
+			consume.WithQueueSize[entity.Note](defaultQueueSize),
+			consume.WithWorkersCount[entity.Note](defaultWorkersCount),
 		},
 	}
 
@@ -92,10 +92,10 @@ func InitService(
 		},
 	)
 
-	noticeConsumer := consume.New(
+	noticeConsumer := queueconsume.NewMessageConsumer[entity.Note](
 		client,
 		storageNotice,
-		queueconsume.New(
+		queueconsume.NewQueueConsumer(
 			client,
 			storageQueue,
 			queueconsume.WithStorageCompleted(storageQueueCompleted),
@@ -103,7 +103,7 @@ func InitService(
 		),
 	)
 
-	return processconsume.NewMessageProcessor(
+	return consume.NewMessageProcessor[entity.Note](
 		noticeConsumer,
 		handler.NewSendNotice(
 			usecase.New(

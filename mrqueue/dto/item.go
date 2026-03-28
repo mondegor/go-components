@@ -7,6 +7,6 @@ type (
 	Item struct {
 		ID            uint64
 		ReadyDelayed  time.Duration
-		RetryAttempts uint32
+		RetryAttempts int16
 	}
 )

@@ -27,7 +27,7 @@ type (
 		serviceQueue      mrqueue.Producer
 		errorWrapper      errors.Wrapper
 		traceManager      mrtrace.ContextManager
-		retryAttempts     uint32
+		retryAttempts     int16
 	}
 
 	noteStorage interface {
@@ -50,7 +50,7 @@ func New(
 			sequenceGenerator: sequenceGenerator,
 			storage:           storage,
 			serviceQueue:      serviceQueue,
-			errorWrapper:      errors.NewServiceWrapper(),
+			errorWrapper:      errors.NewServiceOperationFailedWrapper(),
 			traceManager:      traceManager,
 			retryAttempts:     defaultRetryAttempts,
 		},

@@ -9,9 +9,9 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/util/operation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -48,19 +48,19 @@ func NewChangePhoneProperty(
 		notifierAPI:           notifierAPI,
 		factoryUserConfirm2FA: factoryUserConfirm2FA,
 		factoryOperationPhone: factoryOperationPhone,
-		errorWrapper:          errors.NewUseCaseWrapper(),
+		errorWrapper:          errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
 // Execute - comments method.
 func (uc *ChangePhoneProperty) Execute(ctx context.Context, userID uuid.UUID, newPhone string) (secureoperation.SecureOperation, error) {
 	if userID == uuid.Nil {
-		return secureoperation.SecureOperation{}, errors.ErrUseCaseAccessForbidden // TODO 401!!!!
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
 	parsedPhone, err := contactaddress.ParsePhone(newPhone)
 	if err != nil {
-		return secureoperation.SecureOperation{}, errors.ErrUseCaseIncorrectInputData.New(err)
+		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New(err)
 	}
 
 	if err := uc.phoneChecker.CheckAvailabilityPhone(ctx, parsedPhone); err != nil {
@@ -82,25 +82,24 @@ func (uc *ChangePhoneProperty) Execute(ctx context.Context, userID uuid.UUID, ne
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		confirmingAction, err := operation.NextConfirmingAction(&op)
-		if err != nil {
-			return uc.errorWrapper.Wrap(err)
-		}
-
 		// TODO: Add Operation log:op!
 
-		if confirmingAction.MaxResends > 0 {
-			return uc.notifierAPI.Send(
-				ctx,
-				"confirm.change.phone",
-				conv.Group{
-					"to":          confirmingAction.Address,
-					"confirmCode": confirmingAction.Secret,
-				},
-			)
-		}
+		return op.Notify(
+			func(method confirmmethod.Enum, address, confirmCode string) error {
+				if method != confirmmethod.Email {
+					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
+				}
 
-		return nil
+				return uc.notifierAPI.Send(
+					ctx,
+					"confirm.change.phone",
+					conv.Group{
+						"to":          address,
+						"confirmCode": confirmCode,
+					},
+				)
+			},
+		)
 	})
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)

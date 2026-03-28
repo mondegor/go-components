@@ -46,7 +46,7 @@ func New(
 	return &NodeMover{
 		storage:      storage,
 		eventEmitter: mrevent.EmitterWithSource(eventEmitter, "mrordering.NodeMover"),
-		errorWrapper: errors.NewUseCaseWrapper(),
+		errorWrapper: errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
@@ -54,7 +54,7 @@ func New(
 // Использовать если есть уверенность, что элемент ещё не привязан к списку (например, он только что был создан).
 func (sv *NodeMover) InsertToFirst(ctx context.Context, nodeID uint64, condition mrstorage.SQLPartFunc) error {
 	if nodeID == 0 {
-		return errors.ErrUseCaseIncorrectInputData.New("nodeId is zero")
+		return errors.ErrIncorrectInputData.New("nodeId is zero")
 	}
 
 	firstNode, err := sv.storage.FetchFirstNode(ctx, condition)
@@ -63,7 +63,7 @@ func (sv *NodeMover) InsertToFirst(ctx context.Context, nodeID uint64, condition
 	}
 
 	if nodeID == firstNode.ID {
-		return errors.ErrUseCaseIncorrectInputData.New("nodeId=firstNode.Id", "nodeId", nodeID)
+		return errors.ErrIncorrectInputData.New("nodeId=firstNode.Id", "nodeId", nodeID)
 	}
 
 	if err = sv.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullUint64(nodeID), condition); err != nil {
@@ -98,7 +98,7 @@ func (sv *NodeMover) InsertToFirst(ctx context.Context, nodeID uint64, condition
 // Использовать если есть уверенность, что элемент ещё не привязан к списку (например, он только что был создан).
 func (sv *NodeMover) InsertToLast(ctx context.Context, nodeID uint64, condition mrstorage.SQLPartFunc) error {
 	if nodeID == 0 {
-		return errors.ErrUseCaseIncorrectInputData.New("nodeId is zero")
+		return errors.ErrIncorrectInputData.New("nodeId is zero")
 	}
 
 	lastNode, err := sv.storage.FetchLastNode(ctx, condition)
@@ -107,7 +107,7 @@ func (sv *NodeMover) InsertToLast(ctx context.Context, nodeID uint64, condition 
 	}
 
 	if nodeID == lastNode.ID {
-		return errors.ErrUseCaseIncorrectInputData.New("nodeId=lastNode.Id", "nodeId", nodeID)
+		return errors.ErrIncorrectInputData.New("nodeId=lastNode.Id", "nodeId", nodeID)
 	}
 
 	if err = sv.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullUint64(nodeID), condition); err != nil {
@@ -133,7 +133,7 @@ func (sv *NodeMover) InsertToLast(ctx context.Context, nodeID uint64, condition 
 // MoveToFirst - перемещает указанный элемент на первое место отсортированного списка с учётом указанного условия.
 func (sv *NodeMover) MoveToFirst(ctx context.Context, nodeID uint64, condition mrstorage.SQLPartFunc) error {
 	if nodeID == 0 {
-		return errors.ErrUseCaseIncorrectInputData.New("nodeId is zero")
+		return errors.ErrIncorrectInputData.New("nodeId is zero")
 	}
 
 	firstNode, err := sv.storage.FetchFirstNode(ctx, condition)
@@ -211,7 +211,7 @@ func (sv *NodeMover) MoveToFirst(ctx context.Context, nodeID uint64, condition m
 // MoveToLast - перемещает указанный элемент на последнее место с учётом указанного условия.
 func (sv *NodeMover) MoveToLast(ctx context.Context, nodeID uint64, condition mrstorage.SQLPartFunc) error {
 	if nodeID == 0 {
-		return errors.ErrUseCaseIncorrectInputData.New("nodeId is zero")
+		return errors.ErrIncorrectInputData.New("nodeId is zero")
 	}
 
 	lastNode, err := sv.storage.FetchLastNode(ctx, condition)
@@ -288,11 +288,11 @@ func (sv *NodeMover) MoveAfterID(ctx context.Context, nodeID, afterNodeID uint64
 	}
 
 	if nodeID == 0 {
-		return errors.ErrUseCaseIncorrectInputData.New("nodeId is zero")
+		return errors.ErrIncorrectInputData.New("nodeId is zero")
 	}
 
 	if nodeID == afterNodeID {
-		return errors.ErrUseCaseIncorrectInputData.New("nodeId=afterNodeId", "nodeId", nodeID)
+		return errors.ErrIncorrectInputData.New("nodeId=afterNodeId", "nodeId", nodeID)
 	}
 
 	currentNode, err := sv.storage.FetchNode(ctx, nodeID, condition)
@@ -306,7 +306,7 @@ func (sv *NodeMover) MoveAfterID(ctx context.Context, nodeID, afterNodeID uint64
 
 	afterNode, err := sv.storage.FetchNode(ctx, afterNodeID, condition)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageNoRowFound) {
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 			return mrordering.ErrAfterNodeNotFound.New(afterNodeID)
 		}
 
@@ -371,7 +371,7 @@ func (sv *NodeMover) MoveAfterID(ctx context.Context, nodeID, afterNodeID uint64
 // Unlink - отвязывает указанный элемент находящимся в отсортированном списке с учётом указанного условия.
 func (sv *NodeMover) Unlink(ctx context.Context, nodeID uint64, condition mrstorage.SQLPartFunc) error {
 	if nodeID == 0 {
-		return errors.ErrUseCaseIncorrectInputData.New("nodeId is zero")
+		return errors.ErrIncorrectInputData.New("nodeId is zero")
 	}
 
 	currentNode, err := sv.storage.FetchNode(ctx, nodeID, condition)
@@ -411,7 +411,7 @@ func (sv *NodeMover) Unlink(ctx context.Context, nodeID uint64, condition mrstor
 }
 
 func (sv *NodeMover) wrapErrorMustEntityExists(err error) error {
-	if errors.Is(err, errors.ErrEventStorageNoRowFound) {
+	if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 		return errors.WrapInternalError(err, "entity not found")
 	}
 

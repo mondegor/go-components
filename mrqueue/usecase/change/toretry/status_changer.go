@@ -45,7 +45,7 @@ func New(
 		changer: &ProcessingToRetryChanger{
 			txManager:    txManager,
 			storage:      storage,
-			errorWrapper: errors.NewUseCaseWrapper(),
+			errorWrapper: errors.NewServiceRecordNotFoundWrapper(),
 			retryTimeout: defaultRetryTimeout,
 		},
 	}

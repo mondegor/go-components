@@ -2,10 +2,8 @@ package repository
 
 import (
 	"context"
-	"strings"
 	"time"
 
-	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/errors"
@@ -17,24 +15,16 @@ import (
 type (
 	// QueuePostgres - репозиторий для организации очереди и хранения в ней записей.
 	QueuePostgres struct {
-		client           mrstorage.DBConnManager
-		table            mrsql.DBTableInfo
-		insertArgsHelper placeholdedvalues.SQL
+		client mrstorage.DBConnManager
+		table  mrsql.DBTableInfo
 	}
 )
 
 // NewQueuePostgres - создаёт объект QueuePostgres.
 func NewQueuePostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *QueuePostgres {
-	const countLineArgs = 3
-
 	return &QueuePostgres{
 		client: client,
 		table:  table,
-
-		insertArgsHelper: placeholdedvalues.New(
-			placeholdedvalues.WithCountLineArgs(countLineArgs),
-			placeholdedvalues.WithLine("", "", "", ", NOW() + INTERVAL '1 second' * "),
-		),
 	}
 }
 
@@ -45,9 +35,17 @@ func (re *QueuePostgres) Insert(ctx context.Context, rows []dto.Item) error {
 		return nil
 	}
 
-	var sql strings.Builder
+	ids := make([]uint64, 0, len(rows))
+	retryAttempts := make([]int16, 0, len(rows))
+	readyDelayed := make([]int32, 0, len(rows))
 
-	sql.WriteString(`
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+		retryAttempts = append(retryAttempts, row.RetryAttempts)
+		readyDelayed = append(readyDelayed, int32(row.ReadyDelayed.Milliseconds()/1000)) //nolint:gosec
+	}
+
+	sql := `
 		INSERT INTO ` + re.table.Name + `
 			(
 				` + re.table.PrimaryKey + `,
@@ -55,26 +53,18 @@ func (re *QueuePostgres) Insert(ctx context.Context, rows []dto.Item) error {
 				item_status,
 				updated_at
 			)
-		VALUES `)
-
-	// generate: ($1, $2, $3, NOW() + INTERVAL '1 second' * $4), ...
-	values := make([]any, 0, len(rows)*re.insertArgsHelper.CountLineArgs())
-	argumentNumber := re.insertArgsHelper.WriteFirstLine(&sql)
-
-	for i, row := range rows {
-		if i > 0 {
-			argumentNumber = re.insertArgsHelper.WriteNextLine(&sql, argumentNumber)
-		}
-
-		values = append(values, row.ID, row.RetryAttempts, itemstatus.Ready, row.ReadyDelayed.Seconds())
-	}
-
-	sql.WriteByte(';')
+		SELECT id, remaining_attempts, $4, NOW() + INTERVAL '1 second' * ready_delayed
+		FROM
+			UNNEST($1::int8[], $2::int2[], $3::int4[])
+			as t(id, remaining_attempts, ready_delayed);`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,
-		sql.String(),
-		values...,
+		sql,
+		ids,
+		retryAttempts,
+		readyDelayed,
+		itemstatus.Ready,
 	)
 }
 
@@ -158,8 +148,8 @@ func (re *QueuePostgres) UpdateStatusProcessingToRetry(ctx context.Context, rowI
 		itemstatus.Processing,
 		itemstatus.Retry,
 	)
-	if err != nil && errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
-		return errors.ErrEventStorageNoRowFound
+	if err != nil && errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+		return errors.ErrEventStorageNoRecordFound
 	}
 
 	return err
@@ -295,8 +285,8 @@ func (re *QueuePostgres) Delete(ctx context.Context, rowID uint64, status itemst
 		rowID,
 		status,
 	)
-	if err != nil && errors.Is(err, errors.ErrEventStorageRowsNotAffected) {
-		return errors.ErrEventStorageNoRowFound
+	if err != nil && errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+		return errors.ErrEventStorageNoRecordFound
 	}
 
 	return err
