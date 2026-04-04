@@ -10,8 +10,8 @@ import (
 	"github.com/mondegor/go-sysmess/mrtype"
 	"github.com/mondegor/go-sysmess/util/casttype"
 	"github.com/mondegor/go-webcore/mraccess"
-	"github.com/mondegor/go-webcore/mrcore"
 	"github.com/mondegor/go-webcore/mrserver"
+	"github.com/mondegor/go-webcore/mrserver/mrresp"
 	"github.com/mondegor/go-webcore/mrserver/request"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -44,6 +44,7 @@ type (
 		useCaseCloseSession     closeSessionUseCase
 		serviceUserInfo         userInfoService
 		operationResponse       confirmOperationResponse
+		debugFunc               func(value any) string
 	}
 
 	createUserUseCase interface {
@@ -76,7 +77,7 @@ type (
 
 	confirmOperationResponse interface {
 		NewConfirmOperation(operation secureoperation.SecureOperation, message string) model.WaitingConfirmOperationResponse
-		NewErrorConfirmOperation(operation secureoperation.SecureOperation, lz mrcore.Localizer, code string, err error) model.ErrorConfirmOperationResponse
+		NewErrorConfirmOperation(response mrresp.Error400Response, operation secureoperation.SecureOperation) model.ErrorConfirmOperationResponse
 	}
 )
 
@@ -92,7 +93,14 @@ func NewAuth(
 	useCaseCloseSession closeSessionUseCase,
 	serviceUserInfo userInfoService,
 	operationResponse confirmOperationResponse,
+	debugFunc func(value any) string,
 ) *Auth {
+	if debugFunc == nil {
+		debugFunc = func(_ any) string {
+			return ""
+		}
+	}
+
 	return &Auth{
 		parser: parser,
 		sender: sender,
@@ -110,6 +118,7 @@ func NewAuth(
 		useCaseCloseSession:     useCaseCloseSession,
 		serviceUserInfo:         serviceUserInfo,
 		operationResponse:       operationResponse,
+		debugFunc:               debugFunc,
 	}
 }
 
@@ -205,7 +214,17 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 			return ht.sender.Send(
 				w,
 				http.StatusBadRequest,
-				ht.operationResponse.NewErrorConfirmOperation(op, lz, "secret", err),
+				ht.operationResponse.NewErrorConfirmOperation(
+					mrresp.NewError400Response(
+						r,
+						mrresp.ErrorAttribute{
+							Code:      "secret",
+							Detail:    lz.TranslateError(err),
+							DebugInfo: ht.debugFunc(err),
+						},
+					),
+					op,
+				),
 			)
 		}
 

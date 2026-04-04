@@ -24,10 +24,10 @@ func InitHttpModule(
 	responseSender mrserver.ResponseSender,
 	responseFileSender mrserver.FileResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
-	withDebugInfo bool,
 	userRealms []auth.UserRealm,
 	operationConfirm auth.OperationConfirm,
 	jwtConfig auth.JWT,
+	debugFunc func(value any) string,
 ) initing.HttpModule {
 	storageUser := initUserPostgres(dbConnManager)
 	storageCheckUser := initCheckUserPostgres(dbConnManager)
@@ -67,9 +67,9 @@ func InitHttpModule(
 						requestParser,
 						responseSender,
 						notifierAPI,
-						withDebugInfo,
 						userRealms,
 						jwtConfig,
+						debugFunc,
 					)
 				},
 			},
@@ -92,8 +92,8 @@ func InitHttpModule(
 						requestParser,
 						responseSender,
 						notifierAPI,
-						withDebugInfo,
 						operationConfirm,
+						debugFunc,
 					)
 				},
 			},
@@ -110,7 +110,7 @@ func InitHttpModule(
 						requestParser,
 						responseFileSender,
 						notifierAPI,
-						withDebugInfo,
+						debugFunc,
 					)
 				},
 			},

@@ -210,6 +210,15 @@ func (o *SecureOperation) Notify(
 	)
 }
 
+// FirstAction - comment method.
+func (o *SecureOperation) FirstAction() (first ConfirmAction, ok bool) {
+	if len(o.actions) == 0 {
+		return ConfirmAction{}, false
+	}
+
+	return o.actions[0], true
+}
+
 // Actions - comment method.
 func (o *SecureOperation) Actions() []ConfirmAction {
 	return o.actions

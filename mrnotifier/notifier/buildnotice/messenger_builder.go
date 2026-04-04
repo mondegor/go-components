@@ -19,9 +19,10 @@ type (
 	}
 )
 
+//nolint:gochecknoglobals
 var (
 	regexpMessengerTag       = regexp.MustCompile(`^@[0-9A-Za-z_]+$`)
-	replacerMessengerSubject = strings.NewReplacer( //nolint:gochecknoglobals
+	replacerMessengerSubject = strings.NewReplacer(
 		"_", "\\_",
 		"*", "\\*",
 	)

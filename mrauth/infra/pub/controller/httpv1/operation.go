@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-webcore/mraccess"
 	"github.com/mondegor/go-webcore/mrserver"
+	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
@@ -29,6 +30,7 @@ type (
 		useCaseConfirmOperation  confirmOperationUseCase
 		useCaseResendConfirmCode resendConfirmCodeUseCase
 		operationResponse        confirmOperationResponse
+		debugFunc                func(value any) string
 	}
 
 	resendConfirmCodeUseCase interface {
@@ -43,13 +45,21 @@ func NewOperation(
 	useCaseConfirmOperation confirmOperationUseCase,
 	useCaseResendConfirmCode resendConfirmCodeUseCase,
 	operationResponse confirmOperationResponse,
+	debugFunc func(value any) string,
 ) *Operation {
+	if debugFunc == nil {
+		debugFunc = func(_ any) string {
+			return ""
+		}
+	}
+
 	return &Operation{
 		parser:                   parser,
 		sender:                   sender,
 		useCaseConfirmOperation:  useCaseConfirmOperation,
 		useCaseResendConfirmCode: useCaseResendConfirmCode,
 		operationResponse:        operationResponse,
+		debugFunc:                debugFunc,
 	}
 }
 
@@ -78,7 +88,17 @@ func (ht *Operation) Confirm(w http.ResponseWriter, r *http.Request) error {
 			return ht.sender.Send(
 				w,
 				http.StatusBadRequest,
-				ht.operationResponse.NewErrorConfirmOperation(op, lz, "secret", err),
+				ht.operationResponse.NewErrorConfirmOperation(
+					mrresp.NewError400Response(
+						r,
+						mrresp.ErrorAttribute{
+							Code:      "secret",
+							Detail:    lz.TranslateError(err),
+							DebugInfo: ht.debugFunc(err),
+						},
+					),
+					op,
+				),
 			)
 		}
 
@@ -121,7 +141,17 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 			return ht.sender.Send(
 				w,
 				http.StatusBadRequest,
-				ht.operationResponse.NewErrorConfirmOperation(op, lz, "token", err),
+				ht.operationResponse.NewErrorConfirmOperation(
+					mrresp.NewError400Response(
+						r,
+						mrresp.ErrorAttribute{
+							Code:      "token",
+							Detail:    lz.TranslateError(err),
+							DebugInfo: ht.debugFunc(err),
+						},
+					),
+					op,
+				),
 			)
 		}
 

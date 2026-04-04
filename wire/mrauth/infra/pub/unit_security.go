@@ -33,7 +33,7 @@ func initSecurityController(
 	requestParser *validate.Parser,
 	responseFileSender mrserver.FileResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
-	withDebugInfo bool,
+	debugFunc func(value any) string,
 ) (mrserver.HttpController, error) {
 	checkUserService := check.NewUserLogin(
 		storageCheckUser,
@@ -167,7 +167,7 @@ func initSecurityController(
 		useCaseDisable2FA,
 		useCaseApplyTOTPGenerator,
 		useCaseApplyOperation,
-		bag.NewOperationResponse(withDebugInfo),
+		bag.NewOperationResponse(debugFunc),
 	)
 
 	return controller, nil

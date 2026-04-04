@@ -26,8 +26,9 @@ type (
 	Enum uint8
 )
 
+//nolint:gochecknoglobals
 var (
-	enumKeys = map[Enum]string{ //nolint:gochecknoglobals
+	enumKeys = map[Enum]string{
 		String:      "STRING",
 		StringList:  "STRING_LIST",
 		Integer:     "INTEGER",
@@ -35,7 +36,7 @@ var (
 		Boolean:     "BOOLEAN",
 	}
 
-	enumValues = map[string]Enum{ //nolint:gochecknoglobals
+	enumValues = map[string]Enum{
 		"STRING":       String,
 		"STRING_LIST":  StringList,
 		"INTEGER":      Integer,
@@ -57,7 +58,11 @@ func (e *Enum) Set(value uint8) error {
 
 // String - возвращает значение в виде строки.
 func (e Enum) String() string {
-	return enumKeys[e]
+	if v, ok := enumKeys[e]; ok {
+		return v
+	}
+
+	return "UNKNOWN"
 }
 
 // MarshalJSON - переводит enum значение в строковое представление.

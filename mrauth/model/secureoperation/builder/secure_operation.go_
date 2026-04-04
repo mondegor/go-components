@@ -1,0 +1,102 @@
+package builder
+
+import (
+	"fmt"
+
+	"github.com/mondegor/go-sysmess/errors"
+
+	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+)
+
+type (
+	// SecureOperation - операция, проводимая пользователем требующая
+	// от него подтверждения своей личности каким-либо способом.
+	SecureOperation struct {
+		tokenGenerator mrauth.TokenGenerator
+		codeGenerator  mrauth.CodeGenerator
+		type2actions   map[string][]secureoperation.ConfirmAction // operationType:actions
+
+		name    string
+		payload []byte
+		user2FA dto.User2FA
+		actions []secureoperation.ConfirmAction // actions
+	}
+)
+
+// New - создаёт объект OperationFactory.
+func New(
+	tokenGenerator mrauth.TokenGenerator,
+	codeGenerator mrauth.CodeGenerator,
+) *SecureOperation {
+	return &SecureOperation{
+		tokenGenerator: tokenGenerator,
+		codeGenerator:  codeGenerator,
+	}
+}
+
+// WithType - comment method.
+func (b SecureOperation) WithType(value string, payload []byte) SecureOperation {
+	b.name = value
+	b.payload = payload
+
+	return b
+}
+
+// WithUser2FA - comment method.
+func (b SecureOperation) WithUser2FA(user2FA dto.User2FA) SecureOperation {
+	b.user2FA = user2FA
+
+	return b
+}
+
+// CreateActions - comment method.
+func (b SecureOperation) CreateActions() error {
+	if actions, ok := b.type2actions[b.name]; ok {
+		b.actions = append(b.actions, actions...)
+
+		return nil
+	}
+
+	return fmt.Errorf("actions not found for %s", b.name)
+}
+
+// Build - comment method.
+func (b SecureOperation) Build() (secureoperation.SecureOperation, error) {
+	if b.name == "" {
+		return secureoperation.SecureOperation{}, errors.New("empty name")
+	}
+
+	operationToken, err := b.tokenGenerator.GenToken()
+	if err != nil {
+		return secureoperation.SecureOperation{}, err
+	}
+
+	n := len(b.type2actions[b.name])
+
+	if n == 0 {
+		return secureoperation.SecureOperation{}, fmt.Errorf("actions not found for %s", b.name)
+	}
+
+	if b.user2FA.Action2FA.Method > 0 {
+		n++
+	}
+
+	actions := append(
+		make([]secureoperation.ConfirmAction, 0, n),
+		b.type2actions[b.name]...,
+	)
+
+	if b.user2FA.Action2FA.Method > 0 {
+		actions = append(actions, b.user2FA.Action2FA)
+	}
+
+	return secureoperation.NewOperation(
+		operationToken,
+		b.name,
+		b.user2FA.ID,
+		actions,
+		b.payload,
+	)
+}

@@ -43,9 +43,9 @@ func initUnitAuthController(
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
-	withDebugInfo bool,
 	userRealms []auth.UserRealm,
 	jwtConfig auth.JWT,
+	debugFunc func(value any) string,
 ) (mrserver.HttpController, error) {
 	checkUserService := check.NewUserLogin(
 		storageCheckUser,
@@ -138,7 +138,8 @@ func initUnitAuthController(
 		useCaseContinueSession,
 		useCaseCloseSession,
 		serviceUserInfo,
-		bag.NewOperationResponse(withDebugInfo),
+		bag.NewOperationResponse(debugFunc),
+		debugFunc,
 	)
 
 	return controller, nil

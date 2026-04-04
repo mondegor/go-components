@@ -30,15 +30,16 @@ type (
 		DebugInfo         string             `json:"debug_info,omitempty"`
 	}
 
-	// ErrorConfirmOperationResponse - .
+	// ErrorConfirmOperationResponse - comment struct.
 	ErrorConfirmOperationResponse struct {
-		OperationStatus ConfirmOperationStatus  `json:"operation_status,omitempty"`
-		Errors          []mrresp.ErrorAttribute `json:"errors"`
+		mrresp.Error400Response
+
+		OperationState ConfirmOperationState `json:"operation_state"`
 	}
 
-	// ConfirmOperationStatus - информация об оставшихся попытках и времени действия операции.
+	// ConfirmOperationState - информация об оставшихся попытках и времени действия операции.
 	// Поля RemainingResends и ResendsIn не используются для пароля и TOTP.
-	ConfirmOperationStatus struct {
+	ConfirmOperationState struct {
 		RemainingAttempts int16  `json:"remaining_attempts"`
 		RemainingResends  int16  `json:"remaining_resends"`
 		ResendsIn         int64  `json:"resends_in"`

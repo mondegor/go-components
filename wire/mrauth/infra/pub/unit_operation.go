@@ -22,8 +22,8 @@ func initOperationController(
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
-	withDebugInfo bool,
 	operationConfirm auth.OperationConfirm,
+	debugFunc func(value any) string,
 ) (mrserver.HttpController, error) {
 	useCaseResendConfirmCode := operation.NewResendCode(
 		dbConnManager,
@@ -40,7 +40,8 @@ func initOperationController(
 		responseSender,
 		useCaseConfirmOperation,
 		useCaseResendConfirmCode,
-		bag.NewOperationResponse(withDebugInfo),
+		bag.NewOperationResponse(debugFunc),
+		debugFunc,
 	)
 
 	return controller, nil
