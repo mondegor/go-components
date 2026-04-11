@@ -46,7 +46,7 @@ func InitHttpModule(
 	)
 
 	return initing.HttpModule{
-		Name:       module.Name,
+		Caption:    module.Name,
 		Permission: module.Permission,
 		Controllers: []initing.HttpController{
 			{

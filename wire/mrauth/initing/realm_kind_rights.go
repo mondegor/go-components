@@ -8,7 +8,7 @@ import (
 )
 
 // InitRealmKindRights - создаёт объект mraccess.RightsGetter.
-func InitRealmKindRights(logger mrlog.Logger, realms []config.UserRealm, rights mraccess.RightsSource) mraccess.RightsGetter {
+func InitRealmKindRights(logger mrlog.Logger, realms []config.UserRealm, rights mraccess.RightsSource) (mraccess.RightsGetter, error) {
 	mrlog.Info(logger, "Create and init realm kind rights")
 
 	nKinds := 0

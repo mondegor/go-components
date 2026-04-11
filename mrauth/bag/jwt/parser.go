@@ -27,13 +27,13 @@ type (
 
 var (
 	// ErrTokenInvalid - token is invalid.
-	ErrTokenInvalid = errors.NewUserProto("TokenInvalid", "jwt token is invalid")
+	ErrTokenInvalid = errors.NewUserError("TokenInvalid", "jwt token is invalid")
 
 	// ErrTokenSectionInvalid - token section is invalid.
 	ErrTokenSectionInvalid = errors.NewUserProto("TokenSectionInvalid", "jwt token section '{Key}' is invalid")
 
 	// ErrTokenExpired - token is expired.
-	ErrTokenExpired = errors.NewUserProto("TokenExpired", "jwt token is expired")
+	ErrTokenExpired = errors.NewUserError("TokenExpired", "jwt token is expired")
 )
 
 // NewParser - создаёт объект Parser.

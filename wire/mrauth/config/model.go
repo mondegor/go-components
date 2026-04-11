@@ -55,15 +55,15 @@ type (
 
 	// AccessControl - comment struct.
 	AccessControl struct {
-		Realms           []UserRealm          `yaml:"realms"`
-		ActionGroups     []config.ActionGroup `yaml:"action_groups"`
-		RolesDirPath     string               `yaml:"roles_dir_path" env:"APPX_ROLES_DIR_PATH"`
-		Roles            []string             `yaml:"roles"`
-		Privileges       []string             `yaml:"privileges"`
-		Permissions      []string             `yaml:"permissions"`
-		OperationConfirm OperationConfirm     `yaml:"operation_confirm"`
-		JWTMethod        string               `yaml:"jwt_method" env:"APPX_JWT_METHOD"`
-		JWTSecret        string               `yaml:"jwt_secret" env:"APPX_JWT_SECRET"`
+		Realms             []UserRealm          `yaml:"realms"`
+		ActionGroups       []config.ActionGroup `yaml:"action_groups"`
+		RolesDirPath       string               `yaml:"roles_dir_path" env:"APPX_ROLES_DIR_PATH"`
+		Roles              []string             `yaml:"roles"`
+		AllowedPrivileges  []string             `yaml:"allowed_privileges"`
+		AllowedPermissions []string             `yaml:"allowed_permissions"`
+		OperationConfirm   OperationConfirm     `yaml:"operation_confirm"`
+		JWTMethod          string               `yaml:"jwt_method" env:"APPX_JWT_METHOD"`
+		JWTSecret          string               `yaml:"jwt_secret" env:"APPX_JWT_SECRET"`
 	}
 
 	// AuthorizedUser - comment struct.
