@@ -68,7 +68,7 @@ func (b *messengerBuilder) Build(vars map[string]string, messenger *templateenti
 
 	if messenger.Subject != "" {
 		contentBilder.WriteByte('*')
-		replacerMessengerSubject.WriteString(&contentBilder, messenger.Subject) //nolint:errcheck
+		_, _ = replacerMessengerSubject.WriteString(&contentBilder, messenger.Subject)
 		contentBilder.WriteString("*\n")
 	}
 
