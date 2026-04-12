@@ -83,6 +83,7 @@ func (sv *SettingsGetter) makeItem(item entity.Setting) (id uint64, setting dto.
 		setting.ValueInt64List, err = sv.parser.ParseInt64List(item.Value)
 	case settingtype.Boolean:
 		var boolValue bool
+
 		boolValue, err = sv.parser.ParseBool(item.Value)
 		setting.ValueInt64 = casttype.BoolToNumber[int64](boolValue)
 	default:

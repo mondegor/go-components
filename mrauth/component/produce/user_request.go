@@ -63,7 +63,7 @@ func (rs *UserRequest) Emit(r *http.Request, _ []byte, _ int, _ []byte, _ int, _
 		UserIP:        rs.parserClientIP.DetailedIP(r),
 		UserAgent:     r.UserAgent(),
 		RequestPath:   r.URL.Path,
-		RequestStatus: uint32(status), //nolint:gosec
+		RequestStatus: uint32(status),
 		VisitedAt:     time.Now(),
 	}
 

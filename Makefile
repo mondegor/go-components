@@ -14,7 +14,7 @@ lint:
 	mrcmd go-dev fmt
 	mrcmd go-dev fmti
 	mrcmd go-dev fmti2
-	mrcmd golangci-lint check
+	mrcmd go-dev lint
 
 test:
 	mrcmd go-dev test
