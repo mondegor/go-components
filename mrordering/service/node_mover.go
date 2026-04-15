@@ -89,7 +89,7 @@ func (sv *NodeMover) InsertToFirst(ctx context.Context, nodeID uint64, condition
 		return sv.errorWrapper.Wrap(err)
 	}
 
-	sv.eventEmitter.Emit(ctx, "InsertToFirst", conv.Group{"id": nodeID})
+	sv.eventEmitter.Emit(ctx, "InsertToFirst", "nodeId", nodeID)
 
 	return nil
 }
@@ -125,7 +125,7 @@ func (sv *NodeMover) InsertToLast(ctx context.Context, nodeID uint64, condition 
 		return sv.errorWrapper.Wrap(err)
 	}
 
-	sv.eventEmitter.Emit(ctx, "InsertToLast", conv.Group{"id": nodeID})
+	sv.eventEmitter.Emit(ctx, "InsertToLast", "nodeId", nodeID)
 
 	return nil
 }
@@ -203,7 +203,7 @@ func (sv *NodeMover) MoveToFirst(ctx context.Context, nodeID uint64, condition m
 		return sv.wrapErrorMustEntityExists(err)
 	}
 
-	sv.eventEmitter.Emit(ctx, "MoveToFirst", conv.Group{"id": nodeID})
+	sv.eventEmitter.Emit(ctx, "MoveToFirst", "nodeId", nodeID)
 
 	return nil
 }
@@ -275,7 +275,7 @@ func (sv *NodeMover) MoveToLast(ctx context.Context, nodeID uint64, condition mr
 		return sv.wrapErrorMustEntityExists(err)
 	}
 
-	sv.eventEmitter.Emit(ctx, "MoveToLast", conv.Group{"id": nodeID})
+	sv.eventEmitter.Emit(ctx, "MoveToLast", "nodeId", nodeID)
 
 	return nil
 }
@@ -363,7 +363,7 @@ func (sv *NodeMover) MoveAfterID(ctx context.Context, nodeID, afterNodeID uint64
 		return sv.wrapErrorMustEntityExists(err)
 	}
 
-	sv.eventEmitter.Emit(ctx, "MoveAfterId", conv.Group{"id": nodeID, "afterId": afterNodeID})
+	sv.eventEmitter.Emit(ctx, "MoveAfterId", "nodeId", nodeID, "afterNodeId", afterNodeID)
 
 	return nil
 }
@@ -405,7 +405,7 @@ func (sv *NodeMover) Unlink(ctx context.Context, nodeID uint64, condition mrstor
 		return sv.wrapErrorMustEntityExists(err)
 	}
 
-	sv.eventEmitter.Emit(ctx, "Unlink", conv.Group{"id": nodeID})
+	sv.eventEmitter.Emit(ctx, "Unlink", "nodeId", nodeID)
 
 	return nil
 }

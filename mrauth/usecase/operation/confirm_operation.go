@@ -88,11 +88,9 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 		// co.eventEmitter.Emit(
 		// 	 ctx,
 		// 	 "Confirm",
-		// 	 conv.Group{
-		// 	 	 "userLogin": nextConfirm.Address,
-		//		 "loginType": nextConfirm.Method,
-		//		 "secretCode": generateSecretCode,
-		//	 },
+		// 	 "userLogin", nextConfirm.Address,
+		//	 "loginType", nextConfirm.Method,
+		//	 "secretCode", generateSecretCode,
 		// )
 
 		return op, secureoperation.ErrNoAttemptsToConfirmOperation.Wrap(err) // WARNING: 'op' используется с этой ошибкой

@@ -8,7 +8,6 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrevent"
 	"github.com/mondegor/go-sysmess/mrlog"
-	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -83,7 +82,7 @@ func (uc *ContinueSession) Execute(ctx context.Context, _, refreshToken string) 
 				// 	 uc.logger.Error(ctx, "Notice 'user.revoke.token.alert' not send", "error", err)
 				// }
 
-				uc.eventEmitter.Emit(ctx, "RevokeAlert", conv.Group{"userId": userScopes.UserID})
+				uc.eventEmitter.Emit(ctx, "RevokeAlert", "userId", userScopes.UserID)
 
 				return mrauth.ErrTokenNotFoundOrExpired
 			}
