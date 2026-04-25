@@ -62,41 +62,55 @@ func validateRealm(realm UserRealm, allRoles []string) error {
 	return nil
 }
 
-// DefaultValuesRealm - comment func.
-func DefaultValuesRealm(realms []UserRealm, dop OperationConfirm) []UserRealm {
+// CorrectValuesRealm - comment func.
+func CorrectValuesRealm(realms []UserRealm, defaultConfirm OperationConfirm, overrideToken Token) []UserRealm {
 	for i := range realms {
 		rop := &realms[i].OperationConfirm
 
 		if rop.TokenLength < 1 {
-			rop.TokenLength = dop.TokenLength
+			rop.TokenLength = defaultConfirm.TokenLength
 		}
 
 		if rop.CodeLength < 1 {
-			rop.CodeLength = dop.CodeLength
+			rop.CodeLength = defaultConfirm.CodeLength
 		}
 
 		if rop.SessionExpiry < 1 {
-			rop.SessionExpiry = dop.SessionExpiry
+			rop.SessionExpiry = defaultConfirm.SessionExpiry
 		}
 
-		rop.SendByEmail = defaultValuesCodeSender(rop.SendByEmail, dop.SendByEmail)
-		rop.SendByPhone = defaultValuesCodeSender(rop.SendByPhone, dop.SendByPhone)
+		rop.SendByEmail = correctValuesCodeSender(rop.SendByEmail, defaultConfirm.SendByEmail)
+		rop.SendByPhone = correctValuesCodeSender(rop.SendByPhone, defaultConfirm.SendByPhone)
+
+		rt := &realms[i].AuthToken
+
+		if overrideToken.AccessType != "" {
+			rt.AccessType = overrideToken.AccessType
+		}
+
+		if overrideToken.AccessExpiry == 0 {
+			rt.AccessExpiry = overrideToken.AccessExpiry
+		}
+
+		if overrideToken.AccessExpiry == 0 {
+			rt.RefreshExpiry = overrideToken.RefreshExpiry
+		}
 	}
 
 	return realms
 }
 
-func defaultValuesCodeSender(cs, dcs CodeSender) CodeSender {
+func correctValuesCodeSender(cs, defaultSender CodeSender) CodeSender {
 	if cs.MaxAttempts < 1 {
-		cs.MaxAttempts = dcs.MaxAttempts
+		cs.MaxAttempts = defaultSender.MaxAttempts
 	}
 
 	if cs.MaxResends < 1 {
-		cs.MaxResends = dcs.MaxResends
+		cs.MaxResends = defaultSender.MaxResends
 	}
 
 	if cs.MinResendTime < 1 {
-		cs.MinResendTime = dcs.MinResendTime
+		cs.MinResendTime = defaultSender.MinResendTime
 	}
 
 	return cs

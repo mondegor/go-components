@@ -1,0 +1,23 @@
+package config
+
+import (
+	"time"
+
+	workercfg "github.com/mondegor/go-webcore/mrworker/config"
+)
+
+type (
+	// TaskSchedule - настройки задач модуля Mailer, запускаемых по расписанию.
+	TaskSchedule struct {
+		// Caption             string           `yaml:"caption"`
+		MessageProcessor     workercfg.MessageProcessor `yaml:"message_processor"`
+		ChangeFromToRetry    workercfg.SchedulerTask    `yaml:"change_from_to_retry"`
+		CleanQueue           workercfg.SchedulerTask    `yaml:"clean_queue"`
+		SendRetryAttempts    uint8                      `yaml:"send_retry_attempts"`
+		SendDelayCorrection  time.Duration              `yaml:"send_delay_correction"`
+		ChangeQueueBatchSize uint32                     `yaml:"change_queue_batch_size"`
+		ChangeRetryTimeout   time.Duration              `yaml:"change_retry_timeout"`
+		ChangeRetryDelayed   time.Duration              `yaml:"change_retry_delayed"`
+		CleanQueueBatchSize  uint32                     `yaml:"clean_queue_batch_size"`
+	}
+)

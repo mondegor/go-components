@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/mondegor/go-webcore/mraccess/config"
+	workercfg "github.com/mondegor/go-webcore/mrworker/config"
 )
 
 type (
@@ -21,7 +22,7 @@ type (
 		AccessType    string        `yaml:"access_type"`
 		AccessExpiry  time.Duration `yaml:"access_expiry"`
 		RefreshExpiry time.Duration `yaml:"refresh_expiry"`
-		Length        uint16        `yaml:"length"`
+		Length        uint16        `yaml:"length"` // for refresh and access[type == 'session']
 	}
 
 	// UserKind - comment struct.
@@ -55,22 +56,32 @@ type (
 
 	// AccessControl - comment struct.
 	AccessControl struct {
-		Realms             []UserRealm          `yaml:"realms"`
-		ActionGroups       []config.ActionGroup `yaml:"action_groups"`
-		RolesDirPath       string               `yaml:"roles_dir_path" env:"APPX_ROLES_DIR_PATH"`
-		Roles              []string             `yaml:"roles"`
-		AllowedPrivileges  []string             `yaml:"allowed_privileges"`
-		AllowedPermissions []string             `yaml:"allowed_permissions"`
-		OperationConfirm   OperationConfirm     `yaml:"operation_confirm"`
-		JWTMethod          string               `yaml:"jwt_method" env:"APPX_JWT_METHOD"`
-		JWTSecret          string               `yaml:"jwt_secret" env:"APPX_JWT_SECRET"`
+		Realms                  []UserRealm          `yaml:"realms"`
+		ActionGroups            []config.ActionGroup `yaml:"action_groups"`
+		RolesDirPath            string               `yaml:"roles_dir_path" env:"APPX_ROLES_DIR_PATH" env-required:"true"`
+		Roles                   []string             `yaml:"roles"`
+		AllowedPrivileges       []string             `yaml:"allowed_privileges"`
+		AllowedPermissions      []string             `yaml:"allowed_permissions"`
+		OverrideAuthToken       Token                `yaml:"override_auth_token"`
+		DefaultOperationConfirm OperationConfirm     `yaml:"default_operation_confirm"`
+		JWTMethod               string               `yaml:"jwt_method" env:"APPX_JWT_METHOD" env-default:"HS256"`
+		JWTSecret               string               `yaml:"jwt_secret" env:"APPX_JWT_SECRET"`
 	}
 
-	// AuthorizedUser - comment struct.
-	AuthorizedUser struct {
-		ID       string `yaml:"id"`
-		Realm    string `yaml:"realm"`
-		Kind     string `yaml:"kind"`
-		LangCode string `yaml:"lang"`
+	// TestUser - comment struct.
+	TestUser struct {
+		ID       string
+		Realm    string
+		Kind     string
+		LangCode string
+	}
+
+	// TaskSchedule - настройки задач модуля Auth, запускаемых по расписанию.
+	TaskSchedule struct {
+		// Caption           string        `yaml:"caption"`
+		CleanRecords             workercfg.SchedulerTask    `yaml:"clean_records"`
+		CleanRecordsLimit        uint32                     `yaml:"clean_records_limit"`
+		LogsLifeTime             time.Duration              `yaml:"logs_life_time"`
+		UserStatRequestCollector workercfg.MessageCollector `yaml:"user_stat_request_collector"`
 	}
 )

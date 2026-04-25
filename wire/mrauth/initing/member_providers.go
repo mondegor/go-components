@@ -25,7 +25,7 @@ func InitUserProviders(
 	dbConnManager mrstorage.DBConnManager,
 	userGroups mraccess.RightsGetter,
 	userRealms []authcfg.UserRealm,
-	testUser authcfg.AuthorizedUser,
+	testUser authcfg.TestUser,
 	jwtSecret string,
 ) (realm2provider map[string]mraccess.UserProvider) {
 	if len(userRealms) == 0 {
@@ -95,7 +95,7 @@ func createUserProviderGroup(
 	logger mrlog.Logger,
 	dbConnManager mrstorage.DBConnManager,
 	userGroups mraccess.RightsGetter,
-	testUser authcfg.AuthorizedUser,
+	testUser authcfg.TestUser,
 	jwtSecret string,
 	userRealms []authcfg.UserRealm,
 ) mraccess.UserProvider {
@@ -136,7 +136,7 @@ func createUserProviderByTokenType(
 	logger mrlog.Logger,
 	dbConnManager mrstorage.DBConnManager,
 	userGroups mraccess.RightsGetter,
-	testUser authcfg.AuthorizedUser,
+	testUser authcfg.TestUser,
 	tokenType string,
 	jwtSecret string,
 	allowedRealms []string,
