@@ -5,9 +5,9 @@ go 1.25.0
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/mondegor/go-storage v0.17.2-0.20260425210045-6141179a243c
-	github.com/mondegor/go-sysmess v0.15.4-0.20260415203103-9d272eaf6424
-	github.com/mondegor/go-webcore v0.29.3-0.20260425205819-74be8f2d94e2
+	github.com/mondegor/go-storage v0.17.2-0.20260426153118-5e310fdbc7e1
+	github.com/mondegor/go-sysmess v0.15.4-0.20260426080509-f951a7fd4acb
+	github.com/mondegor/go-webcore v0.29.3-0.20260426152729-4b7148190959
 	github.com/pquerna/otp v1.5.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/crypto v0.50.0
