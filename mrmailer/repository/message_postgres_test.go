@@ -23,6 +23,8 @@ type RepositoryTestSuite struct {
 }
 
 func TestMessagePostgresTestSuite(t *testing.T) {
+	t.Parallel()
+
 	suite.Run(t, new(RepositoryTestSuite))
 }
 

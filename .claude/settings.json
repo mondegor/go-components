@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash(git *)",
+      "Bash(ls *)",
+      "Bash(cp *)",
+      "Bash(make *)",
+      "Bash(go *)",
+      "Bash(gofumpt *)",
+      "Bash(golangci-lint *)",
+      "Bash(timeout *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(docker rm *)"
+    ]
+  },
+  "attribution": {
+    "commit": ""
+  }
+}
