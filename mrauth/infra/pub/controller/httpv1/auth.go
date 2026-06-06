@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/mraccess"
 	"github.com/mondegor/go-sysmess/mrtype"
 	"github.com/mondegor/go-sysmess/util/casttype"
-	"github.com/mondegor/go-webcore/mraccess"
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 	"github.com/mondegor/go-webcore/mrserver/request"

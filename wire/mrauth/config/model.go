@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	"github.com/mondegor/go-webcore/mraccess/config"
+	"github.com/mondegor/go-sysmess/mraccess/config"
 	workercfg "github.com/mondegor/go-webcore/mrworker/config"
 )
 

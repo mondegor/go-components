@@ -1,7 +1,7 @@
 package mrauth
 
 import (
-	"github.com/mondegor/go-webcore/mraccess"
+	"github.com/mondegor/go-sysmess/mraccess"
 
 	"github.com/mondegor/go-components/mrauth/component/get"
 	"github.com/mondegor/go-components/mrauth/repository"

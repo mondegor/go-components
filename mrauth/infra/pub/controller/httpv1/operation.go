@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-webcore/mraccess"
+	"github.com/mondegor/go-sysmess/mraccess"
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 

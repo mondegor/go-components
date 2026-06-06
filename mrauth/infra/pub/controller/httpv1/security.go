@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrmodel"
+	modelmedia "github.com/mondegor/go-sysmess/mrmodel/media"
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
@@ -58,7 +58,7 @@ type (
 	}
 
 	applyOperationTOTPUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, operationToken string) (totpURL mrmodel.Image, err error)
+		Execute(ctx context.Context, userID uuid.UUID, operationToken string) (totpURL modelmedia.Image, err error)
 	}
 
 	applyOperationUseCase interface {

@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrsql"
 	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mraccess"
 	"github.com/mondegor/go-sysmess/mrlog"
-	"github.com/mondegor/go-webcore/mraccess"
 
 	"github.com/mondegor/go-components/wire/mrauth"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
