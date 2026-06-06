@@ -62,6 +62,6 @@ Tests are sparse and primarily two kinds:
 
 ## Notes
 
-- Code comments and docs are in **Russian**; match the surrounding language when editing.
+- Code comments and docs are in **English** or **Russian**; match the surrounding language when editing.
 - Linting is strict (`.golangci.yaml`, golangci-lint v2): no globals, no inits, enforced import aliases, line-length, godot (comments end in a period), gosec, etc. Run `make lint` before considering work done.
 - `.go_`, `.go__`, and `.bak` files in the tree are work-in-progress scratch copies, not compiled — ignore them.

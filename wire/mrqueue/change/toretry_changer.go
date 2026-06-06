@@ -1,9 +1,9 @@
 package change
 
 import (
-	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/mrevent"
-	"github.com/mondegor/go-webcore/mrworker/helper"
+	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-sysmess/mrworker/helper"
 
 	"github.com/mondegor/go-components/mrqueue/usecase/change/toretry"
 )

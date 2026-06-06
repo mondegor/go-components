@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/mondegor/go-sysmess/mraccess/config"
-	workercfg "github.com/mondegor/go-webcore/mrworker/config"
+	workercfg "github.com/mondegor/go-sysmess/mrworker/config"
 )
 
 type (

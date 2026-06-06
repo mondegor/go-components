@@ -1,8 +1,8 @@
 package pub
 
 import (
-	"github.com/mondegor/go-storage/mrsql"
-	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 
 	module "github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/repository"

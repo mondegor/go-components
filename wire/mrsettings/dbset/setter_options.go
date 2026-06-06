@@ -1,7 +1,7 @@
 package dbset
 
 import (
-	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrstorage"
 
 	"github.com/mondegor/go-components/mrsettings/field/format"
 )

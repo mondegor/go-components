@@ -3,12 +3,12 @@ package processor
 import (
 	"time"
 
-	"github.com/mondegor/go-storage/mrsql"
-	"github.com/mondegor/go-storage/mrstorage"
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrlog"
+	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 	"github.com/mondegor/go-sysmess/mrtrace"
-	"github.com/mondegor/go-webcore/mrworker/process/consume"
+	"github.com/mondegor/go-sysmess/mrworker/process/consume"
 
 	"github.com/mondegor/go-components/mrmailer/entity"
 	"github.com/mondegor/go-components/mrmailer/infra/handler"

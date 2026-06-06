@@ -3,7 +3,7 @@ package scheduler
 import (
 	"time"
 
-	"github.com/mondegor/go-webcore/mrworker/job/task"
+	"github.com/mondegor/go-sysmess/mrworker/job/task"
 )
 
 type (

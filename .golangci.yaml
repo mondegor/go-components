@@ -364,6 +364,7 @@ formatters:
 
   settings:
     gofumpt:
+      module-path: github.com/mondegor/go-components
       extra-rules: true
 
     goimports:
