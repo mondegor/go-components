@@ -1,7 +1,7 @@
 package processor
 
 import (
-	"github.com/mondegor/go-sysmess/mrworker/process/consume"
+	"github.com/mondegor/go-sysmess/mrprocess/consume"
 
 	"github.com/mondegor/go-components/mrmailer/entity"
 	"github.com/mondegor/go-components/mrmailer/sendmessage/provider"

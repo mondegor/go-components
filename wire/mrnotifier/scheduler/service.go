@@ -7,12 +7,12 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrevent"
 	"github.com/mondegor/go-sysmess/mrlog"
+	"github.com/mondegor/go-sysmess/mrprocess"
+	"github.com/mondegor/go-sysmess/mrprocess/job/task"
+	"github.com/mondegor/go-sysmess/mrprocess/schedule"
 	"github.com/mondegor/go-sysmess/mrstorage"
 	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 	"github.com/mondegor/go-sysmess/mrtrace"
-	"github.com/mondegor/go-sysmess/mrworker"
-	"github.com/mondegor/go-sysmess/mrworker/job/task"
-	"github.com/mondegor/go-sysmess/mrworker/process/schedule"
 
 	"github.com/mondegor/go-components/mrnotifier/notifier/entity"
 	"github.com/mondegor/go-components/mrnotifier/notifier/repository"
@@ -141,7 +141,7 @@ func InitService(
 	)
 
 	changerTask := task.NewJobWrapper(
-		mrworker.JobFunc(func(ctx context.Context) error {
+		mrprocess.JobFunc(func(ctx context.Context) error {
 			if err := noticeStatusToReadyChanger.Execute(ctx, o.changeBatchSize); err != nil {
 				return err
 			}
@@ -152,7 +152,7 @@ func InitService(
 	)
 
 	cleanerTask := task.NewJobWrapper(
-		mrworker.JobFunc(func(ctx context.Context) error {
+		mrprocess.JobFunc(func(ctx context.Context) error {
 			if err := forgottenNoticeCleaner.Execute(ctx, o.cleanBatchSize); err != nil {
 				return err
 			}

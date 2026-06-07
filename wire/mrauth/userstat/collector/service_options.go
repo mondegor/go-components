@@ -1,7 +1,7 @@
 package collector
 
 import (
-	"github.com/mondegor/go-sysmess/mrworker/process/collect"
+	"github.com/mondegor/go-sysmess/mrprocess/collect"
 
 	"github.com/mondegor/go-components/mrauth/dto"
 )

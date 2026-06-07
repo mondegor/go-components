@@ -83,7 +83,7 @@ func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail st
 
 	unlockEmail, err := co.locker.LockWithExpiry(ctx, createUserLockKeyPrefix+realm+":"+parsedLogin.Value(), createUserLockTimeout)
 	if err != nil {
-		if errors.Is(err, mrlock.ErrSystemStorageLockKeyNotObtained) {
+		if errors.Is(err, mrlock.ErrLockKeyNotObtained) {
 			return secureoperation.SecureOperation{}, mrauth.ErrEmailAlreadyExists
 		}
 

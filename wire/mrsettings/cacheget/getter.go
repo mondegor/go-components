@@ -7,13 +7,13 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrpostgres/builder/part"
+	"github.com/mondegor/go-sysmess/mrprocess"
+	"github.com/mondegor/go-sysmess/mrprocess/job/task"
+	"github.com/mondegor/go-sysmess/mrprocess/schedule"
 	"github.com/mondegor/go-sysmess/mrrun"
 	"github.com/mondegor/go-sysmess/mrstorage"
 	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 	"github.com/mondegor/go-sysmess/mrtrace"
-	"github.com/mondegor/go-sysmess/mrworker"
-	"github.com/mondegor/go-sysmess/mrworker/job/task"
-	"github.com/mondegor/go-sysmess/mrworker/process/schedule"
 
 	"github.com/mondegor/go-components/mrsettings"
 	"github.com/mondegor/go-components/mrsettings/field/parse"
@@ -73,7 +73,7 @@ func InitServiceSettingsGetter(
 			schedule.WithCaptionPrefix(o.captionPrefix),
 			schedule.WithTasks(
 				task.NewJobWrapper(
-					mrworker.JobFunc(func(ctx context.Context) error {
+					mrprocess.JobFunc(func(ctx context.Context) error {
 						return serviceSettingsGetter.Reload(ctx)
 					}),
 					o.taskReloaderOpts...,

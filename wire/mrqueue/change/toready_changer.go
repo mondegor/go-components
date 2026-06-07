@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/mondegor/go-sysmess/mrevent"
-	"github.com/mondegor/go-sysmess/mrworker/helper"
+	"github.com/mondegor/go-sysmess/mrprocess/helper"
 
 	"github.com/mondegor/go-components/mrqueue/usecase/change/toready"
 )

@@ -1,8 +1,8 @@
 package cacheget
 
 import (
+	"github.com/mondegor/go-sysmess/mrprocess/job/task"
 	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrworker/job/task"
 
 	"github.com/mondegor/go-components/mrsettings/field/parse"
 )

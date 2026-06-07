@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/mondegor/go-sysmess/mraccess/config"
-	workercfg "github.com/mondegor/go-sysmess/mrworker/config"
+	processcfg "github.com/mondegor/go-sysmess/mrprocess/config"
 )
 
 type (
@@ -79,9 +79,9 @@ type (
 	// TaskSchedule - настройки задач модуля Auth, запускаемых по расписанию.
 	TaskSchedule struct {
 		// Caption           string        `yaml:"caption"`
-		CleanRecords             workercfg.SchedulerTask    `yaml:"clean_records"`
-		CleanRecordsLimit        uint32                     `yaml:"clean_records_limit"`
-		LogsLifeTime             time.Duration              `yaml:"logs_life_time"`
-		UserStatRequestCollector workercfg.MessageCollector `yaml:"user_stat_request_collector"`
+		CleanRecords             processcfg.SchedulerTask    `yaml:"clean_records"`
+		CleanRecordsLimit        uint32                      `yaml:"clean_records_limit"`
+		LogsLifeTime             time.Duration               `yaml:"logs_life_time"`
+		UserStatRequestCollector processcfg.MessageCollector `yaml:"user_stat_request_collector"`
 	}
 )
