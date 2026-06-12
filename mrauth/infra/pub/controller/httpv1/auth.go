@@ -128,9 +128,9 @@ func (ht *Auth) Handlers() []mrserver.HttpHandler {
 		{Method: http.MethodPost, URL: authSignupURL, Permission: mraccess.PermissionGuestOnly, Func: ht.Signup},
 		{Method: http.MethodPost, URL: authSigninURL, Permission: mraccess.PermissionGuestOnly, Func: ht.Signin},
 		{Method: http.MethodPost, URL: authSessionURL, Permission: mraccess.PermissionGuestOnly, Func: ht.OpenSession},
-		{Method: http.MethodPatch, URL: authSessionURL, Permission: mraccess.PermissionAnyUser, Func: ht.ContinueSession},
-		{Method: http.MethodDelete, URL: authSessionURL, Func: ht.CloseSession},
-		{Method: http.MethodGet, URL: authUserURL, Func: ht.UserInfo},
+		{Method: http.MethodPatch, URL: authSessionURL, Permission: mraccess.PermissionEveryone, Func: ht.ContinueSession},
+		{Method: http.MethodDelete, URL: authSessionURL, Permission: mraccess.PermissionAnyUser, Func: ht.CloseSession},
+		{Method: http.MethodGet, URL: authUserURL, Permission: mraccess.PermissionAnyUser, Func: ht.UserInfo},
 	}
 }
 

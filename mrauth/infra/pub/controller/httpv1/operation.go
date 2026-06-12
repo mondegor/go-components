@@ -66,9 +66,9 @@ func NewOperation(
 // Handlers - возвращает обработчики контроллера Operation.
 func (ht *Operation) Handlers() []mrserver.HttpHandler {
 	return []mrserver.HttpHandler{
-		{Method: http.MethodPatch, URL: operationConfirmURL, Permission: mraccess.PermissionAnyUser, Func: ht.Confirm},
-		{Method: http.MethodPatch, URL: operationResendURL, Permission: mraccess.PermissionAnyUser, Func: ht.Resend},
-		// {Method: http.MethodPatch, URL: operationRevokeURL, Func: ht.Revoke},
+		{Method: http.MethodPatch, URL: operationConfirmURL, Permission: mraccess.PermissionEveryone, Func: ht.Confirm},
+		{Method: http.MethodPatch, URL: operationResendURL, Permission: mraccess.PermissionEveryone, Func: ht.Resend},
+		// {Method: http.MethodPatch, URL: operationRevokeURL, Permission: mraccess.PermissionAnyUser, Func: ht.Revoke},
 	}
 }
 

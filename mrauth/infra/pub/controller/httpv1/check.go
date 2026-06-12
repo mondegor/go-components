@@ -57,9 +57,9 @@ func NewCheck(
 // Handlers - возвращает обработчики контроллера Check.
 func (ht *Check) Handlers() []mrserver.HttpHandler {
 	return []mrserver.HttpHandler{
-		{Method: http.MethodPost, URL: checkCheckLoginURL, Permission: mraccess.PermissionAnyUser, Func: ht.CheckLogin},
-		{Method: http.MethodPost, URL: checkCalcPasswordStrengthURL, Permission: mraccess.PermissionAnyUser, Func: ht.CalcPasswordStrength},
-		{Method: http.MethodPost, URL: checkGeneratePasswordURL, Permission: mraccess.PermissionAnyUser, Func: ht.GeneratePassword},
+		{Method: http.MethodPost, URL: checkCheckLoginURL, Permission: mraccess.PermissionEveryone, Func: ht.CheckLogin},
+		{Method: http.MethodPost, URL: checkCalcPasswordStrengthURL, Permission: mraccess.PermissionEveryone, Func: ht.CalcPasswordStrength},
+		{Method: http.MethodPost, URL: checkGeneratePasswordURL, Permission: mraccess.PermissionEveryone, Func: ht.GeneratePassword},
 	}
 }
 

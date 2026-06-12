@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/mondegor/go-sysmess/mraccess"
 	modelmedia "github.com/mondegor/go-sysmess/mrmodel/media"
 	"github.com/mondegor/go-webcore/mrserver"
 
@@ -96,13 +97,13 @@ func NewSecurity(
 // Handlers - возвращает обработчики контроллера Security.
 func (ht *Security) Handlers() []mrserver.HttpHandler {
 	return []mrserver.HttpHandler{
-		{Method: http.MethodPost, URL: securityEmailURL, Func: ht.ChangeEmail},
-		{Method: http.MethodPost, URL: securityPhoneURL, Func: ht.ChangePhone},
-		{Method: http.MethodPost, URL: securityPasswordURL, Func: ht.ChangePassword},
-		{Method: http.MethodPost, URL: securityTOTPGeneratorURL, Func: ht.ChangeTOTPGenerator},
-		{Method: http.MethodPatch, URL: securityTOTPGeneratorURL, Func: ht.ApplyTOTPGenerator},
-		{Method: http.MethodPost, URL: securityDisable2FAURL, Func: ht.Disable2FA},
-		{Method: http.MethodPatch, URL: securityApplyOperation, Func: ht.ApplyOperation},
+		{Method: http.MethodPost, URL: securityEmailURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangeEmail},
+		{Method: http.MethodPost, URL: securityPhoneURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangePhone},
+		{Method: http.MethodPost, URL: securityPasswordURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangePassword},
+		{Method: http.MethodPost, URL: securityTOTPGeneratorURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangeTOTPGenerator},
+		{Method: http.MethodPatch, URL: securityTOTPGeneratorURL, Permission: mraccess.PermissionAnyUser, Func: ht.ApplyTOTPGenerator},
+		{Method: http.MethodPost, URL: securityDisable2FAURL, Permission: mraccess.PermissionAnyUser, Func: ht.Disable2FA},
+		{Method: http.MethodPatch, URL: securityApplyOperation, Permission: mraccess.PermissionAnyUser, Func: ht.ApplyOperation},
 	}
 }
 
