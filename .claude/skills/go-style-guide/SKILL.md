@@ -29,9 +29,9 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
   This is pervasive (the norm here, unlike Uber which groups only related decls):
   ```go
   type (
-      // MessageFormatter - преобразует плейсхолдеры ...
-      MessageFormatter struct {
-          extractor *PlaceholderExtractor
+      // Formatter - описание типа ...
+      Formatter struct {
+          parser *Parser
       }
   )
   ```
@@ -50,10 +50,10 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
   declarations only, so these aren't linter-enforced — follow the convention manually.)
 - Document constructor params with a bulleted list when non-trivial:
   ```go
-  // NewMessageFormatter - создаёт MessageFormatter ...
+  // NewFormatter - создаёт Formatter ...
   // Параметры:
-  //   - leftDelim, rightDelim - ограничители плейсхолдеров;
-  //   - formatter - функция преобразования плейсхолдера.
+  //   - parser - разбирает входные данные;
+  //   - handler - функция обработки результата.
   ```
 
 ## Naming
@@ -61,7 +61,7 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
 - Constructors: `NewXxx`. Receivers: short (1 letter), consistent per type
   (`e *protoError`, `w *customErrorWrapper`). `revive receiver-naming` enforces consistency.
 - Sentinel errors prefixed `Err`, error *types* suffixed `Error` (`errname`).
-  Note: error *codes* are camelCase string literals (e.g. `"errInternalErrorDetected"`).
+  Note: error *codes* are camelCase string literals (e.g. `"errSomethingFailed"`).
 - Initialisms via `revive var-naming`: `HTTP`, `JSON` (not `Http`/`Json`).
 - Import aliases lowercase `^[a-z][a-z0-9]*$`; no redundant aliases.
 - `staticcheck -ST1003` is off, so some naming rules are relaxed — still follow Go idiom.
@@ -98,8 +98,31 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
 
 ## Tests
 
-- Separate package: `package foo_test` (`testpackage`). Use `testify`
-  `require` (fatal) / `assert` (non-fatal) (`testifylint`).
+- **Always external test package: `package foo_test` in a file named `foo_test.go`**
+  (`testpackage`). This is a hard convention here — there are **no** internal test
+  packages in the repo. Test through the **public API only**; never reach for unexported
+  symbols. Do **not** use the `*_internal_test.go` / `*_export_test.go` escape hatch that
+  the `testpackage` linter's default `skip-regexp` would let through — the linter allows
+  it, the project does not. To cover an unexported helper, drive it through the exported
+  type/constructor that uses it, not directly.
+- **Always use `github.com/stretchr/testify` for assertions** (`testifylint`). Use
+  `require.*` for **fatal** checks that must abort the test on failure (preconditions,
+  setup, `err != nil`, non-nil results you'll dereference); use `assert.*` for
+  **non-fatal** checks where the test can keep running and report further failures
+  (field-by-field comparisons after a successful operation). Rule of thumb: if continuing
+  the test makes no sense (or would panic) once the check fails, use `require`; otherwise
+  `assert`.
+- For **complex tests with mocks** where the same object/mock initialization repeats across
+  most tests in the package, use a **`github.com/stretchr/testify/suite`** test suite: put
+  the shared fixtures (mocks, controller, system-under-test) on the suite struct and build
+  them in `SetupTest` (or `SetupSubTest`), so each test method starts from a clean,
+  consistently-initialized state instead of duplicating setup. Run it via a single
+  `func TestXxxSuite(t *testing.T) { suite.Run(t, new(XxxSuite)) }` entry point. Keep using
+  `gomock` for the mocks themselves. For simple tests without shared setup, prefer the
+  plain table-driven form below.
+- For mocks use **only** `go.uber.org/mock/gomock`. Generate mocks with `mockgen`
+  (`//go:generate mockgen ...`), drive expectations via `gomock.NewController(t)` and
+  `EXPECT()`. Do **not** hand-write mocks or use any other mocking library.
 - `t.Parallel()` at the top of every test and subtest (`tparallel`). Test helpers call
   `t.Helper()` (`thelper`).
 - Table-driven with a local `type testCase struct`, named cases, `t.Run(tt.name, …)`:

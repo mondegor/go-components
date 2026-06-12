@@ -9,13 +9,13 @@ import (
 
 // NewUserProviderJWT - создаёт получателя произвольных настроек из БД.
 func NewUserProviderJWT(
-	userGroups mraccess.RightsGetter,
+	userGroupRights mraccess.RightsGetter,
 	secret string,
 	allowedRealms []string,
 ) *get.UserProvider {
 	return get.New(
 		repository.NewAuthTokenJWT(secret),
-		userGroups,
+		userGroupRights,
 		allowedRealms,
 	)
 }

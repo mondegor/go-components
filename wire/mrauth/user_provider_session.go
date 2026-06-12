@@ -12,7 +12,7 @@ import (
 // NewUserProviderSession - создаёт получателя произвольных настроек из БД.
 func NewUserProviderSession(
 	client mrstorage.DBConnManager,
-	userGroups mraccess.RightsGetter,
+	userGroupRights mraccess.RightsGetter,
 	storageTable mrsql.DBTableInfo,
 	allowedRealms []string,
 ) *get.UserProvider {
@@ -21,7 +21,7 @@ func NewUserProviderSession(
 			client,
 			storageTable,
 		),
-		userGroups,
+		userGroupRights,
 		allowedRealms,
 	)
 }

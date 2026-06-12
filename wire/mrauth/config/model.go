@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	"github.com/mondegor/go-sysmess/mraccess/config"
+	accesscfg "github.com/mondegor/go-sysmess/mraccess/config"
 	processcfg "github.com/mondegor/go-sysmess/mrprocess/config"
 )
 
@@ -56,16 +56,14 @@ type (
 
 	// AccessControl - comment struct.
 	AccessControl struct {
-		Realms                  []UserRealm          `yaml:"realms"`
-		ActionGroups            []config.ActionGroup `yaml:"action_groups"`
-		RolesDirPath            string               `yaml:"roles_dir_path" env:"APPX_ROLES_DIR_PATH" env-required:"true"`
-		Roles                   []string             `yaml:"roles"`
-		AllowedPrivileges       []string             `yaml:"allowed_privileges"`
-		AllowedPermissions      []string             `yaml:"allowed_permissions"`
-		OverrideAuthToken       Token                `yaml:"override_auth_token"`
-		DefaultOperationConfirm OperationConfirm     `yaml:"default_operation_confirm"`
-		JWTMethod               string               `yaml:"jwt_method" env:"APPX_JWT_METHOD" env-default:"HS256"`
-		JWTSecret               string               `yaml:"jwt_secret" env:"APPX_JWT_SECRET"`
+		Realms                  []UserRealm             `yaml:"realms"`
+		ActionGroups            []accesscfg.ActionGroup `yaml:"action_groups"`
+		RolesDirPath            string                  `yaml:"roles_dir_path" env:"APPX_ROLES_DIR_PATH" env-required:"true"`
+		Roles                   []string                `yaml:"roles"`
+		OverrideAuthToken       Token                   `yaml:"override_auth_token"`
+		DefaultOperationConfirm OperationConfirm        `yaml:"default_operation_confirm"`
+		JWTMethod               string                  `yaml:"jwt_method" env:"APPX_JWT_METHOD" env-default:"HS256"`
+		JWTSecret               string                  `yaml:"jwt_secret" env:"APPX_JWT_SECRET"`
 	}
 
 	// TestUser - comment struct.

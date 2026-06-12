@@ -15,7 +15,7 @@ type (
 	UserProvider struct {
 		storage          mrauth.AuthTokenFetcher
 		errorWrapper     errors.Wrapper
-		userGroups       mraccess.RightsGetter
+		userGroupRights  mraccess.RightsGetter
 		allowedRealmsMap map[string]bool
 	}
 )
@@ -23,7 +23,7 @@ type (
 // New - создаёт объект UserProvider.
 func New(
 	storage mrauth.AuthTokenFetcher,
-	userGroups mraccess.RightsGetter,
+	userGroupRights mraccess.RightsGetter,
 	allowedRealms []string,
 ) *UserProvider {
 	allowedRealmsMap := make(map[string]bool, len(allowedRealms))
@@ -35,7 +35,7 @@ func New(
 	return &UserProvider{
 		storage:          storage,
 		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
-		userGroups:       userGroups,
+		userGroupRights:  userGroupRights,
 		allowedRealmsMap: allowedRealmsMap,
 	}
 }
@@ -63,6 +63,6 @@ func (co *UserProvider) UserByToken(ctx context.Context, value string) (mraccess
 		userScopes.UserID,
 		userScopes.Realm+"/"+userScopes.Kind,
 		userScopes.LangCode,
-		co.userGroups,
+		co.userGroupRights,
 	), nil
 }

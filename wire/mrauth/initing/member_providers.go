@@ -23,7 +23,7 @@ const (
 func InitUserProviders(
 	logger mrlog.Logger,
 	dbConnManager mrstorage.DBConnManager,
-	userGroups mraccess.RightsGetter,
+	userGroupRights mraccess.RightsGetter,
 	userRealms []authcfg.UserRealm,
 	testUser authcfg.TestUser,
 	jwtSecret string,
@@ -60,7 +60,7 @@ func InitUserProviders(
 		realm2provider[realm.Name] = createUserProviderByTokenType(
 			logger,
 			dbConnManager,
-			userGroups,
+			userGroupRights,
 			testUser,
 			realm.AuthToken.AccessType,
 			jwtSecret,
@@ -71,7 +71,7 @@ func InitUserProviders(
 	realm2provider["*"] = createUserProviderGroup(
 		logger,
 		dbConnManager,
-		userGroups,
+		userGroupRights,
 		testUser,
 		jwtSecret,
 		realms,
@@ -81,7 +81,7 @@ func InitUserProviders(
 		realm2provider[domain+"/*"] = createUserProviderGroup(
 			logger,
 			dbConnManager,
-			userGroups,
+			userGroupRights,
 			testUser,
 			jwtSecret,
 			realms,
@@ -94,7 +94,7 @@ func InitUserProviders(
 func createUserProviderGroup(
 	logger mrlog.Logger,
 	dbConnManager mrstorage.DBConnManager,
-	userGroups mraccess.RightsGetter,
+	userGroupRights mraccess.RightsGetter,
 	testUser authcfg.TestUser,
 	jwtSecret string,
 	userRealms []authcfg.UserRealm,
@@ -115,7 +115,7 @@ func createUserProviderGroup(
 				Value: createUserProviderByTokenType(
 					logger,
 					dbConnManager,
-					userGroups,
+					userGroupRights,
 					testUser,
 					tokenType,
 					jwtSecret,
@@ -135,7 +135,7 @@ func createUserProviderGroup(
 func createUserProviderByTokenType(
 	logger mrlog.Logger,
 	dbConnManager mrstorage.DBConnManager,
-	userGroups mraccess.RightsGetter,
+	userGroupRights mraccess.RightsGetter,
 	testUser authcfg.TestUser,
 	tokenType string,
 	jwtSecret string,
@@ -162,7 +162,7 @@ func createUserProviderByTokenType(
 					uuid.MustParse(testUser.ID),
 					testUser.Realm+"/"+testUser.Kind,
 					testUser.LangCode,
-					userGroups,
+					userGroupRights,
 				),
 			)
 		}
@@ -171,7 +171,7 @@ func createUserProviderByTokenType(
 	// JWT режим: принимаются от клиентов JWT токены
 	if tokenType == "jwt" {
 		return mrauth.NewUserProviderJWT(
-			userGroups,
+			userGroupRights,
 			jwtSecret,
 			allowedRealms,
 		)
@@ -180,7 +180,7 @@ func createUserProviderByTokenType(
 	// Session режим: принимаются от клиентов токены, хранящиеся в таблице accessTokenTableName
 	return mrauth.NewUserProviderSession(
 		dbConnManager,
-		userGroups,
+		userGroupRights,
 		mrsql.DBTableInfo{
 			Name:       accessTokenTableName,
 			PrimaryKey: accessTokenPrimaryKey,

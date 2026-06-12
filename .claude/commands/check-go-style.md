@@ -12,7 +12,7 @@ Audit Go code for compliance with this project's Style Guide.
 
 `$ARGUMENTS` controls what to check:
 - empty → check uncommitted changes (`git diff` staged + unstaged); if there are none, check the whole repo
-- a path or package (e.g. `errors/runtime/`) → check just that
+- a path or package (e.g. `path/to/pkg/`) → check just that
 - `--diff` → check only `git diff` against the working tree
 - `--all` → check the entire repository
 

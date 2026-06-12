@@ -7,8 +7,19 @@ import (
 	"github.com/mondegor/go-components/wire/mrauth/config"
 )
 
+type (
+	// roleRightsSource - узкий источник прав по имени роли (роль -> множество прав).
+	// Удовлетворяется *filestorage.PermsProvider; объявлен здесь, чтобы не привязывать
+	// wire к конкретной реализации провайдера прав.
+	roleRightsSource interface {
+		RoleRights(role string) (rights []string, ok bool)
+	}
+)
+
 // InitRealmKindRights - создаёт объект mraccess.RightsGetter.
-func InitRealmKindRights(logger mrlog.Logger, realms []config.UserRealm, rights mraccess.RightsSource) (mraccess.RightsGetter, error) {
+// Источником прав по ролям выступает roleRightsSource (роль -> множество прав),
+// поверх которого для каждой пары realm/kind предвычисляется набор прав группы.
+func InitRealmKindRights(logger mrlog.Logger, realms []config.UserRealm, rights roleRightsSource) (mraccess.RightsGetter, error) {
 	mrlog.Info(logger, "Create and init realm kind rights")
 
 	nKinds := 0
