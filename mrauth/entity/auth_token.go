@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/mondegor/go-components/mrauth/enum/authtokentype"
 )
 
 const (
@@ -15,14 +17,14 @@ const (
 )
 
 type (
-	// AuthToken - токен доступа пользователя к системе.
+	// AuthToken - токен доступа пользователя к системе (access, refresh или API).
 	AuthToken struct {
-		RefreshToken    string
-		AccessToken     string
-		AccessExpiresAt time.Time
-		UserID          uuid.UUID
-		Scopes          AuthTokenScopes
-		ExpiresAt       time.Time
+		Token     string
+		Type      authtokentype.Enum
+		UserID    uuid.UUID
+		SessionID uint32
+		Scopes    AuthTokenScopes
+		ExpiresAt time.Time
 	}
 
 	// AuthTokenScopes - область действия токена доступа, хранится в виде json.

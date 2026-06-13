@@ -1,4 +1,4 @@
-package authtokenstatus
+package authtokentype
 
 import (
 	"database/sql/driver"
@@ -7,32 +7,35 @@ import (
 	"math"
 )
 
-// Статусы токена авторизации.
+// Типы токена авторизации.
 const (
-	Enabled Enum = iota + 1 // действующий
-	Revoked                 // отозванный
+	Access  Enum = iota + 1 // токен доступа
+	Refresh                 // токен обновления
+	API                     // токен программного доступа
 )
 
 const (
-	enumLast = uint8(Revoked)
-	enumName = "AuthTokenStatus"
+	enumLast = uint8(API)
+	enumName = "AuthTokenType"
 )
 
 type (
-	// Enum - статус элемента.
+	// Enum - тип токена.
 	Enum uint8
 )
 
 //nolint:gochecknoglobals
 var (
 	enumKeys = map[Enum]string{
-		Enabled: "ENABLED",
-		Revoked: "REVOKED",
+		Access:  "ACCESS",
+		Refresh: "REFRESH",
+		API:     "API",
 	}
 
 	enumValues = map[string]Enum{
-		"ENABLED": Enabled,
-		"REVOKED": Revoked,
+		"ACCESS":  Access,
+		"REFRESH": Refresh,
+		"API":     API,
 	}
 )
 

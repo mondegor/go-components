@@ -7,7 +7,6 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrevent"
 	"github.com/mondegor/go-sysmess/mrlog"
-	"github.com/mondegor/go-sysmess/mrstorage"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -15,9 +14,8 @@ import (
 )
 
 type (
-	// ContinueSession - comment struct.
+	// ContinueSession - продолжение сессии: перевыпуск пары токенов по refresh токену.
 	ContinueSession struct {
-		txManager      mrstorage.DBTxManager
 		storage        authTokenStorage
 		tokenRecreator tokenRecreator
 		eventEmitter   mrevent.Emitter
@@ -26,26 +24,22 @@ type (
 	}
 
 	authTokenStorage interface {
-		Revoke(ctx context.Context, refreshToken string) (row dto.UserScopes, err error)
-		UpdateToCloseAll(ctx context.Context, userID uuid.UUID) error
+		RevokeSession(ctx context.Context, userID uuid.UUID, sessionID uint32) error
 	}
 
 	tokenRecreator interface {
-		Create(ctx context.Context, userScopes dto.UserScopes) (token dto.AuthToken, err error)
-		Revoke(ctx context.Context, refreshToken string) (row dto.UserScopes, err error)
+		Recreate(ctx context.Context, refreshToken string) (token dto.AuthTokenPair, err error)
 	}
 )
 
 // NewContinueSession - создаёт объект ContinueSession.
 func NewContinueSession(
-	txManager mrstorage.DBTxManager,
 	storage authTokenStorage,
 	tokenRecreator tokenRecreator,
 	eventEmitter mrevent.Emitter,
 	logger mrlog.Logger,
 ) *ContinueSession {
 	return &ContinueSession{
-		txManager:      txManager,
 		storage:        storage,
 		tokenRecreator: tokenRecreator,
 		eventEmitter:   eventEmitter,
@@ -54,52 +48,47 @@ func NewContinueSession(
 	}
 }
 
-// Execute - возвращает строковое значение настройки с указанным идентификатором.
-func (uc *ContinueSession) Execute(ctx context.Context, _, refreshToken string) (authToken dto.AuthToken, err error) {
+// Execute - перевыпускает пару токенов по refresh токену; при обнаружении переиспользования
+// отозванного токена вне окна идемпотентности отзывает всю сессию.
+func (uc *ContinueSession) Execute(ctx context.Context, _, refreshToken string) (authToken dto.AuthTokenPair, err error) {
 	if refreshToken == "" {
-		return dto.AuthToken{}, errors.ErrIncorrectInputData.New("refreshToken is empty")
+		return dto.AuthTokenPair{}, errors.ErrIncorrectInputData.New("refreshToken is empty")
 	}
 
-	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
-		userScopes, err := uc.storage.Revoke(ctx, refreshToken)
-		if err != nil {
-			if errors.Is(err, repository.ErrTokenAlreadyRevoked) {
-				if err := uc.storage.UpdateToCloseAll(ctx, userScopes.UserID); err != nil {
-					uc.logger.Error(ctx, "RevokeAlert.UpdateToCloseAll", "error", err)
-				}
+	authToken, err = uc.tokenRecreator.Recreate(ctx, refreshToken)
+	if err != nil {
+		var tokenErr *repository.TokenAlreadyRevokedError
 
-				// TODO: отправлять предупреждение пользователю
-
-				// err := uc.notifierAPI.Send(
-				//	 ctx,
-				//	 "user.revoke.token.alert",
-				//	 conv.Group{
-				//		 "langCode": langCode,
-				//		 "to": rights.UserID,
-				//	 },
-				// )
-				// if err != nil {
-				// 	 uc.logger.Error(ctx, "Notice 'user.revoke.token.alert' not send", "error", err)
-				// }
-
-				uc.eventEmitter.Emit(ctx, "RevokeAlert", "userId", userScopes.UserID)
-
-				return mrauth.ErrTokenNotFoundOrExpired
+		if errors.As(err, &tokenErr) {
+			// повторное использование отозванного refresh токена вне окна его действия
+			if err := uc.storage.RevokeSession(ctx, tokenErr.UserID, tokenErr.SessionID); err != nil {
+				uc.logger.Error(ctx, "RevokeAlert.RevokeSession", "error", err)
 			}
 
-			if errors.Is(err, errors.ErrEventStorageNoRecordFound) || errors.Is(err, repository.ErrTokenExpired) {
-				return mrauth.ErrTokenNotFoundOrExpired
-			}
+			// TODO: отправлять предупреждение пользователю
 
-			return uc.errorWrapper.Wrap(err)
+			// err := uc.notifierAPI.Send(
+			//	 ctx,
+			//	 "user.revoke.token.alert",
+			//	 conv.Group{
+			//		 "langCode": langCode,
+			//		 "to": rights.UserID,
+			//	 },
+			// )
+			// if err != nil {
+			// 	 uc.logger.Error(ctx, "Notice 'user.revoke.token.alert' not send", "error", err)
+			// }
+
+			uc.eventEmitter.Emit(ctx, "RevokeAlert", "userId", tokenErr.UserID)
+
+			return dto.AuthTokenPair{}, mrauth.ErrTokenNotFoundOrExpired
 		}
 
-		authToken, err = uc.tokenRecreator.Create(ctx, userScopes)
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) || errors.Is(err, repository.ErrTokenExpired) {
+			return dto.AuthTokenPair{}, mrauth.ErrTokenNotFoundOrExpired
+		}
 
-		return err
-	})
-	if err != nil {
-		return dto.AuthToken{}, err
+		return dto.AuthTokenPair{}, uc.errorWrapper.Wrap(err)
 	}
 
 	return authToken, nil

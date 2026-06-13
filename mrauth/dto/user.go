@@ -19,10 +19,11 @@ type (
 
 	// UserScopes - область действия пользователя.
 	UserScopes struct {
-		UserID   uuid.UUID
-		Realm    string // domain + '/' + user_group
-		Kind     string
-		LangCode string
+		UserID    uuid.UUID
+		SessionID uint32
+		Realm     string // domain + '/' + user_group
+		Kind      string
+		LangCode  string
 		// Email    string
 		// Phone    uint64
 	}

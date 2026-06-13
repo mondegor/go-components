@@ -10,8 +10,10 @@ import (
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
+//go:generate go tool mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenGenerator
+
 type (
-	// TokenIssuer - comment struct.
+	// TokenIssuer - выпускает пару токенов с подписанным (JWT) access токеном.
 	TokenIssuer struct {
 		tokenGenerator mrauth.TokenGenerator
 		accessExpiry   time.Duration
@@ -21,7 +23,7 @@ type (
 	}
 )
 
-// NewTokenIssuer - создаёт объект Session.
+// NewTokenIssuer - создаёт объект TokenIssuer.
 func NewTokenIssuer(
 	tokenGenerator mrauth.TokenGenerator,
 	accessExpiry time.Duration,
@@ -52,25 +54,23 @@ func NewTokenIssuer(
 	}
 }
 
-// Create - comments method.
-func (uc *TokenIssuer) Create(userScopes dto.UserScopes) (token dto.AuthToken, err error) {
+// CreateTokenPair - выпускает пару токенов (подписанный JWT access + refresh) для области действия пользователя.
+// TODO: вместо dto.UserScopes можно передавать явно все параметры.
+func (uc *TokenIssuer) CreateTokenPair(userScopes dto.UserScopes) (token dto.AuthTokenPair, err error) {
 	accessToken, err := uc.createAccessToken(&userScopes)
 	if err != nil {
-		return dto.AuthToken{}, err
+		return dto.AuthTokenPair{}, err
 	}
 
-	refreshToken, err := uc.tokenGenerator.GenToken()
+	refreshToken, err := uc.createRefreshToken()
 	if err != nil {
-		return dto.AuthToken{}, err
+		return dto.AuthTokenPair{}, err
 	}
 
-	return dto.AuthToken{
-		AccessToken:      accessToken,
-		ExpiresIn:        uc.accessExpiry,
-		HasSignature:     true,
-		RefreshToken:     refreshToken,
-		RefreshExpiresIn: uc.refreshExpiry,
-		UserID:           userScopes.UserID,
+	return dto.AuthTokenPair{
+		Access:  accessToken,
+		Refresh: refreshToken,
+		UserID:  userScopes.UserID,
 		Scopes: entity.AuthTokenScopes{
 			Realm:    userScopes.Realm,
 			UserKind: userScopes.Kind,
@@ -79,8 +79,7 @@ func (uc *TokenIssuer) Create(userScopes dto.UserScopes) (token dto.AuthToken, e
 	}, nil
 }
 
-// Create - возвращает строковое значение настройки с указанным идентификатором.
-func (uc *TokenIssuer) createAccessToken(userScopes *dto.UserScopes) (string, error) {
+func (uc *TokenIssuer) createAccessToken(userScopes *dto.UserScopes) (dto.AccessToken, error) {
 	token := jwt.NewWithClaims(
 		uc.signingMethod,
 		jwt.MapClaims{
@@ -92,5 +91,26 @@ func (uc *TokenIssuer) createAccessToken(userScopes *dto.UserScopes) (string, er
 		},
 	)
 
-	return token.SignedString(uc.secret)
+	accessToken, err := token.SignedString(uc.secret)
+	if err != nil {
+		return dto.AccessToken{}, err
+	}
+
+	return dto.AccessToken{
+		Token:        accessToken,
+		ExpiresIn:    uc.accessExpiry,
+		HasSignature: true,
+	}, nil
+}
+
+func (uc *TokenIssuer) createRefreshToken() (token dto.RefreshToken, err error) {
+	refreshToken, err := uc.tokenGenerator.GenToken()
+	if err != nil {
+		return dto.RefreshToken{}, err
+	}
+
+	return dto.RefreshToken{
+		Token:     refreshToken,
+		ExpiresIn: uc.refreshExpiry,
+	}, nil
 }

@@ -8,8 +8,10 @@ import (
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
+//go:generate go tool mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenGenerator
+
 type (
-	// TokenIssuer - comment struct.
+	// TokenIssuer - выпускает пару токенов с непрозрачным (сессионным) access токеном.
 	TokenIssuer struct {
 		tokenGenerator mrauth.TokenGenerator
 		accessExpiry   time.Duration
@@ -17,7 +19,7 @@ type (
 	}
 )
 
-// NewTokenIssuer - создаёт объект Session.
+// NewTokenIssuer - создаёт объект TokenIssuer.
 func NewTokenIssuer(
 	tokenGenerator mrauth.TokenGenerator,
 	accessExpiry time.Duration,
@@ -30,29 +32,51 @@ func NewTokenIssuer(
 	}
 }
 
-// Create - comments method.
-func (uc *TokenIssuer) Create(userScopes dto.UserScopes) (token dto.AuthToken, err error) {
-	accessToken, err := uc.tokenGenerator.GenToken()
+// CreateTokenPair - выпускает пару токенов (сессионный access + refresh) для области действия пользователя.
+// TODO: вместо dto.UserScopes можно передавать явно все параметры.
+func (uc *TokenIssuer) CreateTokenPair(userScopes dto.UserScopes) (token dto.AuthTokenPair, err error) {
+	accessToken, err := uc.createAccessToken()
 	if err != nil {
-		return dto.AuthToken{}, err
+		return dto.AuthTokenPair{}, err
 	}
 
-	refreshToken, err := uc.tokenGenerator.GenToken()
+	refreshToken, err := uc.createRefreshToken()
 	if err != nil {
-		return dto.AuthToken{}, err
+		return dto.AuthTokenPair{}, err
 	}
 
-	return dto.AuthToken{
-		AccessToken:      accessToken,
-		ExpiresIn:        uc.accessExpiry,
-		HasSignature:     false,
-		RefreshToken:     refreshToken,
-		RefreshExpiresIn: uc.refreshExpiry,
-		UserID:           userScopes.UserID,
+	return dto.AuthTokenPair{
+		Access:  accessToken,
+		Refresh: refreshToken,
+		UserID:  userScopes.UserID,
 		Scopes: entity.AuthTokenScopes{
 			Realm:    userScopes.Realm,
 			UserKind: userScopes.Kind,
 			LangCode: userScopes.LangCode,
 		},
+	}, nil
+}
+
+func (uc *TokenIssuer) createAccessToken() (dto.AccessToken, error) {
+	accessToken, err := uc.tokenGenerator.GenToken()
+	if err != nil {
+		return dto.AccessToken{}, err
+	}
+
+	return dto.AccessToken{
+		Token:     accessToken,
+		ExpiresIn: uc.accessExpiry,
+	}, nil
+}
+
+func (uc *TokenIssuer) createRefreshToken() (token dto.RefreshToken, err error) {
+	refreshToken, err := uc.tokenGenerator.GenToken()
+	if err != nil {
+		return dto.RefreshToken{}, err
+	}
+
+	return dto.RefreshToken{
+		Token:     refreshToken,
+		ExpiresIn: uc.refreshExpiry,
 	}, nil
 }

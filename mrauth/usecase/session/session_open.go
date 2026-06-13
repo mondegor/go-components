@@ -2,6 +2,9 @@ package session
 
 import (
 	"context"
+	"crypto/rand"
+	"math"
+	"math/big"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,12 +15,18 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
-	secureoperation2 "github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
+//go:generate go tool mockgen -source=session_open.go -destination=mock/session_open.go -package=mock
+//go:generate go tool mockgen -source=session_continue.go -destination=mock/session_continue.go -package=mock
+//go:generate go tool mockgen -source=session_close.go -destination=mock/session_close.go -package=mock
+//go:generate go tool mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-sysmess/mrstorage DBTxManager
+//go:generate go tool mockgen -destination=mock/mrevent.go -package=mock github.com/mondegor/go-sysmess/mrevent Emitter
+
 type (
-	// OpenSession - comment struct.
+	// OpenSession - открытие новой сессии после подтверждённой операции авторизации.
 	OpenSession struct {
 		txManager             mrstorage.DBTxManager
 		storageUserActivity   userActivityStatCreator
@@ -40,7 +49,7 @@ type (
 	}
 
 	tokenCreator interface {
-		Create(ctx context.Context, userScopes dto.UserScopes) (token dto.AuthToken, err error)
+		Create(ctx context.Context, userScopes dto.UserScopes) (token dto.AuthTokenPair, err error)
 	}
 )
 
@@ -62,12 +71,12 @@ func NewOpenSession(
 	}
 }
 
-// Execute - comments method.
-func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, op secureoperation2.SecureOperation) (authToken dto.AuthToken, err error) {
+// Execute - открывает новую сессию: генерирует её идентификатор, выпускает пару токенов и фиксирует активность пользователя.
+func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, op secureoperation.SecureOperation) (authToken dto.AuthTokenPair, err error) {
 	var userScopes dto.UserScopes
 
 	if !op.Is(operationstatus.Confirmed) {
-		return dto.AuthToken{}, secureoperation2.ErrOperationIsNotConfirmed
+		return dto.AuthTokenPair{}, secureoperation.ErrOperationIsNotConfirmed
 	}
 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
@@ -86,6 +95,13 @@ func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, 
 			return errors.ErrAccessForbidden
 		}
 
+		sessionID, err := genSessionID()
+		if err != nil {
+			return err
+		}
+
+		userScopes.SessionID = sessionID
+
 		authToken, err = uc.tokenCreator.Create(ctx, userScopes)
 		if err != nil {
 			return err
@@ -101,8 +117,19 @@ func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, 
 		return uc.storageUserActivity.InsertOrUpdate(ctx, userActivity)
 	})
 	if err != nil {
-		return dto.AuthToken{}, uc.errorWrapper.Wrap(err)
+		return dto.AuthTokenPair{}, uc.errorWrapper.Wrap(err)
 	}
 
 	return authToken, nil
+}
+
+// TODO: временно, потом переделать через интерфейс.
+func genSessionID() (uint32, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(math.MaxUint32))
+	if err != nil {
+		return 0, err
+	}
+
+	// n принадлежит [0, math.MaxUint32), результат [1, math.MaxUint32] помещается в uint32
+	return uint32(n.Uint64()) + 1, nil //nolint:gosec
 }

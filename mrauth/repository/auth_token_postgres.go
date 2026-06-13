@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
@@ -11,10 +12,11 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/authtokenstatus"
+	"github.com/mondegor/go-components/mrauth/enum/authtokentype"
 )
 
 type (
-	// AuthTokenPostgres - comment struct.
+	// AuthTokenPostgres - хранилище токенов авторизации в PostgreSQL.
 	AuthTokenPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper errors.Wrapper
@@ -22,13 +24,8 @@ type (
 	}
 )
 
-var (
-	// ErrTokenExpired - token is expired.
-	ErrTokenExpired = errors.New("token is expired")
-
-	// ErrTokenAlreadyRevoked - token is already revoked.
-	ErrTokenAlreadyRevoked = errors.New("token is already revoked")
-)
+// ErrTokenExpired - token is expired.
+var ErrTokenExpired = errors.New("token is expired")
 
 // NewAuthTokenPostgres - создаёт объект AuthTokenPostgres.
 func NewAuthTokenPostgres(
@@ -42,21 +39,23 @@ func NewAuthTokenPostgres(
 	}
 }
 
-// FetchOne - возвращает список сообщений по их указанным ID.
-func (re *AuthTokenPostgres) FetchOne(ctx context.Context, accessToken string) (row dto.UserScopes, err error) {
+// FetchOneByAccessToken - возвращает область действия пользователя по действующему access токену.
+func (re *AuthTokenPostgres) FetchOneByAccessToken(ctx context.Context, accessToken string) (row dto.UserScopes, err error) {
 	sql := `
 		SELECT
 			user_id,
+			session_id,
 			token_scopes,
-			(access_expires_at <= NOW()) as is_expired
+			(expires_at <= NOW()) as is_expired
 		FROM
 			` + re.table.Name + `
 		WHERE
-			access_token = $1 AND token_status = $2
+			` + re.table.PrimaryKey + ` = $1 AND token_type = $2 AND token_status = $3
 		LIMIT 1;`
 
 	var (
 		userID    uuid.UUID
+		sessionID uint32
 		isExpired bool
 	)
 
@@ -64,10 +63,12 @@ func (re *AuthTokenPostgres) FetchOne(ctx context.Context, accessToken string) (
 		ctx,
 		sql,
 		accessToken,
-		authtokenstatus.Opened,
+		authtokentype.Access,
+		authtokenstatus.Enabled,
 	).Scan(
 		&userID,
-		&row, // загружаются все данные кроме userID, т.к. хранится в отдельном поле
+		&sessionID,
+		&row, // загружаются все данные кроме userID/sessionID, т.к. они хранятся в отдельных полях
 		&isExpired,
 	)
 	if err != nil {
@@ -78,44 +79,61 @@ func (re *AuthTokenPostgres) FetchOne(ctx context.Context, accessToken string) (
 		return dto.UserScopes{}, ErrTokenExpired
 	}
 
-	// дозаполняется структура userID полученного из отдельного поля
+	// дозаполняется структура данными, полученными из отдельных полей
 	row.UserID = userID
+	row.SessionID = sessionID
 
 	return row, nil
 }
 
-// Insert - возвращает список сообщений по их указанным ID.
-func (re *AuthTokenPostgres) Insert(ctx context.Context, row entity.AuthToken) error {
+// Insert - сохраняет несколько токенов авторизации.
+func (re *AuthTokenPostgres) Insert(ctx context.Context, rows []entity.AuthToken) error {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	tokens := make([]string, 0, len(rows))
+	tokenTypes := make([]int16, 0, len(rows))
+	userIDs := make([]uuid.UUID, 0, len(rows))
+	sessionIDs := make([]uint32, 0, len(rows))
+	scopes := make([]entity.AuthTokenScopes, 0, len(rows))
+	expiresAts := make([]time.Time, 0, len(rows))
+
+	for _, row := range rows {
+		tokens = append(tokens, row.Token)
+		tokenTypes = append(tokenTypes, int16(row.Type))
+		userIDs = append(userIDs, row.UserID)
+		sessionIDs = append(sessionIDs, row.SessionID)
+		scopes = append(scopes, row.Scopes) // userID/sessionID будут исключены, т.к. они сохраняются в отдельных полях
+		expiresAts = append(expiresAts, row.ExpiresAt)
+	}
+
 	sql := `
 		INSERT INTO ` + re.table.Name + `
 			(
 				` + re.table.PrimaryKey + `,
-				access_token,
-				access_expires_at,
+				token_type,
 				user_id,
+				session_id,
 				token_scopes,
 				token_status,
 				expires_at
 			)
-		VALUES
-			($1, $2, $3, $4, $5, $6, $7);`
-
-	var accessToken *string
-
-	if row.AccessToken != "" {
-		accessToken = &row.AccessToken
-	}
+		SELECT token, token_type, user_id, session_id, token_scopes, $7, expires_at
+		FROM
+			UNNEST($1::varchar[], $2::int2[], $3::uuid[], $4::int8[], $5::jsonb[], $6::timestamptz[])
+			as t(token, token_type, user_id, session_id, token_scopes, expires_at);`
 
 	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
-		row.RefreshToken,
-		accessToken,
-		row.AccessExpiresAt,
-		row.UserID,
-		row.Scopes, // userID будет исключён, т.к. он сохраняется в отдельном поле
-		authtokenstatus.Opened,
-		row.ExpiresAt,
+		tokens,
+		tokenTypes,
+		userIDs,
+		sessionIDs,
+		scopes,
+		expiresAts,
+		authtokenstatus.Enabled,
 	)
 	if err != nil {
 		return re.errorWrapper.Wrap(err)
@@ -124,22 +142,213 @@ func (re *AuthTokenPostgres) Insert(ctx context.Context, row entity.AuthToken) e
 	return nil
 }
 
-// UpdateToClose - comments method.
-func (re *AuthTokenPostgres) UpdateToClose(ctx context.Context, accessToken string) error {
+// RevokeRefresh - переводит действующий refresh токен в статус "отозван" и устанавливает ему
+// окно идемпотентности длиной grace, в течение которого допустим повторный (идемпотентный) запрос.
+//
+// Возможные исходы:
+//   - isRetried=false - токен был действующим и отозван, требуется выпуск новой пары токенов;
+//   - isRetried=true - токен уже отозван, но окно его действия ещё не закрыто,
+//     требуется вернуть текущую (последнюю) пару токенов сессии;
+//   - ErrTokenExpired - токен истёк (не был отозван);
+//   - TokenAlreadyRevokedError - токен отозван и окно его действия истекло (возможна компрометация);
+//   - ErrEventStorageNoRecordFound - токен не найден.
+func (re *AuthTokenPostgres) RevokeRefresh(ctx context.Context, refreshToken string, grace time.Duration) (row dto.UserScopes, isRetried bool, err error) {
+	// атомарный перевод действующего refresh токена в статус "отозван";
+	// предотвращает повторную ротацию при гонке запросов
+	updateSQL := `
+		UPDATE
+			` + re.table.Name + `
+		SET
+			token_status = $4,
+			expires_at = $5
+		WHERE
+			` + re.table.PrimaryKey + ` = $1 AND token_type = $2 AND token_status = $3 AND expires_at > NOW()
+		RETURNING
+			user_id,
+			session_id,
+			token_scopes;`
+
+	var (
+		userID    uuid.UUID
+		sessionID uint32
+	)
+
+	err = re.client.Conn(ctx).QueryRow(
+		ctx,
+		updateSQL,
+		refreshToken,
+		authtokentype.Refresh,
+		authtokenstatus.Enabled,
+		authtokenstatus.Revoked,
+		time.Now().Add(grace),
+	).Scan(
+		&userID,
+		&sessionID,
+		&row,
+	)
+	if err != nil {
+		// если токен не существует (обновление не произошло) - то он может быть уже отозван или истёк срок его действия
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+			return re.fetchEnabledRefreshToken(ctx, refreshToken)
+		}
+
+		return dto.UserScopes{}, false, re.errorWrapper.Wrap(err)
+	}
+
+	row.UserID = userID
+	row.SessionID = sessionID
+
+	return row, false, nil
+}
+
+// fetchEnabledRefreshToken - возвращает токен, если он ещё действующий или отозванный, но его окно действия ещё не закрыто.
+func (re *AuthTokenPostgres) fetchEnabledRefreshToken(ctx context.Context, refreshToken string) (row dto.UserScopes, isRetried bool, err error) {
+	sql := `
+		SELECT
+			user_id,
+			session_id,
+			token_scopes,
+			token_status,
+			(expires_at <= NOW()) as is_expired
+		FROM
+			` + re.table.Name + `
+		WHERE
+			` + re.table.PrimaryKey + ` = $1 AND token_type = $2
+		LIMIT 1;`
+
+	var (
+		userID    uuid.UUID
+		sessionID uint32
+		status    authtokenstatus.Enum
+		isExpired bool
+	)
+
+	err = re.client.Conn(ctx).QueryRow(
+		ctx,
+		sql,
+		refreshToken,
+		authtokentype.Refresh,
+	).Scan(
+		&userID,
+		&sessionID,
+		&row,
+		&status,
+		&isExpired,
+	)
+	if err != nil {
+		return dto.UserScopes{}, false, re.errorWrapper.Wrap(err)
+	}
+
+	if isExpired {
+		if status == authtokenstatus.Enabled {
+			return dto.UserScopes{}, false, ErrTokenExpired
+		}
+
+		return row, false, NewTokenAlreadyRevokedError(userID, sessionID)
+	}
+
+	row.UserID = userID
+	row.SessionID = sessionID
+
+	return row, status == authtokenstatus.Revoked, nil
+}
+
+// FetchLastEnabledPairBySessionID - возвращает последнюю активную пару токенов указанной
+// сессии для идемпотентного ответа: действующий refresh токен (он всегда один на сессию) и
+// последний действующий access токен. Access токен для JWT не хранится в БД,
+// в этом случае access токен возвращается пустым.
+func (re *AuthTokenPostgres) FetchLastEnabledPairBySessionID(
+	ctx context.Context,
+	userID uuid.UUID,
+	sessionID uint32,
+) (access, refresh entity.AuthToken, err error) {
+	refresh, err = re.fetchActiveToken(ctx, userID, sessionID, authtokentype.Refresh)
+	if err != nil {
+		return entity.AuthToken{}, entity.AuthToken{}, err
+	}
+
+	access, err = re.fetchActiveToken(ctx, userID, sessionID, authtokentype.Access)
+	if err != nil {
+		if !errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+			return entity.AuthToken{}, entity.AuthToken{}, err
+		}
+
+		// access токен для JWT может отсутствовать в БД
+		return entity.AuthToken{}, refresh, nil
+	}
+
+	return access, refresh, nil
+}
+
+// fetchActiveToken - возвращает последний действующий токен сессии указанного типа.
+func (re *AuthTokenPostgres) fetchActiveToken(
+	ctx context.Context,
+	userID uuid.UUID,
+	sessionID uint32,
+	tokenType authtokentype.Enum,
+) (row entity.AuthToken, err error) {
+	sql := `
+		SELECT
+			` + re.table.PrimaryKey + `,
+			token_scopes,
+			expires_at
+		FROM
+			` + re.table.Name + `
+		WHERE
+			user_id = $1 AND session_id = $2 AND token_type = $3 AND token_status = $4
+		ORDER BY
+			created_at DESC
+		LIMIT 1;`
+
+	err = re.client.Conn(ctx).QueryRow(
+		ctx,
+		sql,
+		userID,
+		sessionID,
+		tokenType,
+		authtokenstatus.Enabled,
+	).Scan(
+		&row.Token,
+		&row.Scopes,
+		&row.ExpiresAt,
+	)
+	if err != nil {
+		return entity.AuthToken{}, re.errorWrapper.Wrap(err)
+	}
+
+	row.Type = tokenType
+	row.UserID = userID
+	row.SessionID = sessionID
+
+	return row, nil
+}
+
+// RevokeSessionByRefreshToken - отзывает все действующие токены сессии,
+// которой принадлежит указанный refresh токен (logout).
+func (re *AuthTokenPostgres) RevokeSessionByRefreshToken(ctx context.Context, refreshToken string) error {
 	sql := `
         UPDATE
-            ` + re.table.Name + `
+            ` + re.table.Name + ` t
         SET
-            token_status = $3
+			token_status = $4,
+			expires_at = NOW()
+		FROM
+			(
+				SELECT user_id, session_id
+				FROM ` + re.table.Name + `
+				WHERE ` + re.table.PrimaryKey + ` = $1 AND token_type = $2
+				LIMIT 1
+			) s
         WHERE
-            access_token = $1 AND token_status = $2 AND access_expires_at > NOW();`
+            t.user_id = s.user_id AND t.session_id = s.session_id AND t.token_status = $3;`
 
 	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
-		accessToken,
-		authtokenstatus.Opened,
-		authtokenstatus.Closed,
+		refreshToken,
+		authtokentype.Refresh,
+		authtokenstatus.Enabled,
+		authtokenstatus.Revoked,
 	)
 	if err != nil {
 		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
@@ -152,74 +361,25 @@ func (re *AuthTokenPostgres) UpdateToClose(ctx context.Context, accessToken stri
 	return nil
 }
 
-// Revoke - comments method.
-func (re *AuthTokenPostgres) Revoke(ctx context.Context, refreshToken string) (row dto.UserScopes, err error) {
+// RevokeSession - отзывает все действующие токены указанной сессии пользователя
+// (используется при обнаружении повторного использования отозванного refresh токена).
+func (re *AuthTokenPostgres) RevokeSession(ctx context.Context, userID uuid.UUID, sessionID uint32) error {
 	sql := `
         UPDATE
             ` + re.table.Name + `
         SET
-			token_status = (CASE WHEN token_status = $2 THEN $3 ELSE $4 END)
+			token_status = $4,
+			expires_at = NOW()
         WHERE
-            ` + re.table.PrimaryKey + ` = $1 AND token_status IN ($2, $3)
-		RETURNING
-			user_id,
-			token_scopes,
-			(expires_at <= NOW()) as is_expired,
-			(token_status = $4) as already_revoked;`
-
-	var (
-		userID           uuid.UUID
-		isExpired        bool
-		isAlreadyRevoked bool
-	)
-
-	err = re.client.Conn(ctx).QueryRow(
-		ctx,
-		sql,
-		refreshToken,
-		authtokenstatus.Opened,
-		authtokenstatus.Revoked,
-		authtokenstatus.UnexpectedRevoked,
-	).Scan(
-		&userID,
-		&row, // загружаются все данные кроме userID, т.к. это поле хранится отдельно
-		&isExpired,
-		&isAlreadyRevoked,
-	)
-	if err != nil {
-		return dto.UserScopes{}, re.errorWrapper.Wrap(err)
-	}
-
-	if isExpired {
-		return dto.UserScopes{}, ErrTokenExpired
-	}
-
-	// дозаполняется структура userID полученного из отдельного поля
-	row.UserID = userID
-
-	if isAlreadyRevoked {
-		return row, ErrTokenAlreadyRevoked
-	}
-
-	return row, nil
-}
-
-// UpdateToCloseAll - comments method.
-func (re *AuthTokenPostgres) UpdateToCloseAll(ctx context.Context, userID uuid.UUID) error {
-	sql := `
-        UPDATE
-            ` + re.table.Name + `
-        SET
-			token_status = $3
-        WHERE
-            user_id = $1 AND token_status = $2;`
+            user_id = $1 AND session_id = $2 AND token_status = $3;`
 
 	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		userID,
-		authtokenstatus.Opened,
-		authtokenstatus.Closed,
+		sessionID,
+		authtokenstatus.Enabled,
+		authtokenstatus.Revoked,
 	)
 	// если это внутренняя ошибка
 	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
@@ -261,4 +421,25 @@ func (re *AuthTokenPostgres) DeleteExpired(ctx context.Context, limit int) error
 	}
 
 	return nil
+}
+
+type (
+	// TokenAlreadyRevokedError - ошибка, когда токен уже отозван.
+	// TODO: перенести в общее хранилище ошибок пакета.
+	TokenAlreadyRevokedError struct {
+		UserID    uuid.UUID
+		SessionID uint32
+	}
+)
+
+// NewTokenAlreadyRevokedError - создаёт ошибку TokenAlreadyRevokedError для указанного типа параметра.
+func NewTokenAlreadyRevokedError(userID uuid.UUID, sessionID uint32) error {
+	return &TokenAlreadyRevokedError{
+		UserID:    userID,
+		SessionID: sessionID,
+	}
+}
+
+func (e *TokenAlreadyRevokedError) Error() string {
+	return "token is already revoked"
 }

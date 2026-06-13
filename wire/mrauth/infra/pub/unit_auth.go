@@ -84,6 +84,7 @@ func initUnitAuthController(
 	)
 
 	serviceAuthToken := session2.NewAuthToken(
+		dbConnManager,
 		storageAuthToken,
 		logger,
 		mapping.OptionUserRealmsToCreateSessionRealms(userRealms, jwtConfig),
@@ -109,7 +110,6 @@ func initUnitAuthController(
 	)
 
 	useCaseContinueSession := session.NewContinueSession(
-		dbConnManager,
 		storageAuthToken,
 		serviceAuthToken,
 		eventEmitter,

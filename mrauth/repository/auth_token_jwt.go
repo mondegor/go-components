@@ -8,21 +8,21 @@ import (
 )
 
 type (
-	// AuthTokenJWT - comment struct.
+	// AuthTokenJWT - распаковка области действия пользователя из подписанного JWT access токена.
 	AuthTokenJWT struct {
 		parser *jwt.Parser
 	}
 )
 
-// NewAuthTokenJWT - создаёт объект AuthTokenPostgres.
+// NewAuthTokenJWT - создаёт объект AuthTokenJWT.
 func NewAuthTokenJWT(secret string) *AuthTokenJWT {
 	return &AuthTokenJWT{
 		parser: jwt.NewParser(secret),
 	}
 }
 
-// FetchOne - возвращает список сообщений по их указанным ID.
-func (re *AuthTokenJWT) FetchOne(_ context.Context, accessToken string) (row dto.UserScopes, err error) {
+// FetchOneByAccessToken - возвращает область действия пользователя по access токену.
+func (re *AuthTokenJWT) FetchOneByAccessToken(_ context.Context, accessToken string) (row dto.UserScopes, err error) {
 	scopes, err := re.parser.Parse(accessToken)
 	if err != nil {
 		return dto.UserScopes{}, err

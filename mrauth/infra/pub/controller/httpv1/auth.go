@@ -12,7 +12,6 @@ import (
 	"github.com/mondegor/go-sysmess/util/casttype"
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
-	"github.com/mondegor/go-webcore/mrserver/request"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -60,15 +59,15 @@ type (
 	}
 
 	openSessionUseCase interface {
-		Execute(ctx context.Context, clientIP mrtype.DetailedIP, op secureoperation.SecureOperation) (token dto.AuthToken, err error)
+		Execute(ctx context.Context, clientIP mrtype.DetailedIP, op secureoperation.SecureOperation) (token dto.AuthTokenPair, err error)
 	}
 
 	continueSessionUseCase interface {
-		Execute(ctx context.Context, langCode, refreshToken string) (token dto.AuthToken, err error)
+		Execute(ctx context.Context, langCode, refreshToken string) (token dto.AuthTokenPair, err error)
 	}
 
 	closeSessionUseCase interface {
-		Execute(ctx context.Context, accessToken string) error
+		Execute(ctx context.Context, refreshToken string) error
 	}
 
 	userInfoService interface {
@@ -134,7 +133,7 @@ func (ht *Auth) Handlers() []mrserver.HttpHandler {
 	}
 }
 
-// Signup - comment method.
+// Signup - принимает запрос на регистрацию пользователя и инициирует подтверждение операции по коду.
 func (ht *Auth) Signup(w http.ResponseWriter, r *http.Request) error {
 	req := model.CreateUserRequest{}
 
@@ -163,7 +162,7 @@ func (ht *Auth) Signup(w http.ResponseWriter, r *http.Request) error {
 	)
 }
 
-// Signin - comment method.
+// Signin - принимает запрос на вход пользователя и инициирует подтверждение операции по коду.
 func (ht *Auth) Signin(w http.ResponseWriter, r *http.Request) error {
 	req := model.AuthorizeUserRequest{}
 
@@ -197,7 +196,7 @@ func (ht *Auth) Signin(w http.ResponseWriter, r *http.Request) error {
 	)
 }
 
-// OpenSession - comment method.
+// OpenSession - открывает сессию после подтверждённой операции и возвращает пару токенов.
 func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 	req := model.LoginByTokenRequest{}
 
@@ -255,22 +254,22 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 
 	if r.Header.Get("X-Use-Cookie") == "true" {
 		// for web version
-		ht.refreshTokenCookie.SetValue(w, tk.RefreshToken)
-		tk.RefreshToken = ""
+		ht.refreshTokenCookie.SetValue(w, tk.Refresh.Token)
+		tk.Refresh.Token = ""
 	}
 
 	return ht.sender.Send(
 		w,
 		http.StatusCreated,
 		model.SuccessAccessResponse{
-			AccessToken:  tk.AccessToken,
-			ExpiresIn:    uint32(tk.ExpiresIn / time.Second), //nolint:gosec
-			RefreshToken: tk.RefreshToken,
+			AccessToken:  tk.Access.Token,
+			ExpiresIn:    uint32(tk.Access.ExpiresIn / time.Second), //nolint:gosec
+			RefreshToken: tk.Refresh.Token,                          // empty for web version
 		},
 	)
 }
 
-// ContinueSession - comment method.
+// ContinueSession - продлевает сессию: перевыпускает пару токенов по refresh токену.
 func (ht *Auth) ContinueSession(w http.ResponseWriter, r *http.Request) error {
 	refreshToken := ht.refreshTokenCookie.GetValue(r)
 	useCookie := true
@@ -297,36 +296,49 @@ func (ht *Auth) ContinueSession(w http.ResponseWriter, r *http.Request) error {
 
 	if useCookie {
 		// for web version
-		ht.refreshTokenCookie.SetValue(w, tk.RefreshToken)
-		tk.RefreshToken = ""
+		ht.refreshTokenCookie.SetValue(w, tk.Refresh.Token)
+		tk.Refresh.Token = ""
 	}
 
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
 		model.SuccessAccessResponse{
-			AccessToken:  tk.AccessToken,
-			ExpiresIn:    uint32(tk.ExpiresIn / time.Second), //nolint:gosec
-			RefreshToken: tk.RefreshToken,
+			AccessToken:  tk.Access.Token,
+			ExpiresIn:    uint32(tk.Access.ExpiresIn / time.Second), //nolint:gosec
+			RefreshToken: tk.Refresh.Token,
 		},
 	)
 }
 
-// CloseSession - comment method.
+// CloseSession - закрывает сессию (logout) по refresh токену.
 func (ht *Auth) CloseSession(w http.ResponseWriter, r *http.Request) error {
-	accessToken := request.AccessToken(r)
-	if accessToken == "" {
-		return errors.ErrHttpClientUnauthorized
+	refreshToken := ht.refreshTokenCookie.GetValue(r)
+	useCookie := refreshToken != ""
+
+	if !useCookie {
+		req := model.CloseSessionRequest{}
+
+		if err := ht.parser.Validate(r, &req); err != nil {
+			return err
+		}
+
+		refreshToken = req.RefreshToken
 	}
 
-	if err := ht.useCaseCloseSession.Execute(r.Context(), accessToken); err != nil {
+	if err := ht.useCaseCloseSession.Execute(r.Context(), refreshToken); err != nil {
 		return err
+	}
+
+	if useCookie {
+		// for web version
+		ht.refreshTokenCookie.RemoveValue(w)
 	}
 
 	return ht.sender.SendNoContent(w)
 }
 
-// UserInfo - comment method.
+// UserInfo - возвращает информацию о текущем пользователе.
 func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 	info, err := ht.serviceUserInfo.Get(r.Context(), ht.parser.UserID(r))
 	if err != nil {

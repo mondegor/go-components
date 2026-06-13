@@ -9,14 +9,14 @@ import (
 )
 
 type (
-	// CloseSession - comment struct.
+	// CloseSession - закрытие сессии (logout) по refresh токену.
 	CloseSession struct {
 		tokenCloser  tokenCloser
 		errorWrapper errors.Wrapper
 	}
 
 	tokenCloser interface {
-		Close(ctx context.Context, accessToken string) error
+		Close(ctx context.Context, refreshToken string) error
 	}
 )
 
@@ -30,15 +30,13 @@ func NewCloseSession(
 	}
 }
 
-// Execute - comments method.
-func (uc *CloseSession) Execute(ctx context.Context, accessToken string) error {
-	if accessToken == "" {
-		return errors.ErrIncorrectInputData.New("accessToken is empty")
+// Execute - отзывает все действующие токены сессии по её refresh токену.
+func (uc *CloseSession) Execute(ctx context.Context, refreshToken string) error {
+	if refreshToken == "" {
+		return errors.ErrIncorrectInputData.New("refreshToken is empty")
 	}
 
-	// :TODO можно закрывать сессию по refresh token при jwt, иначе сейчас генерируется ошибка 404
-
-	if err := uc.tokenCloser.Close(ctx, accessToken); err != nil {
+	if err := uc.tokenCloser.Close(ctx, refreshToken); err != nil {
 		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 			return mrauth.ErrTokenNotFoundOrExpired
 		}

@@ -29,6 +29,11 @@ type (
 		RefreshToken string `json:"refresh_token" validate:"required,min=64,max=128"`
 	}
 
+	// CloseSessionRequest - запрос на закрытие сессии (logout) по refresh токену.
+	CloseSessionRequest struct {
+		RefreshToken string `json:"refresh_token" validate:"required,min=64,max=128"`
+	}
+
 	// SuccessAccessResponse - запрос на авторизацию пользователя в системе.
 	SuccessAccessResponse struct {
 		AccessToken  string `json:"access_token"`

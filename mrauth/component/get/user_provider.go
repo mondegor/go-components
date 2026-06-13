@@ -10,6 +10,9 @@ import (
 	"github.com/mondegor/go-components/mrauth/repository"
 )
 
+//go:generate go tool mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth AuthTokenFetcher
+//go:generate go tool mockgen -destination=mock/mraccess.go -package=mock github.com/mondegor/go-sysmess/mraccess RightsGetter
+
 type (
 	// UserProvider - comment struct.
 	UserProvider struct {
@@ -40,13 +43,13 @@ func New(
 	}
 }
 
-// UserByToken - возвращает строковое значение настройки с указанным идентификатором.
+// UserByToken - возвращает пользователя с его правами доступа по access токену.
 func (co *UserProvider) UserByToken(ctx context.Context, value string) (mraccess.User, error) {
 	if value == "" {
 		return nil, errors.ErrInternalIncorrectInputData.WithDetails("token is empty")
 	}
 
-	userScopes, err := co.storage.FetchOne(ctx, value)
+	userScopes, err := co.storage.FetchOneByAccessToken(ctx, value)
 	if err != nil {
 		if errors.Is(err, errors.ErrEventStorageNoRecordFound) || errors.Is(err, repository.ErrTokenExpired) {
 			return nil, mrauth.ErrTokenNotFoundOrExpired // новая ошибка специально обобщает

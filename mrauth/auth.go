@@ -18,9 +18,9 @@ type (
 		Revoke(ctx context.Context, operationToken string) error
 	}
 
-	// AuthTokenFetcher - предоставляет доступ к хранилищу сообщений.
+	// AuthTokenFetcher - возвращает область действия пользователя по access токену.
 	AuthTokenFetcher interface {
-		FetchOne(ctx context.Context, accessToken string) (dto.UserScopes, error)
+		FetchOneByAccessToken(ctx context.Context, accessToken string) (dto.UserScopes, error)
 	}
 
 	// UserStatisticUseCase - comments interface.
@@ -53,9 +53,9 @@ type (
 		CompareCodeAndHash(code, hashedCode string) error
 	}
 
-	// TokenIssuer - comments interface.
+	// TokenIssuer - выпускает пару токенов access/refresh для области действия пользователя.
 	TokenIssuer interface {
-		Create(userScopes dto.UserScopes) (token dto.AuthToken, err error)
+		CreateTokenPair(userScopes dto.UserScopes) (token dto.AuthTokenPair, err error)
 	}
 
 	// ConfirmByAddressCreator - comments interface.

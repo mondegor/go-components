@@ -81,7 +81,7 @@ func initAuthTokenPostgres(
 		dbConnManager,
 		mrsql.DBTableInfo{
 			Name:       module.DBSchema + ".auth_tokens",
-			PrimaryKey: "refresh_token",
+			PrimaryKey: "auth_token",
 		},
 	)
 }
