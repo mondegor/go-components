@@ -49,7 +49,7 @@ func NewContinueSession(
 }
 
 // Execute - перевыпускает пару токенов по refresh токену; при обнаружении переиспользования
-// отозванного токена вне окна идемпотентности отзывает всю сессию.
+// отозванного токена вне окна действия отзывает всю сессию.
 func (uc *ContinueSession) Execute(ctx context.Context, _, refreshToken string) (authToken dto.AuthTokenPair, err error) {
 	if refreshToken == "" {
 		return dto.AuthTokenPair{}, errors.ErrIncorrectInputData.New("refreshToken is empty")

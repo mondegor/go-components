@@ -143,7 +143,7 @@ func (re *AuthTokenPostgres) Insert(ctx context.Context, rows []entity.AuthToken
 }
 
 // RevokeRefresh - переводит действующий refresh токен в статус "отозван" и устанавливает ему
-// окно идемпотентности длиной grace, в течение которого допустим повторный (идемпотентный) запрос.
+// окно действия длиной grace, в течение которого допустим повторный запрос с этим же токеном.
 //
 // Возможные исходы:
 //   - isRetried=false - токен был действующим и отозван, требуется выпуск новой пары токенов;
@@ -254,7 +254,7 @@ func (re *AuthTokenPostgres) fetchEnabledRefreshToken(ctx context.Context, refre
 }
 
 // FetchLastEnabledPairBySessionID - возвращает последнюю активную пару токенов указанной
-// сессии для идемпотентного ответа: действующий refresh токен (он всегда один на сессию) и
+// сессии: действующий refresh токен (он всегда один на сессию) и
 // последний действующий access токен. Access токен для JWT не хранится в БД,
 // в этом случае access токен возвращается пустым.
 func (re *AuthTokenPostgres) FetchLastEnabledPairBySessionID(
@@ -269,12 +269,11 @@ func (re *AuthTokenPostgres) FetchLastEnabledPairBySessionID(
 
 	access, err = re.fetchActiveToken(ctx, userID, sessionID, authtokentype.Access)
 	if err != nil {
-		if !errors.Is(err, errors.ErrEventStorageNoRecordFound) {
-			return entity.AuthToken{}, entity.AuthToken{}, err
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+			return entity.AuthToken{}, refresh, nil
 		}
 
-		// access токен для JWT может отсутствовать в БД
-		return entity.AuthToken{}, refresh, nil
+		return entity.AuthToken{}, entity.AuthToken{}, err
 	}
 
 	return access, refresh, nil
@@ -314,6 +313,12 @@ func (re *AuthTokenPostgres) fetchActiveToken(
 	)
 	if err != nil {
 		return entity.AuthToken{}, re.errorWrapper.Wrap(err)
+	}
+
+	// запрос не фильтрует по expires_at, поэтому действующий токен мог уже истечь;
+	// в норме такого быть не должно, проверка защищает от выдачи просроченного токена
+	if row.ExpiresAt.Before(time.Now()) {
+		return entity.AuthToken{}, ErrTokenExpired
 	}
 
 	row.Type = tokenType

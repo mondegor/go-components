@@ -10,11 +10,11 @@ import (
 	"github.com/mondegor/go-components/mrauth/repository"
 )
 
-//go:generate go tool mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth AuthTokenFetcher
-//go:generate go tool mockgen -destination=mock/mraccess.go -package=mock github.com/mondegor/go-sysmess/mraccess RightsGetter
+//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth AuthTokenFetcher
+//go:generate mockgen -destination=mock/mraccess.go -package=mock github.com/mondegor/go-sysmess/mraccess RightsGetter
 
 type (
-	// UserProvider - comment struct.
+	// UserProvider - предоставляет пользователя с его правами доступа по access токену.
 	UserProvider struct {
 		storage          mrauth.AuthTokenFetcher
 		errorWrapper     errors.Wrapper

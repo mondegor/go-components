@@ -19,11 +19,11 @@ import (
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
-//go:generate go tool mockgen -source=session_open.go -destination=mock/session_open.go -package=mock
-//go:generate go tool mockgen -source=session_continue.go -destination=mock/session_continue.go -package=mock
-//go:generate go tool mockgen -source=session_close.go -destination=mock/session_close.go -package=mock
-//go:generate go tool mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-sysmess/mrstorage DBTxManager
-//go:generate go tool mockgen -destination=mock/mrevent.go -package=mock github.com/mondegor/go-sysmess/mrevent Emitter
+//go:generate mockgen -source=session_open.go -destination=mock/session_open.go -package=mock
+//go:generate mockgen -source=session_continue.go -destination=mock/session_continue.go -package=mock
+//go:generate mockgen -source=session_close.go -destination=mock/session_close.go -package=mock
+//go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-sysmess/mrstorage DBTxManager
+//go:generate mockgen -destination=mock/mrevent.go -package=mock github.com/mondegor/go-sysmess/mrevent Emitter
 
 type (
 	// OpenSession - открытие новой сессии после подтверждённой операции авторизации.

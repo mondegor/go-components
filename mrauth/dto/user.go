@@ -18,12 +18,15 @@ type (
 	}
 
 	// UserScopes - область действия пользователя.
+	// Теги json синхронизированы с entity.AuthTokenScopes, т.к. структура
+	// читается из jsonb-колонки token_scopes; UserID/SessionID хранятся в
+	// отдельных полях БД и в jsonb не сериализуются.
 	UserScopes struct {
-		UserID    uuid.UUID
-		SessionID uint32
-		Realm     string // domain + '/' + user_group
-		Kind      string
-		LangCode  string
+		UserID    uuid.UUID `json:"-"`
+		SessionID uint32    `json:"-"`
+		Realm     string    `json:"realm"` // domain + '/' + user_group
+		Kind      string    `json:"kind"`
+		LangCode  string    `json:"lang"`
 		// Email    string
 		// Phone    uint64
 	}

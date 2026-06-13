@@ -10,7 +10,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
-//go:generate go tool mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenGenerator
+//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenGenerator
 
 type (
 	// TokenIssuer - выпускает пару токенов с подписанным (JWT) access токеном.

@@ -15,12 +15,12 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/authtokentype"
 )
 
-//go:generate go tool mockgen -source=auth_token.go -destination=mock/auth_token.go -package=mock
-//go:generate go tool mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-sysmess/mrstorage DBTxManager
-//go:generate go tool mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenIssuer
+//go:generate mockgen -source=auth_token.go -destination=mock/auth_token.go -package=mock
+//go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-sysmess/mrstorage DBTxManager
+//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenIssuer
 
 const (
-	// revokeGracePeriod - окно идемпотентности отозванного refresh токена по умолчанию.
+	// revokeGracePeriod - окно действия отозванного refresh токена по умолчанию.
 	revokeGracePeriod = 60 * time.Second
 )
 
