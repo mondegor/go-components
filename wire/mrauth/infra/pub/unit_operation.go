@@ -35,11 +35,14 @@ func initOperationController(
 		),
 	)
 
+	useCaseRevokeOperation := operation.NewRevokeOperation(storageSecureOperation)
+
 	controller := httpv1.NewOperation(
 		requestParser,
 		responseSender,
 		useCaseConfirmOperation,
 		useCaseResendConfirmCode,
+		useCaseRevokeOperation,
 		bag.NewOperationResponse(debugFunc),
 		debugFunc,
 	)

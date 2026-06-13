@@ -19,7 +19,7 @@ import (
 const (
 	operationConfirmURL = "/v1/operation/confirm"
 	operationResendURL  = "/v1/operation/resend"
-	// operationRevokeURL  = "/v1/operation/revoke".
+	operationRevokeURL  = "/v1/operation/revoke"
 )
 
 // Operation - comment struct.
@@ -29,12 +29,17 @@ type (
 		sender                   mrserver.ResponseSender
 		useCaseConfirmOperation  confirmOperationUseCase
 		useCaseResendConfirmCode resendConfirmCodeUseCase
+		useCaseRevokeOperation   revokeOperationUseCase
 		operationResponse        confirmOperationResponse
 		debugFunc                func(value any) string
 	}
 
 	resendConfirmCodeUseCase interface {
 		Execute(ctx context.Context, langCode, operationToken string) (secureoperation.SecureOperation, error)
+	}
+
+	revokeOperationUseCase interface {
+		Execute(ctx context.Context, operationToken string) error
 	}
 )
 
@@ -44,6 +49,7 @@ func NewOperation(
 	sender mrserver.ResponseSender,
 	useCaseConfirmOperation confirmOperationUseCase,
 	useCaseResendConfirmCode resendConfirmCodeUseCase,
+	useCaseRevokeOperation revokeOperationUseCase,
 	operationResponse confirmOperationResponse,
 	debugFunc func(value any) string,
 ) *Operation {
@@ -58,6 +64,7 @@ func NewOperation(
 		sender:                   sender,
 		useCaseConfirmOperation:  useCaseConfirmOperation,
 		useCaseResendConfirmCode: useCaseResendConfirmCode,
+		useCaseRevokeOperation:   useCaseRevokeOperation,
 		operationResponse:        operationResponse,
 		debugFunc:                debugFunc,
 	}
@@ -68,7 +75,7 @@ func (ht *Operation) Handlers() []mrserver.HttpHandler {
 	return []mrserver.HttpHandler{
 		{Method: http.MethodPatch, URL: operationConfirmURL, Permission: mraccess.PermissionEveryone, Func: ht.Confirm},
 		{Method: http.MethodPatch, URL: operationResendURL, Permission: mraccess.PermissionEveryone, Func: ht.Resend},
-		// {Method: http.MethodPatch, URL: operationRevokeURL, Permission: mraccess.PermissionAnyUser, Func: ht.Revoke},
+		{Method: http.MethodPatch, URL: operationRevokeURL, Permission: mraccess.PermissionAnyUser, Func: ht.Revoke},
 	}
 }
 
@@ -168,19 +175,24 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 	)
 }
 
-// func (ht *Operation) Revoke(w http.ResponseWriter, r *http.Request) error {
-// 	req := OperationRequest{}
-//
-// 	if err := ht.parser.Validate(r, &req); err != nil {
-// 		return err
-// 	}
-//
-// 	if err := ht.useCase.Revoke(r.Context(), req.AuthToken); err != nil {
-// 		return ht.wrapError(err)
-// 	}
-//
-// 	return ht.sender.SendNoContent(w)
-// }
+// Revoke - отзыв/отмена пользователем указанной операции.
+func (ht *Operation) Revoke(w http.ResponseWriter, r *http.Request) error {
+	req := model.OperationTokenRequest{}
+
+	if err := ht.parser.Validate(r, &req); err != nil {
+		return err
+	}
+
+	if err := ht.useCaseRevokeOperation.Execute(r.Context(), req.Token); err != nil {
+		if errors.Is(err, errors.ErrRecordNotFound) {
+			return mrauth.ErrTokenNotFoundOrExpired
+		}
+
+		return err
+	}
+
+	return ht.sender.SendNoContent(w)
+}
 
 func (ht *Operation) wrapError(err error) error {
 	// ConfirmCode is not correct
