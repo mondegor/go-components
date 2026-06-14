@@ -268,7 +268,7 @@ func (s *CloseSessionSuite) TestNoRecordFound() {
 	s.closer.EXPECT().Close(gomock.Any(), "rt").Return(sysmesserrors.ErrEventStorageNoRecordFound)
 
 	err := s.uc.Execute(s.ctx, "rt")
-	s.Require().ErrorIs(err, mrauth.ErrTokenNotFoundOrExpired)
+	s.Require().ErrorIs(err, mrauth.ErrTokenInvalid)
 }
 
 func (s *CloseSessionSuite) TestOtherError() {

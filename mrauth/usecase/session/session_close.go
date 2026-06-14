@@ -3,8 +3,9 @@ package session
 import (
 	"context"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-sysmess/errors"
+
+	"github.com/mondegor/go-components/mrauth"
 )
 
 type (
