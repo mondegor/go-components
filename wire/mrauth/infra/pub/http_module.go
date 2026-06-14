@@ -29,18 +29,28 @@ func InitHttpModule(
 	jwtConfig auth.JWT,
 	appResolver module.AppResolver, // OPTIONAL
 	locationResolver module.LocationResolver, // OPTIONAL
+	authTokensTableName,
+	secureOperationTableName,
+	// secureOperationLogTableName,
+	sessionsTableName,
+	usersTableName,
+	// usersActivityLogTableName,
+	usersActivityStatTableName,
+	usersAuth2faTableName,
+	usersRealmsTableName string,
 	debugFunc func(value any) string,
 ) initing.HttpModule {
-	storageUser := initUserPostgres(dbConnManager)
-	storageCheckUser := initCheckUserPostgres(dbConnManager)
-	storageUserRealm := initUserRealmPostgres(dbConnManager)
-	storageAuth2fa := initAuth2faPostgres(dbConnManager)
-	storageUserActivityStat := initUserActivityStatPostgres(dbConnManager)
-	// storageUserActivityLog := initUserActivityLogPostgres(dbConnManager)
-	storageSession := initSessionPostgres(dbConnManager)
-	storageAuthToken := initAuthTokenPostgres(dbConnManager)
-	storageSecureOperation := initSecureOperationPostgres(dbConnManager)
-	// storageSecureOperationLog := initSecureOperationLogPostgres(dbConnManager)
+	storageAuthToken := initAuthTokenPostgres(dbConnManager, authTokensTableName)
+	storageSecureOperation := initSecureOperationPostgres(dbConnManager, secureOperationTableName)
+	// storageSecureOperationLog := initSecureOperationLogPostgres(dbConnManager, secureOperationLogTableName)
+	storageSession := initSessionPostgres(dbConnManager, sessionsTableName)
+	storageUser := initUserPostgres(dbConnManager, usersTableName)
+	storageCheckUser := initCheckUserPostgres(dbConnManager, usersTableName)
+	storageUserActivityStat := initUserActivityStatPostgres(dbConnManager, usersActivityStatTableName)
+	// storageUserActivityLog := initUserActivityLogPostgres(dbConnManager, usersActivityLogTableName)
+	storageAuth2fa := initAuth2faPostgres(dbConnManager, usersAuth2faTableName)
+	storageUserRealm := initUserRealmPostgres(dbConnManager, usersRealmsTableName)
+
 	useCaseConfirmOperation := initConfirmOperationUseCase(
 		dbConnManager,
 		storageSecureOperation,

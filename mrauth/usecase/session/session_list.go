@@ -58,8 +58,8 @@ func NewList(
 	}
 
 	if locationResolver == nil {
-		locationResolver = func(_ string) string {
-			return ""
+		locationResolver = func(ip string) string {
+			return ip
 		}
 	}
 

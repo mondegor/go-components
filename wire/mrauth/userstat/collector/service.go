@@ -7,7 +7,6 @@ import (
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrprocess/collect"
 	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 	"github.com/mondegor/go-sysmess/mrtrace"
 
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -30,8 +29,8 @@ func NewService(
 	errorHandler errors.Handler,
 	logger mrlog.Logger,
 	traceManager mrtrace.ContextManager,
-	userActivityStatTable mrsql.DBTableInfo,
-	userActivityLogTable string,
+	usersActivityLogTableName,
+	usersActivityStatTableName string,
 	opts ...Option,
 ) *collect.MessageCollector[dto.UserActivityLogMessage] {
 	o := options{
@@ -52,11 +51,11 @@ func NewService(
 	userStatistic := auth.NewUserStatistic(
 		repository.NewUserActivityStatPostgres(
 			client,
-			userActivityStatTable,
+			usersActivityStatTableName,
 		),
 		repository.NewUserActivityLogPostgres(
 			client,
-			userActivityLogTable,
+			usersActivityLogTableName,
 		),
 	)
 

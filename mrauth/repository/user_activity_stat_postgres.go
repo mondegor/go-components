@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 	"github.com/mondegor/go-sysmess/mrtype"
 
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -19,19 +18,19 @@ type (
 	UserActivityStatPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper errors.Wrapper
-		table        mrsql.DBTableInfo
+		tableName    string
 	}
 )
 
 // NewUserActivityStatPostgres - создаёт объект UserActivityStatPostgres.
 func NewUserActivityStatPostgres(
 	client mrstorage.DBConnManager,
-	table mrsql.DBTableInfo,
+	tableName string,
 ) *UserActivityStatPostgres {
 	return &UserActivityStatPostgres{
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
-		table:        table,
+		tableName:    tableName,
 	}
 }
 
@@ -43,9 +42,9 @@ func (re *UserActivityStatPostgres) FetchOne(ctx context.Context, userID uuid.UU
 			last_logged_at,
 			last_visited_at
 		FROM
-			` + re.table.Name + `
+			` + re.tableName + `
 		WHERE
-			` + re.table.PrimaryKey + ` = $1
+			user_id = $1
 		LIMIT 1;`
 
 	var lastLoginIP uint32
@@ -71,9 +70,9 @@ func (re *UserActivityStatPostgres) FetchOne(ctx context.Context, userID uuid.UU
 // InsertOrUpdate - возвращает список сообщений по их указанным ID.
 func (re *UserActivityStatPostgres) InsertOrUpdate(ctx context.Context, row entity.UserActivityStat) error {
 	sql := `
-		INSERT INTO ` + re.table.Name + `
+		INSERT INTO ` + re.tableName + `
 			(
-				` + re.table.PrimaryKey + `,
+				user_id,
 				last_login_ip,
 				last_login_ip_string,
 				last_logged_at,
@@ -81,7 +80,7 @@ func (re *UserActivityStatPostgres) InsertOrUpdate(ctx context.Context, row enti
 			)
 		VALUES
 			($1, $2, $3, $4, $5)
-		ON CONFLICT (` + re.table.PrimaryKey + `) DO UPDATE
+		ON CONFLICT (user_id) DO UPDATE
 		SET
 			last_login_ip = EXCLUDED.last_login_ip,
 			last_login_ip_string = EXCLUDED.last_login_ip_string,
@@ -126,7 +125,7 @@ func (re *UserActivityStatPostgres) UpdateLastVisited(ctx context.Context, rows 
 
 	sql := `
 		UPDATE
-			` + re.table.Name + ` t1
+			` + re.tableName + ` t1
 		SET
 			last_visited_at = GREATEST(t1.last_visited_at, t2.last_visited_at)
 		FROM
@@ -137,7 +136,7 @@ func (re *UserActivityStatPostgres) UpdateLastVisited(ctx context.Context, rows 
 					as t(user_id, last_visited_at)
 			) t2
 		WHERE
-			t1.` + re.table.PrimaryKey + ` = t2.user_id;`
+			t1.user_id = t2.user_id;`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,

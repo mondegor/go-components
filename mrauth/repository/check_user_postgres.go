@@ -7,7 +7,6 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrpostgres/db"
 	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 )
 
 type (
@@ -15,7 +14,7 @@ type (
 	CheckUserPostgres struct {
 		client            mrstorage.DBConnManager
 		errorWrapper      errors.Wrapper
-		table             mrsql.DBTableInfo
+		tableName         string
 		repoUserIDByEmail db.FieldFetcher[string, uuid.UUID]
 		repoUserIDByPhone db.FieldFetcher[uint64, uuid.UUID]
 	}
@@ -24,22 +23,22 @@ type (
 // NewCheckUserPostgres - создаёт объект UserPostgres.
 func NewCheckUserPostgres(
 	client mrstorage.DBConnManager,
-	table mrsql.DBTableInfo,
+	tableName string,
 ) *CheckUserPostgres {
 	return &CheckUserPostgres{
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
-		table:        table,
+		tableName:    tableName,
 		repoUserIDByEmail: db.NewFieldFetcher[string, uuid.UUID](
 			client,
-			table.Name,
+			tableName,
 			"user_email",
 			"user_id",
 			"deleted_at",
 		),
 		repoUserIDByPhone: db.NewFieldFetcher[uint64, uuid.UUID](
 			client,
-			table.Name,
+			tableName,
 			"user_phone",
 			"user_id",
 			"deleted_at",

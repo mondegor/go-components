@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -20,19 +19,19 @@ type (
 	AuthTokenPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper errors.Wrapper
-		table        mrsql.DBTableInfo
+		tableName    string
 	}
 )
 
 // NewAuthTokenPostgres - создаёт объект AuthTokenPostgres.
 func NewAuthTokenPostgres(
 	client mrstorage.DBConnManager,
-	table mrsql.DBTableInfo,
+	tableName string,
 ) *AuthTokenPostgres {
 	return &AuthTokenPostgres{
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
-		table:        table,
+		tableName:    tableName,
 	}
 }
 
@@ -45,9 +44,9 @@ func (re *AuthTokenPostgres) FetchOneByAccessToken(ctx context.Context, accessTo
 			token_scopes,
 			(expires_at <= NOW()) as is_expired
 		FROM
-			` + re.table.Name + `
+			` + re.tableName + `
 		WHERE
-			` + re.table.PrimaryKey + ` = $1 AND token_type = $2 AND token_status = $3
+			auth_token = $1 AND token_type = $2 AND token_status = $3
 		LIMIT 1;`
 
 	var (
@@ -106,9 +105,9 @@ func (re *AuthTokenPostgres) Insert(ctx context.Context, rows []entity.AuthToken
 	}
 
 	sql := `
-		INSERT INTO ` + re.table.Name + `
+		INSERT INTO ` + re.tableName + `
 			(
-				` + re.table.PrimaryKey + `,
+				auth_token,
 				token_type,
 				user_id,
 				session_id,
@@ -154,12 +153,12 @@ func (re *AuthTokenPostgres) RevokeRefresh(ctx context.Context, refreshToken str
 	// предотвращает повторную ротацию при гонке запросов
 	updateSQL := `
 		UPDATE
-			` + re.table.Name + `
+			` + re.tableName + `
 		SET
 			token_status = $4,
 			expires_at = $5
 		WHERE
-			` + re.table.PrimaryKey + ` = $1 AND token_type = $2 AND token_status = $3 AND expires_at > NOW()
+			auth_token = $1 AND token_type = $2 AND token_status = $3 AND expires_at > NOW()
 		RETURNING
 			user_id,
 			session_id,
@@ -208,9 +207,9 @@ func (re *AuthTokenPostgres) fetchEnabledRefreshToken(ctx context.Context, refre
 			token_status,
 			(expires_at <= NOW()) as is_expired
 		FROM
-			` + re.table.Name + `
+			` + re.tableName + `
 		WHERE
-			` + re.table.PrimaryKey + ` = $1 AND token_type = $2
+			auth_token = $1 AND token_type = $2
 		LIMIT 1;`
 
 	var (
@@ -285,11 +284,11 @@ func (re *AuthTokenPostgres) fetchActiveToken(
 ) (row entity.AuthToken, err error) {
 	sql := `
 		SELECT
-			` + re.table.PrimaryKey + `,
+			auth_token,
 			token_scopes,
 			expires_at
 		FROM
-			` + re.table.Name + `
+			` + re.tableName + `
 		WHERE
 			user_id = $1 AND session_id = $2 AND token_type = $3 AND token_status = $4
 		ORDER BY
@@ -330,15 +329,15 @@ func (re *AuthTokenPostgres) fetchActiveToken(
 func (re *AuthTokenPostgres) RevokeSessionByRefreshToken(ctx context.Context, refreshToken string) error {
 	sql := `
         UPDATE
-            ` + re.table.Name + ` t
+            ` + re.tableName + ` t
         SET
 			token_status = $4,
 			expires_at = NOW()
 		FROM
 			(
 				SELECT user_id, session_id
-				FROM ` + re.table.Name + `
-				WHERE ` + re.table.PrimaryKey + ` = $1 AND token_type = $2
+				FROM ` + re.tableName + `
+				WHERE auth_token = $1 AND token_type = $2
 				LIMIT 1
 			) s
         WHERE
@@ -378,7 +377,7 @@ func (re *AuthTokenPostgres) RevokeTokensBySessionIDs(ctx context.Context, userI
 
 	sql := `
         UPDATE
-            ` + re.table.Name + `
+            ` + re.tableName + `
         SET
 			token_status = $4,
 			expires_at = NOW()
@@ -410,7 +409,7 @@ func (re *AuthTokenPostgres) FetchOpenSessionIDs(ctx context.Context, userID uui
 		SELECT
 			session_id
 		FROM
-			` + re.table.Name + `
+			` + re.tableName + `
 		WHERE
 			user_id = $1 AND token_type = $2 AND token_status = $3 AND expires_at > NOW()
 		GROUP BY
@@ -455,9 +454,9 @@ func (re *AuthTokenPostgres) DeleteExpired(ctx context.Context, limit int) error
 	sql := `
 		WITH expired_items as (
 			SELECT
-			  	` + re.table.PrimaryKey + ` as item_id
+			  	auth_token as item_id
 			FROM
-			  	` + re.table.Name + `
+			  	` + re.tableName + `
 			WHERE
 				expires_at < NOW()
 			ORDER BY
@@ -465,11 +464,11 @@ func (re *AuthTokenPostgres) DeleteExpired(ctx context.Context, limit int) error
 		    LIMIT $1
 		)
 		DELETE FROM
-			` + re.table.Name + ` t1
+			` + re.tableName + ` t1
 		USING
 			expired_items ei
 		WHERE
-			t1.` + re.table.PrimaryKey + ` = ei.item_id;`
+			t1.auth_token = ei.item_id;`
 
 	err := re.client.Conn(ctx).Exec(
 		ctx,

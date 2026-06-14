@@ -8,7 +8,6 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrpostgres/db"
 	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"
@@ -19,7 +18,7 @@ type (
 	// UserPostgres - comment struct.
 	UserPostgres struct {
 		client       mrstorage.DBConnManager
-		table        mrsql.DBTableInfo
+		tableName    string
 		repoEmail    db.FieldUpdater[uuid.UUID, string]
 		repoPhone    db.FieldUpdater[uuid.UUID, uint64]
 		errorWrapper errors.Wrapper
@@ -29,23 +28,23 @@ type (
 // NewUserPostgres - создаёт объект UserPostgres.
 func NewUserPostgres(
 	client mrstorage.DBConnManager,
-	table mrsql.DBTableInfo,
+	tableName string,
 ) *UserPostgres {
 	return &UserPostgres{
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
-		table:        table,
+		tableName:    tableName,
 		repoEmail: db.NewFieldUpdater[uuid.UUID, string](
 			client,
-			table.Name,
-			table.PrimaryKey,
+			tableName,
+			"user_id",
 			"user_email",
 			"deleted_at",
 		),
 		repoPhone: db.NewFieldUpdater[uuid.UUID, uint64](
 			client,
-			table.Name,
-			table.PrimaryKey,
+			tableName,
+			"user_id",
 			"user_phone",
 			"deleted_at",
 		),
@@ -84,7 +83,7 @@ func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldV
 			lang_code,
 			user_status
 		FROM
-			` + re.table.Name + `
+			` + re.tableName + `
 		WHERE
 			` + fieldName + ` = $1
 		LIMIT 1;`
@@ -117,7 +116,7 @@ func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldV
 // Insert - возвращает список сообщений по их указанным ID.
 func (re *UserPostgres) Insert(ctx context.Context, row entity.User) (rowID uuid.UUID, err error) {
 	sql := `
-		INSERT INTO ` + re.table.Name + `
+		INSERT INTO ` + re.tableName + `
 			(
 				user_id,
 				user_email,

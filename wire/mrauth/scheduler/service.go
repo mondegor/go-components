@@ -10,7 +10,6 @@ import (
 	"github.com/mondegor/go-sysmess/mrprocess/job/task"
 	"github.com/mondegor/go-sysmess/mrprocess/schedule"
 	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 	"github.com/mondegor/go-sysmess/mrtrace"
 
 	"github.com/mondegor/go-components/mrauth/repository"
@@ -33,10 +32,10 @@ func NewService(
 	errorHandler errors.Handler,
 	logger mrlog.Logger,
 	traceManager mrtrace.ContextManager,
-	authTokenTable mrsql.DBTableInfo,
-	operationTable mrsql.DBTableInfo,
-	operationLogTable string,
-	userActivityLogTable string,
+	authTokensTableName,
+	secureOperationTableName,
+	secureOperationLogTableName,
+	usersActivityLogTableName string,
 	opts ...Option,
 ) *schedule.TaskScheduler {
 	o := options{
@@ -61,25 +60,25 @@ func NewService(
 	authTokenCleaner := clean.NewAuthTokenCleaner(
 		repository.NewAuthTokenPostgres(
 			client,
-			authTokenTable,
+			authTokensTableName,
 		),
 	)
 
 	operationCleaner := clean.NewOperationCleaner(
 		repository.NewSecureOperationPostgres(
 			client,
-			operationTable,
+			secureOperationTableName,
 		),
 		repository.NewSecureOperationLogPostgres(
 			client,
-			operationLogTable,
+			secureOperationLogTableName,
 		),
 	)
 
 	userCleaner := clean.NewUserCleaner(
 		repository.NewUserActivityLogPostgres(
 			client,
-			userActivityLogTable,
+			usersActivityLogTableName,
 		),
 	)
 

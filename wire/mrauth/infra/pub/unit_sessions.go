@@ -62,7 +62,7 @@ func newCurrentSessionResolver(jwtFetcher, sessionFetcher module.AuthTokenFetche
 
 // FetchOneByAccessToken - возвращает область действия (включая session_id) текущего токена.
 func (r *currentSessionResolver) FetchOneByAccessToken(ctx context.Context, accessToken string) (dto.UserScopes, error) {
-	// JWT состоит из трёх частей через точку: header.payload.signature.
+	// JWT состоит из трёх частей через точку: header.payload.signature
 	if strings.Count(accessToken, ".") == 2 {
 		return r.jwt.FetchOneByAccessToken(ctx, accessToken)
 	}

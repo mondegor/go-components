@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 
 	"github.com/mondegor/go-components/mrauth/entity"
 )
@@ -16,19 +15,19 @@ type (
 	Auth2faPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper errors.Wrapper
-		table        mrsql.DBTableInfo
+		tableName    string
 	}
 )
 
 // NewAuth2faPostgres - создаёт объект Auth2faPostgres.
 func NewAuth2faPostgres(
 	client mrstorage.DBConnManager,
-	table mrsql.DBTableInfo,
+	tableName string,
 ) *Auth2faPostgres {
 	return &Auth2faPostgres{
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
-		table:        table,
+		tableName:    tableName,
 	}
 }
 
@@ -40,7 +39,7 @@ func (re *Auth2faPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row 
 			auth_secret,
 			cancel_secret
 		FROM
-			` + re.table.Name + `
+			` + re.tableName + `
 		WHERE
 			user_id = $1
 		LIMIT 1;`
@@ -64,7 +63,7 @@ func (re *Auth2faPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row 
 // InsertOrUpdate - возвращает список сообщений по их указанным ID.
 func (re *Auth2faPostgres) InsertOrUpdate(ctx context.Context, row entity.Auth2fa) error {
 	sql := `
-		INSERT INTO ` + re.table.Name + `
+		INSERT INTO ` + re.tableName + `
 			(
 				user_id,
 				auth_2fa_type,
@@ -98,7 +97,7 @@ func (re *Auth2faPostgres) InsertOrUpdate(ctx context.Context, row entity.Auth2f
 func (re *Auth2faPostgres) Delete(ctx context.Context, userID uuid.UUID) error {
 	sql := `
 		DELETE FROM
-			` + re.table.Name + `
+			` + re.tableName + `
 		WHERE
 			user_id = $1;`
 

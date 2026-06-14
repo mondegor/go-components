@@ -8,15 +8,9 @@ import (
 	"github.com/mondegor/go-sysmess/mraccess"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 
 	"github.com/mondegor/go-components/wire/mrauth"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
-)
-
-const (
-	accessTokenTableName  = "printshop_auth.auth_tokens" //nolint:gosec
-	accessTokenPrimaryKey = "token_name"
 )
 
 // InitUserProviders - создаёт объект mraccess.UserProvider с указанными настройками.
@@ -27,6 +21,7 @@ func InitUserProviders(
 	userRealms []authcfg.UserRealm,
 	testUser authcfg.TestUser,
 	jwtSecret string,
+	authTokensTableName string,
 ) (realm2provider map[string]mraccess.UserProvider) {
 	if len(userRealms) == 0 {
 		mrlog.Error(logger, "Auth: AccessControl.Realms is empty")
@@ -44,9 +39,9 @@ func InitUserProviders(
 		case "jwt":
 			mrlog.Debug(logger, fmt.Sprintf("Auth.JWT: realm=%s, secret=%s", realm.Name, jwtSecret))
 
-		// стандартный режим: будут приниматься от клиентов токены, хранящиеся в таблице accessTokenTableName
+		// стандартный режим: будут приниматься от клиентов токены, хранящиеся в таблице authTokensTableName
 		default:
-			mrlog.Debug(logger, fmt.Sprintf("Auth.Session: realm=%s, table=%s", realm.Name, accessTokenTableName))
+			mrlog.Debug(logger, fmt.Sprintf("Auth.Session: realm=%s, table=%s", realm.Name, authTokensTableName))
 		}
 
 		domain := realm.Name
@@ -65,6 +60,7 @@ func InitUserProviders(
 			realm.AuthToken.AccessType,
 			jwtSecret,
 			[]string{realm.Name},
+			authTokensTableName,
 		)
 	}
 
@@ -75,16 +71,18 @@ func InitUserProviders(
 		testUser,
 		jwtSecret,
 		realms,
+		authTokensTableName,
 	)
 
-	for domain, realms := range domain2realms {
+	for domain, domainRealms := range domain2realms {
 		realm2provider[domain+"/*"] = createUserProviderGroup(
 			logger,
 			dbConnManager,
 			userGroupRights,
 			testUser,
 			jwtSecret,
-			realms,
+			domainRealms,
+			authTokensTableName,
 		)
 	}
 
@@ -98,6 +96,7 @@ func createUserProviderGroup(
 	testUser authcfg.TestUser,
 	jwtSecret string,
 	userRealms []authcfg.UserRealm,
+	authTokensTableName string,
 ) mraccess.UserProvider {
 	type2realms := make(map[string][]string, len(userRealms))
 
@@ -120,6 +119,7 @@ func createUserProviderGroup(
 					tokenType,
 					jwtSecret,
 					realms,
+					authTokensTableName,
 				),
 			},
 		)
@@ -140,6 +140,7 @@ func createUserProviderByTokenType(
 	tokenType string,
 	jwtSecret string,
 	allowedRealms []string,
+	authTokensTableName string,
 ) mraccess.UserProvider {
 	// если указан тестовый пользователь, то при успешной проверки realm будет возвращаться тестовый провайдер
 	if testUser.ID != "" {
@@ -181,10 +182,7 @@ func createUserProviderByTokenType(
 	return mrauth.NewUserProviderSession(
 		dbConnManager,
 		userGroupRights,
-		mrsql.DBTableInfo{
-			Name:       accessTokenTableName,
-			PrimaryKey: accessTokenPrimaryKey,
-		},
+		authTokensTableName,
 		allowedRealms,
 	)
 }

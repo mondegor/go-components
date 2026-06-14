@@ -15,6 +15,7 @@ func NewUserProvider(providers ...mraccess.TypedUserProvider) mraccess.UserProvi
 				return ""
 			}
 
+			// JWT состоит из трёх частей через точку: header.payload.signature
 			if strings.Count(token, ".") == 2 {
 				return "jwt"
 			}

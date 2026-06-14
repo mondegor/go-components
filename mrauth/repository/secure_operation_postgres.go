@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
@@ -17,19 +16,19 @@ type (
 	SecureOperationPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper errors.Wrapper
-		table        mrsql.DBTableInfo
+		tableName    string
 	}
 )
 
 // NewSecureOperationPostgres - создаёт объект SecureOperationPostgres.
 func NewSecureOperationPostgres(
 	client mrstorage.DBConnManager,
-	table mrsql.DBTableInfo,
+	tableName string,
 ) *SecureOperationPostgres {
 	return &SecureOperationPostgres{
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
-		table:        table,
+		tableName:    tableName,
 	}
 }
 
@@ -47,9 +46,9 @@ func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (
 			operation_status,
 			expires_at
 		FROM
-			` + re.table.Name + `
+			` + re.tableName + `
 		WHERE
-			` + re.table.PrimaryKey + ` = $1
+			operation_token = $1
 		LIMIT 1;`
 
 	var (
@@ -93,9 +92,9 @@ func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (
 // Insert - возвращает список сообщений по их указанным ID.
 func (re *SecureOperationPostgres) Insert(ctx context.Context, row secureoperation.SecureOperation) error {
 	sql := `
-		INSERT INTO ` + re.table.Name + `
+		INSERT INTO ` + re.tableName + `
 			(
-				` + re.table.PrimaryKey + `,
+				operation_token,
 				operation_name,
 				user_id,
 				confirm_actions,
@@ -141,7 +140,7 @@ func (re *SecureOperationPostgres) Insert(ctx context.Context, row secureoperati
 func (re *SecureOperationPostgres) Replace(ctx context.Context, currentToken string, row secureoperation.SecureOperation) error {
 	sql := `
         UPDATE
-            ` + re.table.Name + `
+            ` + re.tableName + `
         SET
 			operation_token = $3,
 			confirm_actions = $4,
@@ -151,7 +150,7 @@ func (re *SecureOperationPostgres) Replace(ctx context.Context, currentToken str
 			operation_status = $8,
 			expires_at = $9
         WHERE
-            ` + re.table.PrimaryKey + ` = $1 AND operation_status = $2;`
+            operation_token = $1 AND operation_status = $2;`
 
 	err := re.client.Conn(ctx).Exec(
 		ctx,
@@ -181,11 +180,11 @@ func (re *SecureOperationPostgres) Replace(ctx context.Context, currentToken str
 func (re *SecureOperationPostgres) UpdateFailedAttempt(ctx context.Context, token string) (attempts int16, err error) {
 	sql := `
         UPDATE
-            ` + re.table.Name + `
+            ` + re.tableName + `
         SET
 			remaining_attempts = remaining_attempts - 1
         WHERE
-            ` + re.table.PrimaryKey + ` = $1 AND operation_status = $2
+            operation_token = $1 AND operation_status = $2
 		RETURNING
 			remaining_attempts;`
 
@@ -208,9 +207,9 @@ func (re *SecureOperationPostgres) UpdateFailedAttempt(ctx context.Context, toke
 func (re *SecureOperationPostgres) Delete(ctx context.Context, token string) error {
 	sql := `
         DELETE FROM
-            ` + re.table.Name + `
+            ` + re.tableName + `
         WHERE
-            ` + re.table.PrimaryKey + ` = $1;`
+            operation_token = $1;`
 
 	err := re.client.Conn(ctx).Exec(
 		ctx,
@@ -233,9 +232,9 @@ func (re *SecureOperationPostgres) DeleteExpired(ctx context.Context, limit int)
 	sql := `
 		WITH expired_items as (
 			SELECT
-			  	` + re.table.PrimaryKey + ` as item_id
+			  	operation_token as item_id
 			FROM
-			  	` + re.table.Name + `
+			  	` + re.tableName + `
 			WHERE
 				expires_at < NOW()
 			ORDER BY
@@ -243,11 +242,11 @@ func (re *SecureOperationPostgres) DeleteExpired(ctx context.Context, limit int)
 		    LIMIT $1
 		)
 		DELETE FROM
-			` + re.table.Name + ` t1
+			` + re.tableName + ` t1
 		USING
 			expired_items ei
 		WHERE
-			t1.` + re.table.PrimaryKey + ` = ei.item_id;`
+			t1.operation_token = ei.item_id;`
 
 	err := re.client.Conn(ctx).Exec(
 		ctx,

@@ -2,116 +2,76 @@ package pub
 
 import (
 	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 
-	module "github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/repository"
 )
 
 func initUserPostgres(
 	dbConnManager mrstorage.DBConnManager,
+	tableName string,
 ) *repository.UserPostgres {
-	return repository.NewUserPostgres(
-		dbConnManager,
-		mrsql.DBTableInfo{
-			Name:       module.DBSchema + ".users",
-			PrimaryKey: "user_id",
-		},
-	)
+	return repository.NewUserPostgres(dbConnManager, tableName)
 }
 
 func initCheckUserPostgres(
 	dbConnManager mrstorage.DBConnManager,
+	tableName string,
 ) *repository.CheckUserPostgres {
-	return repository.NewCheckUserPostgres(
-		dbConnManager,
-		mrsql.DBTableInfo{
-			Name:       module.DBSchema + ".users",
-			PrimaryKey: "user_id",
-		},
-	)
+	return repository.NewCheckUserPostgres(dbConnManager, tableName)
 }
 
 func initUserRealmPostgres(
 	dbConnManager mrstorage.DBConnManager,
+	tableName string,
 ) *repository.UserRealmPostgres {
-	return repository.NewUserRealmPostgres(
-		dbConnManager,
-		module.DBSchema+".users_realms",
-	)
+	return repository.NewUserRealmPostgres(dbConnManager, tableName)
 }
 
 func initAuth2faPostgres(
 	dbConnManager mrstorage.DBConnManager,
+	tableName string,
 ) *repository.Auth2faPostgres {
-	return repository.NewAuth2faPostgres(
-		dbConnManager,
-		mrsql.DBTableInfo{
-			Name:       module.DBSchema + ".users_auth_2fa",
-			PrimaryKey: "user_id",
-		},
-	)
+	return repository.NewAuth2faPostgres(dbConnManager, tableName)
 }
 
 func initUserActivityStatPostgres(
 	dbConnManager mrstorage.DBConnManager,
+	tableName string,
 ) *repository.UserActivityStatPostgres {
-	return repository.NewUserActivityStatPostgres(
-		dbConnManager,
-		mrsql.DBTableInfo{
-			Name:       module.DBSchema + ".users_activity_stat",
-			PrimaryKey: "user_id",
-		},
-	)
+	return repository.NewUserActivityStatPostgres(dbConnManager, tableName)
 }
 
 // func initUserActivityLogPostgres(
-//	 dbConnManager mrstorage.DBConnManager,
+// 	dbConnManager mrstorage.DBConnManager,
+// 	tableName string,
 // ) *repository.UserActivityLogPostgres {
-//	 return repository.NewUserActivityLogPostgres(
-//		 dbConnManager,
-//		 module.DBSchema+".secure_operations_log",
-//	 )
+// 	return repository.NewUserActivityLogPostgres(dbConnManager, tableName)
 // }
 
 func initSessionPostgres(
 	dbConnManager mrstorage.DBConnManager,
+	tableName string,
 ) *repository.SessionPostgres {
-	return repository.NewSessionPostgres(
-		dbConnManager,
-		module.DBSchema+".sessions",
-	)
+	return repository.NewSessionPostgres(dbConnManager, tableName)
 }
 
 func initAuthTokenPostgres(
 	dbConnManager mrstorage.DBConnManager,
+	tableName string,
 ) *repository.AuthTokenPostgres {
-	return repository.NewAuthTokenPostgres(
-		dbConnManager,
-		mrsql.DBTableInfo{
-			Name:       module.DBSchema + ".auth_tokens",
-			PrimaryKey: "auth_token",
-		},
-	)
+	return repository.NewAuthTokenPostgres(dbConnManager, tableName)
 }
 
 func initSecureOperationPostgres(
 	dbConnManager mrstorage.DBConnManager,
+	tableName string,
 ) *repository.SecureOperationPostgres {
-	return repository.NewSecureOperationPostgres(
-		dbConnManager,
-		mrsql.DBTableInfo{
-			Name:       module.DBSchema + ".secure_operations",
-			PrimaryKey: "operation_token",
-		},
-	)
+	return repository.NewSecureOperationPostgres(dbConnManager, tableName)
 }
 
 // func initSecureOperationLogPostgres(
-//	 dbConnManager mrstorage.DBConnManager,
+// 	dbConnManager mrstorage.DBConnManager,
+// 	tableName string,
 // ) *repository.SecureOperationLogPostgres {
-//	 return repository.NewSecureOperationLogPostgres(
-//		 dbConnManager,
-//		 module.DBSchema+".secure_operations_log",
-//	 )
+// 	return repository.NewSecureOperationLogPostgres(dbConnManager, tableName)
 // }

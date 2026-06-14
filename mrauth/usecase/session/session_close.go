@@ -3,9 +3,8 @@ package session
 import (
 	"context"
 
-	"github.com/mondegor/go-sysmess/errors"
-
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-sysmess/errors"
 )
 
 type (
@@ -38,7 +37,7 @@ func (uc *CloseSession) Execute(ctx context.Context, refreshToken string) error 
 
 	if err := uc.tokenCloser.Close(ctx, refreshToken); err != nil {
 		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
-			return mrauth.ErrTokenNotFoundOrExpired
+			return mrauth.ErrTokenInvalid
 		}
 
 		return uc.errorWrapper.Wrap(err)
