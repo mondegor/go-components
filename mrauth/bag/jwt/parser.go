@@ -133,12 +133,16 @@ func (p *Parser) parseSessionID(claims map[string]any) (uint32, error) {
 func (p *Parser) parseString(key string, claims map[string]any) (string, error) {
 	raw, ok := claims[key]
 	if !ok {
-		return "", nil
+		return "", fmt.Errorf("claims[%s] is missing", key)
 	}
 
 	str, ok := raw.(string)
 	if !ok {
 		return "", fmt.Errorf("claims[%s] is invalid; expected: string type", key)
+	}
+
+	if str == "" {
+		return "", fmt.Errorf("claims[%s] is empty", key)
 	}
 
 	return str, nil
