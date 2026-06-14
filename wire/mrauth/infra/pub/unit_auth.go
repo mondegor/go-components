@@ -36,6 +36,7 @@ func initUnitAuthController(
 	storageUserRealm *repository.UserRealmPostgres,
 	storageAuth2fa *repository.Auth2faPostgres,
 	storageUserActivityStat *repository.UserActivityStatPostgres,
+	storageSession *repository.SessionPostgres,
 	storageAuthToken *repository.AuthTokenPostgres,
 	storageSecureOperation *repository.SecureOperationPostgres,
 	useCaseConfirmOperation *operation.ConfirmOperation,
@@ -92,6 +93,7 @@ func initUnitAuthController(
 
 	useCaseOpenSession := session.NewOpenSession(
 		dbConnManager,
+		storageSession,
 		storageUserActivityStat,
 		handler.NewCreateUser(
 			dbConnManager,

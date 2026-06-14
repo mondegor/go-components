@@ -6,7 +6,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/mondegor/go-storage v0.17.2-0.20260612115913-ee3afc23bbb1
-	github.com/mondegor/go-sysmess v0.15.4-0.20260612114849-4f8c30b06015
+	github.com/mondegor/go-sysmess v0.15.4-0.20260614131311-e88ca4c8c86b
 	github.com/mondegor/go-webcore v0.29.3-0.20260612115543-b90e00067fa8
 	github.com/pquerna/otp v1.5.0
 	github.com/stretchr/testify v1.11.1

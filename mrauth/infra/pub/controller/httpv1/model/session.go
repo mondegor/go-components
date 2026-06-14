@@ -1,8 +1,18 @@
 package model
 
 type (
-	// CloseSessionsRequest - запрос на подтверждение операции.
+	// CloseSessionsRequest - запрос на закрытие указанных сессий пользователя.
 	CloseSessionsRequest struct {
-		Hashes []string `json:"hashes" validate:"required,gte=1,dive,max=16,tag_session_hash"`
+		SessionIDs []string `json:"session_ids" validate:"required,gte=1,lte=64,dive,len=8,hexadecimal"`
+	}
+
+	// UserSessionResponse - открытая сессия пользователя.
+	UserSessionResponse struct {
+		SessionID  string `json:"session_id"`
+		AppName    string `json:"app_name"`
+		DeviceName string `json:"device_name"`
+		LastIP     string `json:"last_ip"`
+		Location   string `json:"location"`
+		IsCurrent  bool   `json:"is_current"`
 	}
 )

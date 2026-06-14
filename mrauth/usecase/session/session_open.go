@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrtype"
 
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -19,21 +18,20 @@ import (
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
-//go:generate mockgen -source=session_open.go -destination=mock/session_open.go -package=mock
-//go:generate mockgen -source=session_continue.go -destination=mock/session_continue.go -package=mock
-//go:generate mockgen -source=session_close.go -destination=mock/session_close.go -package=mock
-//go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-sysmess/mrstorage DBTxManager
-//go:generate mockgen -destination=mock/mrevent.go -package=mock github.com/mondegor/go-sysmess/mrevent Emitter
-
 type (
 	// OpenSession - открытие новой сессии после подтверждённой операции авторизации.
 	OpenSession struct {
 		txManager             mrstorage.DBTxManager
+		storageSession        sessionStorage
 		storageUserActivity   userActivityStatCreator
 		handlerCreateUser     operationHandlerCreateUser
 		handlerBeforeAuthUser operationHandlerBeforeAuthUser
 		tokenCreator          tokenCreator
 		errorWrapper          errors.Wrapper
+	}
+
+	sessionStorage interface {
+		Insert(ctx context.Context, row entity.Session) error
 	}
 
 	userActivityStatCreator interface {
@@ -56,6 +54,7 @@ type (
 // NewOpenSession - создаёт объект OpenSession.
 func NewOpenSession(
 	txManager mrstorage.DBTxManager,
+	storageSession sessionStorage,
 	storageUserActivity userActivityStatCreator,
 	handlerCreateUser operationHandlerCreateUser,
 	handlerBeforeAuthUser operationHandlerBeforeAuthUser,
@@ -63,6 +62,7 @@ func NewOpenSession(
 ) *OpenSession {
 	return &OpenSession{
 		txManager:             txManager,
+		storageSession:        storageSession,
 		storageUserActivity:   storageUserActivity,
 		handlerCreateUser:     handlerCreateUser,
 		handlerBeforeAuthUser: handlerBeforeAuthUser,
@@ -71,8 +71,9 @@ func NewOpenSession(
 	}
 }
 
-// Execute - открывает новую сессию: генерирует её идентификатор, выпускает пару токенов и фиксирует активность пользователя.
-func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, op secureoperation.SecureOperation) (authToken dto.AuthTokenPair, err error) {
+// Execute - открывает новую сессию: генерирует её идентификатор, выпускает пару токенов,
+// сохраняет строку сессии и фиксирует активность пользователя.
+func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op secureoperation.SecureOperation) (authToken dto.AuthTokenPair, err error) {
 	var userScopes dto.UserScopes
 
 	if !op.Is(operationstatus.Confirmed) {
@@ -107,9 +108,21 @@ func (uc *OpenSession) Execute(ctx context.Context, clientIP mrtype.DetailedIP, 
 			return err
 		}
 
+		// realIP=0 при ошибке/IPv6 - поток login не должен падать из-за этого
+		realIP, _, _ := meta.ClientIP.ToUint()
+
+		if err = uc.storageSession.Insert(ctx, entity.Session{
+			UserID:    userScopes.UserID,
+			SessionID: sessionID,
+			UserAgent: meta.UserAgent,
+			LastIP:    realIP,
+		}); err != nil {
+			return err
+		}
+
 		userActivity := entity.UserActivityStat{
 			UserID:        userScopes.UserID,
-			LastLoginIP:   clientIP,
+			LastLoginIP:   meta.ClientIP,
 			LastLoggedAt:  time.Now(),
 			LastVisitedAt: time.Now(),
 		}

@@ -19,6 +19,10 @@ import (
 	"github.com/mondegor/go-components/mrauth/service/session/mock"
 )
 
+//go:generate mockgen -source=auth_token.go -destination=mock/auth_token.go -package=mock
+//go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-sysmess/mrstorage DBTxManager
+//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenIssuer
+
 const testRealm = "site/admin"
 
 type AuthTokenSuite struct {

@@ -15,6 +15,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 )
 
+//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenGenerator
+
 const (
 	accessExpiry  = 15 * time.Minute
 	refreshExpiry = 24 * time.Hour
@@ -45,10 +47,11 @@ func TestTokenIssuer_CreateTokenPair(t *testing.T) {
 			issuer := jwt.NewTokenIssuer(gen, accessExpiry, refreshExpiry, tt.signingMethod, []byte(secret))
 
 			userScopes := dto.UserScopes{
-				UserID:   uuid.New(),
-				Realm:    "site/admin",
-				Kind:     "admin",
-				LangCode: "en",
+				UserID:    uuid.New(),
+				SessionID: 0x1f3bc817,
+				Realm:     "site/admin",
+				Kind:      "admin",
+				LangCode:  "en",
 			}
 
 			got, err := issuer.CreateTokenPair(userScopes)
@@ -68,6 +71,7 @@ func TestTokenIssuer_CreateTokenPair(t *testing.T) {
 			parsed, err := jwt.NewParser(secret).Parse(got.Access.Token)
 			require.NoError(t, err)
 			assert.Equal(t, userScopes.UserID, parsed.UserID)
+			assert.Equal(t, userScopes.SessionID, parsed.SessionID)
 			assert.Equal(t, userScopes.Realm, parsed.Realm)
 			assert.Equal(t, userScopes.Kind, parsed.Kind)
 		})

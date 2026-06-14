@@ -27,6 +27,8 @@ func InitHttpModule(
 	userRealms []auth.UserRealm,
 	operationConfirm auth.OperationConfirm,
 	jwtConfig auth.JWT,
+	appResolver module.AppResolver, // OPTIONAL
+	locationResolver module.LocationResolver, // OPTIONAL
 	debugFunc func(value any) string,
 ) initing.HttpModule {
 	storageUser := initUserPostgres(dbConnManager)
@@ -35,6 +37,7 @@ func InitHttpModule(
 	storageAuth2fa := initAuth2faPostgres(dbConnManager)
 	storageUserActivityStat := initUserActivityStatPostgres(dbConnManager)
 	// storageUserActivityLog := initUserActivityLogPostgres(dbConnManager)
+	storageSession := initSessionPostgres(dbConnManager)
 	storageAuthToken := initAuthTokenPostgres(dbConnManager)
 	storageSecureOperation := initSecureOperationPostgres(dbConnManager)
 	// storageSecureOperationLog := initSecureOperationLogPostgres(dbConnManager)
@@ -60,6 +63,7 @@ func InitHttpModule(
 						storageUserRealm,
 						storageAuth2fa,
 						storageUserActivityStat,
+						storageSession,
 						storageAuthToken,
 						storageSecureOperation,
 						useCaseConfirmOperation,
@@ -111,6 +115,19 @@ func InitHttpModule(
 						responseFileSender,
 						notifierAPI,
 						debugFunc,
+					)
+				},
+			},
+			{
+				Create: func() (mrserver.HttpController, error) {
+					return initSessionsController(
+						storageSession,
+						storageAuthToken,
+						requestParser,
+						responseSender,
+						jwtConfig.Secret,
+						appResolver,
+						locationResolver,
 					)
 				},
 			},

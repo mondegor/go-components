@@ -19,6 +19,44 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
+// MocksessionStorage is a mock of sessionStorage interface.
+type MocksessionStorage struct {
+	ctrl     *gomock.Controller
+	recorder *MocksessionStorageMockRecorder
+	isgomock struct{}
+}
+
+// MocksessionStorageMockRecorder is the mock recorder for MocksessionStorage.
+type MocksessionStorageMockRecorder struct {
+	mock *MocksessionStorage
+}
+
+// NewMocksessionStorage creates a new mock instance.
+func NewMocksessionStorage(ctrl *gomock.Controller) *MocksessionStorage {
+	mock := &MocksessionStorage{ctrl: ctrl}
+	mock.recorder = &MocksessionStorageMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MocksessionStorage) EXPECT() *MocksessionStorageMockRecorder {
+	return m.recorder
+}
+
+// Insert mocks base method.
+func (m *MocksessionStorage) Insert(ctx context.Context, row entity.Session) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Insert", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Insert indicates an expected call of Insert.
+func (mr *MocksessionStorageMockRecorder) Insert(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MocksessionStorage)(nil).Insert), ctx, row)
+}
+
 // MockuserActivityStatCreator is a mock of userActivityStatCreator interface.
 type MockuserActivityStatCreator struct {
 	ctrl     *gomock.Controller

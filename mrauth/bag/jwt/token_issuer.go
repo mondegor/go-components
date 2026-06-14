@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -9,8 +10,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 )
-
-//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenGenerator
 
 type (
 	// TokenIssuer - выпускает пару токенов с подписанным (JWT) access токеном.
@@ -85,6 +84,7 @@ func (uc *TokenIssuer) createAccessToken(userScopes *dto.UserScopes) (dto.Access
 		jwt.MapClaims{
 			sectionAudiences: userScopes.Realm,
 			sectionUserID:    userScopes.UserID.String(),
+			sectionSessionID: strconv.FormatUint(uint64(userScopes.SessionID), 10),
 			sectionLangCode:  userScopes.LangCode,
 			sectionScope:     userScopes.Kind,
 			sectionExpiry:    jwt.NewNumericDate(time.Now().Add(uc.accessExpiry)),

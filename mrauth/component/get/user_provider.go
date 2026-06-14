@@ -10,9 +10,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/repository"
 )
 
-//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth AuthTokenFetcher
-//go:generate mockgen -destination=mock/mraccess.go -package=mock github.com/mondegor/go-sysmess/mraccess RightsGetter
-
 type (
 	// UserProvider - предоставляет пользователя с его правами доступа по access токену.
 	UserProvider struct {

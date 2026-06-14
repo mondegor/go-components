@@ -42,18 +42,18 @@ func (m *MockauthTokenStorage) EXPECT() *MockauthTokenStorageMockRecorder {
 	return m.recorder
 }
 
-// RevokeSession mocks base method.
-func (m *MockauthTokenStorage) RevokeSession(ctx context.Context, userID uuid.UUID, sessionID uint32) error {
+// RevokeTokensBySessionID mocks base method.
+func (m *MockauthTokenStorage) RevokeTokensBySessionID(ctx context.Context, userID uuid.UUID, sessionID uint32) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RevokeSession", ctx, userID, sessionID)
+	ret := m.ctrl.Call(m, "RevokeTokensBySessionID", ctx, userID, sessionID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// RevokeSession indicates an expected call of RevokeSession.
-func (mr *MockauthTokenStorageMockRecorder) RevokeSession(ctx, userID, sessionID any) *gomock.Call {
+// RevokeTokensBySessionID indicates an expected call of RevokeTokensBySessionID.
+func (mr *MockauthTokenStorageMockRecorder) RevokeTokensBySessionID(ctx, userID, sessionID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeSession", reflect.TypeOf((*MockauthTokenStorage)(nil).RevokeSession), ctx, userID, sessionID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeTokensBySessionID", reflect.TypeOf((*MockauthTokenStorage)(nil).RevokeTokensBySessionID), ctx, userID, sessionID)
 }
 
 // MocktokenRecreator is a mock of tokenRecreator interface.

@@ -1,18 +1,20 @@
 package entity
 
+import (
+	"github.com/google/uuid"
+)
+
 const (
 	// ModelNameSession - название сущности.
 	ModelNameSession = "mrauth.Session"
 )
 
-// type (
-// 	// Session - сообщение для получателя.
-// 	Session struct {
-// 		Hash       string
-// 		AppName    string
-// 		DeviceName string
-// 		LastIP     string
-// 		Location   string
-// 		IsCurrent  bool
-// 	}
-// )
+type (
+	// Session - строка пользовательской сессии.
+	Session struct {
+		UserID    uuid.UUID
+		SessionID uint32
+		UserAgent string
+		LastIP    uint32 // числовой realIP
+	}
+)

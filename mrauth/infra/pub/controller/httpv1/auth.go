@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mraccess"
-	"github.com/mondegor/go-sysmess/mrtype"
 	"github.com/mondegor/go-sysmess/util/casttype"
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
@@ -30,7 +29,7 @@ const (
 )
 
 type (
-	// Auth - comment struct.
+	// Auth - контроллер аутентификации: регистрация, вход, жизненный цикл сессии и информация о пользователе.
 	Auth struct {
 		parser                  validate.RequestParser
 		sender                  mrserver.ResponseSender
@@ -59,7 +58,7 @@ type (
 	}
 
 	openSessionUseCase interface {
-		Execute(ctx context.Context, clientIP mrtype.DetailedIP, op secureoperation.SecureOperation) (token dto.AuthTokenPair, err error)
+		Execute(ctx context.Context, meta dto.SessionMeta, op secureoperation.SecureOperation) (token dto.AuthTokenPair, err error)
 	}
 
 	continueSessionUseCase interface {
@@ -247,7 +246,14 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// если операция была подтверждена
-	tk, err := ht.useCaseOpenSession.Execute(r.Context(), ht.parser.DetailedIP(r), op)
+	tk, err := ht.useCaseOpenSession.Execute(
+		r.Context(),
+		dto.SessionMeta{
+			UserAgent: r.UserAgent(),
+			ClientIP:  ht.parser.DetailedIP(r),
+		},
+		op,
+	)
 	if err != nil {
 		return ht.wrapError(err)
 	}

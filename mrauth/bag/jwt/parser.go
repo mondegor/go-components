@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ import (
 const (
 	sectionAudiences = "aud"
 	sectionUserID    = "sub"
+	sectionSessionID = "sid"
 	sectionLangCode  = "lan"
 	sectionScope     = "scope"
 	sectionExpiry    = "exp"
@@ -76,6 +78,11 @@ func (p *Parser) Parse(value string) (dto.UserScopes, error) {
 		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionUserID)
 	}
 
+	sessionID, err := p.parseSessionID(claims)
+	if err != nil {
+		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionSessionID)
+	}
+
 	langCode, err := p.parseString(sectionLangCode, claims)
 	if err != nil {
 		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionLangCode)
@@ -87,10 +94,11 @@ func (p *Parser) Parse(value string) (dto.UserScopes, error) {
 	}
 
 	return dto.UserScopes{
-		UserID:   userID,
-		Realm:    realm,
-		Kind:     scope,
-		LangCode: langCode,
+		UserID:    userID,
+		SessionID: sessionID,
+		Realm:     realm,
+		Kind:      scope,
+		LangCode:  langCode,
 	}, nil
 }
 
@@ -106,6 +114,20 @@ func (p *Parser) parseUserID(claims map[string]any) (uuid.UUID, error) {
 	}
 
 	return userID, nil
+}
+
+func (p *Parser) parseSessionID(claims map[string]any) (uint32, error) {
+	raw, err := p.parseString(sectionSessionID, claims)
+	if err != nil {
+		return 0, err
+	}
+
+	sessionID, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil {
+		return 0, errors.New("sessionID is invalid; expected: uint32 type")
+	}
+
+	return uint32(sessionID), nil
 }
 
 func (p *Parser) parseString(key string, claims map[string]any) (string, error) {

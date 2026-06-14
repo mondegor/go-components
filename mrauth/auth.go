@@ -11,7 +11,7 @@ import (
 )
 
 type (
-	// OperationUseCase - comments interface.
+	// OperationUseCase - подтверждение, повторная отправка кода и отзыв защищённой операции пользователя.
 	OperationUseCase interface {
 		ConfirmAction(ctx context.Context, operationToken, secret string) (secureoperation.SecureOperation, error)
 		ResendCode(ctx context.Context, operationToken string) (secureoperation.SecureOperation, error)
@@ -23,29 +23,29 @@ type (
 		FetchOneByAccessToken(ctx context.Context, accessToken string) (dto.UserScopes, error)
 	}
 
-	// UserStatisticUseCase - comments interface.
+	// UserStatisticUseCase - запись статистики активности пользователей.
 	UserStatisticUseCase interface {
 		Execute(ctx context.Context, list []dto.UserActivityLogMessage) error
 	}
 
-	// OperationHandler - comments interface.
+	// OperationHandler - обработчик прикладной логики, привязанной к защищённой операции.
 	OperationHandler interface {
 		Execute(ctx context.Context, userID uuid.UUID, payload []byte) error
 	}
 
-	// FactoryUserConfirm2FA - comments interface.
+	// FactoryUserConfirm2FA - создаёт данные 2FA-подтверждения пользователя по его логину или идентификатору.
 	FactoryUserConfirm2FA interface {
 		CreateByUserLogin(ctx context.Context, userLogin contactaddress.ContactAddress) (dto.User2FA, error)
 		CreateByUserID(ctx context.Context, userID uuid.UUID) (dto.User2FA, error)
 	}
 
-	// TokenGenerator - comments interface.
+	// TokenGenerator - генератор случайных токенов заданной длины.
 	TokenGenerator interface {
 		GenToken() (string, error)
 		GenTokenLen(length int) (string, error)
 	}
 
-	// CodeGenerator - comments interface.
+	// CodeGenerator - генерация, хеширование и проверка кодов подтверждения.
 	CodeGenerator interface {
 		GenCode() (string, error)
 		GenCodeLen(length int) (string, error)
@@ -58,8 +58,25 @@ type (
 		CreateTokenPair(userScopes dto.UserScopes) (token dto.AuthTokenPair, err error)
 	}
 
-	// ConfirmByAddressCreator - comments interface.
+	// ConfirmByAddressCreator - создаёт действие подтверждения операции по контактному адресу (емаил/телефон).
 	ConfirmByAddressCreator interface {
 		Create(address contactaddress.ContactAddress, confirmCode string) (secureoperation.ConfirmAction, error)
 	}
+
+	// SessionUseCase - управление открытыми сессиями текущего пользователя.
+	SessionUseCase interface {
+		GetList(ctx context.Context, userID uuid.UUID, currentAccessToken string) ([]dto.UserSession, error)
+		Close(ctx context.Context, userID uuid.UUID, sessionIDs []uint32) error
+	}
+)
+
+type (
+	// AppResolver - определяет приложение и устройство по строке User-Agent.
+	// Вход недоверенный (контролируется клиентом) - его нельзя писать в логи без
+	// экранирования (CRLF/log-forging) и нельзя слепо подставлять во внешние запросы.
+	AppResolver func(userAgent string) (appName, deviceName string)
+
+	// LocationResolver - определяет местоположение по IP адресу.
+	// Вход недоверенный (контролируется клиентом), см. предупреждение к AppResolver.
+	LocationResolver func(ip string) string
 )

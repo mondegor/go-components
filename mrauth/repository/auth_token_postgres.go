@@ -24,9 +24,6 @@ type (
 	}
 )
 
-// ErrTokenExpired - token is expired.
-var ErrTokenExpired = errors.New("token is expired")
-
 // NewAuthTokenPostgres - создаёт объект AuthTokenPostgres.
 func NewAuthTokenPostgres(
 	client mrstorage.DBConnManager,
@@ -366,9 +363,19 @@ func (re *AuthTokenPostgres) RevokeSessionByRefreshToken(ctx context.Context, re
 	return nil
 }
 
-// RevokeSession - отзывает все действующие токены указанной сессии пользователя
+// RevokeTokensBySessionID - отзывает все действующие токены указанной сессии пользователя
 // (используется при обнаружении повторного использования отозванного refresh токена).
-func (re *AuthTokenPostgres) RevokeSession(ctx context.Context, userID uuid.UUID, sessionID uint32) error {
+func (re *AuthTokenPostgres) RevokeTokensBySessionID(ctx context.Context, userID uuid.UUID, sessionID uint32) error {
+	return re.RevokeTokensBySessionIDs(ctx, userID, []uint32{sessionID})
+}
+
+// RevokeTokensBySessionIDs - отзывает все действующие токены указанных сессий пользователя (идемпотентно:
+// отсутствие подходящих токенов не считается ошибкой). Используется при закрытии сессий по их списку.
+func (re *AuthTokenPostgres) RevokeTokensBySessionIDs(ctx context.Context, userID uuid.UUID, sessionIDs []uint32) error {
+	if len(sessionIDs) == 0 {
+		return nil
+	}
+
 	sql := `
         UPDATE
             ` + re.table.Name + `
@@ -376,13 +383,13 @@ func (re *AuthTokenPostgres) RevokeSession(ctx context.Context, userID uuid.UUID
 			token_status = $4,
 			expires_at = NOW()
         WHERE
-            user_id = $1 AND session_id = $2 AND token_status = $3;`
+            user_id = $1 AND session_id = ANY($2::int8[]) AND token_status = $3;`
 
 	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		userID,
-		sessionID,
+		sessionIDs,
 		authtokenstatus.Enabled,
 		authtokenstatus.Revoked,
 	)
@@ -394,7 +401,56 @@ func (re *AuthTokenPostgres) RevokeSession(ctx context.Context, userID uuid.UUID
 	return nil
 }
 
-// DeleteExpired - comments method.
+// FetchOpenSessionIDs - возвращает идентификаторы открытых сессий пользователя (отсортированные по session_id).
+// Открыта = есть действующий не истёкший refresh токен.
+func (re *AuthTokenPostgres) FetchOpenSessionIDs(ctx context.Context, userID uuid.UUID) (rows []uint32, err error) {
+	// TODO: если пользователь решит открыть куча сессий? Нужно ограничение.
+	// GROUP BY используется на всякий случай, так как на сессию приходится ровно один enabled refresh токен
+	sql := `
+		SELECT
+			session_id
+		FROM
+			` + re.table.Name + `
+		WHERE
+			user_id = $1 AND token_type = $2 AND token_status = $3 AND expires_at > NOW()
+		GROUP BY
+			session_id
+		ORDER BY
+			session_id;`
+
+	cursor, err := re.client.Conn(ctx).Query(
+		ctx,
+		sql,
+		userID,
+		authtokentype.Refresh,
+		authtokenstatus.Enabled,
+	)
+	if err != nil {
+		return nil, re.errorWrapper.Wrap(err)
+	}
+
+	defer cursor.Close()
+
+	rows = make([]uint32, 0)
+
+	for cursor.Next() {
+		var sessionID uint32
+
+		if err = cursor.Scan(&sessionID); err != nil {
+			return nil, re.errorWrapper.Wrap(err)
+		}
+
+		rows = append(rows, sessionID)
+	}
+
+	if err = cursor.Err(); err != nil {
+		return nil, re.errorWrapper.Wrap(err)
+	}
+
+	return rows, nil
+}
+
+// DeleteExpired - удаляет пачку истёкших токенов (не более limit за один вызов).
 func (re *AuthTokenPostgres) DeleteExpired(ctx context.Context, limit int) error {
 	sql := `
 		WITH expired_items as (
@@ -426,25 +482,4 @@ func (re *AuthTokenPostgres) DeleteExpired(ctx context.Context, limit int) error
 	}
 
 	return nil
-}
-
-type (
-	// TokenAlreadyRevokedError - ошибка, когда токен уже отозван.
-	// TODO: перенести в общее хранилище ошибок пакета.
-	TokenAlreadyRevokedError struct {
-		UserID    uuid.UUID
-		SessionID uint32
-	}
-)
-
-// NewTokenAlreadyRevokedError - создаёт ошибку TokenAlreadyRevokedError для указанного типа параметра.
-func NewTokenAlreadyRevokedError(userID uuid.UUID, sessionID uint32) error {
-	return &TokenAlreadyRevokedError{
-		UserID:    userID,
-		SessionID: sessionID,
-	}
-}
-
-func (e *TokenAlreadyRevokedError) Error() string {
-	return "token is already revoked"
 }

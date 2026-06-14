@@ -74,6 +74,15 @@ func initUserActivityStatPostgres(
 //	 )
 // }
 
+func initSessionPostgres(
+	dbConnManager mrstorage.DBConnManager,
+) *repository.SessionPostgres {
+	return repository.NewSessionPostgres(
+		dbConnManager,
+		module.DBSchema+".sessions",
+	)
+}
+
 func initAuthTokenPostgres(
 	dbConnManager mrstorage.DBConnManager,
 ) *repository.AuthTokenPostgres {

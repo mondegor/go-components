@@ -24,7 +24,7 @@ type (
 	}
 
 	authTokenStorage interface {
-		RevokeSession(ctx context.Context, userID uuid.UUID, sessionID uint32) error
+		RevokeTokensBySessionID(ctx context.Context, userID uuid.UUID, sessionID uint32) error
 	}
 
 	tokenRecreator interface {
@@ -61,8 +61,8 @@ func (uc *ContinueSession) Execute(ctx context.Context, _, refreshToken string) 
 
 		if errors.As(err, &tokenErr) {
 			// повторное использование отозванного refresh токена вне окна его действия
-			if err := uc.storage.RevokeSession(ctx, tokenErr.UserID, tokenErr.SessionID); err != nil {
-				uc.logger.Error(ctx, "RevokeAlert.RevokeSession", "error", err)
+			if err := uc.storage.RevokeTokensBySessionID(ctx, tokenErr.UserID, tokenErr.SessionID); err != nil {
+				uc.logger.Error(ctx, "RevokeAlert.RevokeTokensBySessionID", "error", err)
 			}
 
 			// TODO: отправлять предупреждение пользователю
