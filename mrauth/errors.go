@@ -14,6 +14,10 @@ var (
 	// // ErrTokenRejected - token was rejected.
 	// ErrTokenRejected = errors.NewUserProto("ErrTokenRejected", "access token was rejected: '{Reason}'").
 
+	// ErrTooManyOpenSessionRequests - сработало временное ограничение на открытие новой сессии:
+	// вход выполняется слишком часто, нужно повторить попытку позже.
+	ErrTooManyOpenSessionRequests = errors.NewUserError("TooManyOpenSessionRequests", "too many session open requests, try again later")
+
 	// ErrLoginNotExists - login not exists.
 	ErrLoginNotExists = errors.NewUserError("ErrLoginNotExists", "login not exists")
 

@@ -5,10 +5,12 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mraccess"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrstorage"
 
+	"github.com/mondegor/go-components/mrauth/bag/jwt/crypt"
 	"github.com/mondegor/go-components/wire/mrauth"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 )
@@ -20,13 +22,15 @@ func InitUserProviders(
 	userGroupRights mraccess.RightsGetter,
 	userRealms []authcfg.UserRealm,
 	testUser authcfg.TestUser,
-	jwtSecret string,
+	jwtKeys crypt.KeySet, // OPTIONAL if jwt not exists,
 	authTokensTableName string,
-) (realm2provider map[string]mraccess.UserProvider) {
+) (realm2provider map[string]mraccess.UserProvider, err error) {
 	if len(userRealms) == 0 {
-		mrlog.Error(logger, "Auth: AccessControl.Realms is empty")
+		return nil, errors.New("InitUserProviders: no user realm provided")
+	}
 
-		return nil
+	if authTokensTableName == "" {
+		return nil, errors.New("InitUserProviders: auth tokens table name are not set")
 	}
 
 	realm2provider = make(map[string]mraccess.UserProvider, len(userRealms))
@@ -37,7 +41,11 @@ func InitUserProviders(
 		switch realm.AuthToken.AccessType {
 		// если метод аутентификации указан JWT, то будут приниматься от клиентов JWT токены
 		case "jwt":
-			mrlog.Debug(logger, fmt.Sprintf("Auth.JWT: realm=%s, secret=%s", realm.Name, jwtSecret))
+			mrlog.Debug(logger, "Auth.JWT: realm="+realm.Name)
+
+			if jwtKeys == nil {
+				return nil, errors.New("InitUserProviders: jwt keys are not set")
+			}
 
 		// стандартный режим: будут приниматься от клиентов токены, хранящиеся в таблице authTokensTableName
 		default:
@@ -58,7 +66,7 @@ func InitUserProviders(
 			userGroupRights,
 			testUser,
 			realm.AuthToken.AccessType,
-			jwtSecret,
+			jwtKeys,
 			[]string{realm.Name},
 			authTokensTableName,
 		)
@@ -69,7 +77,7 @@ func InitUserProviders(
 		dbConnManager,
 		userGroupRights,
 		testUser,
-		jwtSecret,
+		jwtKeys,
 		realms,
 		authTokensTableName,
 	)
@@ -80,13 +88,13 @@ func InitUserProviders(
 			dbConnManager,
 			userGroupRights,
 			testUser,
-			jwtSecret,
+			jwtKeys,
 			domainRealms,
 			authTokensTableName,
 		)
 	}
 
-	return realm2provider
+	return realm2provider, nil
 }
 
 func createUserProviderGroup(
@@ -94,7 +102,7 @@ func createUserProviderGroup(
 	dbConnManager mrstorage.DBConnManager,
 	userGroupRights mraccess.RightsGetter,
 	testUser authcfg.TestUser,
-	jwtSecret string,
+	jwtKeys crypt.KeySet,
 	userRealms []authcfg.UserRealm,
 	authTokensTableName string,
 ) mraccess.UserProvider {
@@ -117,7 +125,7 @@ func createUserProviderGroup(
 					userGroupRights,
 					testUser,
 					tokenType,
-					jwtSecret,
+					jwtKeys,
 					realms,
 					authTokensTableName,
 				),
@@ -138,7 +146,7 @@ func createUserProviderByTokenType(
 	userGroupRights mraccess.RightsGetter,
 	testUser authcfg.TestUser,
 	tokenType string,
-	jwtSecret string,
+	jwtKeys crypt.KeySet,
 	allowedRealms []string,
 	authTokensTableName string,
 ) mraccess.UserProvider {
@@ -162,6 +170,7 @@ func createUserProviderByTokenType(
 				mraccess.NewUser(
 					uuid.MustParse(testUser.ID),
 					testUser.Realm+"/"+testUser.Kind,
+					"00000000", // тестовый пользователь без реальной сессии
 					testUser.LangCode,
 					userGroupRights,
 				),
@@ -173,7 +182,7 @@ func createUserProviderByTokenType(
 	if tokenType == "jwt" {
 		return mrauth.NewUserProviderJWT(
 			userGroupRights,
-			jwtSecret,
+			jwtKeys,
 			allowedRealms,
 		)
 	}

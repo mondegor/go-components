@@ -13,6 +13,8 @@ type (
 		DeviceName string `json:"device_name"`
 		LastIP     string `json:"last_ip"`
 		Location   string `json:"location"`
+		CreatedAt  string `json:"created_at"`
+		LastSeenAt string `json:"last_seen_at"`
 		IsCurrent  bool   `json:"is_current"`
 	}
 )

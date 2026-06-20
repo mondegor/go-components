@@ -19,7 +19,7 @@ type (
 		storage          sessionLister
 		openFetcher      openSessionFetcher
 		closer           sessionCloser
-		resolver         currentSessionResolver
+		resolver         sessionResolver
 		appResolver      mrauth.AppResolver
 		locationResolver mrauth.LocationResolver
 		errorWrapper     errors.Wrapper
@@ -37,7 +37,7 @@ type (
 		RevokeTokensBySessionIDs(ctx context.Context, userID uuid.UUID, sessionIDs []uint32) error
 	}
 
-	currentSessionResolver interface {
+	sessionResolver interface {
 		FetchOneByAccessToken(ctx context.Context, accessToken string) (dto.UserScopes, error)
 	}
 )
@@ -47,7 +47,7 @@ func NewList(
 	storage sessionLister,
 	openFetcher openSessionFetcher,
 	closer sessionCloser,
-	resolver currentSessionResolver,
+	resolver sessionResolver,
 	appResolver mrauth.AppResolver,
 	locationResolver mrauth.LocationResolver,
 ) *List {
@@ -96,6 +96,8 @@ func (uc *List) GetList(ctx context.Context, userID uuid.UUID, currentAccessToke
 		return nil, uc.errorWrapper.Wrap(err)
 	}
 
+	openSessionIDs = ordered.SortedUnique(openSessionIDs)
+
 	list := make([]dto.UserSession, 0, len(openSessionIDs))
 
 	for _, session := range sessions {
@@ -114,6 +116,8 @@ func (uc *List) GetList(ctx context.Context, userID uuid.UUID, currentAccessToke
 				DeviceName: deviceName,
 				LastIP:     lastIP,
 				Location:   uc.locationResolver(lastIP),
+				CreatedAt:  session.CreatedAt,
+				UpdatedAt:  session.UpdatedAt,
 				IsCurrent:  session.SessionID == currentSessionID,
 			},
 		)

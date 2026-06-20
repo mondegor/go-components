@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	createUserLockKeyPrefix = "auth.createUser:"
+	createUserLockKeyPrefix = "auth.create-user:"
 	createUserLockTimeout   = 10 * time.Minute
 )
 

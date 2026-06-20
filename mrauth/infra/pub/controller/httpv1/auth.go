@@ -15,7 +15,6 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
-	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
@@ -33,7 +32,7 @@ type (
 	Auth struct {
 		parser                  validate.RequestParser
 		sender                  mrserver.ResponseSender
-		refreshTokenCookie      *bag.RefreshTokenCookie
+		refreshTokenCookie      cookieValueService
 		useCaseCreateUser       createUserUseCase
 		useCaseAuthUser         authUserUseCase
 		useCaseConfirmOperation confirmOperationUseCase
@@ -43,6 +42,12 @@ type (
 		serviceUserInfo         userInfoService
 		operationResponse       confirmOperationResponse
 		debugFunc               func(value any) string
+	}
+
+	cookieValueService interface {
+		GetValue(r *http.Request) string
+		SetValue(w http.ResponseWriter, value string)
+		RemoveValue(w http.ResponseWriter)
 	}
 
 	createUserUseCase interface {
@@ -83,6 +88,7 @@ type (
 func NewAuth(
 	parser validate.RequestParser,
 	sender mrserver.ResponseSender,
+	refreshTokenCookie cookieValueService,
 	useCaseCreateUser createUserUseCase,
 	useCaseConfirmAuthUser authUserUseCase,
 	useCaseConfirmOperation confirmOperationUseCase,
@@ -100,14 +106,9 @@ func NewAuth(
 	}
 
 	return &Auth{
-		parser: parser,
-		sender: sender,
-		refreshTokenCookie: bag.NewRefreshTokenCookie(
-			"RTID",           // TODO: options !!!!!!!
-			"localhost",      // TODO: options !!!!!!!
-			"/",              // TODO: options !!!!!!!
-			180*24*time.Hour, // TODO: options !!!!!!!
-		),
+		parser:                  parser,
+		sender:                  sender,
+		refreshTokenCookie:      refreshTokenCookie,
 		useCaseCreateUser:       useCaseCreateUser,
 		useCaseAuthUser:         useCaseConfirmAuthUser,
 		useCaseConfirmOperation: useCaseConfirmOperation,
@@ -173,8 +174,6 @@ func (ht *Auth) Signin(w http.ResponseWriter, r *http.Request) error {
 
 	// TODO: ограничивать частую отправку событий на авторизацию
 	// TODO: писать, что код подтверждения уже был выслан, повторить попытку можно через N минут
-
-	// TODO: проверить, что открыто не более X сессий
 
 	op, err := ht.useCaseAuthUser.Execute(r.Context(), req.Realm, lz.Language(), req.UserLogin)
 	if err != nil {

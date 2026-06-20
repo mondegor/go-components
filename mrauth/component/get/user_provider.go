@@ -2,6 +2,7 @@ package get
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mraccess"
@@ -62,6 +63,7 @@ func (co *UserProvider) UserByToken(ctx context.Context, value string) (mraccess
 	return mraccess.NewUser(
 		userScopes.UserID,
 		userScopes.Realm+"/"+userScopes.Kind,
+		strconv.FormatUint(uint64(userScopes.SessionID), 10),
 		userScopes.LangCode,
 		co.userGroupRights,
 	), nil

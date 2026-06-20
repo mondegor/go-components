@@ -8,6 +8,11 @@ import (
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
+const (
+	defaultAccessExpiry  = 30 * time.Minute
+	defaultRefreshExpiry = 24 * time.Hour
+)
+
 type (
 	// TokenIssuer - выпускает пару токенов с непрозрачным (сессионным) access токеном.
 	TokenIssuer struct {
@@ -23,6 +28,14 @@ func NewTokenIssuer(
 	accessExpiry time.Duration,
 	refreshExpiry time.Duration,
 ) *TokenIssuer {
+	if accessExpiry == 0 {
+		accessExpiry = defaultAccessExpiry
+	}
+
+	if refreshExpiry == 0 {
+		refreshExpiry = defaultRefreshExpiry
+	}
+
 	return &TokenIssuer{
 		tokenGenerator: tokenGenerator,
 		accessExpiry:   accessExpiry,

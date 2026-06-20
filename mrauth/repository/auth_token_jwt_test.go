@@ -11,6 +11,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/bag/jwt"
+	"github.com/mondegor/go-components/mrauth/bag/jwt/crypt"
 	jwtmock "github.com/mondegor/go-components/mrauth/bag/jwt/mock"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/repository"
@@ -25,7 +26,10 @@ func signedAccessToken(t *testing.T, scopes dto.UserScopes) string {
 	gen := jwtmock.NewMockTokenGenerator(ctrl)
 	gen.EXPECT().GenToken().Return("refresh", nil)
 
-	pair, err := jwt.NewTokenIssuer(gen, 15*time.Minute, 24*time.Hour, "HS512", []byte(jwtSecret)).
+	signingKey, err := crypt.NewHMACKey("", "HS512", []byte(jwtSecret))
+	require.NoError(t, err)
+
+	pair, err := jwt.NewTokenIssuer(gen, 15*time.Minute, 24*time.Hour, "https://auth.test", signingKey).
 		CreateTokenPair(scopes)
 	require.NoError(t, err)
 
@@ -43,7 +47,13 @@ func TestAuthTokenJWT_FetchOneByAccessToken(t *testing.T) {
 	}
 	token := signedAccessToken(t, want)
 
-	got, err := repository.NewAuthTokenJWT(jwtSecret).FetchOneByAccessToken(context.Background(), token)
+	verifyKey, err := crypt.NewHMACKey("", "HS512", []byte(jwtSecret))
+	require.NoError(t, err)
+
+	keys, err := crypt.NewKeySet(verifyKey)
+	require.NoError(t, err)
+
+	got, err := repository.NewAuthTokenJWT(keys).FetchOneByAccessToken(context.Background(), token)
 	require.NoError(t, err)
 
 	assert.Equal(t, want.UserID, got.UserID)
@@ -55,6 +65,12 @@ func TestAuthTokenJWT_FetchOneByAccessToken(t *testing.T) {
 func TestAuthTokenJWT_FetchOneByAccessToken_Invalid(t *testing.T) {
 	t.Parallel()
 
-	_, err := repository.NewAuthTokenJWT(jwtSecret).FetchOneByAccessToken(context.Background(), "not-a-jwt")
+	verifyKey, err := crypt.NewHMACKey("", "", []byte(jwtSecret))
+	require.NoError(t, err)
+
+	keys, err := crypt.NewKeySet(verifyKey)
+	require.NoError(t, err)
+
+	_, err = repository.NewAuthTokenJWT(keys).FetchOneByAccessToken(context.Background(), "not-a-jwt")
 	require.Error(t, err)
 }

@@ -37,6 +37,14 @@ type (
 		LastVisitedAt time.Time
 	}
 
+	// SessionLastActivity - информация о последней активности сессии (для async обновления).
+	SessionLastActivity struct {
+		UserID        uuid.UUID
+		SessionID     uint32
+		LastIP        uint32
+		LastVisitedAt time.Time
+	}
+
 	// UserInfo - сгруппированная информация о пользователе.
 	UserInfo struct {
 		User    entity.User
@@ -48,6 +56,7 @@ type (
 	// UserActivityLogMessage - информация об активности пользователя.
 	UserActivityLogMessage struct {
 		UserID        uuid.UUID         `json:"user_id"`
+		SessionID     uint32            `json:"session_id"`
 		UserIP        mrtype.DetailedIP `json:"user_ip"`
 		UserAgent     string            `json:"user_agent"`
 		RequestPath   string            `json:"request_path"`

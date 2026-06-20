@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
@@ -74,6 +75,8 @@ func (ht *Session) GetList(w http.ResponseWriter, r *http.Request) error {
 				DeviceName: item.DeviceName,
 				LastIP:     item.LastIP,
 				Location:   item.Location,
+				CreatedAt:  item.CreatedAt.Round(time.Second).Format(time.RFC3339),
+				LastSeenAt: item.UpdatedAt.Round(time.Second).Format(time.RFC3339),
 				IsCurrent:  item.IsCurrent,
 			},
 		)

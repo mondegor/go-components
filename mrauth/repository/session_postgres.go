@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrstorage"
 
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
@@ -66,7 +68,9 @@ func (re *SessionPostgres) FetchListByUserID(ctx context.Context, userID uuid.UU
 		SELECT
 			session_id,
 			COALESCE(user_agent, ''),
-			COALESCE(last_ip, 0)
+			COALESCE(last_ip, 0),
+			created_at,
+			updated_at
 		FROM
 			` + re.tableName + `
 		WHERE
@@ -94,6 +98,8 @@ func (re *SessionPostgres) FetchListByUserID(ctx context.Context, userID uuid.UU
 			&row.SessionID,
 			&row.UserAgent,
 			&row.LastIP,
+			&row.CreatedAt,
+			&row.UpdatedAt,
 		); err != nil {
 			return nil, re.errorWrapper.Wrap(err)
 		}
@@ -106,4 +112,49 @@ func (re *SessionPostgres) FetchListByUserID(ctx context.Context, userID uuid.UU
 	}
 
 	return rows, nil
+}
+
+// UpdateLastActivity - батчем обновляет последнюю активность сессий (IP и время).
+// Целостность не критична: записи без совпадающей сессии просто игнорируются.
+func (re *SessionPostgres) UpdateLastActivity(ctx context.Context, rows []dto.SessionLastActivity) error {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	userIDs := make([]uuid.UUID, 0, len(rows))
+	sessionIDs := make([]uint32, 0, len(rows))
+	lastIPs := make([]uint32, 0, len(rows))
+	visitedAts := make([]time.Time, 0, len(rows))
+
+	for _, row := range rows {
+		userIDs = append(userIDs, row.UserID)
+		sessionIDs = append(sessionIDs, row.SessionID)
+		lastIPs = append(lastIPs, row.LastIP)
+		visitedAts = append(visitedAts, row.LastVisitedAt)
+	}
+
+	sql := `
+		UPDATE
+			` + re.tableName + ` t1
+		SET
+			last_ip = CASE WHEN t2.updated_at >= t1.updated_at THEN t2.last_ip ELSE t1.last_ip END,
+			updated_at = GREATEST(t1.updated_at, t2.updated_at)
+		FROM
+			(
+				SELECT *
+				FROM
+					UNNEST($1::uuid[], $2::int8[], $3::int8[], $4::timestamptz[])
+					as t(user_id, session_id, last_ip, updated_at)
+			) t2
+		WHERE
+			t1.user_id = t2.user_id AND t1.session_id = t2.session_id;`
+
+	return re.client.Conn(ctx).Exec(
+		ctx,
+		sql,
+		userIDs,
+		sessionIDs,
+		lastIPs,
+		visitedAts,
+	)
 }

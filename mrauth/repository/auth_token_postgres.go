@@ -400,11 +400,13 @@ func (re *AuthTokenPostgres) RevokeTokensBySessionIDs(ctx context.Context, userI
 	return nil
 }
 
-// FetchOpenSessionIDs - возвращает идентификаторы открытых сессий пользователя (отсортированные по session_id).
+// FetchOpenSessionIDs - возвращает идентификаторы открытых сессий пользователя,
+// отсортированные по возрасту действующего refresh токена (created_at, по возрастанию):
+// первыми идут сессии, refresh токен которых дольше всех не обновлялся (наименее активные).
 // Открыта = есть действующий не истёкший refresh токен.
 func (re *AuthTokenPostgres) FetchOpenSessionIDs(ctx context.Context, userID uuid.UUID) (rows []uint32, err error) {
-	// TODO: если пользователь решит открыть куча сессий? Нужно ограничение.
-	// GROUP BY используется на всякий случай, так как на сессию приходится ровно один enabled refresh токен
+	// GROUP BY используется на всякий случай, так как на сессию приходится ровно один enabled refresh токен;
+	// MIN(created_at) устойчив к такому "на всякий случай" дубликату
 	sql := `
 		SELECT
 			session_id
@@ -415,7 +417,7 @@ func (re *AuthTokenPostgres) FetchOpenSessionIDs(ctx context.Context, userID uui
 		GROUP BY
 			session_id
 		ORDER BY
-			session_id;`
+			MIN(created_at), session_id;`
 
 	cursor, err := re.client.Conn(ctx).Query(
 		ctx,

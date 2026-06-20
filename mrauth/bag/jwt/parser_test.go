@@ -40,7 +40,7 @@ func TestParser_Parse_Valid(t *testing.T) {
 	claims := validClaims()
 	token := signToken(t, claims, secret)
 
-	got, err := jwt.NewParser(secret).Parse(token)
+	got, err := jwt.NewParser(hmacKeySet(t, secret)).Parse(token)
 	require.NoError(t, err)
 
 	assert.Equal(t, claims["sub"], got.UserID.String())
@@ -71,6 +71,8 @@ func TestParser_Parse_SectionInvalid(t *testing.T) {
 		{name: "sub not uuid", mutate: func(c gojwt.MapClaims) { c["sub"] = "not-a-uuid" }},
 		{name: "sid not numeric", mutate: func(c gojwt.MapClaims) { c["sid"] = "abc" }},
 		{name: "scope wrong type", mutate: func(c gojwt.MapClaims) { c["scope"] = 123 }},
+		// парсер трактует 'aud' как одиночную строку (realm); массив (формат RFC 7519) не поддерживается
+		{name: "aud as array", mutate: func(c gojwt.MapClaims) { c["aud"] = []string{"site/admin"} }},
 	}
 
 	for _, tt := range tests {
@@ -81,7 +83,7 @@ func TestParser_Parse_SectionInvalid(t *testing.T) {
 			tt.mutate(claims)
 			token := signToken(t, claims, secret)
 
-			_, err := jwt.NewParser(secret).Parse(token)
+			_, err := jwt.NewParser(hmacKeySet(t, secret)).Parse(token)
 			require.ErrorIs(t, err, jwt.ErrTokenSectionInvalid)
 		})
 	}
@@ -94,8 +96,20 @@ func TestParser_Parse_Expired(t *testing.T) {
 	claims["exp"] = gojwt.NewNumericDate(time.Now().Add(-time.Minute))
 	token := signToken(t, claims, secret)
 
-	_, err := jwt.NewParser(secret).Parse(token)
+	_, err := jwt.NewParser(hmacKeySet(t, secret)).Parse(token)
 	require.ErrorIs(t, err, jwt.ErrTokenExpired)
+}
+
+func TestParser_Parse_WithinLeeway(t *testing.T) {
+	t.Parallel()
+
+	// токен истёк недавно, но в пределах допустимого расхождения часов (parseLeeway) - принимается
+	claims := validClaims()
+	claims["exp"] = gojwt.NewNumericDate(time.Now().Add(-20 * time.Second))
+	token := signToken(t, claims, secret)
+
+	_, err := jwt.NewParser(hmacKeySet(t, secret)).Parse(token)
+	require.NoError(t, err)
 }
 
 func TestParser_Parse_WrongSecret(t *testing.T) {
@@ -103,6 +117,6 @@ func TestParser_Parse_WrongSecret(t *testing.T) {
 
 	token := signToken(t, validClaims(), "another-secret-value")
 
-	_, err := jwt.NewParser(secret).Parse(token)
+	_, err := jwt.NewParser(hmacKeySet(t, secret)).Parse(token)
 	require.ErrorIs(t, err, jwt.ErrTokenInvalid)
 }

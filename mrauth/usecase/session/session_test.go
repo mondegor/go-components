@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	sysmesserrors "github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/mrlock"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrstorage"
 	"github.com/stretchr/testify/suite"
@@ -29,6 +31,7 @@ import (
 //go:generate mockgen -source=session_list.go -destination=mock/session_list.go -package=mock
 //go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-sysmess/mrstorage DBTxManager
 //go:generate mockgen -destination=mock/mrevent.go -package=mock github.com/mondegor/go-sysmess/mrevent Emitter
+//go:generate mockgen -destination=mock/mrlock.go -package=mock github.com/mondegor/go-sysmess/mrlock Locker
 
 func okScopes() dto.UserScopes {
 	return dto.UserScopes{UserID: uuid.New(), Realm: "site/admin", Kind: "admin", LangCode: "en"}
@@ -50,15 +53,37 @@ func runJob(_ context.Context, job func(context.Context) error, _ ...mrstorage.T
 type OpenSessionSuite struct {
 	suite.Suite
 
-	ctrl     *gomock.Controller
-	ctx      context.Context
-	tx       *mock.MockDBTxManager
-	session  *mock.MocksessionStorage
-	activity *mock.MockuserActivityStatCreator
-	create   *mock.MockoperationHandlerCreateUser
-	before   *mock.MockoperationHandlerBeforeAuthUser
-	creator  *mock.MocktokenCreator
-	uc       *session.OpenSession
+	ctrl        *gomock.Controller
+	ctx         context.Context
+	tx          *mock.MockDBTxManager
+	session     *mock.MocksessionStorage
+	activity    *mock.MockuserActivityStatCreator
+	openFetcher *mock.MockopenSessionFetcher
+	closer      *mock.MocksessionCloser
+	locker      *mock.MockLocker
+	create      *mock.MockoperationHandlerCreateUser
+	before      *mock.MockoperationHandlerBeforeAuthUser
+	creator     *mock.MocktokenCreator
+	uc          *session.OpenSession
+}
+
+// buildUC - пересобирает OpenSession с лимитом limit для realm/kind из okScopes() ("site/admin"/"admin").
+func (s *OpenSessionSuite) buildUC(limit uint32) {
+	s.uc = session.NewOpenSession(
+		s.tx,
+		s.session,
+		s.activity,
+		s.openFetcher,
+		s.closer,
+		s.locker,
+		s.create,
+		s.before,
+		s.creator,
+		[]session.LimitRealm{{
+			Name:       "site/admin",
+			KindLimits: []session.UserKindLimit{{Kind: "admin", SessionMax: limit}},
+		}},
+	)
 }
 
 func TestOpenSessionSuite(t *testing.T) {
@@ -73,10 +98,13 @@ func (s *OpenSessionSuite) SetupTest() {
 	s.tx = mock.NewMockDBTxManager(s.ctrl)
 	s.session = mock.NewMocksessionStorage(s.ctrl)
 	s.activity = mock.NewMockuserActivityStatCreator(s.ctrl)
+	s.openFetcher = mock.NewMockopenSessionFetcher(s.ctrl)
+	s.closer = mock.NewMocksessionCloser(s.ctrl)
+	s.locker = mock.NewMockLocker(s.ctrl)
 	s.create = mock.NewMockoperationHandlerCreateUser(s.ctrl)
 	s.before = mock.NewMockoperationHandlerBeforeAuthUser(s.ctrl)
 	s.creator = mock.NewMocktokenCreator(s.ctrl)
-	s.uc = session.NewOpenSession(s.tx, s.session, s.activity, s.create, s.before, s.creator)
+	s.buildUC(4)
 }
 
 func confirmedOp(name string) secureoperation.SecureOperation {
@@ -98,6 +126,8 @@ func (s *OpenSessionSuite) TestNotConfirmed() {
 func (s *OpenSessionSuite) TestCreateUserHappy() {
 	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
 	s.create.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), nil)
+	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
+	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return([]uint32{}, nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
 	s.session.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
 	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(nil)
@@ -110,12 +140,91 @@ func (s *OpenSessionSuite) TestCreateUserHappy() {
 func (s *OpenSessionSuite) TestAuthorizeUserHappy() {
 	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
 	s.before.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(okScopes(), nil)
+	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
+	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return([]uint32{}, nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
 	s.session.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
 	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(nil)
 
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameAuthorizeUser))
 	s.Require().NoError(err)
+}
+
+func (s *OpenSessionSuite) TestSessionLimitClosesLeastActive() {
+	s.buildUC(2)
+
+	scopes := okScopes()
+	// FetchOpenSessionIDs возвращает сессии "наименее активные первыми" (по возрасту refresh токена)
+	old, recent := uint32(10), uint32(20)
+
+	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
+	s.create.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(scopes, nil)
+	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
+	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), scopes.UserID).Return([]uint32{old, recent}, nil)
+	// открытие 3-й сессии при лимите 2 закрывает 1 наименее активную (префикс - old)
+	s.closer.EXPECT().RevokeTokensBySessionIDs(gomock.Any(), scopes.UserID, []uint32{old}).Return(nil)
+	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
+	s.session.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(nil)
+
+	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
+	s.Require().NoError(err)
+}
+
+func (s *OpenSessionSuite) TestSessionLimitUnderLimitNoClose() {
+	s.buildUC(5)
+
+	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
+	s.create.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), nil)
+	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
+	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return([]uint32{1, 2}, nil)
+	// Revoke не вызывается: место есть
+	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
+	s.session.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(nil)
+
+	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
+	s.Require().NoError(err)
+}
+
+func (s *OpenSessionSuite) TestSessionMaxZeroUsesDefault() {
+	s.buildUC(0) // session_max=0 для kind -> применяется дефолт defaultSessionMax (4)
+
+	openIDs := make([]uint32, 3) // 3 открытых + 1 новая = 4 == дефолт, закрытия нет
+	for i := range openIDs {
+		openIDs[i] = uint32(i + 1)
+	}
+
+	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
+	s.create.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), nil)
+	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
+	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return(openIDs, nil)
+	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
+	s.session.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(nil)
+
+	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
+	s.Require().NoError(err)
+}
+
+func (s *OpenSessionSuite) TestSessionLimitFetchError() {
+	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
+	s.create.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), nil)
+	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
+	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return(nil, errors.New("fetch failed"))
+
+	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
+	s.Require().Error(err)
+}
+
+func (s *OpenSessionSuite) TestSessionLockCooldown() {
+	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
+	s.create.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), nil)
+	// блокировка-кулдаун занята: вход слишком частый, подсчёт сессий не выполняется
+	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, mrlock.ErrLockKeyNotObtained)
+
+	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
+	s.Require().ErrorIs(err, mrauth.ErrTooManyOpenSessionRequests)
 }
 
 func (s *OpenSessionSuite) TestUnknownOperation() {
@@ -136,6 +245,8 @@ func (s *OpenSessionSuite) TestHandlerError() {
 func (s *OpenSessionSuite) TestTokenCreatorError() {
 	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
 	s.create.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), nil)
+	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
+	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return([]uint32{}, nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(dto.AuthTokenPair{}, errors.New("create failed"))
 
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
@@ -145,6 +256,8 @@ func (s *OpenSessionSuite) TestTokenCreatorError() {
 func (s *OpenSessionSuite) TestActivityError() {
 	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
 	s.create.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), nil)
+	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
+	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return([]uint32{}, nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
 	s.session.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
 	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(errors.New("activity failed"))
@@ -289,7 +402,7 @@ type ListSuite struct {
 	lister   *mock.MocksessionLister
 	opener   *mock.MockopenSessionFetcher
 	closer   *mock.MocksessionCloser
-	resolver *mock.MockcurrentSessionResolver
+	resolver *mock.MocksessionResolver
 	userID   uuid.UUID
 	uc       *session.List
 }
@@ -306,17 +419,19 @@ func (s *ListSuite) SetupTest() {
 	s.lister = mock.NewMocksessionLister(s.ctrl)
 	s.opener = mock.NewMockopenSessionFetcher(s.ctrl)
 	s.closer = mock.NewMocksessionCloser(s.ctrl)
-	s.resolver = mock.NewMockcurrentSessionResolver(s.ctrl)
+	s.resolver = mock.NewMocksessionResolver(s.ctrl)
 	s.userID = uuid.New()
 	s.uc = session.NewList(s.lister, s.opener, s.closer, s.resolver, nil, nil)
 }
 
 func (s *ListSuite) TestGetListFiltersAndMaps() {
 	// 0xdeadbeef нет среди открытых -> должна быть отброшена; порядок результата следует порядку строк
+	createdAt := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	lastSeen := time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)
 	rows := []entity.Session{
-		{UserID: s.userID, SessionID: 0x1f3bc817, UserAgent: "UA1", LastIP: 0x7f000001}, // 127.0.0.1, текущая
-		{UserID: s.userID, SessionID: 0x0000babc, UserAgent: "UA2", LastIP: 0},          // IP=0 -> ""
-		{UserID: s.userID, SessionID: 0xdeadbeef, UserAgent: "UA3", LastIP: 0x08080808}, // не открыта
+		{UserID: s.userID, SessionID: 0x1f3bc817, UserAgent: "UA1", LastIP: 0x7f000001, CreatedAt: createdAt, UpdatedAt: lastSeen}, // 127.0.0.1, текущая
+		{UserID: s.userID, SessionID: 0x0000babc, UserAgent: "UA2", LastIP: 0},                                                     // IP=0 -> ""
+		{UserID: s.userID, SessionID: 0xdeadbeef, UserAgent: "UA3", LastIP: 0x08080808},                                            // не открыта
 	}
 	open := []uint32{0x0000babc, 0x1f3bc817} // отсортирован по возрастанию для BinaryContains
 
@@ -331,6 +446,8 @@ func (s *ListSuite) TestGetListFiltersAndMaps() {
 	s.Equal(uint32(0x1f3bc817), got[0].SessionID)
 	s.True(got[0].IsCurrent) // session_id совпал с текущим
 	s.Equal("127.0.0.1", got[0].LastIP)
+	s.Equal(createdAt, got[0].CreatedAt)
+	s.Equal(lastSeen, got[0].UpdatedAt)
 
 	s.Equal(uint32(0x0000babc), got[1].SessionID)
 	s.False(got[1].IsCurrent)

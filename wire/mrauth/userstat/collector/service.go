@@ -30,7 +30,8 @@ func NewService(
 	logger mrlog.Logger,
 	traceManager mrtrace.ContextManager,
 	usersActivityLogTableName,
-	usersActivityStatTableName string,
+	usersActivityStatTableName,
+	sessionsTableName string,
 	opts ...Option,
 ) *collect.MessageCollector[dto.UserActivityLogMessage] {
 	o := options{
@@ -56,6 +57,10 @@ func NewService(
 		repository.NewUserActivityLogPostgres(
 			client,
 			usersActivityLogTableName,
+		),
+		repository.NewSessionPostgres(
+			client,
+			sessionsTableName,
 		),
 	)
 

@@ -5,10 +5,12 @@ import (
 
 	accesscfg "github.com/mondegor/go-sysmess/mraccess/config"
 	processcfg "github.com/mondegor/go-sysmess/mrprocess/config"
+
+	jwtcrypt "github.com/mondegor/go-components/mrauth/bag/jwt/crypt"
 )
 
 type (
-	// UserRealm - comment struct.
+	// UserRealm - конфигурация realm (области аутентификации): токены, виды пользователей, подтверждение операций.
 	UserRealm struct {
 		Name             string           `yaml:"name"`
 		AuthToken        Token            `yaml:"auth_token"`
@@ -17,7 +19,7 @@ type (
 		OperationConfirm OperationConfirm `yaml:"operation_confirm"`
 	}
 
-	// Token - comment struct.
+	// Token - настройки access/refresh токенов realm (тип доступа, сроки жизни, длина).
 	Token struct {
 		AccessType    string        `yaml:"access_type"`
 		AccessExpiry  time.Duration `yaml:"access_expiry"`
@@ -25,14 +27,14 @@ type (
 		Length        uint16        `yaml:"length"` // for refresh and access[type == 'session']
 	}
 
-	// UserKind - comment struct.
+	// UserKind - вид пользователя внутри realm: набор ролей и максимум одновременных сессий.
 	UserKind struct {
 		Name       string   `yaml:"name"`
 		Roles      []string `yaml:"roles"`
 		SessionMax uint32   `yaml:"session_max"`
 	}
 
-	// OperationConfirm - comment struct.
+	// OperationConfirm - настройки подтверждения операции: длина токена/кода, срок жизни, способы отправки.
 	OperationConfirm struct {
 		TokenLength   uint16        `yaml:"token_length"`
 		CodeLength    uint8         `yaml:"code_length"`
@@ -41,20 +43,22 @@ type (
 		SendByPhone   CodeSender    `yaml:"send_by_phone"`
 	}
 
-	// CodeSender - comment struct.
+	// CodeSender - настройки отправки кода подтверждения: лимиты попыток, повторов и интервал между ними.
 	CodeSender struct {
 		MaxAttempts   uint8         `yaml:"max_attempts"`
 		MaxResends    uint8         `yaml:"max_resends"`
 		MinResendTime time.Duration `yaml:"min_resend_time"`
 	}
 
-	// JWT - comment struct.
-	JWT struct {
-		Method string
-		Secret []byte
+	// RefreshCookie - настройки cookie с refresh токеном (web-версия).
+	RefreshCookie struct {
+		Name   string        `yaml:"name"`
+		Domain string        `yaml:"domain" env:"APPX_REFRESH_COOKIE_DOMAIN"`
+		Path   string        `yaml:"path"`
+		Expiry time.Duration `yaml:"expiry"`
 	}
 
-	// AccessControl - comment struct.
+	// AccessControl - корневая конфигурация аутентификации модуля: realm'ы, роли, токены и ключи JWT.
 	AccessControl struct {
 		Realms                  []UserRealm             `yaml:"realms"`
 		ActionGroups            []accesscfg.ActionGroup `yaml:"action_groups"`
@@ -62,11 +66,32 @@ type (
 		Roles                   []string                `yaml:"roles"`
 		OverrideAuthToken       Token                   `yaml:"override_auth_token"`
 		DefaultOperationConfirm OperationConfirm        `yaml:"default_operation_confirm"`
-		JWTMethod               string                  `yaml:"jwt_method" env:"APPX_JWT_METHOD" env-default:"HS256"`
-		JWTSecret               string                  `yaml:"jwt_secret" env:"APPX_JWT_SECRET"`
 	}
 
-	// TestUser - comment struct.
+	// JWT - настройки и ключи для подписи (issuer) и проверки (verifier) access-токенов.
+	JWT struct {
+		Issuer string `yaml:"issuer" env:"APPX_JWT_ISSUER"` // издатель токена (claim iss)
+		Alg    string `yaml:"alg" env:"APPX_JWT_ALG"`       // алгоритм подписи: HS256/HS512/RS256/ES256
+		KID    string `yaml:"kid" env:"APPX_JWT_KID"`       // идентификатор активного ключа подписи (обязателен для jwt)
+
+		// Secret - HMAC-секрет (HS256/HS512) либо приватный ключ в формате PEM (RS256/ES256).
+		Secret string `yaml:"secret" env:"APPX_JWT_SECRET"`
+
+		// VerifyKeys - дополнительные ключи только для проверки подписи (старые ключи в период ротации, RS256/ES256).
+		VerifyKeys []JWTVerifyKey `yaml:"verify_keys"`
+
+		SigningKey jwtcrypt.SigningKey // активный ключ подписи
+		Verifier   jwtcrypt.KeySet     // набор ключей проверки подписи
+	}
+
+	// JWTVerifyKey - асимметричный ключ только для проверки подписи (публичная часть в PEM).
+	JWTVerifyKey struct {
+		KID       string `yaml:"kid"`
+		Alg       string `yaml:"alg"` // RS256/ES256
+		PublicKey string `yaml:"public_key"`
+	}
+
+	// TestUser - тестовый пользователь для отладки: при заданном ID подменяет реальную аутентификацию в своём realm.
 	TestUser struct {
 		ID       string
 		Realm    string

@@ -27,6 +27,7 @@ func InitHttpModule(
 	userRealms []auth.UserRealm,
 	operationConfirm auth.OperationConfirm,
 	jwtConfig auth.JWT,
+	cookieConfig auth.RefreshCookie,
 	appResolver module.AppResolver, // OPTIONAL
 	locationResolver module.LocationResolver, // OPTIONAL
 	authTokensTableName,
@@ -83,6 +84,7 @@ func InitHttpModule(
 						notifierAPI,
 						userRealms,
 						jwtConfig,
+						cookieConfig,
 						debugFunc,
 					)
 				},
@@ -94,6 +96,7 @@ func InitHttpModule(
 						storageUserRealm,
 						requestParser,
 						responseSender,
+						jwtConfig.Verifier,
 					)
 				},
 			},
@@ -135,9 +138,9 @@ func InitHttpModule(
 						storageAuthToken,
 						requestParser,
 						responseSender,
-						jwtConfig.Secret,
 						appResolver,
 						locationResolver,
+						jwtConfig.Verifier,
 					)
 				},
 			},

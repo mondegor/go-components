@@ -5,10 +5,18 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/bag/jwt/crypt"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
+)
+
+const (
+	defaultAccessExpiry  = 5 * time.Minute // короткий TTL access-токена по умолчанию
+	defaultRefreshExpiry = 24 * time.Hour
+	defaultIssuer        = "mrauth"
 )
 
 type (
@@ -17,8 +25,8 @@ type (
 		tokenGenerator mrauth.TokenGenerator
 		accessExpiry   time.Duration
 		refreshExpiry  time.Duration
-		signingMethod  jwt.SigningMethod
-		secret         []byte
+		issuer         string
+		signingKey     crypt.SigningKey
 	}
 )
 
@@ -27,29 +35,27 @@ func NewTokenIssuer(
 	tokenGenerator mrauth.TokenGenerator,
 	accessExpiry time.Duration,
 	refreshExpiry time.Duration,
-	signingMethod string,
-	secret []byte,
+	issuer string,
+	signingKey crypt.SigningKey,
 ) *TokenIssuer {
-	var method jwt.SigningMethod
+	if accessExpiry == 0 {
+		accessExpiry = defaultAccessExpiry
+	}
 
-	switch signingMethod {
-	case "HS512":
-		method = jwt.SigningMethodHS512
-	// TODO: "ES256", "ES512"
-	// case "ES256":
-	// 	method = jwt.SigningMethodES256
-	// case "ES512":
-	// 	method = jwt.SigningMethodES512
-	default:
-		method = jwt.SigningMethodHS256
+	if refreshExpiry == 0 {
+		refreshExpiry = defaultRefreshExpiry
+	}
+
+	if issuer == "" {
+		issuer = defaultIssuer
 	}
 
 	return &TokenIssuer{
 		tokenGenerator: tokenGenerator,
 		accessExpiry:   accessExpiry,
 		refreshExpiry:  refreshExpiry,
-		signingMethod:  method,
-		secret:         secret,
+		issuer:         issuer,
+		signingKey:     signingKey,
 	}
 }
 
@@ -79,19 +85,28 @@ func (uc *TokenIssuer) CreateTokenPair(userScopes dto.UserScopes) (token dto.Aut
 }
 
 func (uc *TokenIssuer) createAccessToken(userScopes *dto.UserScopes) (dto.AccessToken, error) {
+	now := time.Now()
+
 	token := jwt.NewWithClaims(
-		uc.signingMethod,
+		uc.signingKey.Method(),
 		jwt.MapClaims{
 			sectionAudiences: userScopes.Realm,
 			sectionUserID:    userScopes.UserID.String(),
 			sectionSessionID: strconv.FormatUint(uint64(userScopes.SessionID), 10),
 			sectionLangCode:  userScopes.LangCode,
 			sectionScope:     userScopes.Kind,
-			sectionExpiry:    jwt.NewNumericDate(time.Now().Add(uc.accessExpiry)),
+			sectionIssuer:    uc.issuer,
+			sectionIssuedAt:  jwt.NewNumericDate(now),
+			sectionExpiry:    jwt.NewNumericDate(now.Add(uc.accessExpiry)),
+			sectionJTI:       uuid.NewString(),
 		},
 	)
 
-	accessToken, err := token.SignedString(uc.secret)
+	if kid := uc.signingKey.KID(); kid != "" {
+		token.Header["kid"] = kid
+	}
+
+	accessToken, err := token.SignedString(uc.signingKey.Private())
 	if err != nil {
 		return dto.AccessToken{}, err
 	}

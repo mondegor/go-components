@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/mondegor/go-components/mrauth/bag/jwt"
+	"github.com/mondegor/go-components/mrauth/bag/jwt/crypt"
 	"github.com/mondegor/go-components/mrauth/dto"
 )
 
@@ -15,9 +16,9 @@ type (
 )
 
 // NewAuthTokenJWT - создаёт объект AuthTokenJWT.
-func NewAuthTokenJWT(secret string) *AuthTokenJWT {
+func NewAuthTokenJWT(keys crypt.KeySet) *AuthTokenJWT {
 	return &AuthTokenJWT{
-		parser: jwt.NewParser(secret),
+		parser: jwt.NewParser(keys),
 	}
 }
 

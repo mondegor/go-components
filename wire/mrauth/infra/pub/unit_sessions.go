@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 
 	module "github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/bag/jwt/crypt"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/repository"
@@ -14,25 +15,34 @@ import (
 	"github.com/mondegor/go-components/mrauth/validate"
 )
 
+type (
+	sessionResolver interface {
+		FetchOneByAccessToken(ctx context.Context, accessToken string) (dto.UserScopes, error)
+	}
+)
+
 func initSessionsController(
 	storageSession *repository.SessionPostgres,
 	storageAuthToken *repository.AuthTokenPostgres,
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
-	jwtSecret []byte,
 	appResolver module.AppResolver,
 	locationResolver module.LocationResolver,
+	jwtKeys crypt.KeySet, // OPTIONAL
 ) (mrserver.HttpController, error) {
-	resolver := newCurrentSessionResolver(
-		repository.NewAuthTokenJWT(string(jwtSecret)), // JWT-realm: session_id из claim 'sid'
-		storageAuthToken, // session-realm: session_id из БД
-	)
+	resolver := sessionResolver(storageAuthToken)
+	if jwtKeys != nil {
+		resolver = newCurrentSessionResolver(
+			repository.NewAuthTokenJWT(jwtKeys), // JWT-realm: session_id из claim 'sid'
+			storageAuthToken,                    // session-realm: session_id из БД
+		)
+	}
 
 	useCaseSessionList := session.NewList(
 		storageSession,   // sessionLister
 		storageAuthToken, // openSessionFetcher
 		storageAuthToken, // sessionCloser
-		resolver,         // currentSessionResolver
+		resolver,
 		appResolver,
 		locationResolver,
 	)

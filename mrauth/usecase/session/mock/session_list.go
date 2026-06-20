@@ -135,32 +135,32 @@ func (mr *MocksessionCloserMockRecorder) RevokeTokensBySessionIDs(ctx, userID, s
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeTokensBySessionIDs", reflect.TypeOf((*MocksessionCloser)(nil).RevokeTokensBySessionIDs), ctx, userID, sessionIDs)
 }
 
-// MockcurrentSessionResolver is a mock of currentSessionResolver interface.
-type MockcurrentSessionResolver struct {
+// MocksessionResolver is a mock of sessionResolver interface.
+type MocksessionResolver struct {
 	ctrl     *gomock.Controller
-	recorder *MockcurrentSessionResolverMockRecorder
+	recorder *MocksessionResolverMockRecorder
 	isgomock struct{}
 }
 
-// MockcurrentSessionResolverMockRecorder is the mock recorder for MockcurrentSessionResolver.
-type MockcurrentSessionResolverMockRecorder struct {
-	mock *MockcurrentSessionResolver
+// MocksessionResolverMockRecorder is the mock recorder for MocksessionResolver.
+type MocksessionResolverMockRecorder struct {
+	mock *MocksessionResolver
 }
 
-// NewMockcurrentSessionResolver creates a new mock instance.
-func NewMockcurrentSessionResolver(ctrl *gomock.Controller) *MockcurrentSessionResolver {
-	mock := &MockcurrentSessionResolver{ctrl: ctrl}
-	mock.recorder = &MockcurrentSessionResolverMockRecorder{mock}
+// NewMocksessionResolver creates a new mock instance.
+func NewMocksessionResolver(ctrl *gomock.Controller) *MocksessionResolver {
+	mock := &MocksessionResolver{ctrl: ctrl}
+	mock.recorder = &MocksessionResolverMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockcurrentSessionResolver) EXPECT() *MockcurrentSessionResolverMockRecorder {
+func (m *MocksessionResolver) EXPECT() *MocksessionResolverMockRecorder {
 	return m.recorder
 }
 
 // FetchOneByAccessToken mocks base method.
-func (m *MockcurrentSessionResolver) FetchOneByAccessToken(ctx context.Context, accessToken string) (dto.UserScopes, error) {
+func (m *MocksessionResolver) FetchOneByAccessToken(ctx context.Context, accessToken string) (dto.UserScopes, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchOneByAccessToken", ctx, accessToken)
 	ret0, _ := ret[0].(dto.UserScopes)
@@ -169,7 +169,7 @@ func (m *MockcurrentSessionResolver) FetchOneByAccessToken(ctx context.Context, 
 }
 
 // FetchOneByAccessToken indicates an expected call of FetchOneByAccessToken.
-func (mr *MockcurrentSessionResolverMockRecorder) FetchOneByAccessToken(ctx, accessToken any) *gomock.Call {
+func (mr *MocksessionResolverMockRecorder) FetchOneByAccessToken(ctx, accessToken any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchOneByAccessToken", reflect.TypeOf((*MockcurrentSessionResolver)(nil).FetchOneByAccessToken), ctx, accessToken)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchOneByAccessToken", reflect.TypeOf((*MocksessionResolver)(nil).FetchOneByAccessToken), ctx, accessToken)
 }
