@@ -9,7 +9,7 @@ import (
 )
 
 type (
-	// ConfirmByAddress - comment struct.
+	// ConfirmByAddress - создаёт действие подтверждения по контактному адресу (email или телефон).
 	ConfirmByAddress struct {
 		confirmByEmail *ConfirmByEmail
 		confirmByPhone *ConfirmByPhone
@@ -24,14 +24,15 @@ func NewConfirmByAddress(emailOpts, phoneOpts []Option) *ConfirmByAddress {
 	}
 }
 
-// Create - comments method.
-func (a *ConfirmByAddress) Create(address contactaddress.ContactAddress, confirmCode string) (secureoperation.ConfirmAction, error) {
+// Create - создаёт действие подтверждения по контактному адресу; confirmCode передаётся
+// в открытом виде (для отправки) и в виде хеша (для хранения).
+func (a *ConfirmByAddress) Create(address contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error) {
 	if address.Is(addresstype.Phone) {
-		return a.confirmByPhone.Create(address, confirmCode)
+		return a.confirmByPhone.Create(address, confirmCode, hashedConfirmCode)
 	}
 
 	if address.Is(addresstype.Email) {
-		return a.confirmByEmail.Create(address, confirmCode)
+		return a.confirmByEmail.Create(address, confirmCode, hashedConfirmCode)
 	}
 
 	return secureoperation.ConfirmAction{},

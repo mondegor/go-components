@@ -111,7 +111,7 @@ func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail st
 			return co.errorWrapper.Wrap(err)
 		}
 
-		// TODO: Add Operation log:op!
+		// TODO: записать операцию в журнал
 
 		return op.NotifyByEmail(
 			func(address, confirmCode string) error {

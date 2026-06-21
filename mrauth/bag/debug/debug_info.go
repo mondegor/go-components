@@ -14,7 +14,7 @@ func Info(op secureoperation.SecureOperation) string {
 	info := "Method: " + action.Method.String()
 
 	if action.Sendable() {
-		info += ", to: " + action.Address + ", code: " + action.ConfirmCode
+		info += ", to: " + action.Address + ", code: " + action.PlainConfirmCode
 	}
 
 	return info

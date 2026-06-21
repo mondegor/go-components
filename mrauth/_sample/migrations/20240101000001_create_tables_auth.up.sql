@@ -42,10 +42,11 @@ VALUES  ('5ad9475b-25e5-4014-9331-567a61c51f24', 'printshop/providers', 'standar
 CREATE TABLE sample_schema.users_auth_2fa (
     user_id uuid NOT NULL CONSTRAINT pk_users_auth_2fa PRIMARY KEY REFERENCES sample_schema.users(user_id) ON DELETE CASCADE,
     auth_2fa_type int2 NOT NULL CHECK(auth_2fa_type > 0), -- 1=PASSWORD, 2=TOTP
-    auth_secret character varying(128) NOT NULL, -- хеш пароля или секрет для TOTP
-    recovery_codes jsonb NOT NULL DEFAULT '[]', -- JSON-массив bcrypt-хешей одноразовых аварийных кодов (только TOTP)
+    auth_secret character varying(128) NOT NULL, -- хеш пароля (PASSWORD) или base32 TOTP-секрет (TOTP)
+    last_totp_step int8 NOT NULL DEFAULT 0, -- номер последнего использованного TOTP time-step (защита от replay, только TOTP)
+    recovery_codes text[] NOT NULL DEFAULT '{}', -- массив bcrypt-хешей одноразовых аварийных кодов (только TOTP)
     created_at timestamp with time zone NOT NULL DEFAULT NOW(),
-    updated_at timestamp with time zone NOT NULL DEFAULT NOW()
+    last_recovery_at timestamp with time zone
 );
 
 -- --------------------------------------------------------------------------------------------------

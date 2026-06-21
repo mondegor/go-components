@@ -45,11 +45,15 @@ func (o *ConfirmCode) Prepare(
 	op secureoperation.SecureOperation,
 	confirmCode string,
 ) (_ secureoperation.SecureOperation, commit func(ctx context.Context) error, err error) {
-	confirmed, err := op.ConfirmAction(
+	if confirmCode == "" {
+		return secureoperation.SecureOperation{}, nil, errors.ErrIncorrectInputData.New("confirmCode is empty")
+	}
+
+	confirmed, confirmCodeErr := op.ConfirmAction(
 		func(action secureoperation.ConfirmAction) (ok bool, err error) {
 			switch action.Method {
 			case confirmmethod.Email, confirmmethod.Phone:
-				return action.ConfirmCode == confirmCode, nil
+				return o.codeGenerator.CompareSecretAndHash(confirmCode, action.ConfirmCode)
 			case confirmmethod.TOTP, confirmmethod.Password:
 				ok, commit, err = o.verifier.Verify(ctx, op.UserID, action.Method, confirmCode)
 				if err != nil {
@@ -62,13 +66,20 @@ func (o *ConfirmCode) Prepare(
 			}
 		},
 	)
-	if err != nil {
-		return op, nil, err // WARNING: 'op' используется с этой ошибкой
+	if confirmCodeErr != nil {
+		return op, nil, confirmCodeErr // WARNING: 'op' используется с этой ошибкой
 	}
 
 	if confirmed {
 		return op, commit, nil
 	}
+
+	// ВНИМАНИЕ: в эту часть кода можно попасть ТОЛЬКО после успешного sendable-действия (email/phone),
+	// у которого commit всегда nil (при этом, данная операция подтверждена ещё НЕ полностью).
+	// Успешное 2FA-действие (TOTP/password) сюда попасть не может: по инварианту checkInvariants
+	// оно всегда последнее в цепочке, поэтому его успех сразу даёт confirmed == true (ветка выше),
+	// и его commit возвращается вызывающему для расхода аварийного кода в той же транзакции.
+	// Значит, здесь расходовать нечего и возврат commit == nil корректен - аварийный код не теряется.
 
 	// для следующего (sendable) действия генерится новый токен и код подтверждения
 	token, err := o.tokenGenerator.GenToken()
@@ -80,9 +91,9 @@ func (o *ConfirmCode) Prepare(
 		return secureoperation.SecureOperation{}, nil, err
 	}
 
-	if err = op.InitSendableAction(o.codeGenerator.GenCode); err != nil {
+	if err = op.InitSendableAction(o.codeGenerator.GenCodeWithHash); err != nil {
 		return secureoperation.SecureOperation{}, nil, err
 	}
 
-	return op, commit, nil
+	return op, nil, nil
 }

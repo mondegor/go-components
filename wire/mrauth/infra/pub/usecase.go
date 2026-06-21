@@ -27,7 +27,10 @@ func initConfirmOperationUseCase(
 		secureoperation.NewConfirmCode(
 			crypt.NewSecretGenerator(int(operationConfirm.TokenLength)), // TODO: длина должна зависеть от realm
 			crypt.NewSecretGenerator(int(operationConfirm.CodeLength)),
-			secondfactor.NewVerifier(storageAuth2fa, crypt.NewSecretGenerator(17), totp.NewAuthenticator("PrintShopApp", 64)),
+			secondfactor.NewVerifier(
+				storageAuth2fa,
+				crypt.NewSecretGenerator(17), // TODO: 17 должна быть между 8 и 20
+				totp.NewAuthenticator("PrintShopApp", 64), 8, 20),
 		),
 	)
 }

@@ -25,6 +25,9 @@ type fakeSource struct {
 	consumeErr    error
 	consumedHash  string
 	consumeCalled bool
+	updateStepErr error
+	updatedStep   int64
+	updateCalled  bool
 }
 
 func (s *fakeSource) FetchOne(_ context.Context, _ uuid.UUID) (entity.Auth2fa, error) {
@@ -35,11 +38,18 @@ func (s *fakeSource) FetchOne(_ context.Context, _ uuid.UUID) (entity.Auth2fa, e
 	return s.row, nil
 }
 
-func (s *fakeSource) ConsumeRecoveryCode(_ context.Context, _ uuid.UUID, hash string) error {
+func (s *fakeSource) UpdateRecoveryCode(_ context.Context, _ uuid.UUID, hash string) error {
 	s.consumeCalled = true
 	s.consumedHash = hash
 
 	return s.consumeErr
+}
+
+func (s *fakeSource) UpdateTOTPStep(_ context.Context, _ uuid.UUID, step int64) error {
+	s.updateCalled = true
+	s.updatedStep = step
+
+	return s.updateStepErr
 }
 
 // countingComparer - счётчик вызовов сравнения для проверки, что bcrypt не перебирается зря.
@@ -47,10 +57,10 @@ type countingComparer struct {
 	calls int
 }
 
-func (c *countingComparer) CompareSecretAndHash(_, _ string) error {
+func (c *countingComparer) CompareSecretAndHash(_, _ string) (bool, error) {
 	c.calls++
 
-	return errors.New("no match")
+	return false, errors.New("no match")
 }
 
 func TestVerifier_ValidTOTP(t *testing.T) {
@@ -64,13 +74,46 @@ func TestVerifier_ValidTOTP(t *testing.T) {
 	code, err := auth.GenerateCode(testTOTPSecret, time.Now())
 	require.NoError(t, err)
 
-	v := secondfactor.NewVerifier(src, crypt.NewSecretGenerator(10), auth)
+	v := secondfactor.NewVerifier(src, crypt.NewSecretGenerator(10), auth, 8, 32)
 
 	ok, commit, err := v.Verify(context.Background(), userID, confirmmethod.TOTP, code)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Nil(t, commit)
+	require.NotNil(t, commit) // успешный TOTP возвращает commit для фиксации использованного шага
 	require.False(t, src.consumeCalled)
+
+	require.NoError(t, commit(context.Background()))
+	require.True(t, src.updateCalled)
+	require.NotZero(t, src.updatedStep)
+}
+
+func TestVerifier_TOTPReplayRejected(t *testing.T) {
+	t.Parallel()
+
+	userID := uuid.New()
+	auth := totp.NewAuthenticator("TestIssuer", 20)
+
+	now := time.Now()
+
+	code, err := auth.GenerateCode(testTOTPSecret, now)
+	require.NoError(t, err)
+
+	// последний использованный шаг заведомо не меньше текущего: код того же окна
+	// должен быть отклонён как повтор (replay).
+	src := &fakeSource{row: entity.Auth2fa{
+		UserID:       userID,
+		Type:         auth2fatype.TOTP,
+		Secret:       testTOTPSecret,
+		LastTOTPStep: now.Unix()/30 + 5,
+	}}
+
+	v := secondfactor.NewVerifier(src, crypt.NewSecretGenerator(10), auth, 8, 32)
+
+	ok, commit, err := v.Verify(context.Background(), userID, confirmmethod.TOTP, code)
+	require.NoError(t, err)
+	require.False(t, ok)
+	require.Nil(t, commit)
+	require.False(t, src.updateCalled)
 }
 
 func TestVerifier_RecoveryFallbackConsumes(t *testing.T) {
@@ -93,7 +136,7 @@ func TestVerifier_RecoveryFallbackConsumes(t *testing.T) {
 		RecoveryCodes: []string{h1, h2},
 	}}
 
-	v := secondfactor.NewVerifier(src, gen, totp.NewAuthenticator("TestIssuer", 20))
+	v := secondfactor.NewVerifier(src, gen, totp.NewAuthenticator("TestIssuer", 20), 8, 32)
 
 	ok, commit, err := v.Verify(context.Background(), userID, confirmmethod.TOTP, "AAAAABBBBB")
 	require.NoError(t, err)
@@ -123,7 +166,7 @@ func TestVerifier_InvalidTOTPNoRecoveryMatch(t *testing.T) {
 		RecoveryCodes: []string{h1},
 	}}
 
-	v := secondfactor.NewVerifier(src, gen, totp.NewAuthenticator("TestIssuer", 20))
+	v := secondfactor.NewVerifier(src, gen, totp.NewAuthenticator("TestIssuer", 20), 8, 32)
 
 	ok, commit, err := v.Verify(context.Background(), userID, confirmmethod.TOTP, "ZZZZZYYYYY")
 	require.NoError(t, err)
@@ -145,7 +188,7 @@ func TestVerifier_AllDigitCodeSkipsRecovery(t *testing.T) {
 		RecoveryCodes: []string{"hash-1", "hash-2", "hash-3"},
 	}}
 
-	v := secondfactor.NewVerifier(src, comparer, totp.NewAuthenticator("TestIssuer", 20))
+	v := secondfactor.NewVerifier(src, comparer, totp.NewAuthenticator("TestIssuer", 20), 8, 32)
 
 	// неверный код в формате TOTP (только цифры) не должен запускать перебор bcrypt-хешей
 	ok, commit, err := v.Verify(context.Background(), userID, confirmmethod.TOTP, "000000")
@@ -165,7 +208,7 @@ func TestVerifier_RecoveryConsumeRace(t *testing.T) {
 	h1, err := gen.HashedSecret("AAAAABBBBB")
 	require.NoError(t, err)
 
-	// код уже израсходован параллельной операцией: ConsumeRecoveryCode возвращает ошибку
+	// код уже израсходован параллельной операцией: UpdateRecoveryCode возвращает ошибку
 	src := &fakeSource{
 		row: entity.Auth2fa{
 			UserID:        userID,
@@ -176,7 +219,7 @@ func TestVerifier_RecoveryConsumeRace(t *testing.T) {
 		consumeErr: errors.New("record not found"),
 	}
 
-	v := secondfactor.NewVerifier(src, gen, totp.NewAuthenticator("TestIssuer", 20))
+	v := secondfactor.NewVerifier(src, gen, totp.NewAuthenticator("TestIssuer", 20), 8, 32)
 
 	ok, commit, err := v.Verify(context.Background(), userID, confirmmethod.TOTP, "AAAAABBBBB")
 	require.NoError(t, err)
@@ -198,7 +241,7 @@ func TestVerifier_PasswordCorrect(t *testing.T) {
 
 	src := &fakeSource{row: entity.Auth2fa{UserID: userID, Type: auth2fatype.Password, Secret: hash}}
 
-	v := secondfactor.NewVerifier(src, gen, totp.NewAuthenticator("TestIssuer", 20))
+	v := secondfactor.NewVerifier(src, gen, totp.NewAuthenticator("TestIssuer", 20), 8, 32)
 
 	ok, commit, err := v.Verify(context.Background(), userID, confirmmethod.Password, "my-secret-password")
 	require.NoError(t, err)
@@ -218,7 +261,7 @@ func TestVerifier_PasswordWrong(t *testing.T) {
 
 	src := &fakeSource{row: entity.Auth2fa{UserID: userID, Type: auth2fatype.Password, Secret: hash}}
 
-	v := secondfactor.NewVerifier(src, gen, totp.NewAuthenticator("TestIssuer", 20))
+	v := secondfactor.NewVerifier(src, gen, totp.NewAuthenticator("TestIssuer", 20), 8, 32)
 
 	ok, commit, err := v.Verify(context.Background(), userID, confirmmethod.Password, "wrong-password")
 	require.NoError(t, err)
@@ -232,7 +275,7 @@ func TestVerifier_FetchError(t *testing.T) {
 	wantErr := errors.New("fetch failed")
 	src := &fakeSource{fetchErr: wantErr}
 
-	v := secondfactor.NewVerifier(src, crypt.NewSecretGenerator(10), totp.NewAuthenticator("TestIssuer", 20))
+	v := secondfactor.NewVerifier(src, crypt.NewSecretGenerator(10), totp.NewAuthenticator("TestIssuer", 20), 8, 32)
 
 	ok, commit, err := v.Verify(context.Background(), uuid.New(), confirmmethod.TOTP, "000000")
 	require.ErrorIs(t, err, wantErr)

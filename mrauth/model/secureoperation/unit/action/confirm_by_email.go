@@ -33,8 +33,9 @@ func NewConfirmByEmail(opts ...Option) *ConfirmByEmail {
 	}
 }
 
-// Create - comments method.
-func (a *ConfirmByEmail) Create(email contactaddress.ContactAddress, confirmCode string) (secureoperation.ConfirmAction, error) {
+// Create - создаёт действие подтверждения по email; в ConfirmCode сохраняется хеш
+// кода (для хранения), в PlainConfirmCode - открытый код (для отправки пользователю).
+func (a *ConfirmByEmail) Create(email contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error) {
 	if !email.Is(addresstype.Email) {
 		return secureoperation.ConfirmAction{},
 			errors.NewInternalError(
@@ -44,12 +45,13 @@ func (a *ConfirmByEmail) Create(email contactaddress.ContactAddress, confirmCode
 	}
 
 	return secureoperation.ConfirmAction{
-		Method:        confirmmethod.Email,
-		MaxAttempts:   a.maxAttempts,
-		MaxResends:    a.maxResends,
-		MinResendTime: a.minResendTime,
-		Expiry:        a.expiry,
-		Address:       email.Value(),
-		ConfirmCode:   confirmCode,
+		Method:           confirmmethod.Email,
+		MaxAttempts:      a.maxAttempts,
+		MaxResends:       a.maxResends,
+		MinResendTime:    a.minResendTime,
+		Expiry:           a.expiry,
+		Address:          email.Value(),
+		ConfirmCode:      hashedConfirmCode,
+		PlainConfirmCode: confirmCode,
 	}, nil
 }

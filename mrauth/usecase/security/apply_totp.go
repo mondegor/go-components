@@ -13,7 +13,13 @@ import (
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrnotifier"
+)
+
+const (
+	minRecoveryCount = 2
+	maxRecoveryCount = 32
 )
 
 type (
@@ -40,7 +46,7 @@ type (
 	}
 
 	totpValidator interface {
-		Validate(code, secret string) bool
+		ValidateCode(code, secret string) (ok bool, timeStep int64, err error)
 	}
 )
 
@@ -54,6 +60,16 @@ func NewApplyTOTPGenerator(
 	notifierAPI mrnotifier.NoteProducer,
 	recoveryCount int,
 ) *ApplyTOTPGenerator {
+	// ограничивается число аварийных кодов: оно задаёт длину bcrypt-перебора при проверке,
+	// поэтому это является защитой от чрезмерного значения из конфигурации хоста.
+	if recoveryCount < minRecoveryCount {
+		recoveryCount = minRecoveryCount
+	}
+
+	if recoveryCount > maxRecoveryCount {
+		recoveryCount = maxRecoveryCount
+	}
+
 	return &ApplyTOTPGenerator{
 		txManager:        txManager,
 		storage:          storage,
@@ -82,44 +98,60 @@ func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, ope
 		return nil, errors.ErrRecordNotFound // TODO: возможно, стоит возвращать ошибку о некорректном параметре
 	}
 
-	op, err := uc.storageOperation.FetchOne(ctx, operationToken)
-	if err != nil {
-		return nil, uc.errorWrapper.Wrap(err)
-	}
+	var plain []string
 
-	if userID != op.UserID {
-		return nil, errors.ErrAccessForbidden
-	}
+	err := uc.txManager.Do(ctx, func(ctx context.Context) error {
+		op, err := uc.storageOperation.FetchOneForUpdate(ctx, operationToken)
+		if err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
 
-	if !op.Is(operationstatus.Confirmed) {
-		return nil, errors.New("operation is not confirmed")
-	}
+		if userID != op.UserID {
+			return errors.ErrAccessForbidden
+		}
 
-	var payload dto.ChangeTotpOperation
-	if err = json.Unmarshal(op.Payload, &payload); err != nil {
-		return nil, uc.errorWrapper.Wrap(err)
-	}
+		// TODO: проверить, что пользователь не заблокирован
 
-	if payload.Secret == "" {
-		return nil, errors.New("operation has no staged secret")
-	}
+		if op.Name != unit.NameConfirmChangeTOTP {
+			return errors.ErrAccessForbidden
+		}
 
-	if !uc.totpValidator.Validate(totpCode, payload.Secret) {
-		return nil, errors.ErrIncorrectInputData.New("invalid totp code")
-	}
+		if !op.Is(operationstatus.Confirmed) {
+			return errors.New("operation is not confirmed")
+		}
 
-	plain, hashed, err := uc.codeGenerator.GenerateRecoveryCodes(uc.recoveryCount)
-	if err != nil {
-		return nil, uc.errorWrapper.Wrap(err)
-	}
+		var payload dto.ChangeTotpOperation
+		if err = json.Unmarshal(op.Payload, &payload); err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
 
-	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
+		if payload.Secret == "" {
+			return errors.New("operation has no staged secret")
+		}
+
+		ok, timeStep, err := uc.totpValidator.ValidateCode(totpCode, payload.Secret)
+		if err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
+
+		if !ok {
+			return errors.ErrIncorrectInputData.New("invalid totp code")
+		}
+
+		var hashed []string
+
+		plain, hashed, err = uc.codeGenerator.GenerateRecoveryCodes(uc.recoveryCount)
+		if err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
+
 		if err = uc.storage.InsertOrUpdate(
 			ctx,
 			entity.Auth2fa{
 				UserID:        op.UserID,
 				Type:          auth2fatype.TOTP,
 				Secret:        payload.Secret,
+				LastTOTPStep:  timeStep, // запоминается последний шаг успешной проверки кода, чтобы тот же код нельзя было применить повторно
 				RecoveryCodes: hashed,
 			},
 		); err != nil {

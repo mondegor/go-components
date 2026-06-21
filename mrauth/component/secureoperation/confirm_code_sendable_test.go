@@ -46,6 +46,26 @@ func TestConfirmCode_EmailCorrectCodeConfirms(t *testing.T) {
 	require.Nil(t, commit)
 }
 
+func TestConfirmCode_EmailWrongCodeRejected(t *testing.T) {
+	t.Parallel()
+
+	op, err := secureoperation_model.NewOperation(
+		"token",
+		"name1",
+		uuid.New(),
+		[]secureoperation_model.ConfirmAction{emailConfirmAction("secret1")},
+		nil,
+	)
+	require.NoError(t, err)
+
+	confirmCode := secureoperation.NewConfirmCode(&fakeTokenGen{token: "tok"}, &fakeCodeGen{code: "code"}, &fakeVerifier{})
+
+	out, commit, err := confirmCode.Prepare(context.Background(), op, "wrong")
+	require.ErrorIs(t, err, secureoperation_model.ErrConfirmCodeIsIncorrect)
+	require.False(t, out.Is(operationstatus.Confirmed))
+	require.Nil(t, commit)
+}
+
 func TestConfirmCode_FirstOfTwoActionsGeneratesNextCode(t *testing.T) {
 	t.Parallel()
 

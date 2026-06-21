@@ -33,8 +33,9 @@ func NewConfirmByPhone(opts ...Option) *ConfirmByPhone {
 	}
 }
 
-// Create - comments method.
-func (a *ConfirmByPhone) Create(phone contactaddress.ContactAddress, confirmCode string) (secureoperation.ConfirmAction, error) {
+// Create - создаёт действие подтверждения по телефону; в ConfirmCode сохраняется хеш
+// кода (для хранения), в PlainConfirmCode - открытый код (для отправки пользователю).
+func (a *ConfirmByPhone) Create(phone contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error) {
 	if !phone.Is(addresstype.Phone) {
 		return secureoperation.ConfirmAction{},
 			errors.NewInternalError(
@@ -44,12 +45,13 @@ func (a *ConfirmByPhone) Create(phone contactaddress.ContactAddress, confirmCode
 	}
 
 	return secureoperation.ConfirmAction{
-		Method:        confirmmethod.Phone,
-		MaxAttempts:   a.maxAttempts,
-		MaxResends:    a.maxResends,
-		MinResendTime: a.minResendTime,
-		Expiry:        a.expiry,
-		Address:       phone.Value(),
-		ConfirmCode:   confirmCode,
+		Method:           confirmmethod.Phone,
+		MaxAttempts:      a.maxAttempts,
+		MaxResends:       a.maxResends,
+		MinResendTime:    a.minResendTime,
+		Expiry:           a.expiry,
+		Address:          phone.Value(),
+		ConfirmCode:      hashedConfirmCode,
+		PlainConfirmCode: confirmCode,
 	}, nil
 }

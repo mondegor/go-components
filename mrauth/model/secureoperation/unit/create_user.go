@@ -52,7 +52,7 @@ func (o *CreateUser) Create(langCode string, userEmail contactaddress.ContactAdd
 		return secureoperation.SecureOperation{}, err
 	}
 
-	confirmCode, err := o.codeGenerator.GenCode()
+	confirmCode, hashedCode, err := o.codeGenerator.GenCodeWithHash()
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -69,7 +69,7 @@ func (o *CreateUser) Create(langCode string, userEmail contactaddress.ContactAdd
 		return secureoperation.SecureOperation{}, err
 	}
 
-	confirmAction, err := o.actionCreator.Create(userEmail, confirmCode)
+	confirmAction, err := o.actionCreator.Create(userEmail, confirmCode, hashedCode)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}

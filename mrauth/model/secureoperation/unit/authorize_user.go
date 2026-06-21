@@ -17,7 +17,7 @@ const (
 )
 
 type (
-	// AuthorizeUser - comment struct.
+	// AuthorizeUser - фабрика операции подтверждения авторизации пользователя.
 	AuthorizeUser struct {
 		actionCreator       mrauth.ConfirmByAddressCreator
 		tokenGenerator      mrauth.TokenGenerator
@@ -52,14 +52,14 @@ func NewAuthorizeUser(
 	return o.authorizer
 }
 
-// Create - comments method.
+// Create - создаёт операцию авторизации пользователя по его логину (email/телефон).
 func (o *AuthorizeUser) Create(user2FA dto.User2FA, realm, langCode string, userLogin contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
 	operationToken, err := o.tokenGenerator.GenToken()
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
 
-	confirmCode, err := o.codeGenerator.GenCode()
+	confirmCode, hashedCode, err := o.codeGenerator.GenCodeWithHash()
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -70,7 +70,7 @@ func (o *AuthorizeUser) Create(user2FA dto.User2FA, realm, langCode string, user
 
 	actions := make([]secureoperation.ConfirmAction, 1, 2)
 
-	actions[0], err = o.actionCreator.Create(userLogin, confirmCode)
+	actions[0], err = o.actionCreator.Create(userLogin, confirmCode, hashedCode)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}

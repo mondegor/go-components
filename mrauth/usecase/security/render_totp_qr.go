@@ -15,6 +15,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
 const (
@@ -50,6 +51,8 @@ func NewRenderTOTPGeneratorQR(storageOperation operationFetcher, totpRenderer to
 
 // Execute - проверяет подтверждённую операцию и возвращает QR-код TOTP-генератора,
 // построенный из secret, сохранённого в payload операции.
+// QR рендерится при каждом запросе намеренно (показ при enrollment однократный, операция
+// короткоживущая и owner-scoped) и не кэшируется; внешний rate-limit - ответственность хоста.
 func (uc *RenderTOTPGeneratorQR) Execute(ctx context.Context, userID uuid.UUID, operationToken string) (modelmedia.Image, error) {
 	if userID == uuid.Nil {
 		return modelmedia.Image{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
@@ -69,6 +72,10 @@ func (uc *RenderTOTPGeneratorQR) Execute(ctx context.Context, userID uuid.UUID, 
 	}
 
 	// TODO: проверить, что пользователь не заблокирован
+
+	if op.Name != unit.NameConfirmChangeTOTP {
+		return modelmedia.Image{}, errors.ErrAccessForbidden
+	}
 
 	if !op.Is(operationstatus.Confirmed) {
 		return modelmedia.Image{}, errors.New("operation is not confirmed")

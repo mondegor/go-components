@@ -23,7 +23,7 @@ type (
 	}
 
 	operationDeleter interface {
-		FetchOne(ctx context.Context, token string) (row secureoperation.SecureOperation, err error)
+		FetchOneForUpdate(ctx context.Context, token string) (row secureoperation.SecureOperation, err error)
 		Delete(ctx context.Context, token string) error
 	}
 )
@@ -44,6 +44,7 @@ func NewApplyOperation(
 
 // Execute - проверяет, что операция подтверждена и принадлежит пользователю, затем
 // в одной транзакции удаляет её и выполняет привязанный к ней обработчик.
+// Блокировка исключает повторное применение одной операции при конкурентных запросах.
 func (uc *ApplyOperation) Execute(ctx context.Context, userID uuid.UUID, operationToken string) error {
 	if userID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
@@ -53,29 +54,27 @@ func (uc *ApplyOperation) Execute(ctx context.Context, userID uuid.UUID, operati
 		return errors.ErrRecordNotFound // TODO: возможно, стоит возвращать ошибку о некорректном параметре
 	}
 
-	// TODO: нужна ли здесь общая транзакция (FetchOne <-> Delete)
+	err := uc.txManager.Do(ctx, func(ctx context.Context) error {
+		op, err := uc.storageOperation.FetchOneForUpdate(ctx, operationToken)
+		if err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
 
-	op, err := uc.storageOperation.FetchOne(ctx, operationToken)
-	if err != nil {
-		return uc.errorWrapper.Wrap(err)
-	}
+		if userID != op.UserID {
+			return errors.ErrAccessForbidden
+		}
 
-	if userID != op.UserID {
-		return errors.ErrAccessForbidden
-	}
+		// TODO: проверить, что пользователь не заблокирован
 
-	// TODO: проверить, что пользователь не заблокирован
+		handler, ok := uc.handlerMap[op.Name]
+		if !ok {
+			return errors.New("operation name is not supported") // TODO: оборачивать в пользовательскую ошибку
+		}
 
-	if !op.Is(operationstatus.Confirmed) {
-		return errors.New("operation is not confirmed")
-	}
+		if !op.Is(operationstatus.Confirmed) {
+			return errors.New("operation is not confirmed")
+		}
 
-	handler, ok := uc.handlerMap[op.Name]
-	if !ok {
-		return errors.New("operation name is not supported")
-	}
-
-	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		if err = uc.storageOperation.Delete(ctx, op.Token); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}

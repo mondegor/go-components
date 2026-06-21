@@ -29,7 +29,7 @@ func (o *SecureOperation) ActivateResendCode(token string) (err error) {
 	}
 
 	if time.Now().Before(o.ResendsAt) {
-		return ErrSendingNewMessagesIsTemporarilyRestricted // WARNING: 'op' используется с этой ошибкой
+		return ErrSendingNewMessagesIsTemporarilyRestricted
 	}
 
 	o.Token = token

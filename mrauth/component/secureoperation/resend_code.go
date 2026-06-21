@@ -1,6 +1,8 @@
 package secureoperation
 
 import (
+	"github.com/mondegor/go-sysmess/errors"
+
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
@@ -39,10 +41,14 @@ func (o *ResendCode) Prepare(op secureoperation.SecureOperation) (secureoperatio
 	}
 
 	if err = op.ActivateResendCode(token); err != nil {
+		if errors.Is(err, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted) {
+			return op, err // WARNING: 'op' используется с этой ошибкой
+		}
+
 		return secureoperation.SecureOperation{}, err
 	}
 
-	if err = op.InitSendableAction(o.codeGenerator.GenCode); err != nil {
+	if err = op.InitSendableAction(o.codeGenerator.GenCodeWithHash); err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
 

@@ -57,13 +57,14 @@ func wokenOp(
 
 func emailAction(address, code string) secureoperation.ConfirmAction {
 	return secureoperation.ConfirmAction{
-		Method:        confirmmethod.Email,
-		MaxAttempts:   3,
-		MaxResends:    5,
-		MinResendTime: 5 * time.Minute,
-		Expiry:        10 * time.Minute,
-		Address:       address,
-		ConfirmCode:   code,
+		Method:           confirmmethod.Email,
+		MaxAttempts:      3,
+		MaxResends:       5,
+		MinResendTime:    5 * time.Minute,
+		Expiry:           10 * time.Minute,
+		Address:          address,
+		ConfirmCode:      code,
+		PlainConfirmCode: code,
 	}
 }
 
@@ -142,11 +143,12 @@ func TestSecureOperation_InitSendableAction(t *testing.T) {
 
 		op := openedOp(t, emailAction("u@e", ""))
 
-		require.NoError(t, op.InitSendableAction(func() (string, error) { return "newcode", nil }))
+		require.NoError(t, op.InitSendableAction(func() (string, string, error) { return "newcode", "hashedcode", nil }))
 
 		action, ok := op.FirstAction()
 		require.True(t, ok)
-		assert.Equal(t, "newcode", action.ConfirmCode)
+		assert.Equal(t, "hashedcode", action.ConfirmCode)   // в хранилище идёт хеш
+		assert.Equal(t, "newcode", action.PlainConfirmCode) // открытый код - только для отправки
 	})
 
 	t.Run("non-sendable action is skipped", func(t *testing.T) {
@@ -155,10 +157,10 @@ func TestSecureOperation_InitSendableAction(t *testing.T) {
 		op := openedOp(t, totpAction())
 		called := false
 
-		require.NoError(t, op.InitSendableAction(func() (string, error) {
+		require.NoError(t, op.InitSendableAction(func() (string, string, error) {
 			called = true
 
-			return "x", nil
+			return "x", "x", nil
 		}))
 		assert.False(t, called)
 	})

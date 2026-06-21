@@ -1256,10 +1256,12 @@ components:
           maxLength: 128
           example: b1d50cb1f3bc817f2be3a4b357929cee70402fb5463db25b91568a1801dc0974
         totp_code:
-          description: Код, сгенерированный TOTP-приложением пользователя
+          description: |-
+            6-значный цифровой код, сгенерированный TOTP-приложением пользователя
+            - pattern: "^[0-9]{6}$"
           type: string
           minLength: 6
-          maxLength: 10
+          maxLength: 6
           example: '183947'
     Auth.Security.Response.RecoveryCodes:
       type: object

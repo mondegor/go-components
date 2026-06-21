@@ -33,7 +33,17 @@ func NewSecureOperationPostgres(
 }
 
 // FetchOne - возвращает защищённую операцию по её токену.
-func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (row secureoperation.SecureOperation, err error) {
+func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (secureoperation.SecureOperation, error) {
+	return re.fetchOne(ctx, token, false)
+}
+
+// FetchOneForUpdate - возвращает защищённую операцию по её токену, блокируя её строку
+// (SELECT ... FOR UPDATE). Должен вызываться только внутри транзакции.
+func (re *SecureOperationPostgres) FetchOneForUpdate(ctx context.Context, token string) (secureoperation.SecureOperation, error) {
+	return re.fetchOne(ctx, token, true)
+}
+
+func (re *SecureOperationPostgres) fetchOne(ctx context.Context, token string, forUpdate bool) (row secureoperation.SecureOperation, err error) {
 	sql := `
 		SELECT
 			operation_name,
@@ -49,7 +59,13 @@ func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (
 			` + re.tableName + `
 		WHERE
 			operation_token = $1
-		LIMIT 1;`
+		LIMIT 1`
+
+	if forUpdate {
+		sql += ` FOR UPDATE`
+	}
+
+	sql += `;`
 
 	var (
 		userID  *uuid.UUID

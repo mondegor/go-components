@@ -44,7 +44,7 @@ func (o *ChangePassword) Create(user2FA dto.User2FA, newPassword string) (secure
 		return secureoperation.SecureOperation{}, err
 	}
 
-	confirmCode, err := o.codeGenerator.GenCode()
+	confirmCode, hashedCode, err := o.codeGenerator.GenCodeWithHash()
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -66,7 +66,7 @@ func (o *ChangePassword) Create(user2FA dto.User2FA, newPassword string) (secure
 
 	actions := make([]secureoperation.ConfirmAction, 1, 2)
 
-	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email), confirmCode)
+	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email), confirmCode, hashedCode)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}

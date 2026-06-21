@@ -46,9 +46,9 @@ type (
 
 	// CodeGenerator - генерация, хеширование и проверка кодов подтверждения.
 	CodeGenerator interface {
-		GenCode() (string, error)
+		GenCodeWithHash() (code, hashedCode string, err error)
 		HashedSecret(secret string) (string, error)
-		CompareSecretAndHash(secret, hashedSecret string) error
+		CompareSecretAndHash(secret, hashedSecret string) (ok bool, err error)
 	}
 
 	// TokenIssuer - выпускает пару токенов access/refresh для области действия пользователя.
@@ -57,8 +57,9 @@ type (
 	}
 
 	// ConfirmByAddressCreator - создаёт действие подтверждения операции по контактному адресу (емаил/телефон).
+	// Параметр confirmCode передаётся в открытом виде (для отправки) и в виде хеша (для хранения).
 	ConfirmByAddressCreator interface {
-		Create(address contactaddress.ContactAddress, confirmCode string) (secureoperation.ConfirmAction, error)
+		Create(address contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error)
 	}
 
 	// SessionUseCase - управление открытыми сессиями текущего пользователя.

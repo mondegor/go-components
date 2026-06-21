@@ -38,7 +38,7 @@ func (co *RevokeOperation) Execute(ctx context.Context, operationToken string) e
 		return co.errorWrapper.Wrap(err)
 	}
 
-	// TODO: Add Operation log:op! ????
+	// TODO: записать операцию в журнал
 
 	return nil
 }

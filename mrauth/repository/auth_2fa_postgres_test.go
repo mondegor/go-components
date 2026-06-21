@@ -87,7 +87,7 @@ func (ts *Auth2faPostgresTestSuite) TestRecoveryCodesRoundTrip() {
 	ts.Equal([]string{"hash1", "hash2", "hash3"}, got.RecoveryCodes)
 
 	// расходование одного кода удаляет ровно один элемент
-	err = repo.ConsumeRecoveryCode(ts.ctx, userID, "hash1")
+	err = repo.UpdateRecoveryCode(ts.ctx, userID, "hash1")
 	ts.Require().NoError(err)
 
 	got, err = repo.FetchOne(ts.ctx, userID)
@@ -95,10 +95,47 @@ func (ts *Auth2faPostgresTestSuite) TestRecoveryCodesRoundTrip() {
 	ts.Equal([]string{"hash2", "hash3"}, got.RecoveryCodes)
 
 	// повторное расходование того же кода (гонка) не находит запись
-	err = repo.ConsumeRecoveryCode(ts.ctx, userID, "hash1")
+	err = repo.UpdateRecoveryCode(ts.ctx, userID, "hash1")
 	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
 
 	got, err = repo.FetchOne(ts.ctx, userID)
 	ts.Require().NoError(err)
 	ts.Equal([]string{"hash2", "hash3"}, got.RecoveryCodes)
+}
+
+func (ts *Auth2faPostgresTestSuite) TestUpdateTOTPStepMonotonic() {
+	userID := ts.seedUser()
+	repo := repository.NewAuth2faPostgres(ts.pgt.ConnManager(), ts.tableName)
+
+	err := repo.InsertOrUpdate(ts.ctx, entity.Auth2fa{
+		UserID:        userID,
+		Type:          auth2fatype.TOTP,
+		Secret:        "SECRET",
+		RecoveryCodes: []string{},
+		LastTOTPStep:  100,
+	})
+	ts.Require().NoError(err)
+
+	got, err := repo.FetchOne(ts.ctx, userID)
+	ts.Require().NoError(err)
+	ts.Equal(int64(100), got.LastTOTPStep)
+
+	// шаг сдвигается вперёд только при строго большем значении
+	ts.Require().NoError(repo.UpdateTOTPStep(ts.ctx, userID, 101))
+
+	got, err = repo.FetchOne(ts.ctx, userID)
+	ts.Require().NoError(err)
+	ts.Equal(int64(101), got.LastTOTPStep)
+
+	// повтор того же шага (replay) отклоняется и не меняет значение
+	err = repo.UpdateTOTPStep(ts.ctx, userID, 101)
+	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
+
+	// более старый шаг также отклоняется
+	err = repo.UpdateTOTPStep(ts.ctx, userID, 50)
+	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
+
+	got, err = repo.FetchOne(ts.ctx, userID)
+	ts.Require().NoError(err)
+	ts.Equal(int64(101), got.LastTOTPStep)
 }

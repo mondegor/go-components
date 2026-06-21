@@ -38,7 +38,7 @@ type (
 		RevokeSessionByRefreshToken(ctx context.Context, refreshToken string) error
 	}
 
-	// Realm - сообщение для получателя.
+	// Realm - сопоставление имени realm с его издателем токенов (TokenIssuer).
 	Realm struct {
 		Name        string
 		TokenIssuer mrauth.TokenIssuer

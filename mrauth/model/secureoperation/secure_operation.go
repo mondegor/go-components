@@ -123,6 +123,12 @@ func (o *SecureOperation) checkInvariants() error {
 		if action.Method == 0 {
 			return errors.ErrInternalIncorrectInputData.WithDetails("action without method", "index", i)
 		}
+
+		// не-sendable действие (2FA: TOTP/password) может быть только завершающим в цепочке:
+		// на этом инварианте держится корректность расхода аварийного кода (см. confirm_code.Prepare).
+		if !action.Sendable() && i != len(o.actions)-1 {
+			return errors.ErrInternalIncorrectInputData.WithDetails("non-sendable action must be the last", "index", i)
+		}
 	}
 
 	return nil
@@ -165,9 +171,10 @@ func (o *SecureOperation) Is(status operationstatus.Enum) bool {
 	return o.Status == status
 }
 
-// InitSendableAction - для текущего sendable-действия генерирует и устанавливает код
-// подтверждения; для не-sendable действий (TOTP/password) не делает ничего.
-func (o *SecureOperation) InitSendableAction(generateCodeFunc func() (code string, err error)) error {
+// InitSendableAction - для текущего sendable-действия генерирует код подтверждения:
+// хеш сохраняется в ConfirmCode (попадает в хранилище), открытый код - в PlainConfirmCode
+// (только для отправки). Для не-sendable действий (TOTP/password) не делает ничего.
+func (o *SecureOperation) InitSendableAction(generateCodeFunc func() (code, hashedCode string, err error)) error {
 	if o.Status != operationstatus.Opened || len(o.actions) == 0 {
 		return errors.New("operation is not opened")
 	}
@@ -180,12 +187,13 @@ func (o *SecureOperation) InitSendableAction(generateCodeFunc func() (code strin
 		return errors.New("generateCode is nil")
 	}
 
-	code, err := generateCodeFunc()
+	code, hashedCode, err := generateCodeFunc()
 	if err != nil {
 		return err
 	}
 
-	o.actions[0].ConfirmCode = code
+	o.actions[0].ConfirmCode = hashedCode
+	o.actions[0].PlainConfirmCode = code
 
 	return nil
 }
@@ -207,14 +215,14 @@ func (o *SecureOperation) Notify(
 		return errors.ErrInternalIncorrectInputData.WithDetails("address is empty")
 	}
 
-	if o.actions[0].ConfirmCode == "" {
+	if o.actions[0].PlainConfirmCode == "" {
 		return errors.ErrInternalIncorrectInputData.WithDetails("confirmCode is empty")
 	}
 
 	return sendCodeFunc(
 		o.actions[0].Method,
 		o.actions[0].Address,
-		o.actions[0].ConfirmCode,
+		o.actions[0].PlainConfirmCode,
 	)
 }
 

@@ -62,7 +62,7 @@ type (
 	}
 
 	renderTOTPGeneratorQRUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, operationToken string) (totpURL modelmedia.Image, err error)
+		Execute(ctx context.Context, userID uuid.UUID, operationToken string) (modelmedia.Image, error)
 	}
 
 	applyTOTPGeneratorUseCase interface {

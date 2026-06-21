@@ -17,6 +17,7 @@ type (
 		UserID        uuid.UUID
 		Type          auth2fatype.Enum
 		Secret        string
+		LastTOTPStep  int64 // номер последнего использованного TOTP time-step (защита от replay, только TOTP)
 		RecoveryCodes []string
 	}
 )

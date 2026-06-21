@@ -46,6 +46,14 @@ func (g *fakeCodeGen) GenCode() (string, error) {
 	return g.code, g.err
 }
 
+func (g *fakeCodeGen) GenCodeWithHash() (string, string, error) {
+	if g.err != nil {
+		return "", "", g.err
+	}
+
+	return g.code, g.code, nil
+}
+
 func (g *fakeCodeGen) GenCodeLen(_ int) (string, error) {
 	return g.code, g.err
 }
@@ -54,8 +62,9 @@ func (g *fakeCodeGen) HashedSecret(code string) (string, error) {
 	return code, nil
 }
 
-func (g *fakeCodeGen) CompareSecretAndHash(_, _ string) error {
-	return nil
+// CompareSecretAndHash - в тестах хеш равен исходному коду, поэтому сверяем напрямую.
+func (g *fakeCodeGen) CompareSecretAndHash(secret, hashedSecret string) (bool, error) {
+	return secret == hashedSecret, nil
 }
 
 func (v *fakeVerifier) Verify(

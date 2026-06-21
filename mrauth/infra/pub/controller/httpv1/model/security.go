@@ -22,9 +22,10 @@ type (
 	}
 
 	// ApplyTOTPGeneratorRequest - запрос на проверку TOTP-кода и привязку генератора.
+	// Метод принимает только 6-значный цифровой TOTP-код (аварийные коды здесь не используются).
 	ApplyTOTPGeneratorRequest struct {
 		Token string `json:"token" validate:"required,min=64,max=128"`
-		Code  string `json:"totp_code" validate:"required,min=6,max=10"`
+		Code  string `json:"totp_code" validate:"required,len=6,numeric"`
 	}
 
 	// GeneratedPasswordResponse - информация о надёжности пароля.

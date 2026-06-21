@@ -24,7 +24,7 @@ type (
 	}
 
 	operationConfirmer interface {
-		FetchOne(ctx context.Context, token string) (row secureoperation.SecureOperation, err error)
+		FetchOneForUpdate(ctx context.Context, token string) (row secureoperation.SecureOperation, err error)
 		Replace(ctx context.Context, currentToken string, row secureoperation.SecureOperation) error
 		UpdateFailedAttempt(ctx context.Context, token string) (attempts int16, err error)
 	}
@@ -56,60 +56,100 @@ func NewConfirmOperation(
 
 // Execute - подтверждает текущее действие операции по коду; при неверном коде
 // уменьшает счётчик попыток, при успехе сохраняет операцию и отправляет код
-// следующего действия (либо завершает операцию).
-func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToken, confirmCode string) (secureoperation.SecureOperation, error) {
+// следующего действия (либо завершает операцию). Весь цикл выполняется в одной
+// транзакции, что сериализует конкурентные попытки подтверждения одного токена
+// и исключает «размножение» попыток.
+func (co *ConfirmOperation) Execute(
+	ctx context.Context,
+	langCode, operationToken, confirmCode string,
+) (op secureoperation.SecureOperation, err error) {
 	if operationToken == "" {
 		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("operationToken is empty")
 	}
 
-	op, err := co.storageOperation.FetchOne(ctx, operationToken)
-	if err != nil {
-		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
+	if confirmCode == "" {
+		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("confirmCode is empty")
 	}
 
-	op, commitConfirmed, err := co.operationPreparer.Prepare(ctx, op, confirmCode)
-	if err != nil {
-		if errors.Is(err, secureoperation.ErrNoAttemptsToConfirmOperation) {
-			return op, err // WARNING: 'op' используется с этой ошибкой
-		}
+	var (
+		// confirmCodeErr - бизнес-результат неверного или исчерпанного кода. Транзакция при этом
+		// должна успешно завершиться (commit), иначе зафиксированный инкремент счётчика
+		// попыток откатится; поэтому ошибка возвращается не из замыкания, а после коммита
+		confirmCodeErr error
 
-		if !errors.Is(err, secureoperation.ErrConfirmCodeIsIncorrect) {
-			return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
-		}
-
-		attempts, errUpdate := co.storageOperation.UpdateFailedAttempt(ctx, operationToken)
-		if errUpdate != nil {
-			return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(errUpdate)
-		}
-
-		// TODO: записать операцию в журнал
-
-		op.RemainingAttempts = attempts
-
-		if attempts > 0 {
-			return op, err // WARNING: 'op' используется с этой ошибкой
-		}
-
-		// TODO: при исчерпании попыток уведомить пользователя и зафиксировать событие в журнале.
-		// co.eventEmitter.Emit(
-		// 	 ctx,
-		// 	 "Confirm",
-		// 	 "userLogin", nextConfirm.Address,
-		//	 "loginType", nextConfirm.Method,
-		//	 "secretCode", generateSecretCode,
-		// )
-
-		return op, secureoperation.ErrNoAttemptsToConfirmOperation.Wrap(err) // WARNING: 'op' используется с этой ошибкой
-	}
+		// secondFactorRace - второй фактор (аварийный код или TOTP-шаг) уже израсходован
+		// конкурентным подтверждением того же пользователя; в отличие от confirmCodeErr
+		// транзакция при этом откатывается, а результат отдаётся как неверный код
+		secondFactorRace bool
+	)
 
 	err = co.txManager.Do(ctx, func(ctx context.Context) error {
+		op, err = co.storageOperation.FetchOneForUpdate(ctx, operationToken)
+		if err != nil {
+			return co.errorWrapper.Wrap(err)
+		}
+
+		var commitConfirmed func(ctx context.Context) error
+
+		op, commitConfirmed, err = co.operationPreparer.Prepare(ctx, op, confirmCode)
+		if err != nil {
+			if errors.Is(err, secureoperation.ErrNoAttemptsToConfirmOperation) {
+				confirmCodeErr = err
+
+				return nil
+			}
+
+			if !errors.Is(err, secureoperation.ErrConfirmCodeIsIncorrect) {
+				return co.errorWrapper.Wrap(err)
+			}
+
+			// далее обрабатывается ситуация связанная конкретно с ошибкой ErrConfirmCodeIsIncorrect
+
+			attempts, errUpdate := co.storageOperation.UpdateFailedAttempt(ctx, operationToken)
+			if errUpdate != nil {
+				return co.errorWrapper.Wrap(errUpdate)
+			}
+
+			// TODO: записать операцию в журнал
+
+			op.RemainingAttempts = attempts
+
+			if attempts > 0 {
+				confirmCodeErr = err
+
+				return nil
+			}
+
+			// TODO: при исчерпании попыток уведомить пользователя и зафиксировать событие в журнале.
+			// co.eventEmitter.Emit(
+			// 	 ctx,
+			// 	 "Confirm",
+			// 	 "userLogin", nextConfirm.Address,
+			//	 "loginType", nextConfirm.Method,
+			//	 "secretCode", generateSecretCode,
+			// )
+
+			confirmCodeErr = secureoperation.ErrNoAttemptsToConfirmOperation.Wrap(err)
+
+			return nil
+		}
+
 		if err = co.storageOperation.Replace(ctx, operationToken, op); err != nil {
 			return co.errorWrapper.Wrap(err)
 		}
 
-		// расходование аварийного кода (если он был использован) в той же транзакции
+		// расходование второго фактора (аварийный код или TOTP-шаг) в той же транзакции
 		if commitConfirmed != nil {
 			if err = commitConfirmed(ctx); err != nil {
+				// гонка: второй фактор уже израсходован конкурентным подтверждением того же
+				// пользователя. Откатываем транзакцию (повторное использование одного кода
+				// недопустимо) и ниже отдаём это как неверный код, а не как внутреннюю ошибку
+				if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+					secondFactorRace = true
+
+					return err
+				}
+
 				return co.errorWrapper.Wrap(err)
 			}
 		}
@@ -139,7 +179,17 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 		)
 	})
 	if err != nil {
+		if secondFactorRace {
+			return secureoperation.SecureOperation{}, secureoperation.ErrConfirmCodeIsIncorrect
+		}
+
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
+	}
+
+	// неверный или исчерпанный код: транзакция уже зафиксировала декремент счётчика попыток,
+	// поэтому возвращается бизнес-ошибка вместе с актуальным состоянием операции
+	if confirmCodeErr != nil {
+		return op, confirmCodeErr // WARNING: 'op' используется с этой ошибкой
 	}
 
 	return op, nil

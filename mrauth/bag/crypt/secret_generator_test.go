@@ -78,8 +78,13 @@ func TestSecretGenerator_HashAndCompare(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, "my-secret", hash)
 
-	require.NoError(t, gen.CompareSecretAndHash("my-secret", hash))
-	require.Error(t, gen.CompareSecretAndHash("wrong-secret", hash))
+	ok, err := gen.CompareSecretAndHash("my-secret", hash)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = gen.CompareSecretAndHash("wrong-secret", hash)
+	require.NoError(t, err) // несовпадение секрета - это не ошибка
+	require.False(t, ok)
 }
 
 func TestSecretGenerator_GenerateRecoveryCodes(t *testing.T) {
@@ -94,6 +99,9 @@ func TestSecretGenerator_GenerateRecoveryCodes(t *testing.T) {
 
 	for i := range plain {
 		require.NotEqual(t, plain[i], hashed[i]) // хранится хеш, не открытый код
-		require.NoError(t, gen.CompareSecretAndHash(plain[i], hashed[i]))
+
+		ok, err := gen.CompareSecretAndHash(plain[i], hashed[i])
+		require.NoError(t, err)
+		require.True(t, ok)
 	}
 }

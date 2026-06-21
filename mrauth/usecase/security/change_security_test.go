@@ -90,13 +90,14 @@ func openedEmailOp(t *testing.T) secureoperation.SecureOperation {
 		uuid.New(),
 		[]secureoperation.ConfirmAction{
 			{
-				Method:        confirmmethod.Email,
-				MaxAttempts:   3,
-				MaxResends:    5,
-				MinResendTime: 5 * time.Minute,
-				Expiry:        10 * time.Minute,
-				Address:       "u@e",
-				ConfirmCode:   "code123",
+				Method:           confirmmethod.Email,
+				MaxAttempts:      3,
+				MaxResends:       5,
+				MinResendTime:    5 * time.Minute,
+				Expiry:           10 * time.Minute,
+				Address:          "u@e",
+				ConfirmCode:      "code123", // в хранилище идёт хеш
+				PlainConfirmCode: "code123", // открытый код - для отправки через Notify
 			},
 		},
 		nil,

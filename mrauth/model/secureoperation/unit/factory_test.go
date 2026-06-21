@@ -40,6 +40,14 @@ func (g fakeTokenGen) GenToken() (string, error) { return g.token, g.err }
 
 func (g fakeCodeGen) GenCode() (string, error) { return g.code, g.err }
 
+func (g fakeCodeGen) GenCodeWithHash() (string, string, error) {
+	if g.err != nil {
+		return "", "", g.err
+	}
+
+	return g.code, g.hash, nil
+}
+
 func (g fakeCodeGen) HashedSecret(string) (string, error) {
 	if g.err != nil {
 		return "", g.err
@@ -48,7 +56,7 @@ func (g fakeCodeGen) HashedSecret(string) (string, error) {
 	return g.hash, nil
 }
 
-func (g fakeCodeGen) CompareSecretAndHash(string, string) error { return nil }
+func (g fakeCodeGen) CompareSecretAndHash(string, string) (bool, error) { return true, nil }
 
 func (g fakeSecretGen) GenerateSecret(string) (string, error) { return g.secret, g.err }
 

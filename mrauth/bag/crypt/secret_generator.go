@@ -50,6 +50,22 @@ func (c *SecretGenerator) GenCode() (string, error) {
 	return code, nil
 }
 
+// GenCodeWithHash - генерирует цифровой код подтверждения и его bcrypt-хеш:
+// хеш сохраняется в хранилище, открытый код отправляется пользователю.
+func (c *SecretGenerator) GenCodeWithHash() (code, hashedCode string, err error) {
+	code, err = c.GenCode()
+	if err != nil {
+		return "", "", err
+	}
+
+	hashedCode, err = c.HashedSecret(code)
+	if err != nil {
+		return "", "", err
+	}
+
+	return code, hashedCode, nil
+}
+
 // GenRecoveryCode - генерирует аварийный код из латиницы и цифр с разделителем посередине.
 func (c *SecretGenerator) GenRecoveryCode() (string, error) {
 	code, err := crypt.GenerateBytes(charsetRecoveryCode, c.secretLength)
@@ -75,8 +91,16 @@ func (c *SecretGenerator) HashedSecret(value string) (string, error) {
 }
 
 // CompareSecretAndHash - сверяет секрет с его bcrypt-хешем.
-func (c *SecretGenerator) CompareSecretAndHash(secret, hashedSecret string) error {
-	return bcrypt.CompareHashAndPassword([]byte(hashedSecret), []byte(secret))
+func (c *SecretGenerator) CompareSecretAndHash(secret, hashedSecret string) (ok bool, err error) {
+	if err = bcrypt.CompareHashAndPassword([]byte(hashedSecret), []byte(secret)); err != nil {
+		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			return false, nil
+		}
+
+		return false, errors.WrapInternalError(err, "invalid CompareSecretAndHash")
+	}
+
+	return true, nil
 }
 
 // GenerateRecoveryCodes - генерирует count одноразовых кодов и их bcrypt-хеши.

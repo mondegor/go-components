@@ -23,7 +23,7 @@ func initCheckController(
 	)
 
 	// набор ключей статичен на время жизни процесса - сериализуем JWKS один раз при инициализации;
-	// для session-only режима (jwtKeys == nil) тело отсутствует и эндпоинт отдаёт 404
+	// для session-only режима (jwtKeys == nil) тело отсутствует и метод отдаёт 404
 	var jwksJSONBody []byte
 
 	if jwtKeys != nil {

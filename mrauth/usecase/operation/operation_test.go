@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	sysmesserrors "github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrstorage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,6 +74,10 @@ func (f *fakeStorage) FetchOne(context.Context, string) (secureoperation.SecureO
 	return f.fetchOp, f.fetchErr
 }
 
+func (f *fakeStorage) FetchOneForUpdate(ctx context.Context, token string) (secureoperation.SecureOperation, error) {
+	return f.FetchOne(ctx, token)
+}
+
 func (f *fakeStorage) Replace(_ context.Context, _ string, _ secureoperation.SecureOperation) error {
 	if f.replaceErr != nil {
 		return f.replaceErr
@@ -130,13 +135,14 @@ func openedEmailOp(t *testing.T) secureoperation.SecureOperation {
 		uuid.New(),
 		[]secureoperation.ConfirmAction{
 			{
-				Method:        confirmmethod.Email,
-				MaxAttempts:   3,
-				MaxResends:    5,
-				MinResendTime: 5 * time.Minute,
-				Expiry:        10 * time.Minute,
-				Address:       "u@e",
-				ConfirmCode:   "code123",
+				Method:           confirmmethod.Email,
+				MaxAttempts:      3,
+				MaxResends:       5,
+				MinResendTime:    5 * time.Minute,
+				Expiry:           10 * time.Minute,
+				Address:          "u@e",
+				ConfirmCode:      "code123",
+				PlainConfirmCode: "code123",
 			},
 		},
 		nil,
@@ -254,6 +260,28 @@ func TestConfirmOperation_Success_ConfirmedRunsCommit(t *testing.T) {
 	require.True(t, storage.replaced)
 	require.True(t, committed)
 	require.Equal(t, 0, notifier.sent) // подтверждённая операция не отправляет код
+}
+
+func TestConfirmOperation_Success_SecondFactorRaceRejectedAsWrongCode(t *testing.T) {
+	t.Parallel()
+
+	op := confirmedOp(t)
+	storage := &fakeStorage{fetchOp: op}
+	notifier := &fakeNotifier{}
+	preparer := fakeConfirmPreparer{
+		outOp: op,
+		// второй фактор уже израсходован конкурентным подтверждением
+		commit: func(context.Context) error {
+			return sysmesserrors.ErrEventStorageNoRecordFound
+		},
+	}
+	uc := operation.NewConfirmOperation(fakeTx{}, storage, notifier, preparer)
+
+	gotOp, err := uc.Execute(context.Background(), "en", "token", "code123")
+	require.ErrorIs(t, err, secureoperation.ErrConfirmCodeIsIncorrect) // гонка отдаётся как неверный код
+	require.NotErrorIs(t, err, sysmesserrors.ErrEventStorageNoRecordFound)
+	require.Equal(t, secureoperation.SecureOperation{}, gotOp) // транзакция откатилась
+	require.Equal(t, 0, notifier.sent)
 }
 
 func TestResendCode_EmptyToken(t *testing.T) {

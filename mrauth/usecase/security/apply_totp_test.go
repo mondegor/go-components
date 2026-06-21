@@ -63,6 +63,10 @@ func (f *fakeOpVerifier) FetchOne(_ context.Context, _ string) (secureoperation.
 	return f.op, f.fetchErr
 }
 
+func (f *fakeOpVerifier) FetchOneForUpdate(_ context.Context, _ string) (secureoperation.SecureOperation, error) {
+	return f.op, f.fetchErr
+}
+
 func (f *fakeOpVerifier) Delete(_ context.Context, token string) error {
 	if f.deleteErr != nil {
 		return f.deleteErr

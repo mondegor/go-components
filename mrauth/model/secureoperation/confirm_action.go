@@ -17,11 +17,15 @@ type (
 
 		// only for confirmmethod.Email and confirmmethod.Phone
 		Address     string `json:"address,omitempty"`
-		ConfirmCode string `json:"code,omitempty"`
+		ConfirmCode string `json:"code,omitempty"` // bcrypt-хеш кода подтверждения
+
+		// PlainConfirmCode - код подтверждения в открытом виде, используется только для
+		// отправки пользователю в рамках текущего запроса; не сохраняется в хранилище.
+		PlainConfirmCode string `json:"-"`
 	}
 )
 
-// Sendable - comments method.
+// Sendable - сообщает, отправляется ли код подтверждения пользователю (Email/Phone).
 func (a *ConfirmAction) Sendable() bool {
 	return a.Method == confirmmethod.Email || a.Method == confirmmethod.Phone
 }
