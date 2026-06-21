@@ -9,7 +9,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	action2 "github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 )
 
 const (
@@ -18,7 +18,7 @@ const (
 )
 
 type (
-	// CreateUser - comment struct.
+	// CreateUser - фабрика операции создания пользователя.
 	CreateUser struct {
 		realm          string
 		userKind       string
@@ -34,18 +34,18 @@ func NewCreateUser(
 	userKind string,
 	tokenGenerator mrauth.TokenGenerator,
 	codeGenerator mrauth.CodeGenerator,
-	confirmByEmailOpts ...action2.Option, // TODO: option !!!
+	confirmByEmailOpts ...action.Option,
 ) *CreateUser {
 	return &CreateUser{
 		realm:          realm,
 		userKind:       userKind,
 		tokenGenerator: tokenGenerator,
 		codeGenerator:  codeGenerator,
-		actionCreator:  action2.NewConfirmByEmail(confirmByEmailOpts...),
+		actionCreator:  action.NewConfirmByEmail(confirmByEmailOpts...),
 	}
 }
 
-// Create - comments method.
+// Create - создаёт операцию создания пользователя по его email.
 func (o *CreateUser) Create(langCode string, userEmail contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
 	operationToken, err := o.tokenGenerator.GenToken()
 	if err != nil {

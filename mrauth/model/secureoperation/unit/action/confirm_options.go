@@ -38,7 +38,7 @@ func newConfirmOptions(opts []Option) confirmOptions {
 	}
 
 	if o.maxResends < 1 {
-		o.maxAttempts = defaultMaxResends
+		o.maxResends = defaultMaxResends
 	}
 
 	return o

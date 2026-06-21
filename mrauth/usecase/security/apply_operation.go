@@ -13,15 +13,16 @@ import (
 )
 
 type (
-	// ApplyOperation - comment struct.
+	// ApplyOperation - применяет подтверждённую защищённую операцию через
+	// зарегистрированный обработчик и удаляет её.
 	ApplyOperation struct {
 		txManager        mrstorage.DBTxManager
-		storageOperation operationFetcher
+		storageOperation operationDeleter
 		errorWrapper     errors.Wrapper
 		handlerMap       map[string]mrauth.OperationHandler
 	}
 
-	operationFetcher interface {
+	operationDeleter interface {
 		FetchOne(ctx context.Context, token string) (row secureoperation.SecureOperation, err error)
 		Delete(ctx context.Context, token string) error
 	}
@@ -30,7 +31,7 @@ type (
 // NewApplyOperation - создаёт объект ApplyOperation.
 func NewApplyOperation(
 	txManager mrstorage.DBTxManager,
-	storageOperation operationFetcher,
+	storageOperation operationDeleter,
 	handlerMap map[string]mrauth.OperationHandler,
 ) *ApplyOperation {
 	return &ApplyOperation{
@@ -41,18 +42,18 @@ func NewApplyOperation(
 	}
 }
 
-// apply_change.go // to service: validate + store
-// change_totp.go отдельный метод
-
-// Execute - comments method.
+// Execute - проверяет, что операция подтверждена и принадлежит пользователю, затем
+// в одной транзакции удаляет её и выполняет привязанный к ней обработчик.
 func (uc *ApplyOperation) Execute(ctx context.Context, userID uuid.UUID, operationToken string) error {
 	if userID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
 	if operationToken == "" {
-		return errors.ErrRecordNotFound // TODO: ?может ошибку, что параметр некорректен выдавать?
+		return errors.ErrRecordNotFound // TODO: возможно, стоит возвращать ошибку о некорректном параметре
 	}
+
+	// TODO: нужна ли здесь общая транзакция (FetchOne <-> Delete)
 
 	op, err := uc.storageOperation.FetchOne(ctx, operationToken)
 	if err != nil {
@@ -63,10 +64,10 @@ func (uc *ApplyOperation) Execute(ctx context.Context, userID uuid.UUID, operati
 		return errors.ErrAccessForbidden
 	}
 
-	// TODO: проверить, что пользователь не заблокирован !!!!!!!
+	// TODO: проверить, что пользователь не заблокирован
 
 	if !op.Is(operationstatus.Confirmed) {
-		return errors.New("operation id not confirmed")
+		return errors.New("operation is not confirmed")
 	}
 
 	handler, ok := uc.handlerMap[op.Name]
@@ -79,7 +80,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, userID uuid.UUID, operati
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		// TODO: Add Operation log:op! ????
+		// TODO: записать операцию в журнал
 
 		return handler.Execute(ctx, op.UserID, op.Payload)
 	})

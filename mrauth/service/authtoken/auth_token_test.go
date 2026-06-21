@@ -1,4 +1,4 @@
-package session_test
+package authtoken_test
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/service/session"
-	"github.com/mondegor/go-components/mrauth/service/session/mock"
+	"github.com/mondegor/go-components/mrauth/service/authtoken"
+	"github.com/mondegor/go-components/mrauth/service/authtoken/mock"
 )
 
 //go:generate mockgen -source=auth_token.go -destination=mock/auth_token.go -package=mock
@@ -33,7 +33,7 @@ type AuthTokenSuite struct {
 	tx      *mock.MockDBTxManager
 	storage *mock.MockauthTokenStorage
 	issuer  *mock.MockTokenIssuer
-	sv      *session.AuthToken
+	sv      *authtoken.AuthToken
 }
 
 func TestAuthTokenSuite(t *testing.T) {
@@ -48,11 +48,11 @@ func (s *AuthTokenSuite) SetupTest() {
 	s.tx = mock.NewMockDBTxManager(s.ctrl)
 	s.storage = mock.NewMockauthTokenStorage(s.ctrl)
 	s.issuer = mock.NewMockTokenIssuer(s.ctrl)
-	s.sv = session.NewAuthToken(
+	s.sv = authtoken.New(
 		s.tx,
 		s.storage,
 		mrlog.NopLogger(),
-		[]session.AuthTokenRealm{{Name: testRealm, TokenIssuer: s.issuer}},
+		[]authtoken.Realm{{Name: testRealm, TokenIssuer: s.issuer}},
 	)
 }
 

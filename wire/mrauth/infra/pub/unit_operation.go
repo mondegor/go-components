@@ -30,8 +30,8 @@ func initOperationController(
 		storageSecureOperation,
 		notifierAPI,
 		secureoperation.NewResendCode(
-			crypt.NewTokenGenerator(int(operationConfirm.TokenLength)), // DEFAULT TODO: должно зависить от realm
-			crypt.NewCodeGenerator(int(operationConfirm.CodeLength)),   // DEFAULT
+			crypt.NewSecretGenerator(int(operationConfirm.TokenLength)), // TODO: длина должна зависеть от realm
+			crypt.NewSecretGenerator(int(operationConfirm.CodeLength)),
 		),
 	)
 

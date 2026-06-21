@@ -12,11 +12,11 @@ const (
 )
 
 type (
-	// Auth2fa - информация о пользователе для 2FA.
+	// Auth2fa - данные второго фактора пользователя (тип, секрет, аварийные коды).
 	Auth2fa struct {
-		UserID       uuid.UUID
-		Type         auth2fatype.Enum
-		Secret       string
-		CancelSecret string
+		UserID        uuid.UUID
+		Type          auth2fatype.Enum
+		Secret        string
+		RecoveryCodes []string
 	}
 )

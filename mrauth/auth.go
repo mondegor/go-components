@@ -33,8 +33,8 @@ type (
 		Execute(ctx context.Context, userID uuid.UUID, payload []byte) error
 	}
 
-	// FactoryUserConfirm2FA - создаёт данные 2FA-подтверждения пользователя по его логину или идентификатору.
-	FactoryUserConfirm2FA interface {
+	// User2FAConfirmActionCreator - создаёт данные 2FA-подтверждения пользователя по его логину или идентификатору.
+	User2FAConfirmActionCreator interface {
 		CreateByUserLogin(ctx context.Context, userLogin contactaddress.ContactAddress) (dto.User2FA, error)
 		CreateByUserID(ctx context.Context, userID uuid.UUID) (dto.User2FA, error)
 	}
@@ -42,15 +42,13 @@ type (
 	// TokenGenerator - генератор случайных токенов заданной длины.
 	TokenGenerator interface {
 		GenToken() (string, error)
-		GenTokenLen(length int) (string, error)
 	}
 
 	// CodeGenerator - генерация, хеширование и проверка кодов подтверждения.
 	CodeGenerator interface {
 		GenCode() (string, error)
-		GenCodeLen(length int) (string, error)
-		HashedCode(code string) (string, error)
-		CompareCodeAndHash(code, hashedCode string) error
+		HashedSecret(secret string) (string, error)
+		CompareSecretAndHash(secret, hashedSecret string) error
 	}
 
 	// TokenIssuer - выпускает пару токенов access/refresh для области действия пользователя.

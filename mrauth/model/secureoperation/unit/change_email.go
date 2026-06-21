@@ -7,7 +7,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	action2 "github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 )
 
 const (
@@ -16,7 +16,7 @@ const (
 )
 
 type (
-	// ChangeEmail - comment struct.
+	// ChangeEmail - фабрика операции смены email пользователя.
 	ChangeEmail struct {
 		actionCreator  mrauth.ConfirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
@@ -24,20 +24,20 @@ type (
 	}
 )
 
-// NewChangeEmail - создаёт объект OperationFactory.
+// NewChangeEmail - создаёт объект ChangeEmail.
 func NewChangeEmail(
 	tokenGenerator mrauth.TokenGenerator,
 	codeGenerator mrauth.CodeGenerator,
-	confirmByEmailOpts ...action2.Option,
+	confirmByEmailOpts ...action.Option,
 ) *ChangeEmail {
 	return &ChangeEmail{
 		tokenGenerator: tokenGenerator,
 		codeGenerator:  codeGenerator,
-		actionCreator:  action2.NewConfirmByEmail(confirmByEmailOpts...),
+		actionCreator:  action.NewConfirmByEmail(confirmByEmailOpts...),
 	}
 }
 
-// Create - comments method.
+// Create - создаёт операцию смены email для указанного пользователя.
 func (o *ChangeEmail) Create(user2FA dto.User2FA, newEmail string) (secureoperation.SecureOperation, error) {
 	operationToken, err := o.tokenGenerator.GenToken()
 	if err != nil {

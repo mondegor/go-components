@@ -7,7 +7,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	action2 "github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 )
 
 const (
@@ -16,7 +16,7 @@ const (
 )
 
 type (
-	// ChangePassword - comment struct.
+	// ChangePassword - фабрика операции смены пароля пользователя.
 	ChangePassword struct {
 		actionCreator  mrauth.ConfirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
@@ -24,20 +24,20 @@ type (
 	}
 )
 
-// NewChangePassword - создаёт объект OperationFactory.
+// NewChangePassword - создаёт объект ChangePassword.
 func NewChangePassword(
 	tokenGenerator mrauth.TokenGenerator,
 	codeGenerator mrauth.CodeGenerator,
-	confirmByEmailOpts ...action2.Option,
+	confirmByEmailOpts ...action.Option,
 ) *ChangePassword {
 	return &ChangePassword{
 		tokenGenerator: tokenGenerator,
 		codeGenerator:  codeGenerator,
-		actionCreator:  action2.NewConfirmByEmail(confirmByEmailOpts...),
+		actionCreator:  action.NewConfirmByEmail(confirmByEmailOpts...),
 	}
 }
 
-// Create - comments method.
+// Create - создаёт операцию смены пароля для указанного пользователя.
 func (o *ChangePassword) Create(user2FA dto.User2FA, newPassword string) (secureoperation.SecureOperation, error) {
 	operationToken, err := o.tokenGenerator.GenToken()
 	if err != nil {
@@ -49,7 +49,7 @@ func (o *ChangePassword) Create(user2FA dto.User2FA, newPassword string) (secure
 		return secureoperation.SecureOperation{}, err
 	}
 
-	hashedNewPassword, err := o.codeGenerator.HashedCode(newPassword)
+	hashedNewPassword, err := o.codeGenerator.HashedSecret(newPassword)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}

@@ -7,14 +7,14 @@ import (
 	"github.com/mondegor/go-sysmess/mrstorage"
 	"github.com/mondegor/go-sysmess/util/conv"
 
-	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
-	// ConfirmOperation - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// ConfirmOperation - подтверждение защищённой операции по коду: проверка кода,
+	// учёт неудачных попыток и переход к следующему действию или к статусу Confirmed.
 	ConfirmOperation struct {
 		txManager         mrstorage.DBTxManager
 		storageOperation  operationConfirmer
@@ -30,11 +30,15 @@ type (
 	}
 
 	confirmOperationPreparer interface {
-		Prepare(op secureoperation.SecureOperation, confirmCode string) (secureoperation.SecureOperation, error)
+		Prepare(
+			ctx context.Context,
+			op secureoperation.SecureOperation,
+			confirmCode string,
+		) (secureoperation.SecureOperation, func(ctx context.Context) error, error)
 	}
 )
 
-// NewConfirmOperation - создаёт объект NewConfirmOperation.
+// NewConfirmOperation - создаёт объект ConfirmOperation.
 func NewConfirmOperation(
 	txManager mrstorage.DBTxManager,
 	storageOperation operationConfirmer,
@@ -50,7 +54,9 @@ func NewConfirmOperation(
 	}
 }
 
-// Execute - возвращает строковое значение настройки с указанным идентификатором.
+// Execute - подтверждает текущее действие операции по коду; при неверном коде
+// уменьшает счётчик попыток, при успехе сохраняет операцию и отправляет код
+// следующего действия (либо завершает операцию).
 func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToken, confirmCode string) (secureoperation.SecureOperation, error) {
 	if operationToken == "" {
 		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("operationToken is empty")
@@ -61,7 +67,7 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
-	op, err = co.operationPreparer.Prepare(op, confirmCode)
+	op, commitConfirmed, err := co.operationPreparer.Prepare(ctx, op, confirmCode)
 	if err != nil {
 		if errors.Is(err, secureoperation.ErrNoAttemptsToConfirmOperation) {
 			return op, err // WARNING: 'op' используется с этой ошибкой
@@ -76,7 +82,7 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 			return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(errUpdate)
 		}
 
-		// TODO: Add Operation log:op!
+		// TODO: записать операцию в журнал
 
 		op.RemainingAttempts = attempts
 
@@ -84,7 +90,7 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 			return op, err // WARNING: 'op' используется с этой ошибкой
 		}
 
-		// TODO: если тут стало 0 попыток, то отправить сообщение юзеру и зафиксировать в журнале
+		// TODO: при исчерпании попыток уведомить пользователя и зафиксировать событие в журнале.
 		// co.eventEmitter.Emit(
 		// 	 ctx,
 		// 	 "Confirm",
@@ -101,7 +107,14 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 			return co.errorWrapper.Wrap(err)
 		}
 
-		// TODO: Add Operation log:op!
+		// расходование аварийного кода (если он был использован) в той же транзакции
+		if commitConfirmed != nil {
+			if err = commitConfirmed(ctx); err != nil {
+				return co.errorWrapper.Wrap(err)
+			}
+		}
+
+		// TODO: записать операцию в журнал
 
 		// если все действия подтверждены
 		if op.Is(operationstatus.Confirmed) {
@@ -110,12 +123,8 @@ func (co *ConfirmOperation) Execute(ctx context.Context, langCode, operationToke
 		}
 
 		// 2fa подтверждение
-		return op.Notify(
-			func(method confirmmethod.Enum, address, confirmCode string) error {
-				if method != confirmmethod.Email {
-					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
-				}
-
+		return op.NotifyByEmail(
+			func(address, confirmCode string) error {
 				return co.notifierAPI.Send(
 					ctx,
 					"confirm.operation.by.email",

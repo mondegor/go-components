@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	// SecureOperationPostgres - comment struct.
+	// SecureOperationPostgres - реализация хранилища защищённых операций в PostgreSQL.
 	SecureOperationPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper errors.Wrapper
@@ -32,7 +32,7 @@ func NewSecureOperationPostgres(
 	}
 }
 
-// FetchOne - возвращает список сообщений по их указанным ID.
+// FetchOne - возвращает защищённую операцию по её токену.
 func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (row secureoperation.SecureOperation, err error) {
 	sql := `
 		SELECT
@@ -89,7 +89,7 @@ func (re *SecureOperationPostgres) FetchOne(ctx context.Context, token string) (
 	return row, nil
 }
 
-// Insert - возвращает список сообщений по их указанным ID.
+// Insert - добавляет новую защищённую операцию.
 func (re *SecureOperationPostgres) Insert(ctx context.Context, row secureoperation.SecureOperation) error {
 	sql := `
 		INSERT INTO ` + re.tableName + `
@@ -136,7 +136,7 @@ func (re *SecureOperationPostgres) Insert(ctx context.Context, row secureoperati
 	return nil
 }
 
-// Replace - comments method.
+// Replace - заменяет данные открытой операции (в статусе Opened).
 func (re *SecureOperationPostgres) Replace(ctx context.Context, currentToken string, row secureoperation.SecureOperation) error {
 	sql := `
         UPDATE
@@ -176,7 +176,7 @@ func (re *SecureOperationPostgres) Replace(ctx context.Context, currentToken str
 	return nil
 }
 
-// UpdateFailedAttempt - comments method.
+// UpdateFailedAttempt - уменьшает счётчик оставшихся попыток подтверждения и возвращает его новое значение.
 func (re *SecureOperationPostgres) UpdateFailedAttempt(ctx context.Context, token string) (attempts int16, err error) {
 	sql := `
         UPDATE
@@ -203,7 +203,7 @@ func (re *SecureOperationPostgres) UpdateFailedAttempt(ctx context.Context, toke
 	return attempts, nil
 }
 
-// Delete - comments method.
+// Delete - удаляет защищённую операцию по её токену.
 func (re *SecureOperationPostgres) Delete(ctx context.Context, token string) error {
 	sql := `
         DELETE FROM
@@ -227,7 +227,7 @@ func (re *SecureOperationPostgres) Delete(ctx context.Context, token string) err
 	return nil
 }
 
-// DeleteExpired - comments method.
+// DeleteExpired - удаляет просроченные операции пакетом ограниченного размера.
 func (re *SecureOperationPostgres) DeleteExpired(ctx context.Context, limit int) error {
 	sql := `
 		WITH expired_items as (

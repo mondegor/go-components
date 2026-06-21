@@ -9,20 +9,20 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
-	// ChangePasswordProperty - comment struct.
+	// ChangePasswordProperty - создаёт операцию смены пароля пользователя и отправляет
+	// код её подтверждения.
 	ChangePasswordProperty struct {
-		txManager                mrstorage.DBTxManager
-		storageOperation         operationCreator
-		notifierAPI              mrnotifier.NoteProducer
-		factoryUserConfirm2FA    mrauth.FactoryUserConfirm2FA
-		factoryOperationPassword factoryOperationValue2FA
-		errorWrapper             errors.Wrapper
+		txManager                   mrstorage.DBTxManager
+		storageOperation            operationCreator
+		notifierAPI                 mrnotifier.NoteProducer
+		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
+		factoryOperationPassword    factoryOperationValue2FA
+		errorWrapper                errors.Wrapper
 	}
 )
 
@@ -31,26 +31,27 @@ func NewChangePasswordProperty(
 	txManager mrstorage.DBTxManager,
 	storageOperation operationCreator,
 	notifierAPI mrnotifier.NoteProducer,
-	factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA,
+	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
 	factoryOperationPassword factoryOperationValue2FA,
 ) *ChangePasswordProperty {
 	return &ChangePasswordProperty{
-		txManager:                txManager,
-		storageOperation:         storageOperation,
-		notifierAPI:              notifierAPI,
-		factoryUserConfirm2FA:    factoryUserConfirm2FA,
-		factoryOperationPassword: factoryOperationPassword,
-		errorWrapper:             errors.NewServiceRecordNotFoundWrapper(),
+		txManager:                   txManager,
+		storageOperation:            storageOperation,
+		notifierAPI:                 notifierAPI,
+		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
+		factoryOperationPassword:    factoryOperationPassword,
+		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
-// Execute - comments method.
+// Execute - создаёт операцию смены пароля и в той же транзакции отправляет
+// пользователю код её подтверждения.
 func (uc *ChangePasswordProperty) Execute(ctx context.Context, userID uuid.UUID, newPassword string) (secureoperation.SecureOperation, error) {
 	if userID == uuid.Nil {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
-	user2FA, err := uc.factoryUserConfirm2FA.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
+	user2FA, err := uc.factoryUser2FAConfirmAction.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
@@ -65,12 +66,8 @@ func (uc *ChangePasswordProperty) Execute(ctx context.Context, userID uuid.UUID,
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		return op.Notify(
-			func(method confirmmethod.Enum, address, confirmCode string) error {
-				if method != confirmmethod.Email {
-					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
-				}
-
+		return op.NotifyByEmail(
+			func(address, confirmCode string) error {
 				return uc.notifierAPI.Send(
 					ctx,
 					"confirm.change.password",

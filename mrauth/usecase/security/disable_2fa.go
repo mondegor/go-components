@@ -9,20 +9,20 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
-	// Disable2FA - comment struct.
+	// Disable2FA - создаёт операцию отключения 2FA пользователя и отправляет код
+	// её подтверждения.
 	Disable2FA struct {
-		txManager                  mrstorage.DBTxManager
-		storageOperation           operationCreator
-		notifierAPI                mrnotifier.NoteProducer
-		factoryUserConfirm2FA      mrauth.FactoryUserConfirm2FA
-		factoryOperationDisable2FA factoryOperation2FA
-		errorWrapper               errors.Wrapper
+		txManager                   mrstorage.DBTxManager
+		storageOperation            operationCreator
+		notifierAPI                 mrnotifier.NoteProducer
+		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
+		factoryOperationDisable2FA  totpOperationCreator
+		errorWrapper                errors.Wrapper
 	}
 )
 
@@ -31,35 +31,32 @@ func NewDisable2FA(
 	txManager mrstorage.DBTxManager,
 	storageOperation operationCreator,
 	notifierAPI mrnotifier.NoteProducer,
-	factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA,
-	factoryOperationDisable2FA factoryOperation2FA,
+	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
+	factoryOperationDisable2FA totpOperationCreator,
 ) *Disable2FA {
 	return &Disable2FA{
-		txManager:                  txManager,
-		storageOperation:           storageOperation,
-		notifierAPI:                notifierAPI,
-		factoryUserConfirm2FA:      factoryUserConfirm2FA,
-		factoryOperationDisable2FA: factoryOperationDisable2FA,
-		errorWrapper:               errors.NewServiceRecordNotFoundWrapper(),
+		txManager:                   txManager,
+		storageOperation:            storageOperation,
+		notifierAPI:                 notifierAPI,
+		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
+		factoryOperationDisable2FA:  factoryOperationDisable2FA,
+		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
-// Execute - comments method.
+// Execute - создаёт операцию отключения 2FA и в той же транзакции отправляет
+// пользователю код её подтверждения.
 func (uc *Disable2FA) Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error) {
 	if userID == uuid.Nil {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
-	user2FA, err := uc.factoryUserConfirm2FA.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
+	user2FA, err := uc.factoryUser2FAConfirmAction.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
-	// if user2FA.Action2FA.Method == 0 {
-	// 	return entity.SecureOperation{}, errors.New("already disabled")
-	// }
-
-	op, err := uc.factoryOperationDisable2FA.Create(user2FA)
+	op, err := uc.factoryOperationDisable2FA.Create(user2FA) // проверяет, что 2FA включена
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
@@ -69,14 +66,10 @@ func (uc *Disable2FA) Execute(ctx context.Context, userID uuid.UUID) (secureoper
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		// TODO: Add Operation log:op!
+		// TODO: записать операцию в журнал
 
-		return op.Notify(
-			func(method confirmmethod.Enum, address, confirmCode string) error {
-				if method != confirmmethod.Email {
-					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
-				}
-
+		return op.NotifyByEmail(
+			func(address, confirmCode string) error {
 				return uc.notifierAPI.Send(
 					ctx,
 					"confirm.disable.2fa",

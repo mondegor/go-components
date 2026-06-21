@@ -6,14 +6,14 @@ import (
 )
 
 type (
-	// ResendCode - comment struct.
+	// ResendCode - подготовка операции к повторной отправке кода подтверждения.
 	ResendCode struct {
 		tokenGenerator mrauth.TokenGenerator
 		codeGenerator  mrauth.CodeGenerator
 	}
 )
 
-// NewResendCode - создаёт объект OperationFactory.
+// NewResendCode - создаёт объект ResendCode.
 func NewResendCode(
 	tokenGenerator mrauth.TokenGenerator,
 	codeGenerator mrauth.CodeGenerator,
@@ -24,7 +24,7 @@ func NewResendCode(
 	}
 }
 
-// Prepare - comments method.
+// Prepare - генерирует новый токен и код подтверждения для повторной отправки кода операции.
 func (o *ResendCode) Prepare(op secureoperation.SecureOperation) (secureoperation.SecureOperation, error) {
 	// if item.Payload["audience"] == "" {
 	// 	return 0, errors.New("invalid operation token")
@@ -42,7 +42,7 @@ func (o *ResendCode) Prepare(op secureoperation.SecureOperation) (secureoperatio
 		return secureoperation.SecureOperation{}, err
 	}
 
-	if err = op.InitConfirmCode(o.codeGenerator.GenCode); err != nil {
+	if err = op.InitSendableAction(o.codeGenerator.GenCode); err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
 

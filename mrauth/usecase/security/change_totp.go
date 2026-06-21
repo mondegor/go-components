@@ -10,23 +10,23 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
-	// ChangeTOTPGeneratorProperty - comment struct.
+	// ChangeTOTPGeneratorProperty - создаёт операцию смены TOTP-генератора пользователя
+	// и отправляет код её подтверждения.
 	ChangeTOTPGeneratorProperty struct {
-		txManager             mrstorage.DBTxManager
-		storageOperation      operationCreator
-		notifierAPI           mrnotifier.NoteProducer
-		factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA
-		factoryOperationTOTP  factoryOperation2FA
-		errorWrapper          errors.Wrapper
+		txManager                   mrstorage.DBTxManager
+		storageOperation            operationCreator
+		notifierAPI                 mrnotifier.NoteProducer
+		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
+		factoryOperationTOTP        totpOperationCreator
+		errorWrapper                errors.Wrapper
 	}
 
-	factoryOperation2FA interface {
+	totpOperationCreator interface {
 		Create(user2FA dto.User2FA) (secureoperation.SecureOperation, error)
 	}
 )
@@ -36,26 +36,27 @@ func NewChangeTOTPGeneratorProperty(
 	txManager mrstorage.DBTxManager,
 	storageOperation operationCreator,
 	notifierAPI mrnotifier.NoteProducer,
-	factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA,
-	factoryOperationTOTP factoryOperation2FA,
+	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
+	factoryOperationTOTP totpOperationCreator,
 ) *ChangeTOTPGeneratorProperty {
 	return &ChangeTOTPGeneratorProperty{
-		txManager:             txManager,
-		storageOperation:      storageOperation,
-		notifierAPI:           notifierAPI,
-		factoryUserConfirm2FA: factoryUserConfirm2FA,
-		factoryOperationTOTP:  factoryOperationTOTP,
-		errorWrapper:          errors.NewServiceRecordNotFoundWrapper(),
+		txManager:                   txManager,
+		storageOperation:            storageOperation,
+		notifierAPI:                 notifierAPI,
+		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
+		factoryOperationTOTP:        factoryOperationTOTP,
+		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
-// Execute - comments method.
+// Execute - создаёт операцию смены TOTP-генератора и в той же транзакции отправляет
+// пользователю код её подтверждения.
 func (uc *ChangeTOTPGeneratorProperty) Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error) {
 	if userID == uuid.Nil {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
-	user2FA, err := uc.factoryUserConfirm2FA.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
+	user2FA, err := uc.factoryUser2FAConfirmAction.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
@@ -70,14 +71,10 @@ func (uc *ChangeTOTPGeneratorProperty) Execute(ctx context.Context, userID uuid.
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		// TODO: Add Operation log:op!
+		// TODO: записать операцию в журнал
 
-		return op.Notify(
-			func(method confirmmethod.Enum, address, confirmCode string) error {
-				if method != confirmmethod.Email {
-					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
-				}
-
+		return op.NotifyByEmail(
+			func(address, confirmCode string) error {
 				return uc.notifierAPI.Send(
 					ctx,
 					"confirm.change.totp",

@@ -8,7 +8,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	action2 "github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 )
 
 type (
-	// ChangePhone - comment struct.
+	// ChangePhone - фабрика операции смены телефона пользователя.
 	ChangePhone struct {
 		actionCreator  mrauth.ConfirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
@@ -25,20 +25,20 @@ type (
 	}
 )
 
-// NewChangePhone - создаёт объект OperationFactory.
+// NewChangePhone - создаёт объект ChangePhone.
 func NewChangePhone(
 	tokenGenerator mrauth.TokenGenerator,
 	codeGenerator mrauth.CodeGenerator,
-	confirmByPhoneOpts ...action2.Option,
+	confirmByPhoneOpts ...action.Option,
 ) *ChangePhone {
 	return &ChangePhone{
 		tokenGenerator: tokenGenerator,
 		codeGenerator:  codeGenerator,
-		actionCreator:  action2.NewConfirmByPhone(confirmByPhoneOpts...),
+		actionCreator:  action.NewConfirmByPhone(confirmByPhoneOpts...),
 	}
 }
 
-// Create - comments method.
+// Create - создаёт операцию смены телефона для указанного пользователя.
 func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone string) (secureoperation.SecureOperation, error) {
 	parsedNewPhone, err := strconv.ParseUint(newPhone, 10, 64)
 	if err != nil {

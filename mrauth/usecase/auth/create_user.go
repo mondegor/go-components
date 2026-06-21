@@ -10,7 +10,6 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
@@ -114,12 +113,8 @@ func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail st
 
 		// TODO: Add Operation log:op!
 
-		return op.Notify(
-			func(method confirmmethod.Enum, address, confirmCode string) error {
-				if method != confirmmethod.Email {
-					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
-				}
-
+		return op.NotifyByEmail(
+			func(address, confirmCode string) error {
 				return co.notifierAPI.Send(
 					ctx,
 					"confirm.user.activation",

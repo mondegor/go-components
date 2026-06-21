@@ -10,22 +10,22 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
-	// ChangeEmailProperty - comment struct.
+	// ChangeEmailProperty - создаёт операцию смены email пользователя (с проверкой
+	// доступности адреса) и отправляет код её подтверждения.
 	ChangeEmailProperty struct {
-		txManager             mrstorage.DBTxManager
-		storageOperation      operationCreator
-		emailChecker          userEmailChecker
-		notifierAPI           mrnotifier.NoteProducer
-		factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA
-		factoryOperationEmail factoryOperationValue2FA
-		errorWrapper          errors.Wrapper
+		txManager                   mrstorage.DBTxManager
+		storageOperation            operationCreator
+		emailChecker                userEmailChecker
+		notifierAPI                 mrnotifier.NoteProducer
+		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
+		factoryOperationEmail       factoryOperationValue2FA
+		errorWrapper                errors.Wrapper
 	}
 
 	operationCreator interface {
@@ -47,21 +47,22 @@ func NewChangeEmailProperty(
 	storageOperation operationCreator,
 	emailChecker userEmailChecker,
 	notifierAPI mrnotifier.NoteProducer,
-	factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA,
+	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
 	factoryOperationEmail factoryOperationValue2FA,
 ) *ChangeEmailProperty {
 	return &ChangeEmailProperty{
-		txManager:             txManager,
-		storageOperation:      storageOperation,
-		emailChecker:          emailChecker,
-		notifierAPI:           notifierAPI,
-		factoryUserConfirm2FA: factoryUserConfirm2FA,
-		factoryOperationEmail: factoryOperationEmail,
-		errorWrapper:          errors.NewServiceRecordNotFoundWrapper(),
+		txManager:                   txManager,
+		storageOperation:            storageOperation,
+		emailChecker:                emailChecker,
+		notifierAPI:                 notifierAPI,
+		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
+		factoryOperationEmail:       factoryOperationEmail,
+		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
-// Execute - comments method.
+// Execute - проверяет доступность нового email, создаёт операцию его смены и в той
+// же транзакции отправляет пользователю код её подтверждения.
 func (uc *ChangeEmailProperty) Execute(ctx context.Context, userID uuid.UUID, newEmail string) (secureoperation.SecureOperation, error) {
 	if userID == uuid.Nil {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
@@ -76,7 +77,7 @@ func (uc *ChangeEmailProperty) Execute(ctx context.Context, userID uuid.UUID, ne
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
-	user2FA, err := uc.factoryUserConfirm2FA.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
+	user2FA, err := uc.factoryUser2FAConfirmAction.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
@@ -91,14 +92,10 @@ func (uc *ChangeEmailProperty) Execute(ctx context.Context, userID uuid.UUID, ne
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		// TODO: Add Operation log:op!
+		// TODO: записать операцию в журнал
 
-		return op.Notify(
-			func(method confirmmethod.Enum, address, confirmCode string) error {
-				if method != confirmmethod.Email {
-					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
-				}
-
+		return op.NotifyByEmail(
+			func(address, confirmCode string) error {
 				return uc.notifierAPI.Send(
 					ctx,
 					"confirm.change.email",

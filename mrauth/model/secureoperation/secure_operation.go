@@ -21,14 +21,12 @@ type (
 		RemainingAttempts int16     // кол-во оставшихся попыток подтверждения текущего экшена операции
 		RemainingResends  int16     // кол-во оставшихся попыток повторной отправки кода подтверждения
 		ResendsAt         time.Time // время, начиная с которого можно сделать повторную отправку кода подтверждения
-		Payload           []byte    // audience, visitorId
+		Payload           []byte    // произвольные данные операции (зависят от её типа)
 		Status            operationstatus.Enum
 		ExpiresAt         time.Time
-
-		// sendCode func(address, confirmCode string) error
 	}
 
-	// DTO - comment struct.
+	// DTO - публичные данные операции, безопасные для отдачи клиенту.
 	DTO struct {
 		Token             string
 		ConfirmMethod     confirmmethod.Enum
@@ -38,7 +36,7 @@ type (
 		ExpiresAt         time.Time
 	}
 
-	// UserDTO - comment struct.
+	// UserDTO - данные подтверждённой операции для дальнейшей обработки прикладной логикой.
 	UserDTO struct {
 		Token   string
 		UserID  uuid.UUID
@@ -73,7 +71,8 @@ func NewOperation(
 	return op, nil
 }
 
-// WakeUp - comment method.
+// WakeUp - восстанавливает операцию, загруженную из хранилища: проставляет её
+// экшены и проверяет инварианты и срок действия.
 func WakeUp(op *SecureOperation, actions []ConfirmAction) error {
 	if op == nil {
 		return errors.ErrInternalNilPointer.New("op is nil")
@@ -129,11 +128,17 @@ func (o *SecureOperation) checkInvariants() error {
 	return nil
 }
 
-// PublicInfo - comment method.
+// PublicInfo - возвращает публичные данные операции (метод подтверждения, счётчики, сроки).
+// Для подтверждённой операции (без действий) метод подтверждения остаётся нулевым.
 func (o *SecureOperation) PublicInfo() DTO {
+	var method confirmmethod.Enum
+	if len(o.actions) > 0 {
+		method = o.actions[0].Method
+	}
+
 	return DTO{
 		Token:             o.Token,
-		ConfirmMethod:     o.actions[0].Method,
+		ConfirmMethod:     method,
 		RemainingAttempts: o.RemainingAttempts,
 		RemainingResends:  o.RemainingResends,
 		ResendsAt:         o.ResendsAt,
@@ -141,7 +146,8 @@ func (o *SecureOperation) PublicInfo() DTO {
 	}
 }
 
-// UserInfo - comment method.
+// UserInfo - возвращает данные операции для прикладной логики; для неподтверждённой
+// операции возвращает пустой UserDTO.
 func (o *SecureOperation) UserInfo() UserDTO {
 	if o.Status == operationstatus.Confirmed {
 		return UserDTO{
@@ -154,13 +160,14 @@ func (o *SecureOperation) UserInfo() UserDTO {
 	return UserDTO{}
 }
 
-// Is - сообщает, находится ли операция в указанно статусе.
+// Is - сообщает, находится ли операция в указанном статусе.
 func (o *SecureOperation) Is(status operationstatus.Enum) bool {
 	return o.Status == status
 }
 
-// InitConfirmCode - comment method.
-func (o *SecureOperation) InitConfirmCode(generateCodeFunc func() (code string, err error)) error {
+// InitSendableAction - для текущего sendable-действия генерирует и устанавливает код
+// подтверждения; для не-sendable действий (TOTP/password) не делает ничего.
+func (o *SecureOperation) InitSendableAction(generateCodeFunc func() (code string, err error)) error {
 	if o.Status != operationstatus.Opened || len(o.actions) == 0 {
 		return errors.New("operation is not opened")
 	}
@@ -183,7 +190,8 @@ func (o *SecureOperation) InitConfirmCode(generateCodeFunc func() (code string, 
 	return nil
 }
 
-// Notify - comment method.
+// Notify - отправляет код подтверждения текущего sendable-действия через sendCodeFunc;
+// для не-sendable действий или при отсутствии callback не делает ничего.
 func (o *SecureOperation) Notify(
 	sendCodeFunc func(method confirmmethod.Enum, address, confirmCode string) error,
 ) error {
@@ -210,7 +218,21 @@ func (o *SecureOperation) Notify(
 	)
 }
 
-// FirstAction - comment method.
+// NotifyByEmail - отправляет код подтверждения текущего sendable-действия через sendFunc,
+// требуя, чтобы методом подтверждения был Email; для прочих методов возвращает ошибку.
+func (o *SecureOperation) NotifyByEmail(sendFunc func(address, confirmCode string) error) error {
+	return o.Notify(
+		func(method confirmmethod.Enum, address, confirmCode string) error {
+			if method != confirmmethod.Email {
+				return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
+			}
+
+			return sendFunc(address, confirmCode)
+		},
+	)
+}
+
+// FirstAction - возвращает текущее (первое неподтверждённое) действие операции.
 func (o *SecureOperation) FirstAction() (first ConfirmAction, ok bool) {
 	if len(o.actions) == 0 {
 		return ConfirmAction{}, false
@@ -219,7 +241,7 @@ func (o *SecureOperation) FirstAction() (first ConfirmAction, ok bool) {
 	return o.actions[0], true
 }
 
-// Actions - comment method.
+// Actions - возвращает оставшиеся неподтверждённые действия операции.
 func (o *SecureOperation) Actions() []ConfirmAction {
 	return o.actions
 }

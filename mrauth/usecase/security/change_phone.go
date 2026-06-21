@@ -9,22 +9,22 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
-	// ChangePhoneProperty - comment struct.
+	// ChangePhoneProperty - создаёт операцию смены телефона пользователя (с проверкой
+	// доступности номера) и отправляет код её подтверждения.
 	ChangePhoneProperty struct {
-		txManager             mrstorage.DBTxManager
-		storageOperation      operationCreator
-		phoneChecker          userPhoneChecker
-		notifierAPI           mrnotifier.NoteProducer
-		factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA
-		factoryOperationPhone factoryOperationValue2FA
-		errorWrapper          errors.Wrapper
+		txManager                   mrstorage.DBTxManager
+		storageOperation            operationCreator
+		phoneChecker                userPhoneChecker
+		notifierAPI                 mrnotifier.NoteProducer
+		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
+		factoryOperationPhone       factoryOperationValue2FA
+		errorWrapper                errors.Wrapper
 	}
 
 	userPhoneChecker interface {
@@ -38,21 +38,22 @@ func NewChangePhoneProperty(
 	storageOperation operationCreator,
 	phoneChecker userPhoneChecker,
 	notifierAPI mrnotifier.NoteProducer,
-	factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA,
+	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
 	factoryOperationPhone factoryOperationValue2FA,
 ) *ChangePhoneProperty {
 	return &ChangePhoneProperty{
-		txManager:             txManager,
-		storageOperation:      storageOperation,
-		phoneChecker:          phoneChecker,
-		notifierAPI:           notifierAPI,
-		factoryUserConfirm2FA: factoryUserConfirm2FA,
-		factoryOperationPhone: factoryOperationPhone,
-		errorWrapper:          errors.NewServiceRecordNotFoundWrapper(),
+		txManager:                   txManager,
+		storageOperation:            storageOperation,
+		phoneChecker:                phoneChecker,
+		notifierAPI:                 notifierAPI,
+		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
+		factoryOperationPhone:       factoryOperationPhone,
+		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
-// Execute - comments method.
+// Execute - проверяет доступность нового телефона, создаёт операцию его смены и в той
+// же транзакции отправляет пользователю код её подтверждения.
 func (uc *ChangePhoneProperty) Execute(ctx context.Context, userID uuid.UUID, newPhone string) (secureoperation.SecureOperation, error) {
 	if userID == uuid.Nil {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
@@ -67,7 +68,7 @@ func (uc *ChangePhoneProperty) Execute(ctx context.Context, userID uuid.UUID, ne
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
-	user2FA, err := uc.factoryUserConfirm2FA.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
+	user2FA, err := uc.factoryUser2FAConfirmAction.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
@@ -82,14 +83,10 @@ func (uc *ChangePhoneProperty) Execute(ctx context.Context, userID uuid.UUID, ne
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		// TODO: Add Operation log:op!
+		// TODO: записать операцию в журнал
 
-		return op.Notify(
-			func(method confirmmethod.Enum, address, confirmCode string) error {
-				if method != confirmmethod.Email {
-					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
-				}
-
+		return op.NotifyByEmail(
+			func(address, confirmCode string) error {
 				return uc.notifierAPI.Send(
 					ctx,
 					"confirm.change.phone",

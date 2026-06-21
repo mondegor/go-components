@@ -12,11 +12,11 @@ import (
 
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
-	action2 "github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service"
+	"github.com/mondegor/go-components/mrauth/service/authtoken"
 	"github.com/mondegor/go-components/mrauth/service/check"
-	session2 "github.com/mondegor/go-components/mrauth/service/session"
 	"github.com/mondegor/go-components/mrauth/service/userinfo"
 	usecaseauth "github.com/mondegor/go-components/mrauth/usecase/auth"
 	"github.com/mondegor/go-components/mrauth/usecase/operation"
@@ -70,7 +70,7 @@ func initUnitAuthController(
 		mapping.OptionUserRealmsToConfirmCreateUserRealms(userRealms),
 	)
 
-	useCaseConfirmAuthUser := usecaseauth.NewCreateSession( // ?????????????????????? CreateSession
+	useCaseConfirmAuthUser := usecaseauth.NewCreateSession(
 		dbConnManager,
 		checkUserService,
 		storageSecureOperation,
@@ -78,21 +78,21 @@ func initUnitAuthController(
 		service.NewFactoryConfirm2FA(
 			storageUser,
 			storageAuth2fa,
-			action2.NewConfirmBy2fa(
-				[]action2.Option{
-					action2.WithMaxAttempts(5), // TODO: в настройки
-					action2.WithExpiry(30 * time.Minute),
+			action.NewConfirmBy2fa(
+				[]action.Option{
+					action.WithMaxAttempts(5), // TODO: в настройки
+					action.WithExpiry(30 * time.Minute),
 				},
-				[]action2.Option{
-					action2.WithMaxAttempts(5), // TODO: в настройки
-					action2.WithExpiry(30 * time.Minute),
+				[]action.Option{
+					action.WithMaxAttempts(5), // TODO: в настройки
+					action.WithExpiry(30 * time.Minute),
 				},
 			),
 		),
 		mapping.OptionUserRealmsToConfirmCreateSessionRealms(userRealms),
 	)
 
-	serviceAuthToken := session2.NewAuthToken(
+	serviceAuthToken := authtoken.New(
 		dbConnManager,
 		storageAuthToken,
 		logger,

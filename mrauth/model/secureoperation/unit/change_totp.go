@@ -7,7 +7,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	action2 "github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 )
 
 const (
@@ -16,28 +16,36 @@ const (
 )
 
 type (
-	// ChangeTOTP - comment struct.
+	// ChangeTOTP - фабрика операции смены TOTP пользователя.
 	ChangeTOTP struct {
-		actionCreator  mrauth.ConfirmByAddressCreator
-		tokenGenerator mrauth.TokenGenerator
-		codeGenerator  mrauth.CodeGenerator
+		actionCreator   mrauth.ConfirmByAddressCreator
+		tokenGenerator  mrauth.TokenGenerator
+		codeGenerator   mrauth.CodeGenerator
+		secretGenerator totpSecretGenerator
+	}
+
+	// totpSecretGenerator - интерфейс генератора TOTP-секрета для нового аккаунта.
+	totpSecretGenerator interface {
+		GenerateSecret(accountName string) (secret string, err error)
 	}
 )
 
-// NewChangeTOTP - создаёт объект OperationFactory.
+// NewChangeTOTP - создаёт объект ChangeTOTP.
 func NewChangeTOTP(
 	tokenGenerator mrauth.TokenGenerator,
 	codeGenerator mrauth.CodeGenerator,
-	confirmByEmailOpts ...action2.Option,
+	secretGenerator totpSecretGenerator,
+	confirmByEmailOpts ...action.Option,
 ) *ChangeTOTP {
 	return &ChangeTOTP{
-		tokenGenerator: tokenGenerator,
-		codeGenerator:  codeGenerator,
-		actionCreator:  action2.NewConfirmByEmail(confirmByEmailOpts...),
+		tokenGenerator:  tokenGenerator,
+		codeGenerator:   codeGenerator,
+		secretGenerator: secretGenerator,
+		actionCreator:   action.NewConfirmByEmail(confirmByEmailOpts...),
 	}
 }
 
-// Create - comments method.
+// Create - создаёт операцию смены TOTP для указанного пользователя.
 func (o *ChangeTOTP) Create(user2FA dto.User2FA) (secureoperation.SecureOperation, error) {
 	operationToken, err := o.tokenGenerator.GenToken()
 	if err != nil {
@@ -49,9 +57,15 @@ func (o *ChangeTOTP) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 		return secureoperation.SecureOperation{}, err
 	}
 
-	payload, err := json.Marshal(
+	secret, err := o.secretGenerator.GenerateSecret(user2FA.Email)
+	if err != nil {
+		return secureoperation.SecureOperation{}, err
+	}
+
+	payload, err := json.Marshal( //nolint:gosec // G117: TOTP-secret намеренно сериализуется в payload операции для последующей привязки.
 		dto.ChangeTotpOperation{
-			Email: user2FA.Email, // UserLogin and Email
+			Email:  user2FA.Email,
+			Secret: secret,
 		},
 	)
 	if err != nil {

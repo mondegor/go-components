@@ -7,7 +7,6 @@ import (
 	"github.com/mondegor/go-sysmess/mrstorage"
 	"github.com/mondegor/go-sysmess/util/conv"
 
-	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
@@ -75,12 +74,8 @@ func (co *ResendCode) Execute(ctx context.Context, langCode, operationToken stri
 
 		// TODO: Add Operation log:op!
 
-		return op.Notify(
-			func(method confirmmethod.Enum, address, confirmCode string) error {
-				if method != confirmmethod.Email {
-					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
-				}
-
+		return op.NotifyByEmail(
+			func(address, confirmCode string) error {
 				return co.notifierAPI.Send(
 					ctx,
 					"confirm.operation.by.email",

@@ -9,25 +9,25 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
-	// CreateSession - компонент для извлечения настроек, которые хранятся в хранилище данных.
+	// CreateSession - инициирует создание сессии пользователя: подбирает операцию по
+	// realm, создаёт её и отправляет код подтверждения по логину пользователя.
 	CreateSession struct {
-		txManager             mrstorage.DBTxManager
-		userChecker           userLoginChecker
-		storageOperation      operationCreator
-		notifierAPI           mrnotifier.NoteProducer
-		factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA
-		errorWrapper          errors.Wrapper
-		realm2operation       map[string]createSessionOperation
+		txManager                   mrstorage.DBTxManager
+		userChecker                 userLoginChecker
+		storageOperation            operationCreator
+		notifierAPI                 mrnotifier.NoteProducer
+		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
+		errorWrapper                errors.Wrapper
+		realm2operation             map[string]createSessionOperation
 	}
 
-	// CreateSessionRealm - сообщение для получателя.
+	// CreateSessionRealm - сопоставление realm с операцией создания сессии для него.
 	CreateSessionRealm struct {
 		Name      string
 		Operation createSessionOperation
@@ -46,13 +46,13 @@ type (
 	}
 )
 
-// NewCreateSession - создаёт объект UserProvider.
+// NewCreateSession - создаёт объект CreateSession.
 func NewCreateSession(
 	txManager mrstorage.DBTxManager,
 	userChecker userLoginChecker,
 	storageOperation operationCreator,
 	notifierAPI mrnotifier.NoteProducer,
-	factoryUserConfirm2FA mrauth.FactoryUserConfirm2FA,
+	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
 	allowedRealms []CreateSessionRealm,
 ) *CreateSession {
 	realm2operation := make(map[string]createSessionOperation, len(allowedRealms))
@@ -61,17 +61,18 @@ func NewCreateSession(
 	}
 
 	return &CreateSession{
-		txManager:             txManager,
-		userChecker:           userChecker,
-		storageOperation:      storageOperation,
-		notifierAPI:           notifierAPI,
-		errorWrapper:          errors.NewServiceRecordNotFoundWrapper(),
-		factoryUserConfirm2FA: factoryUserConfirm2FA,
-		realm2operation:       realm2operation,
+		txManager:                   txManager,
+		userChecker:                 userChecker,
+		storageOperation:            storageOperation,
+		notifierAPI:                 notifierAPI,
+		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
+		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
+		realm2operation:             realm2operation,
 	}
 }
 
-// Execute - возвращает строковое значение настройки с указанным идентификатором.
+// Execute - проверяет логин пользователя в рамках realm, создаёт операцию создания
+// сессии и в той же транзакции отправляет пользователю код её подтверждения.
 func (co *CreateSession) Execute(ctx context.Context, realm, langCode, userLogin string) (secureoperation.SecureOperation, error) {
 	if userLogin == "" {
 		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("userLogin is empty")
@@ -96,7 +97,7 @@ func (co *CreateSession) Execute(ctx context.Context, realm, langCode, userLogin
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
-	user2FA, err := co.factoryUserConfirm2FA.CreateByUserLogin(ctx, parsedLogin)
+	user2FA, err := co.factoryUser2FAConfirmAction.CreateByUserLogin(ctx, parsedLogin)
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
@@ -111,20 +112,16 @@ func (co *CreateSession) Execute(ctx context.Context, realm, langCode, userLogin
 			return co.errorWrapper.Wrap(err)
 		}
 
-		// TODO: Add Operation log:op!
+		// TODO: записать операцию в журнал
 
-		return op.Notify(
-			func(method confirmmethod.Enum, address, confirmCode string) error {
-				if method != confirmmethod.Email {
-					return errors.NewInternalError("ConfirmMethod is not yet supported", "method", method)
-				}
-
+		return op.NotifyByEmail(
+			func(address, confirmCode string) error {
 				return co.notifierAPI.Send(
 					ctx,
 					"confirm.create.session.by.email",
 					conv.Group{
 						"lang":        langCode,
-						"to":          address, // user2FA.Email
+						"to":          address,
 						"confirmCode": confirmCode,
 					},
 				)

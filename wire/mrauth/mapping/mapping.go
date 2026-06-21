@@ -7,7 +7,7 @@ import (
 	bagsession "github.com/mondegor/go-components/mrauth/bag/session"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
-	"github.com/mondegor/go-components/mrauth/service/session"
+	"github.com/mondegor/go-components/mrauth/service/authtoken"
 	usecaseauth "github.com/mondegor/go-components/mrauth/usecase/auth"
 	usecasesession "github.com/mondegor/go-components/mrauth/usecase/session"
 	auth "github.com/mondegor/go-components/wire/mrauth/config"
@@ -71,8 +71,8 @@ func OptionUserRealmsToConfirmCreateUserRealms(realms []auth.UserRealm) []usecas
 				Operation: unit.NewCreateUser(
 					realm.Name,
 					realm.RegisterUserKind,
-					crypt.NewTokenGenerator(int(realm.AuthToken.Length)),
-					crypt.NewCodeGenerator(int(realm.OperationConfirm.CodeLength)),
+					crypt.NewSecretGenerator(int(realm.AuthToken.Length)),
+					crypt.NewSecretGenerator(int(realm.OperationConfirm.CodeLength)),
 					action.WithMaxAttempts(int16(realm.OperationConfirm.SendByEmail.MaxAttempts)),
 					action.WithMaxResends(int16(realm.OperationConfirm.SendByEmail.MaxResends)),
 					action.WithMinResendTime(realm.OperationConfirm.SendByEmail.MinResendTime),
@@ -96,8 +96,8 @@ func OptionUserRealmsToConfirmCreateSessionRealms(realms []auth.UserRealm) []use
 			usecaseauth.CreateSessionRealm{
 				Name: realm.Name,
 				Operation: unit.NewAuthorizeUser(
-					crypt.NewTokenGenerator(int(realm.AuthToken.Length)),
-					crypt.NewCodeGenerator(int(realm.OperationConfirm.CodeLength)),
+					crypt.NewSecretGenerator(int(realm.AuthToken.Length)),
+					crypt.NewSecretGenerator(int(realm.OperationConfirm.CodeLength)),
 					unit.WithAuthorizeUserConfirmByEmailOpts(
 						action.WithMaxAttempts(int16(realm.OperationConfirm.SendByEmail.MaxAttempts)),
 						action.WithMaxResends(int16(realm.OperationConfirm.SendByEmail.MaxResends)),
@@ -121,8 +121,8 @@ func OptionUserRealmsToConfirmCreateSessionRealms(realms []auth.UserRealm) []use
 
 // OptionUserRealmsToCreateSessionRealms - строит realm'ы выпуска токенов сессии, выбирая
 // issuer по типу токена realm'а (jwt либо обычный session-токен).
-func OptionUserRealmsToCreateSessionRealms(realms []auth.UserRealm, jwtConfig auth.JWT) []session.AuthTokenRealm {
-	mappedRealms := make([]session.AuthTokenRealm, 0, len(realms))
+func OptionUserRealmsToCreateSessionRealms(realms []auth.UserRealm, jwtConfig auth.JWT) []authtoken.Realm {
+	mappedRealms := make([]authtoken.Realm, 0, len(realms))
 
 	for _, realm := range realms {
 		var tokenIssuer mrauth.TokenIssuer
@@ -130,7 +130,7 @@ func OptionUserRealmsToCreateSessionRealms(realms []auth.UserRealm, jwtConfig au
 		switch realm.AuthToken.AccessType {
 		case "jwt":
 			tokenIssuer = jwt.NewTokenIssuer(
-				crypt.NewTokenGenerator(int(realm.AuthToken.Length)),
+				crypt.NewSecretGenerator(int(realm.AuthToken.Length)),
 				realm.AuthToken.AccessExpiry,
 				realm.AuthToken.RefreshExpiry,
 				jwtConfig.Issuer,
@@ -138,7 +138,7 @@ func OptionUserRealmsToCreateSessionRealms(realms []auth.UserRealm, jwtConfig au
 			)
 		default:
 			tokenIssuer = bagsession.NewTokenIssuer(
-				crypt.NewTokenGenerator(int(realm.AuthToken.Length)),
+				crypt.NewSecretGenerator(int(realm.AuthToken.Length)),
 				realm.AuthToken.AccessExpiry,
 				realm.AuthToken.RefreshExpiry,
 			)
@@ -146,7 +146,7 @@ func OptionUserRealmsToCreateSessionRealms(realms []auth.UserRealm, jwtConfig au
 
 		mappedRealms = append(
 			mappedRealms,
-			session.AuthTokenRealm{
+			authtoken.Realm{
 				Name:        realm.Name,
 				TokenIssuer: tokenIssuer,
 			},

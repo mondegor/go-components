@@ -1,18 +1,15 @@
 package security
 
 import (
-	"bytes"
 	"context"
-	"image/jpeg"
-	"io"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
-	modelmedia "github.com/mondegor/go-sysmess/mrmodel/media"
 	"github.com/mondegor/go-sysmess/mrstorage"
 	"github.com/mondegor/go-sysmess/util/conv"
-	"github.com/pquerna/otp/totp"
 
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
@@ -20,131 +17,124 @@ import (
 )
 
 type (
-	// ApplyTOTPGenerator - comment struct.
+	// ApplyTOTPGenerator - проверяет введённый TOTP-код против секрета, сохранённого
+	// в payload подтверждённой операции, и при успехе привязывает TOTP-генератор
+	// пользователю, выдавая одноразовые аварийные коды.
 	ApplyTOTPGenerator struct {
 		txManager        mrstorage.DBTxManager
-		storage          user2faCreator
-		storageOperation operationFetcher
+		storage          user2faBinder
+		storageOperation operationDeleter
+		codeGenerator    recoveryCodesGenerator
+		totpValidator    totpValidator
 		notifierAPI      mrnotifier.NoteProducer
 		errorWrapper     errors.Wrapper
-		issuer           string
+		recoveryCount    int
 	}
 
-	user2faCreator interface {
+	user2faBinder interface {
 		InsertOrUpdate(ctx context.Context, row entity.Auth2fa) error
+	}
+
+	recoveryCodesGenerator interface {
+		GenerateRecoveryCodes(count int) (plain, hashed []string, err error)
+	}
+
+	totpValidator interface {
+		Validate(code, secret string) bool
 	}
 )
 
 // NewApplyTOTPGenerator - создаёт объект ApplyTOTPGenerator.
 func NewApplyTOTPGenerator(
 	txManager mrstorage.DBTxManager,
-	storage user2faCreator,
-	storageOperation operationFetcher,
+	storage user2faBinder,
+	storageOperation operationDeleter,
+	codeGenerator recoveryCodesGenerator,
+	totpValidator totpValidator,
 	notifierAPI mrnotifier.NoteProducer,
-	issuer string,
+	recoveryCount int,
 ) *ApplyTOTPGenerator {
 	return &ApplyTOTPGenerator{
 		txManager:        txManager,
 		storage:          storage,
 		storageOperation: storageOperation,
+		codeGenerator:    codeGenerator,
+		totpValidator:    totpValidator,
 		notifierAPI:      notifierAPI,
 		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
-		issuer:           issuer,
+		recoveryCount:    recoveryCount,
 	}
 }
 
-// apply_change.go // to service: validate + store
-// change_totp.go отдельный метод
-
-// Execute - comments method.
-func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, operationToken string) (totpQRcode modelmedia.Image, err error) {
+// Execute - проверяет TOTP-код, введённый пользователем, против секрета операции
+// и при успехе в одной транзакции привязывает TOTP-генератор, удаляет операцию,
+// отправляет уведомление и возвращает аварийные коды в открытом виде (показываются один раз).
+func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, operationToken, totpCode string) ([]string, error) {
 	if userID == uuid.Nil {
-		return modelmedia.Image{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
+		return nil, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
+	}
+
+	if totpCode == "" {
+		return nil, errors.ErrInternalIncorrectInputData.WithDetails("totpCode is empty")
 	}
 
 	if operationToken == "" {
-		return modelmedia.Image{}, errors.ErrRecordNotFound // TODO: ?может ошибку, что параметр некорректен выдавать?
+		return nil, errors.ErrRecordNotFound // TODO: возможно, стоит возвращать ошибку о некорректном параметре
 	}
 
 	op, err := uc.storageOperation.FetchOne(ctx, operationToken)
 	if err != nil {
-		return modelmedia.Image{}, uc.errorWrapper.Wrap(err)
+		return nil, uc.errorWrapper.Wrap(err)
 	}
 
 	if userID != op.UserID {
-		return modelmedia.Image{}, errors.ErrAccessForbidden
+		return nil, errors.ErrAccessForbidden
 	}
-
-	// TODO: проверить, что пользователь не заблокирован !!!!!!!
 
 	if !op.Is(operationstatus.Confirmed) {
-		return modelmedia.Image{}, errors.New("operation id not confirmed")
+		return nil, errors.New("operation is not confirmed")
 	}
 
-	userEmail := string(op.Payload)
+	var payload dto.ChangeTotpOperation
+	if err = json.Unmarshal(op.Payload, &payload); err != nil {
+		return nil, uc.errorWrapper.Wrap(err)
+	}
 
-	secret, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      uc.issuer,
-		AccountName: userEmail,
-		SecretSize:  64,
-	})
+	if payload.Secret == "" {
+		return nil, errors.New("operation has no staged secret")
+	}
+
+	if !uc.totpValidator.Validate(totpCode, payload.Secret) {
+		return nil, errors.ErrIncorrectInputData.New("invalid totp code")
+	}
+
+	plain, hashed, err := uc.codeGenerator.GenerateRecoveryCodes(uc.recoveryCount)
 	if err != nil {
-		return modelmedia.Image{}, uc.errorWrapper.Wrap(err)
+		return nil, uc.errorWrapper.Wrap(err)
 	}
 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
+		if err = uc.storage.InsertOrUpdate(
+			ctx,
+			entity.Auth2fa{
+				UserID:        op.UserID,
+				Type:          auth2fatype.TOTP,
+				Secret:        payload.Secret,
+				RecoveryCodes: hashed,
+			},
+		); err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
+
 		if err = uc.storageOperation.Delete(ctx, op.Token); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		// TODO: Add Operation log:op! ????
-
-		err = uc.storage.InsertOrUpdate(
-			ctx,
-			entity.Auth2fa{
-				UserID: op.UserID,
-				Type:   auth2fatype.TOTP,
-				Secret: secret.Secret(),
-			},
-		)
-		if err != nil {
-			return uc.errorWrapper.Wrap(err)
-		}
-
-		if err = uc.notifierAPI.Send(ctx, "user.totp.changed", conv.Group{"to": userEmail}); err != nil {
-			return uc.errorWrapper.Wrap(err)
-		}
-
-		return nil
+		return uc.notifierAPI.Send(ctx, "user.totp.changed", conv.Group{"to": payload.Email})
 	})
 	if err != nil {
-		return modelmedia.Image{}, uc.errorWrapper.Wrap(err)
+		return nil, uc.errorWrapper.Wrap(err)
 	}
 
-	img, err := secret.Image(384, 384)
-	if err != nil {
-		return modelmedia.Image{}, uc.errorWrapper.Wrap(err)
-	}
-
-	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, img, nil); err != nil {
-		return modelmedia.Image{}, uc.errorWrapper.Wrap(err)
-	}
-
-	if buf.Len() < 0 {
-		return modelmedia.Image{}, uc.errorWrapper.Wrap(errors.New("buffer is negative"))
-	}
-
-	// вынести отдельно
-	return modelmedia.Image{
-		ImageInfo: modelmedia.ImageInfo{
-			ContentType: "image/jpeg",
-			// OriginalName: "qr",
-			// Realm:         "rq",
-			Width:  384,
-			Height: 384,
-			Size:   int64(buf.Len()),
-		},
-		Body: io.NopCloser(bytes.NewReader(buf.Bytes())),
-	}, nil
+	return plain, nil
 }

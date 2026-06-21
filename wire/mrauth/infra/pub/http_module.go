@@ -14,7 +14,7 @@ import (
 	auth "github.com/mondegor/go-components/wire/mrauth/config"
 )
 
-// InitHttpModule - создаются все компоненты модуля и возвращаются к нему контролеры.
+// InitHttpModule - создаёт все компоненты модуля и возвращает его HTTP-контроллеры.
 func InitHttpModule(
 	logger mrlog.Logger,
 	eventEmitter mrevent.Emitter,
@@ -55,6 +55,7 @@ func InitHttpModule(
 	useCaseConfirmOperation := initConfirmOperationUseCase(
 		dbConnManager,
 		storageSecureOperation,
+		storageAuth2fa,
 		notifierAPI,
 		operationConfirm,
 	)

@@ -1,4 +1,4 @@
-package session
+package authtoken
 
 import (
 	"context"
@@ -38,19 +38,19 @@ type (
 		RevokeSessionByRefreshToken(ctx context.Context, refreshToken string) error
 	}
 
-	// AuthTokenRealm - сообщение для получателя.
-	AuthTokenRealm struct {
+	// Realm - сообщение для получателя.
+	Realm struct {
 		Name        string
 		TokenIssuer mrauth.TokenIssuer
 	}
 )
 
-// NewAuthToken - создаёт объект AuthToken.
-func NewAuthToken(
+// New - создаёт объект AuthToken.
+func New(
 	txManager mrstorage.DBTxManager,
 	storage authTokenStorage,
 	logger mrlog.Logger,
-	allowedRealms []AuthTokenRealm,
+	allowedRealms []Realm,
 ) *AuthToken {
 	realm2tokenIssuer := make(map[string]mrauth.TokenIssuer, len(allowedRealms))
 	for _, realm := range allowedRealms {

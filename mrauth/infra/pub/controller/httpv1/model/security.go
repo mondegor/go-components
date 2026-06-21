@@ -17,16 +17,23 @@ type (
 	}
 
 	// ApplyOperationRequest - запрос на подтверждение операции.
-	ApplyOperationRequest = OperationTokenRequest
+	ApplyOperationRequest struct {
+		Token string `json:"token" validate:"required,min=64,max=128"`
+	}
+
+	// ApplyTOTPGeneratorRequest - запрос на проверку TOTP-кода и привязку генератора.
+	ApplyTOTPGeneratorRequest struct {
+		Token string `json:"token" validate:"required,min=64,max=128"`
+		Code  string `json:"totp_code" validate:"required,min=6,max=10"`
+	}
 
 	// GeneratedPasswordResponse - информация о надёжности пароля.
 	GeneratedPasswordResponse struct {
 		Password string `json:"password"`
 	}
 
-	// TOTPGeneratorResponse - .
-	TOTPGeneratorResponse struct {
-		URL     string `json:"totp_url"`
-		Message string `json:"message,omitempty"`
+	// RecoveryCodesResponse - выданные одноразовые аварийные коды (показываются один раз).
+	RecoveryCodesResponse struct {
+		RecoveryCodes []string `json:"recovery_codes"`
 	}
 )

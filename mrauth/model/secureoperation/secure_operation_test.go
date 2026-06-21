@@ -72,6 +72,20 @@ func TestSecureOperation_PublicInfo(t *testing.T) {
 	}
 }
 
+func TestSecureOperation_PublicInfoConfirmedNoActions(t *testing.T) {
+	t.Parallel()
+
+	// у подтверждённой операции нет действий: PublicInfo не должен паниковать.
+	op := secureoperation.SecureOperation{
+		Token:  "token",
+		Status: operationstatus.Confirmed,
+	}
+
+	got := op.PublicInfo()
+	assert.Equal(t, "token", got.Token)
+	assert.Equal(t, confirmmethod.Enum(0), got.ConfirmMethod)
+}
+
 func Test_NewOperationWithError(t *testing.T) {
 	t.Parallel()
 

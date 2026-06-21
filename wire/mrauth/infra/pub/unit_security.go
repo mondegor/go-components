@@ -9,10 +9,11 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
+	"github.com/mondegor/go-components/mrauth/bag/totp"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
-	action2 "github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service"
 	"github.com/mondegor/go-components/mrauth/service/check"
@@ -40,17 +41,19 @@ func initSecurityController(
 		storageUserRealm,
 	)
 
+	totpAuthenticator := totp.NewAuthenticator("PrintShopApp", 64) // TODO: сделать настройку
+
 	factoryConfirm2FA := service.NewFactoryConfirm2FA(
 		storageUser,
 		storageAuth2fa,
-		action2.NewConfirmBy2fa(
-			[]action2.Option{
-				action2.WithMaxAttempts(5), // TODO: в настройки
-				action2.WithExpiry(30 * time.Minute),
+		action.NewConfirmBy2fa(
+			[]action.Option{
+				action.WithMaxAttempts(5), // TODO: в настройки
+				action.WithExpiry(30 * time.Minute),
 			},
-			[]action2.Option{
-				action2.WithMaxAttempts(5), // TODO: в настройки
-				action2.WithExpiry(30 * time.Minute),
+			[]action.Option{
+				action.WithMaxAttempts(5), // TODO: в настройки
+				action.WithExpiry(30 * time.Minute),
 			},
 		),
 	)
@@ -62,10 +65,10 @@ func initSecurityController(
 		notifierAPI,
 		factoryConfirm2FA,
 		unit.NewChangeEmail(
-			crypt.NewTokenGenerator(64),
-			crypt.NewCodeGenerator(6),
-			action2.WithMaxAttempts(5), // TODO: в настройки
-			action2.WithExpiry(30*time.Minute),
+			crypt.NewSecretGenerator(64), // for tokens
+			crypt.NewSecretGenerator(6),
+			action.WithMaxAttempts(5), // TODO: в настройки
+			action.WithExpiry(30*time.Minute),
 		),
 	)
 
@@ -76,10 +79,10 @@ func initSecurityController(
 		notifierAPI,
 		factoryConfirm2FA,
 		unit.NewChangePhone(
-			crypt.NewTokenGenerator(64),
-			crypt.NewCodeGenerator(6),
-			action2.WithMaxAttempts(5), // TODO: в настройки
-			action2.WithExpiry(30*time.Minute),
+			crypt.NewSecretGenerator(64), // for tokens
+			crypt.NewSecretGenerator(6),
+			action.WithMaxAttempts(5), // TODO: в настройки
+			action.WithExpiry(30*time.Minute),
 		),
 	)
 
@@ -89,10 +92,10 @@ func initSecurityController(
 		notifierAPI,
 		factoryConfirm2FA,
 		unit.NewChangePassword(
-			crypt.NewTokenGenerator(64),
-			crypt.NewCodeGenerator(6),
-			action2.WithMaxAttempts(5), // TODO: в настройки
-			action2.WithExpiry(30*time.Minute),
+			crypt.NewSecretGenerator(64), // for tokens
+			crypt.NewSecretGenerator(6),
+			action.WithMaxAttempts(5), // TODO: в настройки
+			action.WithExpiry(30*time.Minute),
 		),
 	)
 
@@ -102,10 +105,11 @@ func initSecurityController(
 		notifierAPI,
 		factoryConfirm2FA,
 		unit.NewChangeTOTP(
-			crypt.NewTokenGenerator(64),
-			crypt.NewCodeGenerator(6),
-			action2.WithMaxAttempts(5), // TODO: в настройки
-			action2.WithExpiry(30*time.Minute),
+			crypt.NewSecretGenerator(64), // for tokens
+			crypt.NewSecretGenerator(6),
+			totpAuthenticator,
+			action.WithMaxAttempts(5), // TODO: в настройки
+			action.WithExpiry(30*time.Minute),
 		),
 	)
 
@@ -115,10 +119,10 @@ func initSecurityController(
 		notifierAPI,
 		factoryConfirm2FA,
 		unit.NewDisable2FA(
-			crypt.NewTokenGenerator(64),
-			crypt.NewCodeGenerator(6),
-			action2.WithMaxAttempts(5), // TODO: в настройки
-			action2.WithExpiry(30*time.Minute),
+			crypt.NewSecretGenerator(64), // for tokens
+			crypt.NewSecretGenerator(6),
+			action.WithMaxAttempts(5), // TODO: в настройки
+			action.WithExpiry(30*time.Minute),
 		),
 	)
 
@@ -149,12 +153,19 @@ func initSecurityController(
 		},
 	)
 
+	useCaseRenderTOTPGeneratorQR := security.NewRenderTOTPGeneratorQR(
+		storageSecureOperation,
+		totpAuthenticator,
+	)
+
 	useCaseApplyTOTPGenerator := security.NewApplyTOTPGenerator(
 		dbConnManager,
 		storageAuth2fa,
 		storageSecureOperation,
+		crypt.NewSecretGenerator(17), // TODO: в настройки
+		totpAuthenticator,
 		notifierAPI,
-		"PrintShopApp", // TODO:
+		10, // TODO: в настройки - recovery count
 	)
 
 	controller := httpv1.NewSecurity(
@@ -163,10 +174,11 @@ func initSecurityController(
 		useCaseChangeEmailProperty,
 		useCaseChangePhoneProperty,
 		useCaseChangePasswordProperty,
-		useCaseChangeTOTPProperty,
-		useCaseDisable2FA,
-		useCaseApplyTOTPGenerator,
 		useCaseApplyOperation,
+		useCaseChangeTOTPProperty,
+		useCaseRenderTOTPGeneratorQR,
+		useCaseApplyTOTPGenerator,
+		useCaseDisable2FA,
 		bag.NewOperationResponse(debugFunc),
 	)
 
