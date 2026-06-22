@@ -49,7 +49,7 @@ type (
 	UserInfo struct {
 		User    entity.User
 		Stat    entity.UserActivityStat
-		Auth2fa entity.Auth2fa
+		Auth2FA entity.Auth2FA
 		Realms  []entity.UserRealm
 	}
 

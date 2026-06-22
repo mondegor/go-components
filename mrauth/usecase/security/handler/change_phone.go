@@ -54,7 +54,7 @@ func (uc *ChangePhone) Execute(ctx context.Context, userID uuid.UUID, payload []
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		if err := uc.notifierAPI.Send(ctx, "user.phone.changed", conv.Group{"to": payloadDTO.NotifyByEmail}); err != nil {
+		if err := uc.notifierAPI.Send(ctx, "user.phone.changed", conv.Group{"to": payloadDTO.Email}); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

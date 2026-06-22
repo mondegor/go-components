@@ -36,11 +36,12 @@ type (
 
 	// OperationConfirm - настройки подтверждения операции: длина токена/кода, срок жизни, способы отправки.
 	OperationConfirm struct {
-		TokenLength   uint16        `yaml:"token_length"`
-		CodeLength    uint8         `yaml:"code_length"`
-		SessionExpiry time.Duration `yaml:"session_expiry"`
-		SendByEmail   CodeSender    `yaml:"send_by_email"`
-		SendByPhone   CodeSender    `yaml:"send_by_phone"`
+		TokenLength     uint16        `yaml:"token_length"`
+		CodeLength      uint8         `yaml:"code_length"`
+		CodeMaxAttempts uint8         `yaml:"code_max_attempts"` // число попыток ввести код подтверждения операции
+		SessionExpiry   time.Duration `yaml:"session_expiry"`
+		SendByEmail     CodeSender    `yaml:"send_by_email"`
+		SendByPhone     CodeSender    `yaml:"send_by_phone"`
 	}
 
 	// CodeSender - настройки отправки кода подтверждения: лимиты попыток, повторов и интервал между ними.
@@ -48,6 +49,13 @@ type (
 		MaxAttempts   uint8         `yaml:"max_attempts"`
 		MaxResends    uint8         `yaml:"max_resends"`
 		MinResendTime time.Duration `yaml:"min_resend_time"`
+	}
+
+	// Auth2FA - настройки второго фактора: аварийные (recovery) коды.
+	Auth2FA struct {
+		RecoveryCount        uint8 `yaml:"recovery_count"`         // число выдаваемых аварийных кодов
+		RecoveryCodeLength   uint8 `yaml:"recovery_code_length"`   // длина одного аварийного кода
+		RecoveryLowThreshold uint8 `yaml:"recovery_low_threshold"` // остаток, при котором слать предупреждение
 	}
 
 	// RefreshCookie - настройки cookie с refresh токеном (web-версия).
@@ -66,6 +74,7 @@ type (
 		Roles                   []string                `yaml:"roles"`
 		OverrideAuthToken       Token                   `yaml:"override_auth_token"`
 		DefaultOperationConfirm OperationConfirm        `yaml:"default_operation_confirm"`
+		Auth2FA                 Auth2FA                 `yaml:"auth_2fa"`
 	}
 
 	// JWT - настройки и ключи для подписи (issuer) и проверки (verifier) access-токенов.

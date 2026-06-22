@@ -17,11 +17,14 @@ import (
 const (
 	securityEmailURL               = "/v1/security/email"
 	securityPhoneURL               = "/v1/security/phone"
-	securityPasswordURL            = "/v1/security/password"
 	securityApplyOperation         = "/v1/security/apply-operation"
+	securityPasswordURL            = "/v1/security/password"
+	securityApplyPasswordURL       = "/v1/security/apply-password" //nolint:gosec
 	securityTOTPGeneratorURL       = "/v1/security/totp"
 	securityRenderTOTPGeneratorURL = "/v1/security/totp/{token}"
 	securityApplyTOTPGeneratorURL  = "/v1/security/apply-totp"
+	securityRecoveryCodesURL       = "/v1/security/recovery-codes"
+	securityApplyRecoveryCodesURL  = "/v1/security/apply-recovery-codes"
 	securityDisable2FAURL          = "/v1/security/disable2fa"
 )
 
@@ -32,11 +35,14 @@ type (
 		sender                        mrserver.FileResponseSender
 		useCaseChangeEmailProperty    changeEmailUseCase
 		useCaseChangePhoneProperty    changePhoneUseCase
-		useCaseChangePasswordProperty changePasswordUseCase
 		useCaseApplyOperation         applyOperationUseCase
+		useCaseChangePasswordProperty changePasswordUseCase
+		useCaseApplyPassword          applyPasswordUseCase
 		useCaseChangeTOTPProperty     changeTOTPGeneratorUseCase
 		useCaseRenderTOTPGeneratorQR  renderTOTPGeneratorQRUseCase
 		useCaseApplyTOTPGenerator     applyTOTPGeneratorUseCase
+		useCaseRegenerateRecovery     regenerateRecoveryUseCase
+		useCaseApplyRecovery          applyRecoveryUseCase
 		useCaseDisable2FA             disable2FAUseCase
 		operationResponse             confirmOperationResponse
 	}
@@ -49,15 +55,19 @@ type (
 		Execute(ctx context.Context, userID uuid.UUID, newPhone string) (secureoperation.SecureOperation, error)
 	}
 
+	applyOperationUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID, operationToken string) error
+	}
+
 	changePasswordUseCase interface {
 		Execute(ctx context.Context, userID uuid.UUID, newPassword string) (secureoperation.SecureOperation, error)
 	}
 
-	changeTOTPGeneratorUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error)
+	applyPasswordUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID, operationToken string) ([]string, error)
 	}
 
-	disable2FAUseCase interface {
+	changeTOTPGeneratorUseCase interface {
 		Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error)
 	}
 
@@ -69,8 +79,16 @@ type (
 		Execute(ctx context.Context, userID uuid.UUID, operationToken, totpCode string) ([]string, error)
 	}
 
-	applyOperationUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, operationToken string) error
+	regenerateRecoveryUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error)
+	}
+
+	applyRecoveryUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID, operationToken string) ([]string, error)
+	}
+
+	disable2FAUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error)
 	}
 )
 
@@ -80,11 +98,14 @@ func NewSecurity(
 	sender mrserver.FileResponseSender,
 	useCaseChangeEmailProperty changeEmailUseCase,
 	useCaseChangePhoneProperty changePhoneUseCase,
-	useCaseChangePasswordProperty changePasswordUseCase,
 	useCaseApplyOperation applyOperationUseCase,
+	useCaseChangePasswordProperty changePasswordUseCase,
+	useCaseApplyPassword applyPasswordUseCase,
 	useCaseChangeTOTPProperty changeTOTPGeneratorUseCase,
 	useCaseRenderTOTPGeneratorQR renderTOTPGeneratorQRUseCase,
 	useCaseApplyTOTPGenerator applyTOTPGeneratorUseCase,
+	useCaseRegenerateRecovery regenerateRecoveryUseCase,
+	useCaseApplyRecovery applyRecoveryUseCase,
 	useCaseDisable2FA disable2FAUseCase,
 	operationResponse confirmOperationResponse,
 ) *Security {
@@ -93,11 +114,14 @@ func NewSecurity(
 		sender:                        sender,
 		useCaseChangeEmailProperty:    useCaseChangeEmailProperty,
 		useCaseChangePhoneProperty:    useCaseChangePhoneProperty,
-		useCaseChangePasswordProperty: useCaseChangePasswordProperty,
 		useCaseApplyOperation:         useCaseApplyOperation,
+		useCaseChangePasswordProperty: useCaseChangePasswordProperty,
+		useCaseApplyPassword:          useCaseApplyPassword,
 		useCaseChangeTOTPProperty:     useCaseChangeTOTPProperty,
 		useCaseRenderTOTPGeneratorQR:  useCaseRenderTOTPGeneratorQR,
 		useCaseApplyTOTPGenerator:     useCaseApplyTOTPGenerator,
+		useCaseRegenerateRecovery:     useCaseRegenerateRecovery,
+		useCaseApplyRecovery:          useCaseApplyRecovery,
 		useCaseDisable2FA:             useCaseDisable2FA,
 		operationResponse:             operationResponse,
 	}
@@ -108,11 +132,14 @@ func (ht *Security) Handlers() []mrserver.HttpHandler {
 	return []mrserver.HttpHandler{
 		{Method: http.MethodPost, URL: securityEmailURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangeEmail},
 		{Method: http.MethodPost, URL: securityPhoneURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangePhone},
-		{Method: http.MethodPost, URL: securityPasswordURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangePassword},
 		{Method: http.MethodPost, URL: securityApplyOperation, Permission: mraccess.PermissionAnyUser, Func: ht.ApplyOperation},
+		{Method: http.MethodPost, URL: securityPasswordURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangePassword},
+		{Method: http.MethodPost, URL: securityApplyPasswordURL, Permission: mraccess.PermissionAnyUser, Func: ht.ApplyPassword},
 		{Method: http.MethodPost, URL: securityTOTPGeneratorURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangeTOTPGenerator},
 		{Method: http.MethodGet, URL: securityRenderTOTPGeneratorURL, Permission: mraccess.PermissionAnyUser, Func: ht.RenderTOTPGeneratorQR},
 		{Method: http.MethodPost, URL: securityApplyTOTPGeneratorURL, Permission: mraccess.PermissionAnyUser, Func: ht.ApplyTOTPGenerator},
+		{Method: http.MethodPost, URL: securityRecoveryCodesURL, Permission: mraccess.PermissionAnyUser, Func: ht.RegenerateRecoveryCodes},
+		{Method: http.MethodPost, URL: securityApplyRecoveryCodesURL, Permission: mraccess.PermissionAnyUser, Func: ht.ApplyRecoveryCodes},
 		{Method: http.MethodPost, URL: securityDisable2FAURL, Permission: mraccess.PermissionAnyUser, Func: ht.Disable2FA},
 	}
 }
@@ -163,6 +190,21 @@ func (ht *Security) ChangePhone(w http.ResponseWriter, r *http.Request) error {
 	)
 }
 
+// ApplyOperation - применяет подтверждённую пользователем операцию по её токену.
+func (ht *Security) ApplyOperation(w http.ResponseWriter, r *http.Request) error {
+	req := model.ApplyOperationRequest{}
+
+	if err := ht.parser.Validate(r, &req); err != nil {
+		return err
+	}
+
+	if err := ht.useCaseApplyOperation.Execute(r.Context(), ht.parser.UserID(r), req.Token); err != nil {
+		return err
+	}
+
+	return ht.sender.SendNoContent(w)
+}
+
 // ChangePassword - создаёт операцию на установку/изменение пароля пользователя (2FA).
 func (ht *Security) ChangePassword(w http.ResponseWriter, r *http.Request) error {
 	req := model.ChangePasswordRequest{}
@@ -186,19 +228,21 @@ func (ht *Security) ChangePassword(w http.ResponseWriter, r *http.Request) error
 	)
 }
 
-// ApplyOperation - применяет подтверждённую пользователем операцию по её токену.
-func (ht *Security) ApplyOperation(w http.ResponseWriter, r *http.Request) error {
-	req := model.ApplyOperationRequest{}
+// ApplyPassword - применяет подтверждённую операцию смены пароля, привязывает пароль
+// как 2FA и возвращает новые одноразовые аварийные коды.
+func (ht *Security) ApplyPassword(w http.ResponseWriter, r *http.Request) error {
+	req := model.ApplyPasswordRequest{}
 
 	if err := ht.parser.Validate(r, &req); err != nil {
 		return err
 	}
 
-	if err := ht.useCaseApplyOperation.Execute(r.Context(), ht.parser.UserID(r), req.Token); err != nil {
+	codes, err := ht.useCaseApplyPassword.Execute(r.Context(), ht.parser.UserID(r), req.Token)
+	if err != nil {
 		return err
 	}
 
-	return ht.sender.SendNoContent(w)
+	return ht.sender.Send(w, http.StatusOK, model.RecoveryCodesResponse{RecoveryCodes: codes})
 }
 
 // ChangeTOTPGenerator - создаёт операцию на установку/изменение TOTP генератора пользователя.
@@ -241,6 +285,40 @@ func (ht *Security) ApplyTOTPGenerator(w http.ResponseWriter, r *http.Request) e
 	}
 
 	codes, err := ht.useCaseApplyTOTPGenerator.Execute(r.Context(), ht.parser.UserID(r), req.Token, req.Code)
+	if err != nil {
+		return err
+	}
+
+	return ht.sender.Send(w, http.StatusOK, model.RecoveryCodesResponse{RecoveryCodes: codes})
+}
+
+// RegenerateRecoveryCodes - создаёт операцию перевыпуска аварийных кодов пользователя.
+func (ht *Security) RegenerateRecoveryCodes(w http.ResponseWriter, r *http.Request) error {
+	op, err := ht.useCaseRegenerateRecovery.Execute(r.Context(), ht.parser.UserID(r))
+	if err != nil {
+		return err
+	}
+
+	return ht.sender.Send(
+		w,
+		http.StatusOK,
+		ht.operationResponse.NewConfirmOperation(
+			op,
+			ht.parser.Localizer(r).Translate("Confirm your operation 'regenerate recovery codes' by code"),
+		),
+	)
+}
+
+// ApplyRecoveryCodes - применяет подтверждённую операцию перевыпуска аварийных кодов
+// и возвращает новый набор одноразовых кодов.
+func (ht *Security) ApplyRecoveryCodes(w http.ResponseWriter, r *http.Request) error {
+	req := model.ApplyRecoveryCodesRequest{}
+
+	if err := ht.parser.Validate(r, &req); err != nil {
+		return err
+	}
+
+	codes, err := ht.useCaseApplyRecovery.Execute(r.Context(), ht.parser.UserID(r), req.Token)
 	if err != nil {
 		return err
 	}

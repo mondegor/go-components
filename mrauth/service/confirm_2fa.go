@@ -29,7 +29,7 @@ type (
 	}
 
 	user2faStorage interface {
-		FetchOne(ctx context.Context, userID uuid.UUID) (row entity.Auth2fa, err error)
+		FetchOne(ctx context.Context, userID uuid.UUID) (row entity.Auth2FA, err error)
 	}
 
 	factoryConfirmAction2FA interface {

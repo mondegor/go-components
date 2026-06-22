@@ -49,7 +49,7 @@ type (
 		LangCode     string           `json:"lang"`
 		LastLoginIP  string           `json:"last_login_ip"`
 		LastLoggedAt string           `json:"last_logged_at"`
-		Auth2faType  auth2fatype.Enum `json:"auth_2fa_type"`
+		Auth2FAType  auth2fatype.Enum `json:"auth_2fa_type"`
 		Realms       []UserRealm      `json:"realms"`
 		Status       userstatus.Enum  `json:"status"`
 		// CreatedAt    time.Time       `json:"created_at"`

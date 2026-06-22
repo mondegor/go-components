@@ -10,11 +10,11 @@ import (
 	"github.com/mondegor/go-components/mrauth/service/authtoken"
 	usecaseauth "github.com/mondegor/go-components/mrauth/usecase/auth"
 	usecasesession "github.com/mondegor/go-components/mrauth/usecase/session"
-	auth "github.com/mondegor/go-components/wire/mrauth/config"
+	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 )
 
 // OptionUserRealmsToStringRealms - извлекает имена realm'ов в виде списка строк.
-func OptionUserRealmsToStringRealms(realms []auth.UserRealm) []string {
+func OptionUserRealmsToStringRealms(realms []authcfg.UserRealm) []string {
 	mappedRealms := make([]string, 0, len(realms))
 
 	for _, realm := range realms {
@@ -26,7 +26,7 @@ func OptionUserRealmsToStringRealms(realms []auth.UserRealm) []string {
 
 // OptionUserRealmsToSessionLimitRealms - строит лимиты одновременных сессий по видам
 // пользователя (kind) внутри каждого realm на основе конфигурации UserKind.SessionMax.
-func OptionUserRealmsToSessionLimitRealms(realms []auth.UserRealm) []usecasesession.LimitRealm {
+func OptionUserRealmsToSessionLimitRealms(realms []authcfg.UserRealm) []usecasesession.LimitRealm {
 	mappedRealms := make([]usecasesession.LimitRealm, 0, len(realms))
 
 	for _, realm := range realms {
@@ -55,7 +55,7 @@ func OptionUserRealmsToSessionLimitRealms(realms []auth.UserRealm) []usecasesess
 
 // OptionUserRealmsToConfirmCreateUserRealms - строит realm'ы регистрации пользователей,
 // пропуская realm'ы без поддержки регистрации.
-func OptionUserRealmsToConfirmCreateUserRealms(realms []auth.UserRealm) []usecaseauth.CreateUserRealm {
+func OptionUserRealmsToConfirmCreateUserRealms(realms []authcfg.UserRealm) []usecaseauth.CreateUserRealm {
 	mappedRealms := make([]usecaseauth.CreateUserRealm, 0, len(realms))
 
 	for _, realm := range realms {
@@ -87,7 +87,7 @@ func OptionUserRealmsToConfirmCreateUserRealms(realms []auth.UserRealm) []usecas
 
 // OptionUserRealmsToConfirmCreateSessionRealms - строит realm'ы авторизации (создания сессии)
 // с подтверждением по email и телефону.
-func OptionUserRealmsToConfirmCreateSessionRealms(realms []auth.UserRealm) []usecaseauth.CreateSessionRealm {
+func OptionUserRealmsToConfirmCreateSessionRealms(realms []authcfg.UserRealm) []usecaseauth.CreateSessionRealm {
 	mappedRealms := make([]usecaseauth.CreateSessionRealm, 0, len(realms))
 
 	for _, realm := range realms {
@@ -121,7 +121,7 @@ func OptionUserRealmsToConfirmCreateSessionRealms(realms []auth.UserRealm) []use
 
 // OptionUserRealmsToCreateSessionRealms - строит realm'ы выпуска токенов сессии, выбирая
 // issuer по типу токена realm'а (jwt либо обычный session-токен).
-func OptionUserRealmsToCreateSessionRealms(realms []auth.UserRealm, jwtConfig auth.JWT) []authtoken.Realm {
+func OptionUserRealmsToCreateSessionRealms(realms []authcfg.UserRealm, jwtConfig authcfg.JWT) []authtoken.Realm {
 	mappedRealms := make([]authtoken.Realm, 0, len(realms))
 
 	for _, realm := range realms {

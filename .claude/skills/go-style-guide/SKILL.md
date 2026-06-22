@@ -80,6 +80,28 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
     ```
   Validation that *rejects* invalid values (e.g. an upper bound) stays separate — defaults only
   fill in zeros.
+- **Default an optional interface/callback dependency to a no-op, applied *after* the options
+  loop.** For an `// OPTIONAL` collaborator set via `WithXxx` (an interface or func field),
+  substitute a no-op default instead of `nil`-checking it at every call site. Do the substitution
+  **after** applying the options (not in the initial struct literal), so it covers both "option
+  not provided" **and** `WithXxx(nil)` — the latter would overwrite a literal default and panic
+  at the call site. Globals are banned, so make the no-op a tiny unexported type, not a package
+  `var`:
+  ```go
+  type defaultAlerter struct{}
+
+  func (defaultAlerter) SendAlert(context.Context, uuid.UUID, int) error { return nil }
+
+  // ... in the constructor:
+  for _, opt := range opts {
+      opt(&o)
+  }
+
+  if o.svc.alerter == nil {
+      o.svc.alerter = defaultAlerter{} // covers "not set" and WithAlerter(nil)
+  }
+  ```
+  Then call sites stay clean: `o.svc.alerter.SendAlert(…)` with no `nil` guard.
 - No global mutable state (`gochecknoglobals`) — error/sentinel `var`s are the accepted
   exception. No `init()` functions (`gochecknoinits`).
 - **Repository/storage methods return simple shapes — slices or entities, never `map`.**
@@ -143,6 +165,23 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
 - Sentinel errors prefixed `Err`, error *types* suffixed `Error` (`errname`).
   Note: error *codes* are camelCase string literals (e.g. `"errSomethingFailed"`).
 - Initialisms via `revive var-naming`: `HTTP`, `JSON` (not `Http`/`Json`).
+- **One canonical spelling per domain abbreviation — `2FA` for two-factor auth.** The concept
+  has exactly one name: the abbreviation `2FA`. Do **not** introduce synonyms (`secondFactor`,
+  `TwoFA`, `TFA`, `MFA`, `two_factor`). Because a Go package/identifier can't start with a digit,
+  the spelling is context-bound but the abbreviation never changes:
+  - **Exported identifiers** — treat `2FA` as an initialism, uppercase: `Auth2FA`, `User2FA`,
+    `Disable2FA`, `Confirm2FA`, `Auth2FAType`, `Err2FAMustBeDisabledFirst`.
+  - **Unexported locals/fields** — keep `2fa` lowercase for readability: `auth2faStorage`,
+    `auth2faTableName`, `auth2faVerifier` (the compromise — uppercase mid-identifier reads
+    heavy here, and `staticcheck -ST1003` is off so it's allowed).
+  - **Package/dir names** (lowercase, no leading digit) — prefix with a word: `auth2fa`,
+    `auth2fatype`. The verifier service package is `service/auth2fa` (not `secondfactor`).
+  - **Persistence/transport** (SQL columns, JSON, YAML keys, URLs) — `2fa` / `auth_2fa` /
+    `disable2fa`; never `two_fa`. Error *code* string literals follow the same form
+    (`"2FAMustBeDisabledFirst"`), matching the Go var.
+  The mechanism (`TOTP`) and supporting concept (`recovery`) are **not** synonyms of `2FA` —
+  they keep their own names. Apply the same single-canonical-spelling rule to any future domain
+  abbreviation.
 - **Layer-based entity & method naming.** In the `usecase`/`service` layers, name domain
   entity values `item` / `items` and give methods **business-intent** names that describe
   the operation in domain terms. In the `repository` layer, name DB-row values

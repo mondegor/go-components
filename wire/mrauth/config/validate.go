@@ -14,7 +14,33 @@ const (
 
 	// minHMACSecretHS512 - минимальная длина HMAC-секрета для HS512 (512 бит, RFC 7518 §3.2).
 	minHMACSecretHS512 = 64
+
+	// defaultRecoveryCount - число выдаваемых аварийных кодов по умолчанию.
+	defaultRecoveryCount = 10
+
+	// defaultRecoveryCodeLength - длина одного аварийного кода по умолчанию.
+	defaultRecoveryCodeLength = 17
+
+	// defaultRecoveryLowThreshold - остаток кодов по умолчанию, при котором слать предупреждение.
+	defaultRecoveryLowThreshold = 2
 )
+
+// CorrectValuesAuth2FA - подставляет значения по умолчанию в незаданные поля настроек 2FA.
+func CorrectValuesAuth2FA(cfg Auth2FA) Auth2FA {
+	if cfg.RecoveryCount < 1 {
+		cfg.RecoveryCount = defaultRecoveryCount
+	}
+
+	if cfg.RecoveryCodeLength < 1 {
+		cfg.RecoveryCodeLength = defaultRecoveryCodeLength
+	}
+
+	if cfg.RecoveryLowThreshold < 1 {
+		cfg.RecoveryLowThreshold = defaultRecoveryLowThreshold
+	}
+
+	return cfg
+}
 
 // ValidateRealms - проверяет конфигурацию realm'ов: уникальность имён, корректность типов токенов,
 // TTL jwt-токенов и принадлежность ролей известному набору.

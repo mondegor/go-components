@@ -56,6 +56,11 @@ func (uc *ChangePasswordProperty) Execute(ctx context.Context, userID uuid.UUID,
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
+	// активный 2FA нельзя менять на месте: сначала нужно отключить текущий (disable 2FA)
+	if user2FA.Action2FA.Method > 0 {
+		return secureoperation.SecureOperation{}, mrauth.Err2FAMustBeDisabledFirst
+	}
+
 	op, err := uc.factoryOperationPassword.Create(user2FA, newPassword)
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)

@@ -26,7 +26,6 @@ type (
 func newConfirmOptions(opts []Option) confirmOptions {
 	o := confirmOptions{
 		minResendTime: defaultMinResendTime,
-		expiry:        defaultExpiry,
 	}
 
 	for _, opt := range opts {
@@ -39,6 +38,10 @@ func newConfirmOptions(opts []Option) confirmOptions {
 
 	if o.maxResends < 1 {
 		o.maxResends = defaultMaxResends
+	}
+
+	if o.expiry < 1 {
+		o.expiry = defaultExpiry
 	}
 
 	return o

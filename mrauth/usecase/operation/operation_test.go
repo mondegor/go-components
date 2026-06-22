@@ -262,7 +262,7 @@ func TestConfirmOperation_Success_ConfirmedRunsCommit(t *testing.T) {
 	require.Equal(t, 0, notifier.sent) // подтверждённая операция не отправляет код
 }
 
-func TestConfirmOperation_Success_SecondFactorRaceRejectedAsWrongCode(t *testing.T) {
+func TestConfirmOperation_Success_Auth2FARaceRejectedAsWrongCode(t *testing.T) {
 	t.Parallel()
 
 	op := confirmedOp(t)

@@ -16,10 +16,10 @@ type (
 	ConfirmCode struct {
 		tokenGenerator mrauth.TokenGenerator
 		codeGenerator  mrauth.CodeGenerator
-		verifier       secondFactorVerifier
+		verifier       auth2faVerifier
 	}
 
-	secondFactorVerifier interface {
+	auth2faVerifier interface {
 		Verify(ctx context.Context, userID uuid.UUID, method confirmmethod.Enum, code string) (bool, func(ctx context.Context) error, error)
 	}
 )
@@ -28,7 +28,7 @@ type (
 func NewConfirmCode(
 	tokenGenerator mrauth.TokenGenerator,
 	codeGenerator mrauth.CodeGenerator,
-	verifier secondFactorVerifier,
+	verifier auth2faVerifier,
 ) *ConfirmCode {
 	return &ConfirmCode{
 		tokenGenerator: tokenGenerator,

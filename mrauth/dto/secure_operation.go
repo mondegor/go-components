@@ -42,19 +42,19 @@ type (
 
 	// ChangeEmailOperation - payload операции смены email.
 	ChangeEmailOperation struct {
-		NewEmail      string `json:"new_email"`
-		NotifyByEmail string `json:"email"`
+		NewEmail string `json:"new_email"`
+		Email    string `json:"email"`
 	}
 
 	// ChangePasswordOperation - payload операции смены пароля.
 	ChangePasswordOperation struct {
-		NewPassword   string `json:"new_password"`
-		NotifyByEmail string `json:"email"`
+		NewPassword string `json:"new_password"`
+		Email       string `json:"email"`
 	}
 
 	// ChangePhoneOperation - payload операции смены телефона.
 	ChangePhoneOperation struct {
-		NewPhone      uint64 `json:"new_phone"`
-		NotifyByEmail string `json:"email"`
+		NewPhone uint64 `json:"new_phone"`
+		Email    string `json:"email"`
 	}
 )

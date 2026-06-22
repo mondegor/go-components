@@ -51,8 +51,8 @@ func (o *ChangeEmail) Create(user2FA dto.User2FA, newEmail string) (secureoperat
 
 	payload, err := json.Marshal(
 		dto.ChangeEmailOperation{
-			NewEmail:      newEmail,
-			NotifyByEmail: user2FA.Email,
+			NewEmail: newEmail,
+			Email:    user2FA.Email,
 		},
 	)
 	if err != nil {

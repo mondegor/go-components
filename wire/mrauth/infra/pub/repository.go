@@ -30,8 +30,8 @@ func initUserRealmPostgres(
 func initAuth2faPostgres(
 	dbConnManager mrstorage.DBConnManager,
 	tableName string,
-) *repository.Auth2faPostgres {
-	return repository.NewAuth2faPostgres(dbConnManager, tableName)
+) *repository.Auth2FAPostgres {
+	return repository.NewAuth2FAPostgres(dbConnManager, tableName)
 }
 
 func initUserActivityStatPostgres(

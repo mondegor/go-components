@@ -9,14 +9,14 @@ import (
 
 // Типы двухфакторной авторизации.
 const (
-	None     Enum = iota // отключена
+	None     Enum = iota // отсутствует (отключена)
 	Password             // по паролю
 	TOTP                 // по TOTP
 )
 
 const (
 	enumLast = uint8(TOTP)
-	enumName = "Auth2faType"
+	enumName = "Auth2FAType"
 )
 
 type (

@@ -1,9 +1,6 @@
 package pub
 
 import (
-	"time"
-
-	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrstorage"
 	"github.com/mondegor/go-webcore/mrserver"
 
@@ -21,19 +18,21 @@ import (
 	"github.com/mondegor/go-components/mrauth/usecase/security/handler"
 	"github.com/mondegor/go-components/mrauth/validate"
 	"github.com/mondegor/go-components/mrnotifier"
+	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 )
 
 func initSecurityController(
-	logger mrlog.Logger,
 	dbConnManager mrstorage.DBConnManager,
 	storageUser *repository.UserPostgres,
 	storageCheckUser *repository.CheckUserPostgres,
 	storageUserRealm *repository.UserRealmPostgres,
-	storageAuth2fa *repository.Auth2faPostgres,
+	storageAuth2fa *repository.Auth2FAPostgres,
 	storageSecureOperation *repository.SecureOperationPostgres,
 	requestParser *validate.Parser,
 	responseFileSender mrserver.FileResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
+	operationConfig authcfg.OperationConfirm,
+	auth2faConfig authcfg.Auth2FA,
 	debugFunc func(value any) string,
 ) (mrserver.HttpController, error) {
 	checkUserService := check.NewUserLogin(
@@ -48,12 +47,12 @@ func initSecurityController(
 		storageAuth2fa,
 		action.NewConfirmBy2fa(
 			[]action.Option{
-				action.WithMaxAttempts(5), // TODO: в настройки
-				action.WithExpiry(30 * time.Minute),
+				action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
+				action.WithExpiry(operationConfig.SessionExpiry),
 			},
 			[]action.Option{
-				action.WithMaxAttempts(5), // TODO: в настройки
-				action.WithExpiry(30 * time.Minute),
+				action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
+				action.WithExpiry(operationConfig.SessionExpiry),
 			},
 		),
 	)
@@ -65,10 +64,10 @@ func initSecurityController(
 		notifierAPI,
 		factoryConfirm2FA,
 		unit.NewChangeEmail(
-			crypt.NewSecretGenerator(64), // for tokens
-			crypt.NewSecretGenerator(6),
-			action.WithMaxAttempts(5), // TODO: в настройки
-			action.WithExpiry(30*time.Minute),
+			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
+			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
+			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
+			action.WithExpiry(operationConfig.SessionExpiry),
 		),
 	)
 
@@ -79,10 +78,10 @@ func initSecurityController(
 		notifierAPI,
 		factoryConfirm2FA,
 		unit.NewChangePhone(
-			crypt.NewSecretGenerator(64), // for tokens
-			crypt.NewSecretGenerator(6),
-			action.WithMaxAttempts(5), // TODO: в настройки
-			action.WithExpiry(30*time.Minute),
+			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
+			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
+			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
+			action.WithExpiry(operationConfig.SessionExpiry),
 		),
 	)
 
@@ -92,10 +91,10 @@ func initSecurityController(
 		notifierAPI,
 		factoryConfirm2FA,
 		unit.NewChangePassword(
-			crypt.NewSecretGenerator(64), // for tokens
-			crypt.NewSecretGenerator(6),
-			action.WithMaxAttempts(5), // TODO: в настройки
-			action.WithExpiry(30*time.Minute),
+			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
+			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
+			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
+			action.WithExpiry(operationConfig.SessionExpiry),
 		),
 	)
 
@@ -105,11 +104,11 @@ func initSecurityController(
 		notifierAPI,
 		factoryConfirm2FA,
 		unit.NewChangeTOTP(
-			crypt.NewSecretGenerator(64), // for tokens
-			crypt.NewSecretGenerator(6),
+			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
+			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
 			totpAuthenticator,
-			action.WithMaxAttempts(5), // TODO: в настройки
-			action.WithExpiry(30*time.Minute),
+			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
+			action.WithExpiry(operationConfig.SessionExpiry),
 		),
 	)
 
@@ -119,10 +118,10 @@ func initSecurityController(
 		notifierAPI,
 		factoryConfirm2FA,
 		unit.NewDisable2FA(
-			crypt.NewSecretGenerator(64), // for tokens
-			crypt.NewSecretGenerator(6),
-			action.WithMaxAttempts(5), // TODO: в настройки
-			action.WithExpiry(30*time.Minute),
+			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
+			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
+			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
+			action.WithExpiry(operationConfig.SessionExpiry),
 		),
 	)
 
@@ -139,11 +138,6 @@ func initSecurityController(
 				dbConnManager,
 				storageUser,
 				notifierAPI,
-			),
-			unit.NameConfirmChangePassword: handler.NewChangePassword(
-				storageAuth2fa,
-				notifierAPI,
-				logger,
 			),
 			unit.NameConfirmDisable2FA: handler.NewDisable2FA(
 				dbConnManager,
@@ -162,10 +156,41 @@ func initSecurityController(
 		dbConnManager,
 		storageAuth2fa,
 		storageSecureOperation,
-		crypt.NewSecretGenerator(17), // TODO: в настройки
+		crypt.NewSecretGenerator(int(auth2faConfig.RecoveryCodeLength)),
 		totpAuthenticator,
 		notifierAPI,
-		10, // TODO: в настройки - recovery count
+		int(auth2faConfig.RecoveryCount),
+	)
+
+	useCaseApplyPassword := security.NewApplyPassword(
+		dbConnManager,
+		storageAuth2fa,
+		storageSecureOperation,
+		crypt.NewSecretGenerator(int(auth2faConfig.RecoveryCodeLength)),
+		notifierAPI,
+		int(auth2faConfig.RecoveryCount),
+	)
+
+	useCaseRegenerateRecovery := security.NewRegenerateRecoveryProperty(
+		dbConnManager,
+		storageSecureOperation,
+		notifierAPI,
+		factoryConfirm2FA,
+		unit.NewRegenerateRecovery(
+			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
+			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
+			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
+			action.WithExpiry(operationConfig.SessionExpiry),
+		),
+	)
+
+	useCaseApplyRecovery := security.NewApplyRecovery(
+		dbConnManager,
+		storageAuth2fa,
+		storageSecureOperation,
+		crypt.NewSecretGenerator(int(auth2faConfig.RecoveryCodeLength)),
+		notifierAPI,
+		int(auth2faConfig.RecoveryCount),
 	)
 
 	controller := httpv1.NewSecurity(
@@ -173,11 +198,14 @@ func initSecurityController(
 		responseFileSender,
 		useCaseChangeEmailProperty,
 		useCaseChangePhoneProperty,
-		useCaseChangePasswordProperty,
 		useCaseApplyOperation,
+		useCaseChangePasswordProperty,
+		useCaseApplyPassword,
 		useCaseChangeTOTPProperty,
 		useCaseRenderTOTPGeneratorQR,
 		useCaseApplyTOTPGenerator,
+		useCaseRegenerateRecovery,
+		useCaseApplyRecovery,
 		useCaseDisable2FA,
 		bag.NewOperationResponse(debugFunc),
 	)

@@ -27,7 +27,7 @@ type (
 	}
 
 	user2faFetcher interface {
-		FetchOne(ctx context.Context, userID uuid.UUID) (row entity.Auth2fa, err error)
+		FetchOne(ctx context.Context, userID uuid.UUID) (row entity.Auth2FA, err error)
 	}
 
 	userActivityStatFetcher interface {
@@ -64,7 +64,7 @@ func (sv *UserInfo) Get(ctx context.Context, userID uuid.UUID) (userInfo dto.Use
 			return sv.errorWrapper.Wrap(err) // the user must be
 		}
 
-		if userInfo.Auth2fa, err = sv.storageUser2FA.FetchOne(ctx, userID); err != nil {
+		if userInfo.Auth2FA, err = sv.storageUser2FA.FetchOne(ctx, userID); err != nil {
 			if !errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 				return sv.errorWrapper.Wrap(err)
 			}

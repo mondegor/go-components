@@ -44,9 +44,9 @@ CREATE TABLE sample_schema.users_auth_2fa (
     auth_2fa_type int2 NOT NULL CHECK(auth_2fa_type > 0), -- 1=PASSWORD, 2=TOTP
     auth_secret character varying(128) NOT NULL, -- хеш пароля (PASSWORD) или base32 TOTP-секрет (TOTP)
     last_totp_step int8 NOT NULL DEFAULT 0, -- номер последнего использованного TOTP time-step (защита от replay, только TOTP)
-    recovery_codes text[] NOT NULL DEFAULT '{}', -- массив bcrypt-хешей одноразовых аварийных кодов (только TOTP)
+    recovery_codes text[] NOT NULL DEFAULT '{}', -- массив bcrypt-хешей одноразовых аварийных кодов (PASSWORD и TOTP)
     created_at timestamp with time zone NOT NULL DEFAULT NOW(),
-    last_recovery_at timestamp with time zone
+    last_recovery_at timestamp with time zone -- время последнего расхода аварийного кода (PASSWORD и TOTP)
 );
 
 -- --------------------------------------------------------------------------------------------------

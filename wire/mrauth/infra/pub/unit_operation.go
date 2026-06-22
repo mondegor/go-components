@@ -12,7 +12,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/usecase/operation"
 	"github.com/mondegor/go-components/mrauth/validate"
 	"github.com/mondegor/go-components/mrnotifier"
-	auth "github.com/mondegor/go-components/wire/mrauth/config"
+	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 )
 
 func initOperationController(
@@ -22,7 +22,7 @@ func initOperationController(
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
-	operationConfirm auth.OperationConfirm,
+	operationConfig authcfg.OperationConfirm,
 	debugFunc func(value any) string,
 ) (mrserver.HttpController, error) {
 	useCaseResendConfirmCode := operation.NewResendCode(
@@ -30,8 +30,8 @@ func initOperationController(
 		storageSecureOperation,
 		notifierAPI,
 		secureoperation.NewResendCode(
-			crypt.NewSecretGenerator(int(operationConfirm.TokenLength)), // TODO: длина должна зависеть от realm
-			crypt.NewSecretGenerator(int(operationConfirm.CodeLength)),
+			crypt.NewSecretGenerator(int(operationConfig.TokenLength)), // TODO: длина должна зависеть от realm
+			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
 		),
 	)
 

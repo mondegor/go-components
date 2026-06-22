@@ -8,11 +8,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 )
 
-const (
-	// ModelNameSecureOperation - название сущности.
-	ModelNameSecureOperation = "mrauth.SecureOperation"
-)
-
 type (
 	// SecureOperationLog - сообщение для получателя.
 	SecureOperationLog struct {

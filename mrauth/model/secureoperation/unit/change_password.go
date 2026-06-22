@@ -56,8 +56,8 @@ func (o *ChangePassword) Create(user2FA dto.User2FA, newPassword string) (secure
 
 	payload, err := json.Marshal(
 		dto.ChangePasswordOperation{
-			NewPassword:   hashedNewPassword,
-			NotifyByEmail: user2FA.Email,
+			NewPassword: hashedNewPassword,
+			Email:       user2FA.Email,
 		},
 	)
 	if err != nil {

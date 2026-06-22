@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
@@ -109,6 +110,15 @@ func openedEmailOp(t *testing.T) secureoperation.SecureOperation {
 
 func userWithEmail() dto.User2FA {
 	return dto.User2FA{ID: uuid.New(), Email: "user@example.com"}
+}
+
+// userWith2FA - пользователь с уже включённым вторым фактором указанного типа.
+func userWith2FA(method confirmmethod.Enum) dto.User2FA {
+	return dto.User2FA{
+		ID:        uuid.New(),
+		Email:     "user@example.com",
+		Action2FA: secureoperation.ConfirmAction{Method: method},
+	}
 }
 
 func TestChangeEmailProperty_Execute(t *testing.T) {
@@ -219,6 +229,22 @@ func TestChangePasswordProperty_Execute(t *testing.T) {
 		_, err := uc.Execute(context.Background(), uuid.New(), "new-password")
 		require.Error(t, err)
 	})
+
+	// активный 2FA любого типа нужно сначала отключить (disable), нельзя менять на месте
+	for _, method := range []confirmmethod.Enum{confirmmethod.Password, confirmmethod.TOTP} {
+		t.Run("rejected when 2fa active "+method.String(), func(t *testing.T) {
+			t.Parallel()
+
+			creator := &fakeOpCreator{}
+			uc := security.NewChangePasswordProperty(
+				fakeTx{}, creator, &fakeNotifier{},
+				fakeUser2FAFactory{user: userWith2FA(method)}, fakeValueOpFactory{op: openedEmailOp(t)},
+			)
+			_, err := uc.Execute(context.Background(), uuid.New(), "new-password")
+			require.ErrorIs(t, err, mrauth.Err2FAMustBeDisabledFirst)
+			require.False(t, creator.inserted)
+		})
+	}
 }
 
 func TestChangePhoneProperty_Execute(t *testing.T) {
@@ -318,6 +344,22 @@ func TestChangeTOTPGeneratorProperty_Execute(t *testing.T) {
 		_, err := uc.Execute(context.Background(), uuid.New())
 		require.Error(t, err)
 	})
+
+	// активный 2FA любого типа нужно сначала отключить (disable), нельзя менять на месте
+	for _, method := range []confirmmethod.Enum{confirmmethod.Password, confirmmethod.TOTP} {
+		t.Run("rejected when 2fa active "+method.String(), func(t *testing.T) {
+			t.Parallel()
+
+			creator := &fakeOpCreator{}
+			uc := security.NewChangeTOTPGeneratorProperty(
+				fakeTx{}, creator, &fakeNotifier{},
+				fakeUser2FAFactory{user: userWith2FA(method)}, fakeOpFactory{op: openedEmailOp(t)},
+			)
+			_, err := uc.Execute(context.Background(), uuid.New())
+			require.ErrorIs(t, err, mrauth.Err2FAMustBeDisabledFirst)
+			require.False(t, creator.inserted)
+		})
+	}
 }
 
 func TestDisable2FA_Execute(t *testing.T) {

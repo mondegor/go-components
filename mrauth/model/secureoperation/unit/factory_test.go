@@ -90,7 +90,7 @@ func TestChangeEmail_Create(t *testing.T) {
 		var p dto.ChangeEmailOperation
 		require.NoError(t, json.Unmarshal(op.Payload, &p))
 		assert.Equal(t, "new@example.com", p.NewEmail)
-		assert.Equal(t, "user@example.com", p.NotifyByEmail)
+		assert.Equal(t, "user@example.com", p.Email)
 	})
 
 	t.Run("with 2fa - appends second action", func(t *testing.T) {
@@ -126,7 +126,7 @@ func TestChangePassword_Create(t *testing.T) {
 	var p dto.ChangePasswordOperation
 	require.NoError(t, json.Unmarshal(op.Payload, &p))
 	assert.Equal(t, "hashed-pw", p.NewPassword) // хранится хеш, не открытый пароль
-	assert.Equal(t, "user@example.com", p.NotifyByEmail)
+	assert.Equal(t, "user@example.com", p.Email)
 
 	op2fa, err := f.Create(userWith2FA(), "new-password")
 	require.NoError(t, err)
@@ -145,7 +145,7 @@ func TestChangePhone_Create(t *testing.T) {
 	var p dto.ChangePhoneOperation
 	require.NoError(t, json.Unmarshal(op.Payload, &p))
 	assert.Equal(t, uint64(79991234567), p.NewPhone)
-	assert.Equal(t, "user@example.com", p.NotifyByEmail)
+	assert.Equal(t, "user@example.com", p.Email)
 
 	op2fa, err := f.Create(userWith2FA(), "79991234567")
 	require.NoError(t, err)
@@ -228,6 +228,34 @@ func TestDisable2FA_Create(t *testing.T) {
 
 		_, err := f.Create(userWithout2FA())
 		require.ErrorContains(t, err, "2fa already disabled")
+	})
+}
+
+func TestRegenerateRecovery_Create(t *testing.T) {
+	t.Parallel()
+
+	t.Run("with active 2fa", func(t *testing.T) {
+		t.Parallel()
+
+		f := unit.NewRegenerateRecovery(fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+
+		op, err := f.Create(userWith2FA())
+		require.NoError(t, err)
+		assert.Equal(t, unit.NameConfirmRegenerateRecovery, op.Name)
+		require.Len(t, op.Actions(), 2) // email + текущий 2FA
+
+		var p dto.OperationWithUserEmail
+		require.NoError(t, json.Unmarshal(op.Payload, &p))
+		assert.Equal(t, "user@example.com", p.Email)
+	})
+
+	t.Run("without 2fa fails", func(t *testing.T) {
+		t.Parallel()
+
+		f := unit.NewRegenerateRecovery(fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+
+		_, err := f.Create(userWithout2FA())
+		require.ErrorContains(t, err, "2fa is not enabled")
 	})
 }
 

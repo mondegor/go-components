@@ -24,7 +24,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/usecase/session/handler"
 	"github.com/mondegor/go-components/mrauth/validate"
 	"github.com/mondegor/go-components/mrnotifier"
-	auth "github.com/mondegor/go-components/wire/mrauth/config"
+	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 	"github.com/mondegor/go-components/wire/mrauth/mapping"
 )
 
@@ -41,7 +41,7 @@ func initUnitAuthController(
 	storageUser *repository.UserPostgres,
 	storageCheckUser *repository.CheckUserPostgres,
 	storageUserRealm *repository.UserRealmPostgres,
-	storageAuth2fa *repository.Auth2faPostgres,
+	storageAuth2fa *repository.Auth2FAPostgres,
 	storageUserActivityStat *repository.UserActivityStatPostgres,
 	storageSession *repository.SessionPostgres,
 	storageAuthToken *repository.AuthTokenPostgres,
@@ -51,9 +51,9 @@ func initUnitAuthController(
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
-	userRealms []auth.UserRealm,
-	jwtConfig auth.JWT,
-	cookieConfig auth.RefreshCookie,
+	userRealms []authcfg.UserRealm,
+	jwtConfig authcfg.JWT,
+	cookieConfig authcfg.RefreshCookie,
 	debugFunc func(value any) string,
 ) (mrserver.HttpController, error) {
 	checkUserService := check.NewUserLogin(
@@ -167,7 +167,7 @@ func initUnitAuthController(
 
 // initRefreshTokenCookie - создаёт cookie с refresh токеном, подставляя значения по умолчанию
 // для незаданных полей конфига (Domain обязан задать host-приложение, иначе возвращается ошибка).
-func initRefreshTokenCookie(cfg auth.RefreshCookie) (*bag.RefreshTokenCookie, error) {
+func initRefreshTokenCookie(cfg authcfg.RefreshCookie) (*bag.RefreshTokenCookie, error) {
 	if cfg.Domain == "" {
 		return nil, errors.New("refresh token cookie domain is required")
 	}

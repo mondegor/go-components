@@ -370,7 +370,7 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 			LangCode:     info.User.LangCode,
 			LastLoginIP:  info.Stat.LastLoginIP.Real.String(),
 			LastLoggedAt: info.Stat.LastLoggedAt.Round(1 * time.Second).Format(time.RFC3339),
-			Auth2faType:  info.Auth2fa.Type,
+			Auth2FAType:  info.Auth2FA.Type,
 			Realms:       realms,
 			Status:       info.User.Status,
 		},

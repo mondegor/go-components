@@ -11,13 +11,19 @@ type (
 		NewPhone string `json:"new_phone" validate:"required,min=10,max=32,tag_phone"`
 	}
 
+	// ApplyOperationRequest - запрос на подтверждение операции.
+	ApplyOperationRequest struct {
+		Token string `json:"token" validate:"required,min=64,max=128"`
+	}
+
 	// ChangePasswordRequest - запрос на установку/изменение пароля пользователя (2FA).
 	ChangePasswordRequest struct {
 		NewPassword string `json:"new_password" validate:"required,min=8,max=32,tag_password"`
 	}
 
-	// ApplyOperationRequest - запрос на подтверждение операции.
-	ApplyOperationRequest struct {
+	// ApplyPasswordRequest - запрос на применение подтверждённой операции смены пароля
+	// (привязка пароля как 2FA и выдача аварийных кодов).
+	ApplyPasswordRequest struct {
 		Token string `json:"token" validate:"required,min=64,max=128"`
 	}
 
@@ -28,9 +34,10 @@ type (
 		Code  string `json:"totp_code" validate:"required,len=6,numeric"`
 	}
 
-	// GeneratedPasswordResponse - информация о надёжности пароля.
-	GeneratedPasswordResponse struct {
-		Password string `json:"password"`
+	// ApplyRecoveryCodesRequest - запрос на применение подтверждённой операции перевыпуска
+	// аварийных кодов (выдача нового набора кодов).
+	ApplyRecoveryCodesRequest struct {
+		Token string `json:"token" validate:"required,min=64,max=128"`
 	}
 
 	// RecoveryCodesResponse - выданные одноразовые аварийные коды (показываются один раз).

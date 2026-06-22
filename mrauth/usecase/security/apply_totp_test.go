@@ -24,9 +24,9 @@ type (
 	// fakeTx - реализует mrstorage.DBTxManager простым вызовом переданной job.
 	fakeTx struct{}
 
-	// fakeBinder - фиксирует переданную для сохранения запись Auth2fa.
+	// fakeBinder - фиксирует переданную для сохранения запись Auth2FA.
 	fakeBinder struct {
-		saved entity.Auth2fa
+		saved entity.Auth2FA
 		err   error
 	}
 
@@ -49,7 +49,7 @@ func (fakeTx) Do(ctx context.Context, job func(ctx context.Context) error, _ ...
 	return job(ctx)
 }
 
-func (f *fakeBinder) InsertOrUpdate(_ context.Context, row entity.Auth2fa) error {
+func (f *fakeBinder) InsertOrUpdate(_ context.Context, row entity.Auth2FA) error {
 	if f.err != nil {
 		return f.err
 	}
@@ -133,7 +133,7 @@ func TestVerifyTOTPGenerator_InvalidCode_NoBind(t *testing.T) {
 	codes, err := uc.Execute(context.Background(), userID, "op-token", "000000")
 	require.Error(t, err)
 	require.Nil(t, codes)
-	require.Equal(t, entity.Auth2fa{}, binder.saved)
+	require.Equal(t, entity.Auth2FA{}, binder.saved)
 	require.Empty(t, verifier.deletedToken)
 	require.False(t, notifier.sent)
 }

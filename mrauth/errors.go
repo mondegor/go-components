@@ -11,9 +11,6 @@ var (
 	// ErrTokenNotFoundOrExpired - token not found or expired.
 	ErrTokenNotFoundOrExpired = errors.NewUserError("TokenNotFoundOrExpired", "auth token not found or expired")
 
-	// // ErrTokenRejected - token was rejected.
-	// ErrTokenRejected = errors.NewUserProto("ErrTokenRejected", "access token was rejected: '{Reason}'").
-
 	// ErrTooManyOpenSessionRequests - сработало временное ограничение на открытие новой сессии:
 	// вход выполняется слишком часто, нужно повторить попытку позже.
 	ErrTooManyOpenSessionRequests = errors.NewUserError("TooManyOpenSessionRequests", "too many session open requests, try again later")
@@ -26,4 +23,9 @@ var (
 
 	// ErrPhoneAlreadyExists - entity already exists.
 	ErrPhoneAlreadyExists = errors.NewUserError("PhoneAlreadyExists", "phone already exists")
+
+	// Err2FAMustBeDisabledFirst - установка нового второго фактора (пароль/TOTP)
+	// требует предварительного отключения текущего 2FA (нельзя менять активный фактор на месте).
+	//nolint:errname // каноническое написание 2FA: errname не допускает цифру после Err.
+	Err2FAMustBeDisabledFirst = errors.NewUserError("2FAMustBeDisabledFirst", "disable current 2fa before setting a new one")
 )

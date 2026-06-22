@@ -38,7 +38,7 @@ type (
 	}
 
 	user2faBinder interface {
-		InsertOrUpdate(ctx context.Context, row entity.Auth2fa) error
+		InsertOrUpdate(ctx context.Context, row entity.Auth2FA) error
 	}
 
 	recoveryCodesGenerator interface {
@@ -60,15 +60,7 @@ func NewApplyTOTPGenerator(
 	notifierAPI mrnotifier.NoteProducer,
 	recoveryCount int,
 ) *ApplyTOTPGenerator {
-	// ограничивается число аварийных кодов: оно задаёт длину bcrypt-перебора при проверке,
-	// поэтому это является защитой от чрезмерного значения из конфигурации хоста.
-	if recoveryCount < minRecoveryCount {
-		recoveryCount = minRecoveryCount
-	}
-
-	if recoveryCount > maxRecoveryCount {
-		recoveryCount = maxRecoveryCount
-	}
+	recoveryCount = clampRecoveryCount(recoveryCount)
 
 	return &ApplyTOTPGenerator{
 		txManager:        txManager,
@@ -147,7 +139,7 @@ func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, ope
 
 		if err = uc.storage.InsertOrUpdate(
 			ctx,
-			entity.Auth2fa{
+			entity.Auth2FA{
 				UserID:        op.UserID,
 				Type:          auth2fatype.TOTP,
 				Secret:        payload.Secret,
@@ -169,4 +161,18 @@ func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, ope
 	}
 
 	return plain, nil
+}
+
+// clampRecoveryCount - ограничивает число аварийных кодов диапазоном [minRecoveryCount, maxRecoveryCount]:
+// оно задаёт длину bcrypt-перебора при проверке, поэтому это защита от чрезмерного значения из конфигурации хоста.
+func clampRecoveryCount(count int) int {
+	if count < minRecoveryCount {
+		return minRecoveryCount
+	}
+
+	if count > maxRecoveryCount {
+		return maxRecoveryCount
+	}
+
+	return count
 }

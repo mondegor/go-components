@@ -77,10 +77,10 @@ func (co *ConfirmOperation) Execute(
 		// попыток откатится; поэтому ошибка возвращается не из замыкания, а после коммита
 		confirmCodeErr error
 
-		// secondFactorRace - второй фактор (аварийный код или TOTP-шаг) уже израсходован
+		// auth2faRace - второй фактор (аварийный код или TOTP-шаг) уже израсходован
 		// конкурентным подтверждением того же пользователя; в отличие от confirmCodeErr
 		// транзакция при этом откатывается, а результат отдаётся как неверный код
-		secondFactorRace bool
+		auth2faRace bool
 	)
 
 	err = co.txManager.Do(ctx, func(ctx context.Context) error {
@@ -145,7 +145,7 @@ func (co *ConfirmOperation) Execute(
 				// пользователя. Откатываем транзакцию (повторное использование одного кода
 				// недопустимо) и ниже отдаём это как неверный код, а не как внутреннюю ошибку
 				if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
-					secondFactorRace = true
+					auth2faRace = true
 
 					return err
 				}
@@ -179,7 +179,7 @@ func (co *ConfirmOperation) Execute(
 		)
 	})
 	if err != nil {
-		if secondFactorRace {
+		if auth2faRace {
 			return secureoperation.SecureOperation{}, secureoperation.ErrConfirmCodeIsIncorrect
 		}
 

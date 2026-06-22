@@ -13,4 +13,9 @@ type (
 	CalcPasswordStrengthResponse struct {
 		Strength string `json:"strength"`
 	}
+
+	// GeneratedPasswordResponse - сгенерированный пароль.
+	GeneratedPasswordResponse struct {
+		Password string `json:"password"`
+	}
 )

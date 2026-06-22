@@ -11,7 +11,7 @@ import (
 	module "github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/validate"
 	"github.com/mondegor/go-components/mrnotifier"
-	auth "github.com/mondegor/go-components/wire/mrauth/config"
+	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 )
 
 // InitHttpModule - создаёт все компоненты модуля и возвращает его HTTP-контроллеры.
@@ -24,10 +24,11 @@ func InitHttpModule(
 	responseSender mrserver.ResponseSender,
 	responseFileSender mrserver.FileResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
-	userRealms []auth.UserRealm,
-	operationConfirm auth.OperationConfirm,
-	jwtConfig auth.JWT,
-	cookieConfig auth.RefreshCookie,
+	userRealms []authcfg.UserRealm,
+	operationConfig authcfg.OperationConfirm,
+	auth2faConfig authcfg.Auth2FA,
+	jwtConfig authcfg.JWT,
+	cookieConfig authcfg.RefreshCookie,
 	appResolver module.AppResolver, // OPTIONAL
 	locationResolver module.LocationResolver, // OPTIONAL
 	authTokensTableName,
@@ -52,12 +53,15 @@ func InitHttpModule(
 	storageAuth2fa := initAuth2faPostgres(dbConnManager, usersAuth2faTableName)
 	storageUserRealm := initUserRealmPostgres(dbConnManager, usersRealmsTableName)
 
+	auth2faConfig = authcfg.CorrectValuesAuth2FA(auth2faConfig)
+
 	useCaseConfirmOperation := initConfirmOperationUseCase(
 		dbConnManager,
 		storageSecureOperation,
 		storageAuth2fa,
 		notifierAPI,
-		operationConfirm,
+		operationConfig,
+		auth2faConfig,
 	)
 
 	return initing.HttpModule{
@@ -110,7 +114,7 @@ func InitHttpModule(
 						requestParser,
 						responseSender,
 						notifierAPI,
-						operationConfirm,
+						operationConfig,
 						debugFunc,
 					)
 				},
@@ -118,7 +122,6 @@ func InitHttpModule(
 			{
 				Create: func() (mrserver.HttpController, error) {
 					return initSecurityController(
-						logger,
 						dbConnManager,
 						storageUser,
 						storageCheckUser,
@@ -128,6 +131,8 @@ func InitHttpModule(
 						requestParser,
 						responseFileSender,
 						notifierAPI,
+						operationConfig,
+						auth2faConfig,
 						debugFunc,
 					)
 				},

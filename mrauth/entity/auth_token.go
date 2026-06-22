@@ -8,14 +8,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/authtokentype"
 )
 
-const (
-	// ModelNameAuthToken - название сущности.
-	ModelNameAuthToken = "mrauth.AuthToken" //nolint:gosec
-
-	// ModelNameRefreshToken - название сущности.
-	ModelNameRefreshToken = "mrauth.RefreshToken"
-)
-
 type (
 	// AuthToken - токен доступа пользователя к системе (access, refresh или API).
 	AuthToken struct {

@@ -17,7 +17,7 @@ import (
 
 const auth2faTableName = "sample_schema.users_auth_2fa"
 
-type Auth2faPostgresTestSuite struct {
+type Auth2FAPostgresTestSuite struct {
 	suite.Suite
 
 	ctx       context.Context
@@ -25,13 +25,13 @@ type Auth2faPostgresTestSuite struct {
 	tableName string
 }
 
-func TestAuth2faPostgresTestSuite(t *testing.T) {
+func TestAuth2FAPostgresTestSuite(t *testing.T) {
 	t.Parallel()
 
-	suite.Run(t, new(Auth2faPostgresTestSuite))
+	suite.Run(t, new(Auth2FAPostgresTestSuite))
 }
 
-func (ts *Auth2faPostgresTestSuite) SetupSuite() {
+func (ts *Auth2FAPostgresTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
 	ts.pgt = infra.NewPostgresTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
 	ts.pgt.ApplyMigrations(tests.AppWorkDir() + "/mrauth/_sample/migrations")
@@ -39,16 +39,16 @@ func (ts *Auth2faPostgresTestSuite) SetupSuite() {
 	ts.tableName = auth2faTableName
 }
 
-func (ts *Auth2faPostgresTestSuite) TearDownSuite() {
+func (ts *Auth2FAPostgresTestSuite) TearDownSuite() {
 	ts.pgt.Destroy(ts.ctx)
 }
 
-func (ts *Auth2faPostgresTestSuite) SetupTest() {
+func (ts *Auth2FAPostgresTestSuite) SetupTest() {
 	ts.pgt.TruncateTables(ts.ctx)
 }
 
 // seedUser - вставляет запись в users и возвращает её user_id.
-func (ts *Auth2faPostgresTestSuite) seedUser() uuid.UUID {
+func (ts *Auth2FAPostgresTestSuite) seedUser() uuid.UUID {
 	userID := uuid.New()
 
 	sql := `
@@ -70,11 +70,11 @@ func (ts *Auth2faPostgresTestSuite) seedUser() uuid.UUID {
 	return userID
 }
 
-func (ts *Auth2faPostgresTestSuite) TestRecoveryCodesRoundTrip() {
+func (ts *Auth2FAPostgresTestSuite) TestRecoveryCodesRoundTrip() {
 	userID := ts.seedUser()
-	repo := repository.NewAuth2faPostgres(ts.pgt.ConnManager(), ts.tableName)
+	repo := repository.NewAuth2FAPostgres(ts.pgt.ConnManager(), ts.tableName)
 
-	err := repo.InsertOrUpdate(ts.ctx, entity.Auth2fa{
+	err := repo.InsertOrUpdate(ts.ctx, entity.Auth2FA{
 		UserID:        userID,
 		Type:          auth2fatype.TOTP,
 		Secret:        "SECRET",
@@ -86,16 +86,17 @@ func (ts *Auth2faPostgresTestSuite) TestRecoveryCodesRoundTrip() {
 	ts.Require().NoError(err)
 	ts.Equal([]string{"hash1", "hash2", "hash3"}, got.RecoveryCodes)
 
-	// расходование одного кода удаляет ровно один элемент
-	err = repo.UpdateRecoveryCode(ts.ctx, userID, "hash1")
+	// расходование одного кода удаляет ровно один элемент и возвращает остаток
+	remaining, err := repo.UpdateRecoveryCode(ts.ctx, userID, "hash1")
 	ts.Require().NoError(err)
+	ts.Equal(2, remaining)
 
 	got, err = repo.FetchOne(ts.ctx, userID)
 	ts.Require().NoError(err)
 	ts.Equal([]string{"hash2", "hash3"}, got.RecoveryCodes)
 
 	// повторное расходование того же кода (гонка) не находит запись
-	err = repo.UpdateRecoveryCode(ts.ctx, userID, "hash1")
+	_, err = repo.UpdateRecoveryCode(ts.ctx, userID, "hash1")
 	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
 
 	got, err = repo.FetchOne(ts.ctx, userID)
@@ -103,11 +104,11 @@ func (ts *Auth2faPostgresTestSuite) TestRecoveryCodesRoundTrip() {
 	ts.Equal([]string{"hash2", "hash3"}, got.RecoveryCodes)
 }
 
-func (ts *Auth2faPostgresTestSuite) TestUpdateTOTPStepMonotonic() {
+func (ts *Auth2FAPostgresTestSuite) TestUpdateTOTPStepMonotonic() {
 	userID := ts.seedUser()
-	repo := repository.NewAuth2faPostgres(ts.pgt.ConnManager(), ts.tableName)
+	repo := repository.NewAuth2FAPostgres(ts.pgt.ConnManager(), ts.tableName)
 
-	err := repo.InsertOrUpdate(ts.ctx, entity.Auth2fa{
+	err := repo.InsertOrUpdate(ts.ctx, entity.Auth2FA{
 		UserID:        userID,
 		Type:          auth2fatype.TOTP,
 		Secret:        "SECRET",

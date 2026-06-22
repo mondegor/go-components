@@ -21,7 +21,7 @@ type (
 		storageOperation            operationCreator
 		notifierAPI                 mrnotifier.NoteProducer
 		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
-		factoryOperationDisable2FA  totpOperationCreator
+		factoryOperationDisable2FA  user2faOperationCreator
 		errorWrapper                errors.Wrapper
 	}
 )
@@ -32,7 +32,7 @@ func NewDisable2FA(
 	storageOperation operationCreator,
 	notifierAPI mrnotifier.NoteProducer,
 	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
-	factoryOperationDisable2FA totpOperationCreator,
+	factoryOperationDisable2FA user2faOperationCreator,
 ) *Disable2FA {
 	return &Disable2FA{
 		txManager:                   txManager,

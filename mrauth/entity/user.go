@@ -9,17 +9,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/userstatus"
 )
 
-const (
-	// ModelNameUser - название сущности.
-	ModelNameUser = "mrauth.User"
-
-	// ModelNameUserRealm - название сущности.
-	ModelNameUserRealm = "mrauth.UserRealm"
-
-	// ModelNameUserLog - название сущности.
-	ModelNameUserLog = "mrauth.UserLog"
-)
-
 type (
 	// User - пользователь.
 	User struct {

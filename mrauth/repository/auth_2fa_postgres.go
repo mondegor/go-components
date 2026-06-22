@@ -11,20 +11,20 @@ import (
 )
 
 type (
-	// Auth2faPostgres - хранилище данных 2FA пользователей в PostgreSQL.
-	Auth2faPostgres struct {
+	// Auth2FAPostgres - хранилище данных 2FA пользователей в PostgreSQL.
+	Auth2FAPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper errors.Wrapper
 		tableName    string
 	}
 )
 
-// NewAuth2faPostgres - создаёт объект Auth2faPostgres.
-func NewAuth2faPostgres(
+// NewAuth2FAPostgres - создаёт объект Auth2FAPostgres.
+func NewAuth2FAPostgres(
 	client mrstorage.DBConnManager,
 	tableName string,
-) *Auth2faPostgres {
-	return &Auth2faPostgres{
+) *Auth2FAPostgres {
+	return &Auth2FAPostgres{
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
 		tableName:    tableName,
@@ -32,7 +32,7 @@ func NewAuth2faPostgres(
 }
 
 // FetchOne - возвращает данные 2FA пользователя по его идентификатору.
-func (re *Auth2faPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row entity.Auth2fa, err error) {
+func (re *Auth2FAPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row entity.Auth2FA, err error) {
 	sql := `
 		SELECT
 			auth_2fa_type,
@@ -52,14 +52,14 @@ func (re *Auth2faPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row 
 		&row.RecoveryCodes,
 	)
 	if err != nil {
-		return entity.Auth2fa{}, re.errorWrapper.Wrap(err)
+		return entity.Auth2FA{}, re.errorWrapper.Wrap(err)
 	}
 
 	return row, nil
 }
 
 // InsertOrUpdate - создаёт или обновляет данные 2FA пользователя.
-func (re *Auth2faPostgres) InsertOrUpdate(ctx context.Context, row entity.Auth2fa) error {
+func (re *Auth2FAPostgres) InsertOrUpdate(ctx context.Context, row entity.Auth2FA) error {
 	// created_at = NOW() - время привязки 2FA (обновляется при каждой перепривязке)
 	sql := `
 		INSERT INTO ` + re.tableName + `
@@ -97,34 +97,10 @@ func (re *Auth2faPostgres) InsertOrUpdate(ctx context.Context, row entity.Auth2f
 	return nil
 }
 
-// UpdateRecoveryCode - атомарно удаляет один хеш аварийного кода из набора пользователя.
-// Если такого хеша нет (код уже израсходован параллельной операцией),
-// возвращает errors.ErrEventStorageNoRecordFound.
-func (re *Auth2faPostgres) UpdateRecoveryCode(ctx context.Context, userID uuid.UUID, hash string) error {
-	sql := `
-		UPDATE
-			` + re.tableName + `
-		SET
-			recovery_codes = array_remove(recovery_codes, $2),
-			last_recovery_at = NOW()
-		WHERE
-			user_id = $1 AND $2 = ANY(recovery_codes);`
-
-	if err := re.client.Conn(ctx).Exec(ctx, sql, userID, hash); err != nil {
-		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-			return errors.ErrEventStorageNoRecordFound
-		}
-
-		return re.errorWrapper.Wrap(err)
-	}
-
-	return nil
-}
-
 // UpdateTOTPStep - монотонно сдвигает номер последнего использованного TOTP time-step.
 // Обновление проходит только если step строго больше текущего (защита от replay при конкурентных запросах);
 // иначе возвращает errors.ErrEventStorageNoRecordFound.
-func (re *Auth2faPostgres) UpdateTOTPStep(ctx context.Context, userID uuid.UUID, timeStep int64) error {
+func (re *Auth2FAPostgres) UpdateTOTPStep(ctx context.Context, userID uuid.UUID, timeStep int64) error {
 	sql := `
 		UPDATE
 			` + re.tableName + `
@@ -144,8 +120,53 @@ func (re *Auth2faPostgres) UpdateTOTPStep(ctx context.Context, userID uuid.UUID,
 	return nil
 }
 
+// UpdateRecoveryCode - атомарно удаляет один хеш аварийного кода из набора пользователя
+// и возвращает количество оставшихся кодов. Если такого хеша нет (код уже израсходован
+// параллельной операцией), возвращает errors.ErrEventStorageNoRecordFound.
+func (re *Auth2FAPostgres) UpdateRecoveryCode(ctx context.Context, userID uuid.UUID, hash string) (remaining int, err error) {
+	sql := `
+		UPDATE
+			` + re.tableName + `
+		SET
+			recovery_codes = array_remove(recovery_codes, $2),
+			last_recovery_at = NOW()
+		WHERE
+			user_id = $1 AND $2 = ANY(recovery_codes)
+		RETURNING
+			cardinality(recovery_codes);`
+
+	if err = re.client.Conn(ctx).QueryRow(ctx, sql, userID, hash).Scan(&remaining); err != nil {
+		return 0, re.errorWrapper.Wrap(err)
+	}
+
+	return remaining, nil
+}
+
+// UpdateRecoveryCodes - заменяет набор аварийных кодов пользователя на новый
+// (перевыпуск кодов). Сбрасывает last_recovery_at.
+func (re *Auth2FAPostgres) UpdateRecoveryCodes(ctx context.Context, userID uuid.UUID, hashed []string) error {
+	sql := `
+		UPDATE
+			` + re.tableName + `
+		SET
+			recovery_codes = $2,
+			last_recovery_at = NULL
+		WHERE
+			user_id = $1;`
+
+	if err := re.client.Conn(ctx).Exec(ctx, sql, userID, hashed); err != nil {
+		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+			return errors.ErrEventStorageNoRecordFound
+		}
+
+		return re.errorWrapper.Wrap(err)
+	}
+
+	return nil
+}
+
 // Delete - удаляет данные 2FA пользователя.
-func (re *Auth2faPostgres) Delete(ctx context.Context, userID uuid.UUID) error {
+func (re *Auth2FAPostgres) Delete(ctx context.Context, userID uuid.UUID) error {
 	sql := `
 		DELETE FROM
 			` + re.tableName + `
