@@ -11,7 +11,7 @@ import (
 )
 
 type (
-	// UserRealmPostgres - comment struct.
+	// UserRealmPostgres - хранилище привязок пользователей к realm в PostgreSQL.
 	UserRealmPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper errors.Wrapper
@@ -31,7 +31,7 @@ func NewUserRealmPostgres(
 	}
 }
 
-// Fetch - comments method.
+// Fetch - возвращает список realm пользователя с их видами.
 func (re *UserRealmPostgres) Fetch(ctx context.Context, userID uuid.UUID) ([]entity.UserRealm, error) {
 	sql := `
         SELECT
@@ -76,7 +76,7 @@ func (re *UserRealmPostgres) Fetch(ctx context.Context, userID uuid.UUID) ([]ent
 	return rows, cursor.Err()
 }
 
-// FetchOne - возвращает список сообщений по их указанным ID.
+// FetchOne - возвращает вид пользователя в указанном realm.
 func (re *UserRealmPostgres) FetchOne(ctx context.Context, userID uuid.UUID, realm string) (row entity.UserRealm, err error) {
 	sql := `
 		SELECT
@@ -105,7 +105,7 @@ func (re *UserRealmPostgres) FetchOne(ctx context.Context, userID uuid.UUID, rea
 	return row, nil
 }
 
-// Insert - возвращает список сообщений по их указанным ID.
+// Insert - добавляет привязку пользователя к realm.
 func (re *UserRealmPostgres) Insert(ctx context.Context, row entity.UserRealm) error {
 	sql := `
 		INSERT INTO ` + re.tableName + `
@@ -131,7 +131,7 @@ func (re *UserRealmPostgres) Insert(ctx context.Context, row entity.UserRealm) e
 	return nil
 }
 
-// UpdateKind - возвращает список сообщений по их указанным ID.
+// UpdateKind - обновляет вид пользователя в указанном realm.
 func (re *UserRealmPostgres) UpdateKind(ctx context.Context, row entity.UserRealm) error {
 	sql := `
         UPDATE
@@ -142,7 +142,7 @@ func (re *UserRealmPostgres) UpdateKind(ctx context.Context, row entity.UserReal
         WHERE
             user_id = $1 AND user_realm = $2;`
 
-	err := re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		row.UserID,
@@ -150,17 +150,13 @@ func (re *UserRealmPostgres) UpdateKind(ctx context.Context, row entity.UserReal
 		row.Kind,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-			return errors.ErrEventStorageNoRecordFound
-		}
-
 		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil
 }
 
-// Delete - comments method.
+// Delete - удаляет привязку пользователя к указанному realm.
 func (re *UserRealmPostgres) Delete(ctx context.Context, userID uuid.UUID, realm string) error {
 	sql := `
 		DELETE FROM
@@ -168,17 +164,13 @@ func (re *UserRealmPostgres) Delete(ctx context.Context, userID uuid.UUID, realm
 		WHERE
 			user_id = $1 AND user_realm = $2;`
 
-	err := re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		userID,
 		realm,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-			return errors.ErrEventStorageNoRecordFound
-		}
-
 		return re.errorWrapper.Wrap(err)
 	}
 

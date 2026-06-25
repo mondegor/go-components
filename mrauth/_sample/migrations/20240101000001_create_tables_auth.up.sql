@@ -100,6 +100,39 @@ CREATE TABLE sample_schema.sessions (
 
 -- --------------------------------------------------------------------------------------------------
 
+CREATE TABLE sample_schema.sessions_cleanup_queue (
+    user_id uuid NOT NULL,
+    session_id int8 NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT NOW(),
+    CONSTRAINT pk_sessions_cleanup_queue PRIMARY KEY (user_id, session_id)
+);
+
+CREATE INDEX ix_sessions_cleanup_queue_created_at ON sample_schema.sessions_cleanup_queue (created_at);
+
+-- sessions_cleanup_queue - таблица с высоким churn'ом (enqueue при очистке токенов -> drain очереди),
+-- из-за этого DELETE'ы плодят мёртвые строки быстрее, чем дефолтный autovacuum (scale_factor 0.2)
+-- успевает их чистить -> bloat heap'а и индекса, деградация Fetch. Чаще запускаем autovacuum для неё.
+-- Значения - стартовая рекомендация; подбирайте под реальный поток истечения токенов на хосте.
+ALTER TABLE sample_schema.sessions_cleanup_queue SET (
+    autovacuum_vacuum_scale_factor = 0.05,
+    autovacuum_vacuum_threshold = 200,
+    autovacuum_analyze_scale_factor = 0.05
+);
+
+-- --------------------------------------------------------------------------------------------------
+
+-- На будущее (возможное направление масштабирования): разнести auth_tokens по типам токенов в
+-- отдельные таблицы и для короткоживущих перейти с DELETE на DROP PARTITION.
+--   * Самые короткоживущие - opaque access-токены (access_type='session'; JWT-access в БД не лежит).
+--     Их можно вынести в auth_access_tokens, секционировать по времени (например, 1 час) и удалять
+--     просроченную секцию целиком: O(1)-операция без построчных DELETE -> ноль bloat и autovacuum
+--     (снимает потребность в тюнинге выше) и без очереди очистки осиротевших сессий.
+--   * Refresh-токены под этот паттерн ложатся плохо: они мутируются при отзыве (SET expires_at=NOW()
+--     -> перемещение строки между секциями), долгоживущие (часовые секции -> их тысячи) и ищутся по
+--     значению токена (partition pruning не работает). Для них либо оставить DELETE+очередь, либо
+--     уйти на status/revoked_at без мутации ключа и крупную гранулярность секций по created_at.
+--   * Управление секциями (предсоздание/дроп) - это ops-нагрузка (pg_partman/pg_cron); вероятно,
+--     её стоит оставить хосту, а компоненту лишь поддерживать такую раскладку таблиц.
 CREATE TABLE sample_schema.auth_tokens (
     auth_token character varying(128) NOT NULL CONSTRAINT pk_auth_tokens PRIMARY KEY,
     token_type int2 NOT NULL, -- 1=ACCESS, 2=REFRESH, 3=API
@@ -112,7 +145,17 @@ CREATE TABLE sample_schema.auth_tokens (
 );
 
 CREATE INDEX ix_auth_tokens_user_id_session_id ON sample_schema.auth_tokens (user_id, session_id);
-CREATE INDEX ix_auth_tokens_expires_at ON sample_schema.auth_tokens (expires_at);
+CREATE INDEX ix_auth_tokens_token_type_expires_at ON sample_schema.auth_tokens (token_type, expires_at); -- очистка refresh-токенов
+CREATE INDEX ix_auth_tokens_expires_at ON sample_schema.auth_tokens (expires_at); -- очистка не-refresh токенов
+
+-- auth_tokens - таблица с высоким churn'ом (постоянная выдача/ротация/очистка токенов): дефолтный
+-- autovacuum не поспевает за DELETE'ами -> bloat heap'а и индексов очистки. Чаще запускаем autovacuum.
+-- Значения - стартовая рекомендация; подбирайте под реальную нагрузку аутентификации на хосте.
+ALTER TABLE sample_schema.auth_tokens SET (
+    autovacuum_vacuum_scale_factor = 0.05,
+    autovacuum_vacuum_threshold = 200,
+    autovacuum_analyze_scale_factor = 0.05
+);
 
 -- --------------------------------------------------------------------------------------------------
 
@@ -130,7 +173,6 @@ CREATE TABLE sample_schema.secure_operations (
     expires_at timestamp with time zone NOT NULL
 );
 
-CREATE INDEX ix_secure_operations_user_id ON sample_schema.secure_operations (user_id);
 CREATE INDEX ix_secure_operations_expires_at ON sample_schema.secure_operations (expires_at);
 
 -- --------------------------------------------------------------------------------------------------

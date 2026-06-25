@@ -8,7 +8,7 @@ import (
 )
 
 type (
-	// ConfirmByPassword - comment struct.
+	// ConfirmByPassword - фабрика действий подтверждения паролем.
 	ConfirmByPassword struct {
 		maxAttempts int16
 		expiry      time.Duration
@@ -25,7 +25,7 @@ func NewConfirmByPassword(opts ...Option) *ConfirmByPassword {
 	}
 }
 
-// Create - comments method.
+// Create - создаёт действие подтверждения паролем.
 func (a *ConfirmByPassword) Create(_ string) secureoperation.ConfirmAction {
 	return secureoperation.ConfirmAction{
 		Method:      confirmmethod.Password,

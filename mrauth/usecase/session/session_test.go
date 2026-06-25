@@ -56,7 +56,7 @@ type OpenSessionSuite struct {
 	ctrl        *gomock.Controller
 	ctx         context.Context
 	tx          *mock.MockDBTxManager
-	session     *mock.MocksessionStorage
+	issuer      *mock.MocksessionIssuer
 	activity    *mock.MockuserActivityStatCreator
 	openFetcher *mock.MockopenSessionFetcher
 	closer      *mock.MocksessionCloser
@@ -68,10 +68,10 @@ type OpenSessionSuite struct {
 }
 
 // buildUC - пересобирает OpenSession с лимитом limit для realm/kind из okScopes() ("site/admin"/"admin").
-func (s *OpenSessionSuite) buildUC(limit uint32) {
+func (s *OpenSessionSuite) buildUC(limit uint16) {
 	s.uc = session.NewOpenSession(
 		s.tx,
-		s.session,
+		s.issuer,
 		s.activity,
 		s.openFetcher,
 		s.closer,
@@ -79,6 +79,7 @@ func (s *OpenSessionSuite) buildUC(limit uint32) {
 		s.create,
 		s.before,
 		s.creator,
+		mrlog.NopLogger(),
 		[]session.LimitRealm{{
 			Name:       "site/admin",
 			KindLimits: []session.UserKindLimit{{Kind: "admin", SessionMax: limit}},
@@ -96,7 +97,7 @@ func (s *OpenSessionSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 	s.ctx = context.Background()
 	s.tx = mock.NewMockDBTxManager(s.ctrl)
-	s.session = mock.NewMocksessionStorage(s.ctrl)
+	s.issuer = mock.NewMocksessionIssuer(s.ctrl)
 	s.activity = mock.NewMockuserActivityStatCreator(s.ctrl)
 	s.openFetcher = mock.NewMockopenSessionFetcher(s.ctrl)
 	s.closer = mock.NewMocksessionCloser(s.ctrl)
@@ -129,7 +130,7 @@ func (s *OpenSessionSuite) TestCreateUserHappy() {
 	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
 	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return([]uint32{}, nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
-	s.session.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(1), nil)
 	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(nil)
 
 	got, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
@@ -143,7 +144,7 @@ func (s *OpenSessionSuite) TestAuthorizeUserHappy() {
 	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
 	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return([]uint32{}, nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
-	s.session.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(1), nil)
 	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(nil)
 
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameAuthorizeUser))
@@ -164,7 +165,7 @@ func (s *OpenSessionSuite) TestSessionLimitClosesLeastActive() {
 	// открытие 3-й сессии при лимите 2 закрывает 1 наименее активную (префикс - old)
 	s.closer.EXPECT().RevokeTokensBySessionIDs(gomock.Any(), scopes.UserID, []uint32{old}).Return(nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
-	s.session.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(1), nil)
 	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(nil)
 
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
@@ -180,7 +181,7 @@ func (s *OpenSessionSuite) TestSessionLimitUnderLimitNoClose() {
 	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return([]uint32{1, 2}, nil)
 	// Revoke не вызывается: место есть
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
-	s.session.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(1), nil)
 	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(nil)
 
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
@@ -200,7 +201,7 @@ func (s *OpenSessionSuite) TestSessionMaxZeroUsesDefault() {
 	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
 	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return(openIDs, nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
-	s.session.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(1), nil)
 	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(nil)
 
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
@@ -247,23 +248,40 @@ func (s *OpenSessionSuite) TestTokenCreatorError() {
 	s.create.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), nil)
 	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
 	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return([]uint32{}, nil)
+	// сессия выпускается до токенов, поэтому Issue вызывается раньше падающего Create
+	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(1), nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(dto.AuthTokenPair{}, errors.New("create failed"))
 
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
 	s.Require().Error(err)
 }
 
-func (s *OpenSessionSuite) TestActivityError() {
+// TestActivityErrorIgnored - запись активности идёт вне транзакции best-effort: её сбой не должен
+// проваливать уже открытую сессию (commit прошёл, токены выданы), Execute возвращает токен без ошибки.
+func (s *OpenSessionSuite) TestActivityErrorIgnored() {
 	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
 	s.create.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), nil)
 	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
 	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return([]uint32{}, nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
-	s.session.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(1), nil)
 	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(errors.New("activity failed"))
 
+	got, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
+	s.Require().NoError(err)
+	s.Equal(okPair(), got)
+}
+
+func (s *OpenSessionSuite) TestSessionIssuerError() {
+	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
+	s.create.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), nil)
+	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(func() {}, nil)
+	s.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), gomock.Any()).Return([]uint32{}, nil)
+	// issuer не смог выдать session_id -> Create и InsertOrUpdate не вызываются
+	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(0), repository.ErrSessionIDCollision)
+
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
-	s.Require().Error(err)
+	s.Require().ErrorIs(err, repository.ErrSessionIDCollision)
 }
 
 // ----- ContinueSession -----

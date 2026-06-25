@@ -175,16 +175,12 @@ func (re *SettingPostgres) Update(ctx context.Context, row entity.Setting) error
 		WHERE
 			` + re.table.PrimaryKey + ` = $1 AND setting_type = $2` + whereStr + `;`
 
-	err := re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-			return errors.ErrEventStorageNoRecordFound
-		}
-
 		return re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"id": row.ID, "type": row.Type, "where": whereStr})
 	}
 

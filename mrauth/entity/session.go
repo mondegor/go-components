@@ -16,4 +16,11 @@ type (
 		CreatedAt time.Time // время создания сессии
 		UpdatedAt time.Time // время последней активности сессии
 	}
+
+	// SessionPK - составной первичный ключ строки сессии (user_id, session_id).
+	// Используется как элемент очереди на удаление осиротевших сессий.
+	SessionPK struct {
+		UserID    uuid.UUID
+		SessionID uint32
+	}
 )

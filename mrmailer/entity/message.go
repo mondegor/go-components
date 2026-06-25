@@ -47,7 +47,7 @@ type (
 	}
 )
 
-// MessageID - comments method.
+// MessageID - возвращает идентификатор сообщения (реализация интерфейса элемента очереди).
 func (e Message) MessageID() uint64 {
 	return e.ID
 }

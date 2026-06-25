@@ -7,7 +7,7 @@ import (
 )
 
 type (
-	// RevokeOperation - comment struct.
+	// RevokeOperation - usecase отзыва (удаления) защищённой операции.
 	RevokeOperation struct {
 		storageOperation operationRevoker
 		errorWrapper     errors.Wrapper

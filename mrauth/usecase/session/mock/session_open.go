@@ -19,42 +19,43 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MocksessionStorage is a mock of sessionStorage interface.
-type MocksessionStorage struct {
+// MocksessionIssuer is a mock of sessionIssuer interface.
+type MocksessionIssuer struct {
 	ctrl     *gomock.Controller
-	recorder *MocksessionStorageMockRecorder
+	recorder *MocksessionIssuerMockRecorder
 	isgomock struct{}
 }
 
-// MocksessionStorageMockRecorder is the mock recorder for MocksessionStorage.
-type MocksessionStorageMockRecorder struct {
-	mock *MocksessionStorage
+// MocksessionIssuerMockRecorder is the mock recorder for MocksessionIssuer.
+type MocksessionIssuerMockRecorder struct {
+	mock *MocksessionIssuer
 }
 
-// NewMocksessionStorage creates a new mock instance.
-func NewMocksessionStorage(ctrl *gomock.Controller) *MocksessionStorage {
-	mock := &MocksessionStorage{ctrl: ctrl}
-	mock.recorder = &MocksessionStorageMockRecorder{mock}
+// NewMocksessionIssuer creates a new mock instance.
+func NewMocksessionIssuer(ctrl *gomock.Controller) *MocksessionIssuer {
+	mock := &MocksessionIssuer{ctrl: ctrl}
+	mock.recorder = &MocksessionIssuerMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MocksessionStorage) EXPECT() *MocksessionStorageMockRecorder {
+func (m *MocksessionIssuer) EXPECT() *MocksessionIssuerMockRecorder {
 	return m.recorder
 }
 
-// Insert mocks base method.
-func (m *MocksessionStorage) Insert(ctx context.Context, row entity.Session) error {
+// Issue mocks base method.
+func (m *MocksessionIssuer) Issue(ctx context.Context, session entity.Session) (uint32, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Insert", ctx, row)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "Issue", ctx, session)
+	ret0, _ := ret[0].(uint32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// Insert indicates an expected call of Insert.
-func (mr *MocksessionStorageMockRecorder) Insert(ctx, row any) *gomock.Call {
+// Issue indicates an expected call of Issue.
+func (mr *MocksessionIssuerMockRecorder) Issue(ctx, session any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MocksessionStorage)(nil).Insert), ctx, row)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Issue", reflect.TypeOf((*MocksessionIssuer)(nil).Issue), ctx, session)
 }
 
 // MockuserActivityStatCreator is a mock of userActivityStatCreator interface.

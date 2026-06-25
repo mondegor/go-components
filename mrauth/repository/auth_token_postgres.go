@@ -82,6 +82,57 @@ func (re *AuthTokenPostgres) FetchOneByAccessToken(ctx context.Context, accessTo
 	return row, nil
 }
 
+// FetchOpenSessionIDs - возвращает идентификаторы открытых сессий пользователя,
+// отсортированные по возрасту действующего refresh токена (created_at, по возрастанию):
+// первыми идут сессии, refresh токен которых дольше всех не обновлялся (наименее активные).
+// Открыта = есть действующий не истёкший refresh токен.
+func (re *AuthTokenPostgres) FetchOpenSessionIDs(ctx context.Context, userID uuid.UUID) (rows []uint32, err error) {
+	// GROUP BY используется на всякий случай, так как на сессию приходится ровно один enabled refresh токен;
+	// MIN(created_at) устойчив к такому "на всякий случай" дубликату
+	sql := `
+		SELECT
+			session_id
+		FROM
+			` + re.tableName + `
+		WHERE
+			user_id = $1 AND token_type = $2 AND token_status = $3 AND expires_at > NOW()
+		GROUP BY
+			session_id
+		ORDER BY
+			MIN(created_at), session_id;`
+
+	cursor, err := re.client.Conn(ctx).Query(
+		ctx,
+		sql,
+		userID,
+		authtokentype.Refresh,
+		authtokenstatus.Enabled,
+	)
+	if err != nil {
+		return nil, re.errorWrapper.Wrap(err)
+	}
+
+	defer cursor.Close()
+
+	rows = make([]uint32, 0)
+
+	for cursor.Next() {
+		var sessionID uint32
+
+		if err = cursor.Scan(&sessionID); err != nil {
+			return nil, re.errorWrapper.Wrap(err)
+		}
+
+		rows = append(rows, sessionID)
+	}
+
+	if err = cursor.Err(); err != nil {
+		return nil, re.errorWrapper.Wrap(err)
+	}
+
+	return rows, nil
+}
+
 // Insert - сохраняет несколько токенов авторизации.
 func (re *AuthTokenPostgres) Insert(ctx context.Context, rows []entity.AuthToken) error {
 	if len(rows) == 0 {
@@ -343,7 +394,7 @@ func (re *AuthTokenPostgres) RevokeSessionByRefreshToken(ctx context.Context, re
         WHERE
             t.user_id = s.user_id AND t.session_id = s.session_id AND t.token_status = $3;`
 
-	err := re.client.Conn(ctx).Exec(
+	_, err := re.client.Conn(ctx).ExecAffected(
 		ctx,
 		sql,
 		refreshToken,
@@ -352,10 +403,6 @@ func (re *AuthTokenPostgres) RevokeSessionByRefreshToken(ctx context.Context, re
 		authtokenstatus.Revoked,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-			err = errors.ErrEventStorageNoRecordFound
-		}
-
 		return re.errorWrapper.Wrap(err)
 	}
 
@@ -384,7 +431,7 @@ func (re *AuthTokenPostgres) RevokeTokensBySessionIDs(ctx context.Context, userI
         WHERE
             user_id = $1 AND session_id = ANY($2::int8[]) AND token_status = $3;`
 
-	err := re.client.Conn(ctx).Exec(
+	_, err := re.client.Conn(ctx).ExecAffected(
 		ctx,
 		sql,
 		userID,
@@ -392,39 +439,88 @@ func (re *AuthTokenPostgres) RevokeTokensBySessionIDs(ctx context.Context, userI
 		authtokenstatus.Enabled,
 		authtokenstatus.Revoked,
 	)
-	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+	if err != nil {
 		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil
 }
 
-// FetchOpenSessionIDs - возвращает идентификаторы открытых сессий пользователя,
-// отсортированные по возрасту действующего refresh токена (created_at, по возрастанию):
-// первыми идут сессии, refresh токен которых дольше всех не обновлялся (наименее активные).
-// Открыта = есть действующий не истёкший refresh токен.
-func (re *AuthTokenPostgres) FetchOpenSessionIDs(ctx context.Context, userID uuid.UUID) (rows []uint32, err error) {
-	// GROUP BY используется на всякий случай, так как на сессию приходится ровно один enabled refresh токен;
-	// MIN(created_at) устойчив к такому "на всякий случай" дубликату
+// DeleteExpiredNonRefresh - удаляет пачку истёкших не-refresh токенов (access/API)
+// (не более limit за один вызов) и возвращает число фактически удалённых строк.
+// Счётчик нужен вызывающему как сигнал "пачка была полной, есть ещё".
+// Очистка рассчитана на single-pod-планировщик (см. wire/mrauth/scheduler.NewService).
+// FOR UPDATE SKIP LOCKED оставлен как защита от случайного двойного запуска, а не как поддержка мульти-пода.
+func (re *AuthTokenPostgres) DeleteExpiredNonRefresh(ctx context.Context, limit int) (count int, err error) {
 	sql := `
-		SELECT
-			session_id
-		FROM
-			` + re.tableName + `
+		DELETE FROM
+			` + re.tableName + ` t1
+		USING (
+			SELECT
+				auth_token
+			FROM
+				` + re.tableName + `
+			WHERE
+				expires_at < NOW() AND token_type <> $1
+			ORDER BY
+				expires_at ASC
+			` + mrstorage.NonZeroLimit(limit) + `
+			FOR UPDATE SKIP LOCKED
+		) ei
 		WHERE
-			user_id = $1 AND token_type = $2 AND token_status = $3 AND expires_at > NOW()
-		GROUP BY
-			session_id
-		ORDER BY
-			MIN(created_at), session_id;`
+			t1.auth_token = ei.auth_token;`
+
+	count, err = re.client.Conn(ctx).ExecAffected(
+		ctx,
+		sql,
+		authtokentype.Refresh,
+	)
+	if err != nil {
+		return 0, re.errorWrapper.Wrap(err)
+	}
+
+	return count, nil
+}
+
+// DeleteExpiredRefresh - удаляет пачку истёкших refresh токенов (не более limit за вызов)
+// и возвращает сессии удалённых токенов как кандидатов на удаление (по одной записи на
+// удалённый токен, без дедупликации - её делает Enqueue через ON CONFLICT). Длина результата
+// равна числу удалённых токенов и служит вызывающему сигналом "пачка была полной, есть ещё".
+// Очистка рассчитана на single-pod-планировщик (см. wire/mrauth/scheduler.NewService).
+// FOR UPDATE SKIP LOCKED оставлен как защита от случайного двойного запуска, а не как поддержка мульти-пода.
+func (re *AuthTokenPostgres) DeleteExpiredRefresh(ctx context.Context, limit int) (candidates []entity.SessionPK, err error) {
+	sql := `
+		WITH expired_items as (
+			SELECT
+			  	auth_token
+			FROM
+			  	` + re.tableName + `
+			WHERE
+				expires_at < NOW() AND token_type = $1
+			ORDER BY
+				expires_at ASC
+		    ` + mrstorage.NonZeroLimit(limit) + `
+			FOR UPDATE SKIP LOCKED
+		),
+		deleted_items as (
+			DELETE FROM
+				` + re.tableName + ` t1
+			USING
+				expired_items ei
+			WHERE
+				t1.auth_token = ei.auth_token
+			RETURNING
+				t1.user_id, t1.session_id
+		)
+		SELECT
+			user_id, session_id
+		FROM
+			deleted_items;`
 
 	cursor, err := re.client.Conn(ctx).Query(
 		ctx,
 		sql,
-		userID,
 		authtokentype.Refresh,
-		authtokenstatus.Enabled,
 	)
 	if err != nil {
 		return nil, re.errorWrapper.Wrap(err)
@@ -432,55 +528,21 @@ func (re *AuthTokenPostgres) FetchOpenSessionIDs(ctx context.Context, userID uui
 
 	defer cursor.Close()
 
-	rows = make([]uint32, 0)
+	candidates = make([]entity.SessionPK, 0)
 
 	for cursor.Next() {
-		var sessionID uint32
+		var pk entity.SessionPK
 
-		if err = cursor.Scan(&sessionID); err != nil {
+		if err = cursor.Scan(&pk.UserID, &pk.SessionID); err != nil {
 			return nil, re.errorWrapper.Wrap(err)
 		}
 
-		rows = append(rows, sessionID)
+		candidates = append(candidates, pk)
 	}
 
 	if err = cursor.Err(); err != nil {
 		return nil, re.errorWrapper.Wrap(err)
 	}
 
-	return rows, nil
-}
-
-// DeleteExpired - удаляет пачку истёкших токенов (не более limit за один вызов).
-func (re *AuthTokenPostgres) DeleteExpired(ctx context.Context, limit int) error {
-	sql := `
-		WITH expired_items as (
-			SELECT
-			  	auth_token as item_id
-			FROM
-			  	` + re.tableName + `
-			WHERE
-				expires_at < NOW()
-			ORDER BY
-				expires_at ASC
-		    LIMIT $1
-		)
-		DELETE FROM
-			` + re.tableName + ` t1
-		USING
-			expired_items ei
-		WHERE
-			t1.auth_token = ei.item_id;`
-
-	err := re.client.Conn(ctx).Exec(
-		ctx,
-		sql,
-		limit,
-	)
-	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-		return re.errorWrapper.Wrap(err)
-	}
-
-	return nil
+	return candidates, nil
 }

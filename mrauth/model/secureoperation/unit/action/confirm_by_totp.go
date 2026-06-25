@@ -8,7 +8,7 @@ import (
 )
 
 type (
-	// ConfirmByTOTP - comment struct.
+	// ConfirmByTOTP - фабрика действий подтверждения через TOTP.
 	ConfirmByTOTP struct {
 		maxAttempts int16
 		expiry      time.Duration
@@ -25,7 +25,7 @@ func NewConfirmByTOTP(opts ...Option) *ConfirmByTOTP {
 	}
 }
 
-// Create - comments method.
+// Create - создаёт действие подтверждения через TOTP.
 func (a *ConfirmByTOTP) Create(_ string) secureoperation.ConfirmAction {
 	return secureoperation.ConfirmAction{
 		Method:      confirmmethod.TOTP,

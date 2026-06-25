@@ -9,7 +9,7 @@ import (
 )
 
 type (
-	// Statistic - comment struct.
+	// Statistic - usecase сохранения журнала защищённых операций.
 	Statistic struct {
 		storageLog   operationLogStorage
 		errorWrapper errors.Wrapper
@@ -30,7 +30,7 @@ func NewStatistic(
 	}
 }
 
-// Execute - comments method.
+// Execute - сохраняет переданный список записей журнала операций.
 func (uc *Statistic) Execute(ctx context.Context, list []entity.SecureOperationLog) error {
 	if err := uc.storageLog.Insert(ctx, list); err != nil {
 		return uc.errorWrapper.Wrap(err)

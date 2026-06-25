@@ -8,7 +8,7 @@ import (
 // TODO: перенести в web-core
 
 type (
-	// RequestParser - comment interface.
+	// RequestParser - агрегирующий интерфейс парсеров HTTP-запроса.
 	RequestParser interface {
 		request.ParserInt64
 		request.ParserUint64
@@ -20,7 +20,7 @@ type (
 		request.ParserLocale
 	}
 
-	// Parser - comment struct.
+	// Parser - реализация RequestParser на основе парсеров go-webcore.
 	Parser struct {
 		*parser.Int64
 		*parser.Uint64

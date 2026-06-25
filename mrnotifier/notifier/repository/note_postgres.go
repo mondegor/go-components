@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 
-	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrstorage"
 	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 
@@ -101,14 +100,13 @@ func (re *NotePostgres) DeleteByIDs(ctx context.Context, rowsIDs []uint64) error
 		WHERE
 			` + re.table.PrimaryKey + ` = ANY($1);`
 
-	err := re.client.Conn(ctx).Exec(
+	_, err := re.client.Conn(ctx).ExecAffected(
 		ctx,
 		sql,
 		rowsIDs,
 	)
-	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-		return err
+	if err != nil {
+		return err // TODO: errorWrapper
 	}
 
 	return nil

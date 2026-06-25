@@ -2,14 +2,12 @@ package session
 
 import (
 	"context"
-	"crypto/rand"
-	"math"
-	"math/big"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrlock"
+	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrstorage"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -30,7 +28,7 @@ type (
 	// OpenSession - открытие новой сессии после подтверждённой операции авторизации.
 	OpenSession struct {
 		txManager             mrstorage.DBTxManager
-		storageSession        sessionStorage
+		sessionIssuer         sessionIssuer
 		storageUserActivity   userActivityStatCreator
 		openSessionFetcher    openSessionFetcher
 		sessionCloser         sessionCloser
@@ -38,6 +36,7 @@ type (
 		handlerCreateUser     operationHandlerCreateUser
 		handlerBeforeAuthUser operationHandlerBeforeAuthUser
 		tokenCreator          tokenCreator
+		logger                mrlog.Logger
 		sessionLimits         map[realmKindKey]int
 		errorWrapper          errors.Wrapper
 	}
@@ -57,11 +56,11 @@ type (
 	// UserKindLimit - лимит одновременных сессий для вида пользователя (kind).
 	UserKindLimit struct {
 		Kind       string
-		SessionMax uint32
+		SessionMax uint16
 	}
 
-	sessionStorage interface {
-		Insert(ctx context.Context, row entity.Session) error
+	sessionIssuer interface {
+		Issue(ctx context.Context, session entity.Session) (sessionID uint32, err error)
 	}
 
 	userActivityStatCreator interface {
@@ -84,7 +83,7 @@ type (
 // NewOpenSession - создаёт объект OpenSession.
 func NewOpenSession(
 	txManager mrstorage.DBTxManager,
-	storageSession sessionStorage,
+	sessionIssuer sessionIssuer,
 	storageUserActivity userActivityStatCreator,
 	openSessionFetcher openSessionFetcher,
 	sessionCloser sessionCloser,
@@ -92,6 +91,7 @@ func NewOpenSession(
 	handlerCreateUser operationHandlerCreateUser,
 	handlerBeforeAuthUser operationHandlerBeforeAuthUser,
 	tokenCreator tokenCreator,
+	logger mrlog.Logger,
 	allowedRealms []LimitRealm,
 ) *OpenSession {
 	sessionLimits := make(map[realmKindKey]int)
@@ -109,7 +109,7 @@ func NewOpenSession(
 
 	return &OpenSession{
 		txManager:             txManager,
-		storageSession:        storageSession,
+		sessionIssuer:         sessionIssuer,
 		storageUserActivity:   storageUserActivity,
 		openSessionFetcher:    openSessionFetcher,
 		sessionCloser:         sessionCloser,
@@ -117,13 +117,14 @@ func NewOpenSession(
 		handlerCreateUser:     handlerCreateUser,
 		handlerBeforeAuthUser: handlerBeforeAuthUser,
 		tokenCreator:          tokenCreator,
+		logger:                logger,
 		sessionLimits:         sessionLimits,
 		errorWrapper:          errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
-// Execute - открывает новую сессию: генерирует её идентификатор, выпускает пару токенов,
-// сохраняет строку сессии и фиксирует активность пользователя.
+// Execute - открывает новую сессию: сохраняет строку сессии (с генерацией её идентификатора),
+// выпускает пару токенов и фиксирует активность пользователя.
 func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op secureoperation.SecureOperation) (authToken dto.AuthTokenPair, err error) {
 	var userScopes dto.UserScopes
 
@@ -146,13 +147,6 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 		default:
 			return errors.ErrAccessForbidden
 		}
-
-		sessionID, err := genSessionID()
-		if err != nil {
-			return err
-		}
-
-		userScopes.SessionID = sessionID
 
 		// кулдаун входа по пользователю: не более одного открытия сессии за openSessionLockTimeout.
 		// Берётся до подсчёта сессий и удерживается через выпуск токенов и commit, поэтому закрывает
@@ -179,39 +173,44 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 			return err
 		}
 
-		authToken, err = uc.tokenCreator.Create(ctx, userScopes)
+		// realIP=0 при ошибке/IPv6 - поток login не должен падать из-за этого
+		realIP, _, _ := meta.ClientIP.ToUint()
+
+		// строка сессии выпускается ПЕРВОЙ (issuer генерирует уникальный session_id и
+		// вставляет строку): делаем это до выпуска токена - иначе конфликт на вставке откатил
+		// бы и уже вставленный refresh-токен; sid в токене берётся из записанного идентификатора
+		userScopes.SessionID, err = uc.sessionIssuer.Issue(ctx, entity.Session{
+			UserID:    userScopes.UserID,
+			UserAgent: meta.UserAgent,
+			LastIP:    realIP,
+		})
 		if err != nil {
 			return err
 		}
 
-		// realIP=0 при ошибке/IPv6 - поток login не должен падать из-за этого
-		realIP, _, _ := meta.ClientIP.ToUint()
-
-		if err = uc.storageSession.Insert(ctx, entity.Session{
-			UserID:    userScopes.UserID,
-			SessionID: sessionID,
-			UserAgent: meta.UserAgent,
-			LastIP:    realIP,
-		}); err != nil {
-			return err
-		}
-
-		userActivity := entity.UserActivityStat{
-			UserID:        userScopes.UserID,
-			LastLoginIP:   meta.ClientIP,
-			LastLoggedAt:  time.Now(),
-			LastVisitedAt: time.Now(),
-		}
-
-		// TODO: возможно здесь можно вставлять эту запись и асинхронно
-		// результат присваиваем err (а не делаем bare return), иначе defer выше не увидит ошибку
-		// этого шага и не снимет блокировку
-		err = uc.storageUserActivity.InsertOrUpdate(ctx, userActivity)
+		authToken, err = uc.tokenCreator.Create(ctx, userScopes)
 
 		return err
 	})
 	if err != nil {
 		return dto.AuthTokenPair{}, uc.errorWrapper.Wrap(err)
+	}
+
+	// Активность пользователя пишется ВНЕ транзакции и best-effort: это некритичная статистика
+	// "последнего входа" (отдельная таблица, без требований согласованности с сессией/токенами).
+	// Внутри транзакции её сбой откатывал бы уже выпущенные сессию и токены, а сама запись удлиняла
+	// бы удержание транзакции. К этому моменту commit уже прошёл - сессия открыта
+	// и токены выданы, поэтому потерю одного обновления телеметрии при транзиентном сбое БД
+	// сознательно игнорируется, чтобы не проваливать успешный логин.
+	userActivity := entity.UserActivityStat{
+		UserID:        userScopes.UserID,
+		LastLoginIP:   meta.ClientIP,
+		LastLoggedAt:  time.Now(),
+		LastVisitedAt: time.Now(),
+	}
+
+	if err = uc.storageUserActivity.InsertOrUpdate(ctx, userActivity); err != nil {
+		uc.logger.Error(ctx, "failed to insert user activity stat", "user_id", userScopes.UserID, "error", err)
 	}
 
 	return authToken, nil
@@ -240,15 +239,4 @@ func (uc *OpenSession) enforceSessionLimit(ctx context.Context, userID uuid.UUID
 	}
 
 	return uc.sessionCloser.RevokeTokensBySessionIDs(ctx, userID, openIDs[:toClose])
-}
-
-// TODO: временно, потом переделать через интерфейс.
-func genSessionID() (uint32, error) {
-	n, err := rand.Int(rand.Reader, big.NewInt(math.MaxUint32))
-	if err != nil {
-		return 0, err
-	}
-
-	// n принадлежит [0, math.MaxUint32), результат [1, math.MaxUint32] помещается в uint32
-	return uint32(n.Uint64()) + 1, nil //nolint:gosec
 }

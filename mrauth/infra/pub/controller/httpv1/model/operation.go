@@ -30,7 +30,7 @@ type (
 		DebugInfo         string             `json:"debug_info,omitempty"`
 	}
 
-	// ErrorConfirmOperationResponse - comment struct.
+	// ErrorConfirmOperationResponse - ответ с ошибкой подтверждения операции и её текущим состоянием.
 	ErrorConfirmOperationResponse struct {
 		mrresp.Error400Response
 

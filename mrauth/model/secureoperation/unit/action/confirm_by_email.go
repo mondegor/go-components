@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	// ConfirmByEmail - comment struct.
+	// ConfirmByEmail - фабрика действий подтверждения по email.
 	ConfirmByEmail struct {
 		maxAttempts   int16
 		maxResends    int16

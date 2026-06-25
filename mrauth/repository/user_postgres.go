@@ -15,7 +15,7 @@ import (
 )
 
 type (
-	// UserPostgres - comment struct.
+	// UserPostgres - хранилище пользователей в PostgreSQL.
 	UserPostgres struct {
 		client       mrstorage.DBConnManager
 		tableName    string
@@ -51,12 +51,12 @@ func NewUserPostgres(
 	}
 }
 
-// FetchOne - возвращает список сообщений по их указанным ID.
+// FetchOne - возвращает пользователя по его идентификатору.
 func (re *UserPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row entity.User, err error) {
 	return re.fetchOneBy(ctx, "user_id", userID)
 }
 
-// FetchOneByLogin - возвращает список сообщений по их указанным ID.
+// FetchOneByLogin - возвращает пользователя по его логину (email или телефон).
 func (re *UserPostgres) FetchOneByLogin(ctx context.Context, userLogin contactaddress.ContactAddress) (row entity.User, err error) {
 	if userLogin.Is(addresstype.Email) {
 		return re.fetchOneBy(ctx, "user_email", userLogin.Value())
@@ -113,7 +113,7 @@ func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldV
 	return row, nil
 }
 
-// Insert - возвращает список сообщений по их указанным ID.
+// Insert - добавляет нового пользователя и возвращает сгенерированный идентификатор.
 func (re *UserPostgres) Insert(ctx context.Context, row entity.User) (rowID uuid.UUID, err error) {
 	sql := `
 		INSERT INTO ` + re.tableName + `
@@ -153,12 +153,12 @@ func (re *UserPostgres) Insert(ctx context.Context, row entity.User) (rowID uuid
 	return row.ID, nil
 }
 
-// UpdateEmail - comments method.
+// UpdateEmail - обновляет email пользователя.
 func (re *UserPostgres) UpdateEmail(ctx context.Context, userID uuid.UUID, value string) error {
 	return re.repoEmail.Update(ctx, userID, value)
 }
 
-// UpdatePhone - comments method.
+// UpdatePhone - обновляет телефон пользователя.
 func (re *UserPostgres) UpdatePhone(ctx context.Context, userID uuid.UUID, value uint64) error {
 	return re.repoPhone.Update(ctx, userID, value)
 }

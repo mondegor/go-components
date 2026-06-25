@@ -15,7 +15,7 @@ import (
 const cookieName = "RTID"
 
 func newCookie() *bag.RefreshTokenCookie {
-	return bag.NewRefreshTokenCookie(cookieName, "localhost", "/", 24*time.Hour)
+	return bag.NewRefreshTokenCookie(cookieName, "localhost", "/", 24*time.Hour, true, http.SameSiteStrictMode)
 }
 
 func TestRefreshTokenCookie_GetValue(t *testing.T) {
@@ -62,7 +62,26 @@ func TestRefreshTokenCookie_SetValue(t *testing.T) {
 	assert.Equal(t, "/", got.Path)
 	assert.True(t, got.HttpOnly)
 	assert.True(t, got.Secure)
+	assert.Equal(t, http.SameSiteStrictMode, got.SameSite)
 	assert.Positive(t, got.MaxAge)
+}
+
+func TestRefreshTokenCookie_SetValueConfiguredFlags(t *testing.T) {
+	t.Parallel()
+
+	// небезопасные значения допустимы для окружений без HTTPS (напр. локальная разработка)
+	cookie := bag.NewRefreshTokenCookie(cookieName, "localhost", "/", 24*time.Hour, false, http.SameSiteLaxMode)
+
+	w := httptest.NewRecorder()
+	cookie.SetValue(w, "new-token")
+
+	cookies := w.Result().Cookies()
+	require.Len(t, cookies, 1)
+
+	got := cookies[0]
+	assert.False(t, got.Secure)
+	assert.True(t, got.HttpOnly)
+	assert.Equal(t, http.SameSiteLaxMode, got.SameSite)
 }
 
 func TestRefreshTokenCookie_RemoveValue(t *testing.T) {

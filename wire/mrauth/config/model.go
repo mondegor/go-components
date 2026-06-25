@@ -31,7 +31,7 @@ type (
 	UserKind struct {
 		Name       string   `yaml:"name"`
 		Roles      []string `yaml:"roles"`
-		SessionMax uint32   `yaml:"session_max"`
+		SessionMax uint16   `yaml:"session_max"`
 	}
 
 	// OperationConfirm - настройки подтверждения операции: длина токена/кода, срок жизни, способы отправки.
@@ -60,10 +60,12 @@ type (
 
 	// RefreshCookie - настройки cookie с refresh токеном (web-версия).
 	RefreshCookie struct {
-		Name   string        `yaml:"name"`
-		Domain string        `yaml:"domain" env:"APPX_REFRESH_COOKIE_DOMAIN"`
-		Path   string        `yaml:"path"`
-		Expiry time.Duration `yaml:"expiry"`
+		Name     string        `yaml:"name"`
+		Domain   string        `yaml:"domain" env:"APPX_REFRESH_COOKIE_DOMAIN"`
+		Path     string        `yaml:"path"`
+		Expiry   time.Duration `yaml:"expiry"`
+		Secure   *bool         `yaml:"secure"`    // флаг Secure cookie; nil - безопасный дефолт (true)
+		SameSite string        `yaml:"same_site"` // strict/lax/none; пусто - безопасный дефолт (strict); none требует secure=true
 	}
 
 	// AccessControl - корневая конфигурация аутентификации модуля: realm'ы, роли, токены и ключи JWT.
@@ -75,6 +77,7 @@ type (
 		OverrideAuthToken       Token                   `yaml:"override_auth_token"`
 		DefaultOperationConfirm OperationConfirm        `yaml:"default_operation_confirm"`
 		Auth2FA                 Auth2FA                 `yaml:"auth_2fa"`
+		MaxUserSessions         uint16                  `yaml:"max_user_sessions"`
 	}
 
 	// JWT - настройки и ключи для подписи (issuer) и проверки (verifier) access-токенов.

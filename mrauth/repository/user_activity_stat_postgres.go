@@ -14,7 +14,7 @@ import (
 )
 
 type (
-	// UserActivityStatPostgres - comment struct.
+	// UserActivityStatPostgres - хранилище статистики активности пользователей в PostgreSQL.
 	UserActivityStatPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper errors.Wrapper
@@ -34,7 +34,7 @@ func NewUserActivityStatPostgres(
 	}
 }
 
-// FetchOne - возвращает список сообщений по их указанным ID.
+// FetchOne - возвращает запись статистики активности пользователя по его ID.
 func (re *UserActivityStatPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row entity.UserActivityStat, err error) {
 	sql := `
 		SELECT
@@ -67,7 +67,7 @@ func (re *UserActivityStatPostgres) FetchOne(ctx context.Context, userID uuid.UU
 	return row, nil
 }
 
-// InsertOrUpdate - возвращает список сообщений по их указанным ID.
+// InsertOrUpdate - создаёт или обновляет запись статистики активности пользователя.
 func (re *UserActivityStatPostgres) InsertOrUpdate(ctx context.Context, row entity.UserActivityStat) error {
 	sql := `
 		INSERT INTO ` + re.tableName + `
@@ -80,7 +80,8 @@ func (re *UserActivityStatPostgres) InsertOrUpdate(ctx context.Context, row enti
 			)
 		VALUES
 			($1, $2, $3, $4, $5)
-		ON CONFLICT (user_id) DO UPDATE
+		ON CONFLICT
+			(user_id) DO UPDATE
 		SET
 			last_login_ip = EXCLUDED.last_login_ip,
 			last_login_ip_string = EXCLUDED.last_login_ip_string,
@@ -108,7 +109,7 @@ func (re *UserActivityStatPostgres) InsertOrUpdate(ctx context.Context, row enti
 	return nil
 }
 
-// UpdateLastVisited - фиксирует изменение настройки.
+// UpdateLastVisited - батчем обновляет время последнего визита (last_visited_at).
 // Поле last_visited_at не будет обновлено в меньшую сторону.
 func (re *UserActivityStatPostgres) UpdateLastVisited(ctx context.Context, rows []dto.UserActivityLastVisited) error {
 	if len(rows) == 0 {
@@ -138,10 +139,15 @@ func (re *UserActivityStatPostgres) UpdateLastVisited(ctx context.Context, rows 
 		WHERE
 			t1.user_id = t2.user_id;`
 
-	return re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		userIDs,
 		visitedAts,
 	)
+	if err != nil {
+		return re.errorWrapper.Wrap(err)
+	}
+
+	return nil
 }

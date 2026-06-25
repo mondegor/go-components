@@ -6,7 +6,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 )
 
-// TagEmail - comment func.
+// TagEmail - возвращает тег валидации email.
 func TagEmail() mrview.Tag {
 	return mrview.Tag{
 		Name:         "tag_email",
@@ -14,7 +14,7 @@ func TagEmail() mrview.Tag {
 	}
 }
 
-// TagPhone - comment func.
+// TagPhone - возвращает тег валидации телефона.
 func TagPhone() mrview.Tag {
 	return mrview.Tag{
 		Name:         "tag_phone",
@@ -22,7 +22,7 @@ func TagPhone() mrview.Tag {
 	}
 }
 
-// TagEmailPhone - comment func.
+// TagEmailPhone - возвращает тег валидации email или телефона.
 func TagEmailPhone() mrview.Tag {
 	return mrview.Tag{
 		Name: "tag_email_phone",
@@ -33,7 +33,7 @@ func TagEmailPhone() mrview.Tag {
 	}
 }
 
-// TagRealm - comment func.
+// TagRealm - возвращает тег валидации realm из заданного списка.
 func TagRealm(realms []string) mrview.Tag {
 	return mrview.Tag{
 		Name: "tag_realm",

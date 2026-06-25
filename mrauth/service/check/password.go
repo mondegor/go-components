@@ -5,7 +5,7 @@ import (
 )
 
 type (
-	// Password - comment struct.
+	// Password - сервис проверки надёжности и генерации паролей.
 	Password struct {
 		length int
 	}
@@ -18,12 +18,12 @@ func NewPassword(length int) *Password {
 	}
 }
 
-// CalcStrength - comments method.
+// CalcStrength - вычисляет уровень надёжности указанного пароля.
 func (sv *Password) CalcStrength(userPassword string) (strength string) {
 	return password.CalcStrength(userPassword).String()
 }
 
-// Generate - comments method.
+// Generate - генерирует новый пароль заданной длины.
 func (sv *Password) Generate() (strength string) {
 	return password.NewGenerator().Generate(sv.length, password.CharAll) // TODO: в настройки
 }

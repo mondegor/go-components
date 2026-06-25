@@ -196,16 +196,12 @@ func (re *NodePostgres) UpdateNode(ctx context.Context, row entity.Node, conditi
 		WHERE
 			` + re.table.PrimaryKey + ` = $1` + whereStr + `;`
 
-	err := re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-			return errors.ErrEventStorageNoRecordFound
-		}
-
 		return re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"id": row.ID})
 	}
 
@@ -217,12 +213,12 @@ func (re *NodePostgres) UpdateNodePrevID(ctx context.Context, rowID uint64, prev
 	return re.updateNodeNeighborID(ctx, condition, rowID, prevID, "prev_")
 }
 
-// UpdateNodeNextID - comment method.
+// UpdateNodeNextID - обновляет местоположение элемента в списке с учётом указанного условия.
 func (re *NodePostgres) UpdateNodeNextID(ctx context.Context, rowID uint64, nextID mrentity.ZeronullUint64, condition mrstorage.SQLPartFunc) error {
 	return re.updateNodeNeighborID(ctx, condition, rowID, nextID, "next_")
 }
 
-// RecalcOrderIndex - comment method.
+// RecalcOrderIndex - сдвигает order_index элементов после указанной границы на заданный шаг.
 func (re *NodePostgres) RecalcOrderIndex(ctx context.Context, minBorder, step uint64, condition mrstorage.SQLPartFunc) error {
 	args := []any{
 		minBorder,
@@ -242,13 +238,12 @@ func (re *NodePostgres) RecalcOrderIndex(ctx context.Context, minBorder, step ui
 		WHERE
 			order_index > $1` + whereStr + `;`
 
-	err := re.client.Conn(ctx).Exec(
+	_, err := re.client.Conn(ctx).ExecAffected(
 		ctx,
 		sql,
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
-	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+	if err != nil {
 		return re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"orderIndex": minBorder, "step": step})
 	}
 
@@ -319,16 +314,12 @@ func (re *NodePostgres) updateNodeNeighborID(
 		WHERE
 			` + re.table.PrimaryKey + ` = $1` + whereStr + `;`
 
-	err := re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-			return errors.ErrEventStorageNoRecordFound
-		}
-
 		return re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"id": rowID})
 	}
 

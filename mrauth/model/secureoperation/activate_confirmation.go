@@ -8,7 +8,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
-// ActivateConfirmation - comments method.
+// ActivateConfirmation - активирует подтверждение операции под указанный токен.
 func (o *SecureOperation) ActivateConfirmation(token string) (err error) {
 	if token == "" {
 		return errors.ErrInternalIncorrectInputData.WithDetails("token is empty")

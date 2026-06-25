@@ -8,7 +8,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
-// ActivateResendCode - comments method.
+// ActivateResendCode - повторно активирует операцию под новый токен для отправки нового кода подтверждения.
 func (o *SecureOperation) ActivateResendCode(token string) (err error) {
 	if token == "" {
 		return errors.ErrInternalIncorrectInputData.WithDetails("token is empty")

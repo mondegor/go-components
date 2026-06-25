@@ -14,7 +14,7 @@ import (
 )
 
 type (
-	// ChangePhone - comment struct.
+	// ChangePhone - обработчик смены телефона пользователя.
 	ChangePhone struct {
 		txManager    mrstorage.DBTxManager
 		storage      userPhoneChanger

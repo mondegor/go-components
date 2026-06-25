@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	// ConfirmByPhone - comment struct.
+	// ConfirmByPhone - фабрика действий подтверждения по телефону.
 	ConfirmByPhone struct {
 		maxAttempts   int16
 		maxResends    int16

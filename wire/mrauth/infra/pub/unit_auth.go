@@ -3,7 +3,6 @@ package pub
 import (
 	"time"
 
-	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrevent"
 	"github.com/mondegor/go-sysmess/mrlock"
 	"github.com/mondegor/go-sysmess/mrlog"
@@ -17,6 +16,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/service"
 	"github.com/mondegor/go-components/mrauth/service/authtoken"
 	"github.com/mondegor/go-components/mrauth/service/check"
+	sessionsrv "github.com/mondegor/go-components/mrauth/service/session"
 	"github.com/mondegor/go-components/mrauth/service/userinfo"
 	usecaseauth "github.com/mondegor/go-components/mrauth/usecase/auth"
 	"github.com/mondegor/go-components/mrauth/usecase/operation"
@@ -26,12 +26,6 @@ import (
 	"github.com/mondegor/go-components/mrnotifier"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 	"github.com/mondegor/go-components/wire/mrauth/mapping"
-)
-
-const (
-	defaultCookieName   = "RTID"
-	defaultCookiePath   = "/"
-	defaultCookieExpiry = 180 * 24 * time.Hour
 )
 
 func initUnitAuthController(
@@ -101,7 +95,7 @@ func initUnitAuthController(
 
 	useCaseOpenSession := session.NewOpenSession(
 		dbConnManager,
-		storageSession,
+		sessionsrv.NewIssuer(storageSession),
 		storageUserActivityStat,
 		storageAuthToken, // openSessionFetcher
 		storageAuthToken, // sessionCloser
@@ -120,6 +114,7 @@ func initUnitAuthController(
 			logger,
 		),
 		serviceAuthToken,
+		logger,
 		mapping.OptionUserRealmsToSessionLimitRealms(userRealms),
 	)
 
@@ -165,24 +160,20 @@ func initUnitAuthController(
 	return controller, nil
 }
 
-// initRefreshTokenCookie - создаёт cookie с refresh токеном, подставляя значения по умолчанию
-// для незаданных полей конфига (Domain обязан задать host-приложение, иначе возвращается ошибка).
+// initRefreshTokenCookie - создаёт cookie с refresh токеном из провалидированных настроек
+// (дефолты и проверка комбинации Secure/SameSite - в authcfg.ResolveRefreshCookie).
 func initRefreshTokenCookie(cfg authcfg.RefreshCookie) (*bag.RefreshTokenCookie, error) {
-	if cfg.Domain == "" {
-		return nil, errors.New("refresh token cookie domain is required")
+	resolved, err := authcfg.ResolveRefreshCookie(cfg)
+	if err != nil {
+		return nil, err
 	}
 
-	if cfg.Name == "" {
-		cfg.Name = defaultCookieName
-	}
-
-	if cfg.Path == "" {
-		cfg.Path = defaultCookiePath
-	}
-
-	if cfg.Expiry == 0 {
-		cfg.Expiry = defaultCookieExpiry
-	}
-
-	return bag.NewRefreshTokenCookie(cfg.Name, cfg.Domain, cfg.Path, cfg.Expiry), nil
+	return bag.NewRefreshTokenCookie(
+		resolved.Name,
+		resolved.Domain,
+		resolved.Path,
+		resolved.Expiry,
+		resolved.Secure,
+		resolved.SameSite,
+	), nil
 }

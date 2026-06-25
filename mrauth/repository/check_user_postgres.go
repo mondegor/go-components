@@ -10,7 +10,7 @@ import (
 )
 
 type (
-	// CheckUserPostgres - comment struct.
+	// CheckUserPostgres - хранилище для проверки существования пользователя по email/телефону в PostgreSQL.
 	CheckUserPostgres struct {
 		client            mrstorage.DBConnManager
 		errorWrapper      errors.Wrapper
@@ -46,7 +46,7 @@ func NewCheckUserPostgres(
 	}
 }
 
-// UserIDByEmail - возвращает список сообщений по их указанным ID.
+// UserIDByEmail - возвращает идентификатор пользователя по его email.
 func (re *CheckUserPostgres) UserIDByEmail(ctx context.Context, userEmail string) (rowID uuid.UUID, err error) {
 	rowID, err = re.repoUserIDByEmail.Fetch(ctx, userEmail)
 	if err != nil {
@@ -56,7 +56,7 @@ func (re *CheckUserPostgres) UserIDByEmail(ctx context.Context, userEmail string
 	return rowID, nil
 }
 
-// UserIDByPhone - возвращает список сообщений по их указанным ID.
+// UserIDByPhone - возвращает идентификатор пользователя по его телефону.
 func (re *CheckUserPostgres) UserIDByPhone(ctx context.Context, userPhone uint64) (rowID uuid.UUID, err error) {
 	rowID, err = re.repoUserIDByPhone.Fetch(ctx, userPhone)
 	if err != nil {

@@ -15,7 +15,7 @@ import (
 )
 
 type (
-	// FactoryConfirm2FA - comment struct.
+	// FactoryConfirm2FA - фабрика действий подтверждения через второй фактор (2FA).
 	FactoryConfirm2FA struct {
 		storageUser    userStorage
 		storageUser2FA user2faStorage

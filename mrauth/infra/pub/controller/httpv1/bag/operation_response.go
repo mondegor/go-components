@@ -8,7 +8,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
-// OperationResponse - comment struct.
+// OperationResponse - формирователь HTTP-ответов для операций подтверждения.
 type (
 	OperationResponse struct {
 		debugFunc func(value any) string
@@ -30,7 +30,7 @@ func NewOperationResponse(
 	}
 }
 
-// NewConfirmOperation - comment method.
+// NewConfirmOperation - формирует ответ об ожидании подтверждения операции.
 func (ro *OperationResponse) NewConfirmOperation(
 	operation secureoperation.SecureOperation,
 	message string,
@@ -49,7 +49,7 @@ func (ro *OperationResponse) NewConfirmOperation(
 	}
 }
 
-// NewErrorConfirmOperation - comment method.
+// NewErrorConfirmOperation - формирует ответ об ошибке подтверждения операции.
 func (ro *OperationResponse) NewErrorConfirmOperation(
 	response mrresp.Error400Response,
 	operation secureoperation.SecureOperation,

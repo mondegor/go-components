@@ -15,7 +15,7 @@ import (
 )
 
 type (
-	// BeforeAuthUser - comment struct.
+	// BeforeAuthUser - обработчик, выполняемый перед аутентификацией пользователя.
 	BeforeAuthUser struct {
 		storageUser      userFetcher
 		storageUserRealm userRealmFetcher

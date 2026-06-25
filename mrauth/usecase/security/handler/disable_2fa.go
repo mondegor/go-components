@@ -14,7 +14,7 @@ import (
 )
 
 type (
-	// Disable2FA - comment struct.
+	// Disable2FA - обработчик отключения 2FA пользователя.
 	Disable2FA struct {
 		txManager    mrstorage.DBTxManager
 		storage      user2faDisabler

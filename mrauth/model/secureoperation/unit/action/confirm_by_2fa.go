@@ -8,7 +8,7 @@ import (
 )
 
 type (
-	// ConfirmBy2fa - comment struct.
+	// ConfirmBy2fa - фабрика действий подтверждения вторым фактором (пароль или TOTP).
 	ConfirmBy2fa struct {
 		confirmByPassword *ConfirmByPassword
 		confirmByTOTP     *ConfirmByTOTP
@@ -23,7 +23,7 @@ func NewConfirmBy2fa(passwordOpts, totpOpts []Option) *ConfirmBy2fa {
 	}
 }
 
-// Create - comments method.
+// Create - создаёт действие подтверждения по указанному типу 2FA.
 func (a *ConfirmBy2fa) Create(auth2fa auth2fatype.Enum, secret string) (secureoperation.ConfirmAction, error) {
 	if auth2fa == auth2fatype.Password {
 		return a.confirmByPassword.Create(secret), nil

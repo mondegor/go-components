@@ -40,12 +40,13 @@ func InitHttpModule(
 	usersActivityStatTableName,
 	usersAuth2faTableName,
 	usersRealmsTableName string,
+	maxUserSessions uint16,
 	debugFunc func(value any) string,
 ) initing.HttpModule {
 	storageAuthToken := initAuthTokenPostgres(dbConnManager, authTokensTableName)
 	storageSecureOperation := initSecureOperationPostgres(dbConnManager, secureOperationTableName)
 	// storageSecureOperationLog := initSecureOperationLogPostgres(dbConnManager, secureOperationLogTableName)
-	storageSession := initSessionPostgres(dbConnManager, sessionsTableName)
+	storageSession := initSessionPostgres(dbConnManager, sessionsTableName, int(maxUserSessions))
 	storageUser := initUserPostgres(dbConnManager, usersTableName)
 	storageCheckUser := initCheckUserPostgres(dbConnManager, usersTableName)
 	storageUserActivityStat := initUserActivityStatPostgres(dbConnManager, usersActivityStatTableName)

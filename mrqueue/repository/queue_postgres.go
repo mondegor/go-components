@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrstorage"
 	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 
@@ -81,7 +80,7 @@ func (re *QueuePostgres) FetchAndUpdateStatusReadyToProcessing(ctx context.Conte
 			  	item_status = $1 AND updated_at <= NOW()
 			ORDER BY
 				updated_at ASC
-		    LIMIT $3
+		    ` + mrstorage.NonZeroLimit(limit) + `
 			FOR UPDATE SKIP LOCKED
 		)
 		UPDATE
@@ -103,7 +102,6 @@ func (re *QueuePostgres) FetchAndUpdateStatusReadyToProcessing(ctx context.Conte
 		limit,
 		itemstatus.Ready,
 		itemstatus.Processing,
-		limit,
 	)
 }
 
@@ -141,18 +139,13 @@ func (re *QueuePostgres) UpdateStatusProcessingToRetry(ctx context.Context, rowI
 		WHERE
 			` + re.table.PrimaryKey + ` = $1 AND item_status = $2;`
 
-	err := re.client.Conn(ctx).Exec(
+	return re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		rowID,
 		itemstatus.Processing,
 		itemstatus.Retry,
 	)
-	if err != nil && errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-		return errors.ErrEventStorageNoRecordFound
-	}
-
-	return err
 }
 
 // UpdateStatusProcessingToRetryByTimeout - переводит ограниченный список записей из статуса PROCESSING в статус RETRY находящихся там долгое время
@@ -168,7 +161,7 @@ func (re *QueuePostgres) UpdateStatusProcessingToRetryByTimeout(ctx context.Cont
 			  	item_status = $1 AND updated_at < NOW() - INTERVAL '1 second' * $2
 			ORDER BY
 				updated_at ASC
-		    LIMIT $4
+		    ` + mrstorage.NonZeroLimit(limit) + `
 			FOR UPDATE SKIP LOCKED
 		)
 		UPDATE
@@ -191,7 +184,6 @@ func (re *QueuePostgres) UpdateStatusProcessingToRetryByTimeout(ctx context.Cont
 		itemstatus.Processing,
 		uint32(timeout.Seconds()),
 		itemstatus.Retry,
-		limit,
 	)
 }
 
@@ -210,7 +202,7 @@ func (re *QueuePostgres) UpdateStatusRetryToReady(ctx context.Context, delayed t
 				remaining_attempts > 0
 			ORDER BY
 				updated_at ASC
-		    LIMIT $4
+		    ` + mrstorage.NonZeroLimit(limit) + `
 			FOR UPDATE SKIP LOCKED
 		)
 		UPDATE
@@ -233,7 +225,6 @@ func (re *QueuePostgres) UpdateStatusRetryToReady(ctx context.Context, delayed t
 		itemstatus.Retry,
 		uint32(delayed.Seconds()),
 		itemstatus.Ready,
-		limit,
 	)
 }
 
@@ -250,7 +241,7 @@ func (re *QueuePostgres) DeleteRetryWithoutAttempts(ctx context.Context, limit i
 			  	item_status = $1 AND remaining_attempts = 0
 			ORDER BY
 				updated_at ASC
-		    LIMIT $2
+		    ` + mrstorage.NonZeroLimit(limit) + `
 		)
 		DELETE FROM
 			` + re.table.Name + ` t1
@@ -267,7 +258,6 @@ func (re *QueuePostgres) DeleteRetryWithoutAttempts(ctx context.Context, limit i
 		sql,
 		limit,
 		itemstatus.Retry,
-		limit,
 	)
 }
 
@@ -279,15 +269,10 @@ func (re *QueuePostgres) Delete(ctx context.Context, rowID uint64, status itemst
 		WHERE
 			` + re.table.PrimaryKey + ` = $1 AND item_status = $2;`
 
-	err := re.client.Conn(ctx).Exec(
+	return re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		rowID,
 		status,
 	)
-	if err != nil && errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-		return errors.ErrEventStorageNoRecordFound
-	}
-
-	return err
 }

@@ -90,37 +90,35 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserAc
 	)
 }
 
-// DeleteBeforeDate - comments method.
-func (re *UserActivityLogPostgres) DeleteBeforeDate(ctx context.Context, datetime time.Time, limit int) error {
+// DeleteBeforeDate - удаляет пачку записей лога активности старше datetime (не более limit)
+// и возвращает число фактически удалённых строк (сигнал "пачка была полной, есть ещё").
+// Рассчитано на single-pod-планировщик (см. wire/mrauth/scheduler.NewService): конкурентной защиты на выборке нет.
+func (re *UserActivityLogPostgres) DeleteBeforeDate(ctx context.Context, datetime time.Time, limit int) (count int, err error) {
 	sql := `
-		WITH old_items as (
+		DELETE FROM
+			` + re.tableName + ` t1
+		USING (
 			SELECT
-			  	record_id as item_id
+				record_id
 			FROM
-			  	` + re.tableName + `
+				` + re.tableName + `
 			WHERE
 				visited_at < $1
 			ORDER BY
 				visited_at ASC
-		    LIMIT $2
-		)
-		DELETE FROM
-			` + re.tableName + ` t1
-		USING
-			old_items ei
+			` + mrstorage.NonZeroLimit(limit) + `
+		) ei
 		WHERE
-			t1.record_id = ei.item_id;`
+			t1.record_id = ei.record_id;`
 
-	err := re.client.Conn(ctx).Exec(
+	count, err = re.client.Conn(ctx).ExecAffected(
 		ctx,
 		sql,
 		datetime,
-		limit,
 	)
-	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-		return re.errorWrapper.Wrap(err)
+	if err != nil {
+		return 0, re.errorWrapper.Wrap(err)
 	}
 
-	return nil
+	return count, nil
 }

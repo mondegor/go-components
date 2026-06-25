@@ -8,20 +8,24 @@ import (
 type (
 	// RefreshTokenCookie - чтение, установка и удаление HTTP cookie с refresh токеном (web-версия).
 	RefreshTokenCookie struct {
-		name   string
-		domain string
-		path   string
-		expiry time.Duration
+		name     string
+		domain   string
+		path     string
+		expiry   time.Duration
+		secure   bool
+		sameSite http.SameSite
 	}
 )
 
 // NewRefreshTokenCookie - создаёт объект RefreshTokenCookie.
-func NewRefreshTokenCookie(name, domain, path string, expiry time.Duration) *RefreshTokenCookie {
+func NewRefreshTokenCookie(name, domain, path string, expiry time.Duration, secure bool, sameSite http.SameSite) *RefreshTokenCookie {
 	return &RefreshTokenCookie{
-		name:   name,
-		domain: domain,
-		path:   path,
-		expiry: expiry,
+		name:     name,
+		domain:   domain,
+		path:     path,
+		expiry:   expiry,
+		secure:   secure,
+		sameSite: sameSite,
 	}
 }
 
@@ -44,9 +48,9 @@ func (c *RefreshTokenCookie) SetValue(w http.ResponseWriter, refreshToken string
 		Domain:   c.domain,
 		Expires:  time.Now().Add(c.expiry),
 		MaxAge:   int(c.expiry.Seconds()),
-		Secure:   true,
+		Secure:   c.secure,
 		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: c.sameSite,
 	}
 
 	http.SetCookie(w, &ck)
@@ -61,9 +65,9 @@ func (c *RefreshTokenCookie) RemoveValue(w http.ResponseWriter) {
 		Domain:   c.domain,
 		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
-		Secure:   true,
+		Secure:   c.secure,
 		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: c.sameSite,
 	}
 
 	http.SetCookie(w, &ck)

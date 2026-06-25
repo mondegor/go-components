@@ -79,7 +79,7 @@ func (re *CrashedPostgres) Delete(ctx context.Context, expiry time.Duration, lim
 				MAX(created_at) <= NOW() - INTERVAL '1 second' * $1
 			ORDER BY
 				MAX(created_at) ASC
-		    LIMIT $2
+		    ` + mrstorage.NonZeroLimit(limit) + `
 		)
 		DELETE FROM
 			` + re.table.Name + ` t1
@@ -96,6 +96,5 @@ func (re *CrashedPostgres) Delete(ctx context.Context, expiry time.Duration, lim
 		sql,
 		limit,
 		uint32(expiry.Seconds()),
-		limit,
 	)
 }

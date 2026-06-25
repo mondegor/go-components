@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	// UserInfo - comment struct.
+	// UserInfo - сервис получения сводной информации о пользователе.
 	UserInfo struct {
 		txManager        mrstorage.DBTxManager
 		storageUser      userFetcher

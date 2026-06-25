@@ -22,7 +22,7 @@ const (
 	operationRevokeURL  = "/v1/operation/revoke"
 )
 
-// Operation - comment struct.
+// Operation - HTTP-контроллер операций подтверждения (confirm/resend/revoke).
 type (
 	Operation struct {
 		parser                   validate.RequestParser
@@ -79,7 +79,7 @@ func (ht *Operation) Handlers() []mrserver.HttpHandler {
 	}
 }
 
-// Confirm - comment method.
+// Confirm - подтверждает защищённую операцию переданным секретом.
 func (ht *Operation) Confirm(w http.ResponseWriter, r *http.Request) error {
 	req := model.ConfirmOperationRequest{}
 
@@ -128,7 +128,7 @@ func (ht *Operation) Confirm(w http.ResponseWriter, r *http.Request) error {
 	return ht.sender.SendNoContent(w)
 }
 
-// Resend - comment method.
+// Resend - повторно отправляет код подтверждения операции.
 func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 	req := model.OperationTokenRequest{}
 

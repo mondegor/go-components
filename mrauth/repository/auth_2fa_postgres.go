@@ -72,7 +72,8 @@ func (re *Auth2FAPostgres) InsertOrUpdate(ctx context.Context, row entity.Auth2F
 			)
 		VALUES
 			($1, $2, $3, $4, $5)
-		ON CONFLICT (user_id) DO UPDATE
+		ON CONFLICT
+			(user_id) DO UPDATE
 		SET
 			auth_2fa_type = EXCLUDED.auth_2fa_type,
 			auth_secret = EXCLUDED.auth_secret,
@@ -81,7 +82,7 @@ func (re *Auth2FAPostgres) InsertOrUpdate(ctx context.Context, row entity.Auth2F
 			created_at = NOW(),
 			last_recovery_at = NULL;`
 
-	err := re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		row.UserID,
@@ -109,11 +110,7 @@ func (re *Auth2FAPostgres) UpdateTOTPStep(ctx context.Context, userID uuid.UUID,
 		WHERE
 			user_id = $1 AND last_totp_step < $2;`
 
-	if err := re.client.Conn(ctx).Exec(ctx, sql, userID, timeStep); err != nil {
-		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-			return errors.ErrEventStorageNoRecordFound
-		}
-
+	if err := re.client.Conn(ctx).ExecRow(ctx, sql, userID, timeStep); err != nil {
 		return re.errorWrapper.Wrap(err)
 	}
 
@@ -154,11 +151,7 @@ func (re *Auth2FAPostgres) UpdateRecoveryCodes(ctx context.Context, userID uuid.
 		WHERE
 			user_id = $1;`
 
-	if err := re.client.Conn(ctx).Exec(ctx, sql, userID, hashed); err != nil {
-		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-			return errors.ErrEventStorageNoRecordFound
-		}
-
+	if err := re.client.Conn(ctx).ExecRow(ctx, sql, userID, hashed); err != nil {
 		return re.errorWrapper.Wrap(err)
 	}
 
@@ -173,13 +166,12 @@ func (re *Auth2FAPostgres) Delete(ctx context.Context, userID uuid.UUID) error {
 		WHERE
 			user_id = $1;`
 
-	err := re.client.Conn(ctx).Exec(
+	_, err := re.client.Conn(ctx).ExecAffected(
 		ctx,
 		sql,
 		userID,
 	)
-	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+	if err != nil {
 		return re.errorWrapper.Wrap(err)
 	}
 

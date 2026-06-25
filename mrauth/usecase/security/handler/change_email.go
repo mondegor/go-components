@@ -14,7 +14,7 @@ import (
 )
 
 type (
-	// ChangeEmail - comment struct.
+	// ChangeEmail - обработчик смены email пользователя.
 	ChangeEmail struct {
 		txManager    mrstorage.DBTxManager
 		storage      userEmailChanger

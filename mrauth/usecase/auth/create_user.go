@@ -21,7 +21,7 @@ const (
 )
 
 type (
-	// CreateUser - comment struct.
+	// CreateUser - usecase создания пользователя с подтверждением через защищённую операцию.
 	CreateUser struct {
 		txManager        mrstorage.DBTxManager
 		userChecker      userLoginChecker

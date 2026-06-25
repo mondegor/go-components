@@ -168,7 +168,7 @@ func (re *SecureOperationPostgres) Replace(ctx context.Context, currentToken str
         WHERE
             operation_token = $1 AND operation_status = $2;`
 
-	err := re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		currentToken,
@@ -182,10 +182,6 @@ func (re *SecureOperationPostgres) Replace(ctx context.Context, currentToken str
 		row.ExpiresAt,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-			return errors.ErrEventStorageNoRecordFound
-		}
-
 		return re.errorWrapper.Wrap(err)
 	}
 
@@ -227,52 +223,43 @@ func (re *SecureOperationPostgres) Delete(ctx context.Context, token string) err
         WHERE
             operation_token = $1;`
 
-	err := re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		token,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-			return errors.ErrEventStorageNoRecordFound
-		}
-
 		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil
 }
 
-// DeleteExpired - удаляет просроченные операции пакетом ограниченного размера.
-func (re *SecureOperationPostgres) DeleteExpired(ctx context.Context, limit int) error {
+// DeleteExpired - удаляет просроченные операции пакетом ограниченного размера (не более limit)
+// и возвращает число фактически удалённых строк (сигнал "пачка была полной, есть ещё").
+// Рассчитано на single-pod-планировщик (см. wire/mrauth/scheduler.NewService): конкурентной защиты на выборке нет.
+func (re *SecureOperationPostgres) DeleteExpired(ctx context.Context, limit int) (count int, err error) {
 	sql := `
-		WITH expired_items as (
+		DELETE FROM
+			` + re.tableName + ` t1
+		USING (
 			SELECT
-			  	operation_token as item_id
+				operation_token
 			FROM
-			  	` + re.tableName + `
+				` + re.tableName + `
 			WHERE
 				expires_at < NOW()
 			ORDER BY
 				expires_at ASC
-		    LIMIT $1
-		)
-		DELETE FROM
-			` + re.tableName + ` t1
-		USING
-			expired_items ei
+			` + mrstorage.NonZeroLimit(limit) + `
+		) ei
 		WHERE
-			t1.operation_token = ei.item_id;`
+			t1.operation_token = ei.operation_token;`
 
-	err := re.client.Conn(ctx).Exec(
-		ctx,
-		sql,
-		limit,
-	)
-	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-		return re.errorWrapper.Wrap(err)
+	count, err = re.client.Conn(ctx).ExecAffected(ctx, sql)
+	if err != nil {
+		return 0, re.errorWrapper.Wrap(err)
 	}
 
-	return nil
+	return count, nil
 }

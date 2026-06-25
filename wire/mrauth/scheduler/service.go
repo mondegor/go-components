@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/mrevent"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrprocess"
 	"github.com/mondegor/go-sysmess/mrprocess/job/task"
@@ -13,7 +14,7 @@ import (
 	"github.com/mondegor/go-sysmess/mrtrace"
 
 	"github.com/mondegor/go-components/mrauth/repository"
-	"github.com/mondegor/go-components/mrauth/usecase/clean"
+	"github.com/mondegor/go-components/wire/mrauth/clean"
 )
 
 const (
@@ -23,19 +24,32 @@ const (
 
 	defaultCleanRecordsCaption = "CleanRecords"
 	defaultCleanRecordsPeriod  = 45 * time.Minute
-	defaultCleanRecordsTimeout = 120 * time.Second
+
+	// defaultCleanRecordsTimeout - таймаут задачи должен перекрывать суммарную длительность
+	// всех зацикленных воркеров очистки (каждый крутится до своего предела длительности,
+	// см. wire/mrauth/clean), иначе под большим backlog'ом последний воркер упрётся в дедлайн контекста.
+	defaultCleanRecordsTimeout = 300 * time.Second
 )
 
-// NewService - создаёт сервис для обработки и отправки сообщений и связанных с ним задачи.
+// NewService - создаёт планировщик фоновых задач очистки модуля Auth.
+//
+// ВАЖНО: планировщик рассчитан на запуск в ЕДИНСТВЕННОМ экземпляре (single-pod либо под
+// leader-election). Конвейер очистки не имеет конкурентной защиты на выборке: SessionCleanupQueue.Fetch
+// и удаления просроченных операций / логов / активности выбирают строки без блокировки,
+// поэтому при нескольких одновременно работающих экземплярах они дублировали бы работу и/или
+// блокировали друг друга на одних и тех же строках.
 func NewService(
 	client mrstorage.DBConnManager,
+	eventEmitter mrevent.Emitter,
 	errorHandler errors.Handler,
 	logger mrlog.Logger,
 	traceManager mrtrace.ContextManager,
 	authTokensTableName,
 	secureOperationTableName,
 	secureOperationLogTableName,
-	usersActivityLogTableName string,
+	usersActivityLogTableName,
+	sessionsTableName,
+	sessionsCleanupQueueTableName string,
 	opts ...Option,
 ) *schedule.TaskScheduler {
 	o := options{
@@ -57,14 +71,27 @@ func NewService(
 		o.cleanLimit = defaultCleanLimit
 	}
 
-	authTokenCleaner := clean.NewAuthTokenCleaner(
-		repository.NewAuthTokenPostgres(
-			client,
-			authTokensTableName,
-		),
+	authTokenStorage := repository.NewAuthTokenPostgres(
+		client,
+		authTokensTableName,
 	)
 
-	operationCleaner := clean.NewOperationCleaner(
+	sessionCleanupQueue := repository.NewSessionCleanupQueuePostgres(
+		client,
+		sessionsCleanupQueueTableName,
+	)
+
+	// клинер токенов крутится в цикле до опустошения/таймаута
+	authTokensCleaner := clean.InitAuthTokenCleaner(
+		client,
+		authTokenStorage,
+		sessionCleanupQueue,
+		eventEmitter,
+	)
+
+	// клинер операций крутится в цикле до опустошения/таймаута:
+	// бандлит удаление просроченных операций и старых записей их лога
+	operationCleaner := clean.InitOperationCleaner(
 		repository.NewSecureOperationPostgres(
 			client,
 			secureOperationTableName,
@@ -73,30 +100,44 @@ func NewService(
 			client,
 			secureOperationLogTableName,
 		),
+		o.logLifeTime,
+		eventEmitter,
 	)
 
-	userCleaner := clean.NewUserCleaner(
+	// клинер лога активности пользователей крутится в цикле до опустошения/таймаута
+	userCleaner := clean.InitUserCleaner(
 		repository.NewUserActivityLogPostgres(
 			client,
 			usersActivityLogTableName,
 		),
+		o.logLifeTime,
+		eventEmitter,
+	)
+
+	// drain-воркер сливает очередь удаления сессий батчами до её опустошения/таймаута
+	sessionDrainer := clean.InitSessionDrainer(
+		sessionCleanupQueue,
+		repository.NewOrphanSessionDeleterPostgres(client, sessionsTableName, authTokensTableName),
+		eventEmitter,
 	)
 
 	cleanerTask := task.NewJobWrapper(
 		mrprocess.JobFunc(func(ctx context.Context) error {
-			if err := authTokenCleaner.RemoveExpired(ctx, o.cleanLimit); err != nil {
+			if err := authTokensCleaner.Execute(ctx, o.cleanLimit); err != nil {
 				return err
 			}
 
-			if err := operationCleaner.RemoveExpired(ctx, o.cleanLimit); err != nil {
+			if err := operationCleaner.Execute(ctx, o.cleanLimit); err != nil {
 				return err
 			}
 
-			if err := operationCleaner.RemoveOldLog(ctx, o.logLifeTime, o.cleanLimit); err != nil {
+			if err := userCleaner.Execute(ctx, o.cleanLimit); err != nil {
 				return err
 			}
 
-			return userCleaner.RemoveOldLog(ctx, o.logLifeTime, o.cleanLimit)
+			// слив очереди сессий - последним: токен-клинер выше наполнил её
+			// осиротевшими сессиями (закрытыми/просроченными)
+			return sessionDrainer.Execute(ctx, o.cleanLimit)
 		}),
 		o.taskCleanerOpts...,
 	)

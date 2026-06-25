@@ -64,7 +64,7 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 			UNNEST($1::int8[], $2::text[], $3::int2, $4::text[])
 			as t(visitor_id, operation_name, confirm_method, log_status);`
 
-	return re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		ids,
@@ -72,39 +72,42 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 		methods,
 		statuses,
 	)
-}
-
-// DeleteBeforeDate - comments method.
-func (re *SecureOperationLogPostgres) DeleteBeforeDate(ctx context.Context, datetime time.Time, limit int) error {
-	sql := `
-		WITH old_items as (
-			SELECT
-			  	record_id as item_id
-			FROM
-			  	` + re.tableName + `
-			WHERE
-				created_at < $1
-			ORDER BY
-				created_at ASC
-		    LIMIT $2
-		)
-		DELETE FROM
-			` + re.tableName + ` t1
-		USING
-			old_items ei
-		WHERE
-			t1.record_id = ei.item_id;`
-
-	err := re.client.Conn(ctx).Exec(
-		ctx,
-		sql,
-		datetime,
-		limit,
-	)
-	// если это внутренняя ошибка
-	if err != nil && !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+	if err != nil {
 		return re.errorWrapper.Wrap(err)
 	}
 
 	return nil
+}
+
+// DeleteBeforeDate - удаляет пачку записей лога операций старше datetime (не более limit)
+// и возвращает число фактически удалённых строк (сигнал "пачка была полной, есть ещё").
+// Рассчитано на single-pod-планировщик (см. wire/mrauth/scheduler.NewService): конкурентной защиты на выборке нет.
+func (re *SecureOperationLogPostgres) DeleteBeforeDate(ctx context.Context, datetime time.Time, limit int) (count int, err error) {
+	sql := `
+		DELETE FROM
+			` + re.tableName + ` t1
+		USING (
+			SELECT
+				record_id
+			FROM
+				` + re.tableName + `
+			WHERE
+				created_at < $1
+			ORDER BY
+				created_at ASC
+			` + mrstorage.NonZeroLimit(limit) + `
+		) ei
+		WHERE
+			t1.record_id = ei.record_id;`
+
+	count, err = re.client.Conn(ctx).ExecAffected(
+		ctx,
+		sql,
+		datetime,
+	)
+	if err != nil {
+		return 0, re.errorWrapper.Wrap(err)
+	}
+
+	return count, nil
 }
