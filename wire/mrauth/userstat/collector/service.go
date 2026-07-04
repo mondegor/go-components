@@ -61,7 +61,6 @@ func NewService(
 		repository.NewSessionPostgres(
 			client,
 			sessionsTableName,
-			0, // FetchListByUserID здесь не используется; лимит по умолчанию
 		),
 	)
 

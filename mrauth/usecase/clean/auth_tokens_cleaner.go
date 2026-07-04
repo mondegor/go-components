@@ -14,17 +14,19 @@ type (
 	// осиротевшие после этого сессии в очередь на удаление.
 	AuthTokenCleaner struct {
 		txManager    mrstorage.DBTxManager
-		storage      authTokenStorage
-		queue        sessionCleanupQueue
+		storage      AuthTokenStorage
+		queue        SessionCleanupQueue
 		errorWrapper errors.Wrapper
 	}
 
-	authTokenStorage interface {
+	// AuthTokenStorage - хранилище токенов авторизации для удаления истёкших.
+	AuthTokenStorage interface {
 		DeleteExpiredNonRefresh(ctx context.Context, limit int) (count int, err error)
 		DeleteExpiredRefresh(ctx context.Context, limit int) (candidates []entity.SessionPK, err error)
 	}
 
-	sessionCleanupQueue interface {
+	// SessionCleanupQueue - очередь постановки осиротевших сессий на удаление.
+	SessionCleanupQueue interface {
 		Enqueue(ctx context.Context, pks []entity.SessionPK) error
 	}
 )
@@ -32,8 +34,8 @@ type (
 // NewAuthTokenCleaner - создаёт объект AuthTokenCleaner.
 func NewAuthTokenCleaner(
 	txManager mrstorage.DBTxManager,
-	storage authTokenStorage,
-	queue sessionCleanupQueue,
+	storage AuthTokenStorage,
+	queue SessionCleanupQueue,
 ) *AuthTokenCleaner {
 	return &AuthTokenCleaner{
 		txManager:    txManager,
@@ -50,6 +52,12 @@ func NewAuthTokenCleaner(
 // refresh токены и их сессии ставятся в очередь: при сбое Enqueue удаление refresh токенов
 // откатывается, и кандидаты будут найдены повторно на следующем проходе. Реальная осиротелость
 // проверяется уже на стадии слива очереди.
+//
+// ВНИМАНИЕ: count - это сумма двух источников (не-refresh + refresh), каждый ограничен limit,
+// поэтому за один вызов может быть удалено до 2*limit строк. Для ItemBatchPlayer это не приводит
+// к раннему выходу из цикла (count >= max(источников), цикл продолжается пока есть полная пачка
+// хотя бы у одного источника), но размывает контракт "limit = размер батча" и ~2x завышает
+// итоговый total, эмитируемый ItemBatchPlayer.
 func (co *AuthTokenCleaner) Execute(ctx context.Context, limit int) (count int, err error) {
 	if limit < 1 {
 		return 0, errors.ErrInternalIncorrectInputData.WithDetails("limit is zero or negative")
@@ -76,5 +84,8 @@ func (co *AuthTokenCleaner) Execute(ctx context.Context, limit int) (count int, 
 		return 0, co.errorWrapper.Wrap(err)
 	}
 
+	// TODO: count = сумма двух источников (до 2*limit) размывает контракт
+	// "limit = размер батча" и ~2x завышает total у ItemBatchPlayer; гонять
+	// источники (non-refresh / refresh) как отдельные ItemBatchPlayer-воркеры.
 	return nonRefreshCount + refreshCount, nil
 }

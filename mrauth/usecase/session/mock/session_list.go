@@ -43,19 +43,19 @@ func (m *MocksessionLister) EXPECT() *MocksessionListerMockRecorder {
 	return m.recorder
 }
 
-// FetchListByUserID mocks base method.
-func (m *MocksessionLister) FetchListByUserID(ctx context.Context, userID uuid.UUID) ([]entity.Session, error) {
+// FetchOrderedListByUserIDAndSessionIDs mocks base method.
+func (m *MocksessionLister) FetchOrderedListByUserIDAndSessionIDs(ctx context.Context, userID uuid.UUID, sessionIDs []uint32, limit int) ([]entity.Session, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchListByUserID", ctx, userID)
+	ret := m.ctrl.Call(m, "FetchOrderedListByUserIDAndSessionIDs", ctx, userID, sessionIDs, limit)
 	ret0, _ := ret[0].([]entity.Session)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FetchListByUserID indicates an expected call of FetchListByUserID.
-func (mr *MocksessionListerMockRecorder) FetchListByUserID(ctx, userID any) *gomock.Call {
+// FetchOrderedListByUserIDAndSessionIDs indicates an expected call of FetchOrderedListByUserIDAndSessionIDs.
+func (mr *MocksessionListerMockRecorder) FetchOrderedListByUserIDAndSessionIDs(ctx, userID, sessionIDs, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchListByUserID", reflect.TypeOf((*MocksessionLister)(nil).FetchListByUserID), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchOrderedListByUserIDAndSessionIDs", reflect.TypeOf((*MocksessionLister)(nil).FetchOrderedListByUserIDAndSessionIDs), ctx, userID, sessionIDs, limit)
 }
 
 // MockopenSessionFetcher is a mock of openSessionFetcher interface.
@@ -83,18 +83,18 @@ func (m *MockopenSessionFetcher) EXPECT() *MockopenSessionFetcherMockRecorder {
 }
 
 // FetchOpenSessionIDs mocks base method.
-func (m *MockopenSessionFetcher) FetchOpenSessionIDs(ctx context.Context, userID uuid.UUID) ([]uint32, error) {
+func (m *MockopenSessionFetcher) FetchOpenSessionIDs(ctx context.Context, userID uuid.UUID, realmID uint16) ([]uint32, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchOpenSessionIDs", ctx, userID)
+	ret := m.ctrl.Call(m, "FetchOpenSessionIDs", ctx, userID, realmID)
 	ret0, _ := ret[0].([]uint32)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchOpenSessionIDs indicates an expected call of FetchOpenSessionIDs.
-func (mr *MockopenSessionFetcherMockRecorder) FetchOpenSessionIDs(ctx, userID any) *gomock.Call {
+func (mr *MockopenSessionFetcherMockRecorder) FetchOpenSessionIDs(ctx, userID, realmID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchOpenSessionIDs", reflect.TypeOf((*MockopenSessionFetcher)(nil).FetchOpenSessionIDs), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchOpenSessionIDs", reflect.TypeOf((*MockopenSessionFetcher)(nil).FetchOpenSessionIDs), ctx, userID, realmID)
 }
 
 // MocksessionCloser is a mock of sessionCloser interface.

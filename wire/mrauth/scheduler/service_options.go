@@ -11,10 +11,11 @@ type (
 	Option func(o *options)
 
 	options struct {
-		captionPrefix   string
-		cleanLimit      int
-		logLifeTime     time.Duration
-		taskCleanerOpts []task.Option
+		captionPrefix        string
+		cleanLimit           int
+		logLifeTime          time.Duration
+		taskCleanerOpts      []task.Option
+		taskTrimSessionsOpts []task.Option
 	}
 )
 
@@ -43,5 +44,13 @@ func WithLogLifeTime(value time.Duration) Option {
 func WithTaskCleanRecordsOpts(value ...task.Option) Option {
 	return func(o *options) {
 		o.taskCleanerOpts = append(o.taskCleanerOpts, value...)
+	}
+}
+
+// WithTaskTrimSessionsOpts - устанавливает опцию taskTrimSessionsOpts
+// (задача чистки лишних сессий) для ComponentService.
+func WithTaskTrimSessionsOpts(value ...task.Option) Option {
+	return func(o *options) {
+		o.taskTrimSessionsOpts = append(o.taskTrimSessionsOpts, value...)
 	}
 }

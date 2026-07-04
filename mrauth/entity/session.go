@@ -23,4 +23,18 @@ type (
 		UserID    uuid.UUID
 		SessionID uint32
 	}
+
+	// SessionExcessItem - элемент очереди на фоновую чистку лишних сессий пользователя в realm.
+	SessionExcessItem struct {
+		UserID     uuid.UUID
+		RealmID    uint16
+		SessionMax int // лимит одновременных сессий realm, зафиксированный на момент постановки в очередь
+	}
+
+	// SessionExcessPK - составной ключ строки очереди чистки лишних сессий (user_id, realm_id).
+	// Используется как элемент ack обработанной пачки.
+	SessionExcessPK struct {
+		UserID  uuid.UUID
+		RealmID uint16
+	}
 )

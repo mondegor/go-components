@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	sysmesserrors "github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrlock"
 	"github.com/mondegor/go-sysmess/mrstorage"
 	"github.com/stretchr/testify/require"
@@ -47,8 +48,9 @@ type (
 	}
 
 	fakeUserOpFactory struct {
-		op  secureoperation.SecureOperation
-		err error
+		op         secureoperation.SecureOperation
+		err        error
+		gotUser2FA dto.User2FA
 	}
 
 	fakeLocker struct {
@@ -96,7 +98,9 @@ func (f fakeSessionOpFactory) Create(dto.User2FA, string, string, contactaddress
 	return f.op, f.err
 }
 
-func (f fakeUserOpFactory) Create(string, contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
+func (f *fakeUserOpFactory) Create(user2FA dto.User2FA, _ string, _ contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
+	f.gotUser2FA = user2FA
+
 	return f.op, f.err
 }
 
@@ -208,14 +212,16 @@ func newCreateUser(
 	checker fakeUserChecker,
 	creator *fakeOpCreator,
 	notifier *fakeNotifier,
+	factory fakeUser2FAFactory,
 	locker *fakeLocker,
-	opFactory fakeUserOpFactory,
+	opFactory *fakeUserOpFactory,
 ) *auth.CreateUser {
 	return auth.NewCreateUser(
 		fakeTx{},
 		checker,
 		creator,
 		notifier,
+		factory,
 		locker,
 		[]auth.CreateUserRealm{{Name: "shop", Operation: opFactory}},
 	)
@@ -227,7 +233,7 @@ func TestCreateUser_Execute(t *testing.T) {
 	t.Run("unknown realm", func(t *testing.T) {
 		t.Parallel()
 
-		uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, &fakeLocker{}, fakeUserOpFactory{})
+		uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, fakeUser2FAFactory{}, &fakeLocker{}, &fakeUserOpFactory{})
 		_, err := uc.Execute(context.Background(), "unknown", "en", "user@example.com")
 		require.Error(t, err)
 	})
@@ -235,7 +241,7 @@ func TestCreateUser_Execute(t *testing.T) {
 	t.Run("invalid email", func(t *testing.T) {
 		t.Parallel()
 
-		uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, &fakeLocker{}, fakeUserOpFactory{})
+		uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, fakeUser2FAFactory{}, &fakeLocker{}, &fakeUserOpFactory{})
 		_, err := uc.Execute(context.Background(), "shop", "en", "bad")
 		require.Error(t, err)
 	})
@@ -243,9 +249,16 @@ func TestCreateUser_Execute(t *testing.T) {
 	t.Run("lock not obtained", func(t *testing.T) {
 		t.Parallel()
 
-		uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, &fakeLocker{err: mrlock.ErrLockKeyNotObtained}, fakeUserOpFactory{})
+		uc := newCreateUser(
+			fakeUserChecker{},
+			&fakeOpCreator{},
+			&fakeNotifier{},
+			fakeUser2FAFactory{},
+			&fakeLocker{err: mrlock.ErrLockKeyNotObtained},
+			&fakeUserOpFactory{},
+		)
 		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com")
-		require.ErrorIs(t, err, mrauth.ErrEmailAlreadyExists)
+		require.ErrorIs(t, err, mrauth.ErrSignupAlreadyInProgressTryLater)
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -253,7 +266,7 @@ func TestCreateUser_Execute(t *testing.T) {
 
 		creator := &fakeOpCreator{}
 		notifier := &fakeNotifier{}
-		uc := newCreateUser(fakeUserChecker{}, creator, notifier, &fakeLocker{}, fakeUserOpFactory{op: openedEmailOp(t)})
+		uc := newCreateUser(fakeUserChecker{}, creator, notifier, fakeUser2FAFactory{}, &fakeLocker{}, &fakeUserOpFactory{op: openedEmailOp(t)})
 
 		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com")
 		require.NoError(t, err)
@@ -264,8 +277,54 @@ func TestCreateUser_Execute(t *testing.T) {
 	t.Run("checker error", func(t *testing.T) {
 		t.Parallel()
 
-		uc := newCreateUser(fakeUserChecker{err: errors.New("boom")}, &fakeOpCreator{}, &fakeNotifier{}, &fakeLocker{}, fakeUserOpFactory{op: openedEmailOp(t)})
+		uc := newCreateUser(
+			fakeUserChecker{err: errors.New("boom")},
+			&fakeOpCreator{},
+			&fakeNotifier{},
+			fakeUser2FAFactory{},
+			&fakeLocker{},
+			&fakeUserOpFactory{op: openedEmailOp(t)},
+		)
 		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com")
 		require.Error(t, err)
+	})
+
+	t.Run("2fa factory error", func(t *testing.T) {
+		t.Parallel()
+
+		factory := fakeUser2FAFactory{err: errors.New("2fa boom")}
+		uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, factory, &fakeLocker{}, &fakeUserOpFactory{op: openedEmailOp(t)})
+		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com")
+		require.Error(t, err)
+	})
+
+	t.Run("new email - empty 2fa forwarded to operation", func(t *testing.T) {
+		t.Parallel()
+
+		// логин не принадлежит существующему пользователю: фабрика 2FA возвращает
+		// ErrEventStorageNoRecordFound, usecase продолжает выполнение с пустым User2FA
+		factory := fakeUser2FAFactory{err: sysmesserrors.ErrEventStorageNoRecordFound}
+		opFactory := &fakeUserOpFactory{op: openedEmailOp(t)}
+		uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, factory, &fakeLocker{}, opFactory)
+
+		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com")
+		require.NoError(t, err)
+		require.Equal(t, dto.User2FA{}, opFactory.gotUser2FA)
+	})
+
+	t.Run("existing user 2fa forwarded to operation", func(t *testing.T) {
+		t.Parallel()
+
+		user2FA := dto.User2FA{
+			ID:        uuid.New(),
+			Email:     "user@example.com",
+			Action2FA: secureoperation.ConfirmAction{Method: confirmmethod.TOTP},
+		}
+		opFactory := &fakeUserOpFactory{op: openedEmailOp(t)}
+		uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, fakeUser2FAFactory{user: user2FA}, &fakeLocker{}, opFactory)
+
+		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com")
+		require.NoError(t, err)
+		require.Equal(t, user2FA, opFactory.gotUser2FA)
 	})
 }

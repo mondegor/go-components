@@ -8,17 +8,35 @@ import (
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 	"github.com/mondegor/go-components/mrauth/service/authtoken"
+	"github.com/mondegor/go-components/mrauth/service/realm"
 	usecaseauth "github.com/mondegor/go-components/mrauth/usecase/auth"
 	usecasesession "github.com/mondegor/go-components/mrauth/usecase/session"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 )
 
+// OptionUserRealmsToRealmRegistry - строит реестр соответствия id <-> name realm'ов.
+func OptionUserRealmsToRealmRegistry(realms []authcfg.UserRealm) mrauth.RealmRegistry {
+	mappedRealms := make([]realm.Realm, 0, len(realms))
+
+	for _, item := range realms {
+		mappedRealms = append(
+			mappedRealms,
+			realm.Realm{
+				ID:   item.ID,
+				Name: item.Name,
+			},
+		)
+	}
+
+	return realm.New(mappedRealms)
+}
+
 // OptionUserRealmsToStringRealms - извлекает имена realm'ов в виде списка строк.
 func OptionUserRealmsToStringRealms(realms []authcfg.UserRealm) []string {
 	mappedRealms := make([]string, 0, len(realms))
 
-	for _, realm := range realms {
-		mappedRealms = append(mappedRealms, realm.Name)
+	for _, item := range realms {
+		mappedRealms = append(mappedRealms, item.Name)
 	}
 
 	return mappedRealms
@@ -29,14 +47,14 @@ func OptionUserRealmsToStringRealms(realms []authcfg.UserRealm) []string {
 func OptionUserRealmsToSessionLimitRealms(realms []authcfg.UserRealm) []usecasesession.LimitRealm {
 	mappedRealms := make([]usecasesession.LimitRealm, 0, len(realms))
 
-	for _, realm := range realms {
-		kindLimits := make([]usecasesession.UserKindLimit, 0, len(realm.UserKinds))
-		for _, kind := range realm.UserKinds {
+	for _, item := range realms {
+		kindLimits := make([]usecasesession.UserKindLimit, 0, len(item.UserKinds))
+		for _, kind := range item.UserKinds {
 			kindLimits = append(
 				kindLimits,
 				usecasesession.UserKindLimit{
 					Kind:       kind.Name,
-					SessionMax: kind.SessionMax,
+					SessionMax: int(kind.SessionMax),
 				},
 			)
 		}
@@ -44,7 +62,7 @@ func OptionUserRealmsToSessionLimitRealms(realms []authcfg.UserRealm) []usecases
 		mappedRealms = append(
 			mappedRealms,
 			usecasesession.LimitRealm{
-				Name:       realm.Name,
+				ID:         item.ID,
 				KindLimits: kindLimits,
 			},
 		)
@@ -58,25 +76,25 @@ func OptionUserRealmsToSessionLimitRealms(realms []authcfg.UserRealm) []usecases
 func OptionUserRealmsToConfirmCreateUserRealms(realms []authcfg.UserRealm) []usecaseauth.CreateUserRealm {
 	mappedRealms := make([]usecaseauth.CreateUserRealm, 0, len(realms))
 
-	for _, realm := range realms {
+	for _, item := range realms {
 		// добавляются только области пользователей, с поддержкой регистрации
-		if realm.RegisterUserKind == "none" {
+		if item.RegisterUserKind == "none" {
 			continue
 		}
 
 		mappedRealms = append(
 			mappedRealms,
 			usecaseauth.CreateUserRealm{
-				Name: realm.Name,
+				Name: item.Name,
 				Operation: unit.NewCreateUser(
-					realm.Name,
-					realm.RegisterUserKind,
-					crypt.NewSecretGenerator(int(realm.AuthToken.Length)),
-					crypt.NewSecretGenerator(int(realm.OperationConfirm.CodeLength)),
-					action.WithMaxAttempts(int16(realm.OperationConfirm.SendByEmail.MaxAttempts)),
-					action.WithMaxResends(int16(realm.OperationConfirm.SendByEmail.MaxResends)),
-					action.WithMinResendTime(realm.OperationConfirm.SendByEmail.MinResendTime),
-					action.WithExpiry(realm.OperationConfirm.SessionExpiry),
+					item.Name,
+					item.RegisterUserKind,
+					crypt.NewSecretGenerator(int(item.AuthToken.Length)),
+					crypt.NewSecretGenerator(int(item.OperationConfirm.CodeLength)),
+					action.WithMaxAttempts(int16(item.OperationConfirm.SendByEmail.MaxAttempts)),
+					action.WithMaxResends(int16(item.OperationConfirm.SendByEmail.MaxResends)),
+					action.WithMinResendTime(item.OperationConfirm.SendByEmail.MinResendTime),
+					action.WithExpiry(item.OperationConfirm.SessionExpiry),
 				),
 			},
 		)
@@ -90,25 +108,25 @@ func OptionUserRealmsToConfirmCreateUserRealms(realms []authcfg.UserRealm) []use
 func OptionUserRealmsToConfirmCreateSessionRealms(realms []authcfg.UserRealm) []usecaseauth.CreateSessionRealm {
 	mappedRealms := make([]usecaseauth.CreateSessionRealm, 0, len(realms))
 
-	for _, realm := range realms {
+	for _, item := range realms {
 		mappedRealms = append(
 			mappedRealms,
 			usecaseauth.CreateSessionRealm{
-				Name: realm.Name,
+				Name: item.Name,
 				Operation: unit.NewAuthorizeUser(
-					crypt.NewSecretGenerator(int(realm.AuthToken.Length)),
-					crypt.NewSecretGenerator(int(realm.OperationConfirm.CodeLength)),
+					crypt.NewSecretGenerator(int(item.AuthToken.Length)),
+					crypt.NewSecretGenerator(int(item.OperationConfirm.CodeLength)),
 					unit.WithAuthorizeUserConfirmByEmailOpts(
-						action.WithMaxAttempts(int16(realm.OperationConfirm.SendByEmail.MaxAttempts)),
-						action.WithMaxResends(int16(realm.OperationConfirm.SendByEmail.MaxResends)),
-						action.WithMinResendTime(realm.OperationConfirm.SendByEmail.MinResendTime),
-						action.WithExpiry(realm.OperationConfirm.SessionExpiry),
+						action.WithMaxAttempts(int16(item.OperationConfirm.SendByEmail.MaxAttempts)),
+						action.WithMaxResends(int16(item.OperationConfirm.SendByEmail.MaxResends)),
+						action.WithMinResendTime(item.OperationConfirm.SendByEmail.MinResendTime),
+						action.WithExpiry(item.OperationConfirm.SessionExpiry),
 					),
 					unit.WithAuthorizeUserConfirmByPhoneOpts(
-						action.WithMaxAttempts(int16(realm.OperationConfirm.SendByPhone.MaxAttempts)),
-						action.WithMaxResends(int16(realm.OperationConfirm.SendByPhone.MaxResends)),
-						action.WithMinResendTime(realm.OperationConfirm.SendByPhone.MinResendTime),
-						action.WithExpiry(realm.OperationConfirm.SessionExpiry),
+						action.WithMaxAttempts(int16(item.OperationConfirm.SendByPhone.MaxAttempts)),
+						action.WithMaxResends(int16(item.OperationConfirm.SendByPhone.MaxResends)),
+						action.WithMinResendTime(item.OperationConfirm.SendByPhone.MinResendTime),
+						action.WithExpiry(item.OperationConfirm.SessionExpiry),
 					),
 					unit.WithAuthorizeUserConfirmPhoneByEmail(true),
 				),
@@ -124,30 +142,30 @@ func OptionUserRealmsToConfirmCreateSessionRealms(realms []authcfg.UserRealm) []
 func OptionUserRealmsToCreateSessionRealms(realms []authcfg.UserRealm, jwtConfig authcfg.JWT) []authtoken.Realm {
 	mappedRealms := make([]authtoken.Realm, 0, len(realms))
 
-	for _, realm := range realms {
+	for _, item := range realms {
 		var tokenIssuer mrauth.TokenIssuer
 
-		switch realm.AuthToken.AccessType {
+		switch item.AuthToken.AccessType {
 		case "jwt":
 			tokenIssuer = jwt.NewTokenIssuer(
-				crypt.NewSecretGenerator(int(realm.AuthToken.Length)),
-				realm.AuthToken.AccessExpiry,
-				realm.AuthToken.RefreshExpiry,
+				crypt.NewSecretGenerator(int(item.AuthToken.Length)),
+				item.AuthToken.AccessExpiry,
+				item.AuthToken.RefreshExpiry,
 				jwtConfig.Issuer,
 				jwtConfig.SigningKey,
 			)
 		default:
 			tokenIssuer = bagsession.NewTokenIssuer(
-				crypt.NewSecretGenerator(int(realm.AuthToken.Length)),
-				realm.AuthToken.AccessExpiry,
-				realm.AuthToken.RefreshExpiry,
+				crypt.NewSecretGenerator(int(item.AuthToken.Length)),
+				item.AuthToken.AccessExpiry,
+				item.AuthToken.RefreshExpiry,
 			)
 		}
 
 		mappedRealms = append(
 			mappedRealms,
 			authtoken.Realm{
-				Name:        realm.Name,
+				ID:          item.ID,
 				TokenIssuer: tokenIssuer,
 			},
 		)

@@ -16,6 +16,7 @@ import (
 	uuid "github.com/google/uuid"
 	dto "github.com/mondegor/go-components/mrauth/dto"
 	entity "github.com/mondegor/go-components/mrauth/entity"
+	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -58,6 +59,45 @@ func (mr *MocksessionIssuerMockRecorder) Issue(ctx, session any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Issue", reflect.TypeOf((*MocksessionIssuer)(nil).Issue), ctx, session)
 }
 
+// MockopenSessionCounter is a mock of openSessionCounter interface.
+type MockopenSessionCounter struct {
+	ctrl     *gomock.Controller
+	recorder *MockopenSessionCounterMockRecorder
+	isgomock struct{}
+}
+
+// MockopenSessionCounterMockRecorder is the mock recorder for MockopenSessionCounter.
+type MockopenSessionCounterMockRecorder struct {
+	mock *MockopenSessionCounter
+}
+
+// NewMockopenSessionCounter creates a new mock instance.
+func NewMockopenSessionCounter(ctrl *gomock.Controller) *MockopenSessionCounter {
+	mock := &MockopenSessionCounter{ctrl: ctrl}
+	mock.recorder = &MockopenSessionCounterMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockopenSessionCounter) EXPECT() *MockopenSessionCounterMockRecorder {
+	return m.recorder
+}
+
+// FetchOpenSessionCount mocks base method.
+func (m *MockopenSessionCounter) FetchOpenSessionCount(ctx context.Context, userID uuid.UUID, realmID uint16) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchOpenSessionCount", ctx, userID, realmID)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchOpenSessionCount indicates an expected call of FetchOpenSessionCount.
+func (mr *MockopenSessionCounterMockRecorder) FetchOpenSessionCount(ctx, userID, realmID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchOpenSessionCount", reflect.TypeOf((*MockopenSessionCounter)(nil).FetchOpenSessionCount), ctx, userID, realmID)
+}
+
 // MockuserActivityStatCreator is a mock of userActivityStatCreator interface.
 type MockuserActivityStatCreator struct {
 	ctrl     *gomock.Controller
@@ -96,82 +136,82 @@ func (mr *MockuserActivityStatCreatorMockRecorder) InsertOrUpdate(ctx, row any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrUpdate", reflect.TypeOf((*MockuserActivityStatCreator)(nil).InsertOrUpdate), ctx, row)
 }
 
-// MockoperationHandlerCreateUser is a mock of operationHandlerCreateUser interface.
-type MockoperationHandlerCreateUser struct {
+// MockexcessQueueProducer is a mock of excessQueueProducer interface.
+type MockexcessQueueProducer struct {
 	ctrl     *gomock.Controller
-	recorder *MockoperationHandlerCreateUserMockRecorder
+	recorder *MockexcessQueueProducerMockRecorder
 	isgomock struct{}
 }
 
-// MockoperationHandlerCreateUserMockRecorder is the mock recorder for MockoperationHandlerCreateUser.
-type MockoperationHandlerCreateUserMockRecorder struct {
-	mock *MockoperationHandlerCreateUser
+// MockexcessQueueProducerMockRecorder is the mock recorder for MockexcessQueueProducer.
+type MockexcessQueueProducerMockRecorder struct {
+	mock *MockexcessQueueProducer
 }
 
-// NewMockoperationHandlerCreateUser creates a new mock instance.
-func NewMockoperationHandlerCreateUser(ctrl *gomock.Controller) *MockoperationHandlerCreateUser {
-	mock := &MockoperationHandlerCreateUser{ctrl: ctrl}
-	mock.recorder = &MockoperationHandlerCreateUserMockRecorder{mock}
+// NewMockexcessQueueProducer creates a new mock instance.
+func NewMockexcessQueueProducer(ctrl *gomock.Controller) *MockexcessQueueProducer {
+	mock := &MockexcessQueueProducer{ctrl: ctrl}
+	mock.recorder = &MockexcessQueueProducerMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockoperationHandlerCreateUser) EXPECT() *MockoperationHandlerCreateUserMockRecorder {
+func (m *MockexcessQueueProducer) EXPECT() *MockexcessQueueProducerMockRecorder {
 	return m.recorder
 }
 
-// Execute mocks base method.
-func (m *MockoperationHandlerCreateUser) Execute(ctx context.Context, payload []byte) (dto.UserScopes, error) {
+// Enqueue mocks base method.
+func (m *MockexcessQueueProducer) Enqueue(ctx context.Context, userID uuid.UUID, realmID uint16, sessionMax int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", ctx, payload)
-	ret0, _ := ret[0].(dto.UserScopes)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret := m.ctrl.Call(m, "Enqueue", ctx, userID, realmID, sessionMax)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
-// Execute indicates an expected call of Execute.
-func (mr *MockoperationHandlerCreateUserMockRecorder) Execute(ctx, payload any) *gomock.Call {
+// Enqueue indicates an expected call of Enqueue.
+func (mr *MockexcessQueueProducerMockRecorder) Enqueue(ctx, userID, realmID, sessionMax any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockoperationHandlerCreateUser)(nil).Execute), ctx, payload)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enqueue", reflect.TypeOf((*MockexcessQueueProducer)(nil).Enqueue), ctx, userID, realmID, sessionMax)
 }
 
-// MockoperationHandlerBeforeAuthUser is a mock of operationHandlerBeforeAuthUser interface.
-type MockoperationHandlerBeforeAuthUser struct {
+// MockauthFlowHandler is a mock of authFlowHandler interface.
+type MockauthFlowHandler struct {
 	ctrl     *gomock.Controller
-	recorder *MockoperationHandlerBeforeAuthUserMockRecorder
+	recorder *MockauthFlowHandlerMockRecorder
 	isgomock struct{}
 }
 
-// MockoperationHandlerBeforeAuthUserMockRecorder is the mock recorder for MockoperationHandlerBeforeAuthUser.
-type MockoperationHandlerBeforeAuthUserMockRecorder struct {
-	mock *MockoperationHandlerBeforeAuthUser
+// MockauthFlowHandlerMockRecorder is the mock recorder for MockauthFlowHandler.
+type MockauthFlowHandlerMockRecorder struct {
+	mock *MockauthFlowHandler
 }
 
-// NewMockoperationHandlerBeforeAuthUser creates a new mock instance.
-func NewMockoperationHandlerBeforeAuthUser(ctrl *gomock.Controller) *MockoperationHandlerBeforeAuthUser {
-	mock := &MockoperationHandlerBeforeAuthUser{ctrl: ctrl}
-	mock.recorder = &MockoperationHandlerBeforeAuthUserMockRecorder{mock}
+// NewMockauthFlowHandler creates a new mock instance.
+func NewMockauthFlowHandler(ctrl *gomock.Controller) *MockauthFlowHandler {
+	mock := &MockauthFlowHandler{ctrl: ctrl}
+	mock.recorder = &MockauthFlowHandlerMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockoperationHandlerBeforeAuthUser) EXPECT() *MockoperationHandlerBeforeAuthUserMockRecorder {
+func (m *MockauthFlowHandler) EXPECT() *MockauthFlowHandlerMockRecorder {
 	return m.recorder
 }
 
 // Execute mocks base method.
-func (m *MockoperationHandlerBeforeAuthUser) Execute(ctx context.Context, userID uuid.UUID, payload []byte) (dto.UserScopes, error) {
+func (m *MockauthFlowHandler) Execute(ctx context.Context, op secureoperation.SecureOperation) (dto.UserScopes, func(context.Context), error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", ctx, userID, payload)
+	ret := m.ctrl.Call(m, "Execute", ctx, op)
 	ret0, _ := ret[0].(dto.UserScopes)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(func(context.Context))
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockoperationHandlerBeforeAuthUserMockRecorder) Execute(ctx, userID, payload any) *gomock.Call {
+func (mr *MockauthFlowHandlerMockRecorder) Execute(ctx, op any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockoperationHandlerBeforeAuthUser)(nil).Execute), ctx, userID, payload)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockauthFlowHandler)(nil).Execute), ctx, op)
 }
 
 // MocktokenCreator is a mock of tokenCreator interface.
@@ -211,4 +251,42 @@ func (m *MocktokenCreator) Create(ctx context.Context, userScopes dto.UserScopes
 func (mr *MocktokenCreatorMockRecorder) Create(ctx, userScopes any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MocktokenCreator)(nil).Create), ctx, userScopes)
+}
+
+// MockoperationConsumer is a mock of operationConsumer interface.
+type MockoperationConsumer struct {
+	ctrl     *gomock.Controller
+	recorder *MockoperationConsumerMockRecorder
+	isgomock struct{}
+}
+
+// MockoperationConsumerMockRecorder is the mock recorder for MockoperationConsumer.
+type MockoperationConsumerMockRecorder struct {
+	mock *MockoperationConsumer
+}
+
+// NewMockoperationConsumer creates a new mock instance.
+func NewMockoperationConsumer(ctrl *gomock.Controller) *MockoperationConsumer {
+	mock := &MockoperationConsumer{ctrl: ctrl}
+	mock.recorder = &MockoperationConsumerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockoperationConsumer) EXPECT() *MockoperationConsumerMockRecorder {
+	return m.recorder
+}
+
+// Delete mocks base method.
+func (m *MockoperationConsumer) Delete(ctx context.Context, token string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", ctx, token)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockoperationConsumerMockRecorder) Delete(ctx, token any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockoperationConsumer)(nil).Delete), ctx, token)
 }

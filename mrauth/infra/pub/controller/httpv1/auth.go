@@ -3,6 +3,7 @@ package httpv1
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
@@ -30,18 +30,19 @@ const (
 type (
 	// Auth - контроллер аутентификации: регистрация, вход, жизненный цикл сессии и информация о пользователе.
 	Auth struct {
-		parser                  validate.RequestParser
-		sender                  mrserver.ResponseSender
-		refreshTokenCookie      cookieValueService
-		useCaseCreateUser       createUserUseCase
-		useCaseAuthUser         authUserUseCase
-		useCaseConfirmOperation confirmOperationUseCase
-		useCaseOpenSession      openSessionUseCase
-		useCaseContinueSession  continueSessionUseCase
-		useCaseCloseSession     closeSessionUseCase
-		serviceUserInfo         userInfoService
-		operationResponse       confirmOperationResponse
-		debugFunc               func(value any) string
+		parser                 validate.RequestParser
+		sender                 mrserver.ResponseSender
+		refreshTokenCookie     cookieValueService
+		confirmFlow            confirmOperationFlow
+		useCaseCreateUser      createUserUseCase
+		useCaseAuthUser        authUserUseCase
+		useCaseOpenSession     openSessionUseCase
+		useCaseContinueSession continueSessionUseCase
+		useCaseCloseSession    closeSessionUseCase
+		serviceUserInfo        userInfoService
+		realmRegistry          mrauth.RealmRegistry
+		operationResponse      confirmOperationResponse
+		debugFunc              func(value any) string
 	}
 
 	cookieValueService interface {
@@ -96,6 +97,7 @@ func NewAuth(
 	useCaseContinueSession continueSessionUseCase,
 	useCaseCloseSession closeSessionUseCase,
 	serviceUserInfo userInfoService,
+	realmRegistry mrauth.RealmRegistry,
 	operationResponse confirmOperationResponse,
 	debugFunc func(value any) string,
 ) *Auth {
@@ -106,18 +108,25 @@ func NewAuth(
 	}
 
 	return &Auth{
-		parser:                  parser,
-		sender:                  sender,
-		refreshTokenCookie:      refreshTokenCookie,
-		useCaseCreateUser:       useCaseCreateUser,
-		useCaseAuthUser:         useCaseConfirmAuthUser,
-		useCaseConfirmOperation: useCaseConfirmOperation,
-		useCaseOpenSession:      useCaseOpenSession,
-		useCaseContinueSession:  useCaseContinueSession,
-		useCaseCloseSession:     useCaseCloseSession,
-		serviceUserInfo:         serviceUserInfo,
-		operationResponse:       operationResponse,
-		debugFunc:               debugFunc,
+		parser:             parser,
+		sender:             sender,
+		refreshTokenCookie: refreshTokenCookie,
+		confirmFlow: confirmOperationFlow{
+			parser:            parser,
+			sender:            sender,
+			useCase:           useCaseConfirmOperation,
+			operationResponse: operationResponse,
+			debugFunc:         debugFunc,
+		},
+		useCaseCreateUser:      useCaseCreateUser,
+		useCaseAuthUser:        useCaseConfirmAuthUser,
+		useCaseOpenSession:     useCaseOpenSession,
+		useCaseContinueSession: useCaseContinueSession,
+		useCaseCloseSession:    useCaseCloseSession,
+		serviceUserInfo:        serviceUserInfo,
+		realmRegistry:          realmRegistry,
+		operationResponse:      operationResponse,
+		debugFunc:              debugFunc,
 	}
 }
 
@@ -143,6 +152,9 @@ func (ht *Auth) Signup(w http.ResponseWriter, r *http.Request) error {
 
 	lz := ht.parser.Localizer(r)
 
+	// занятость email раскрывается осознанно (ErrEmailAlreadyExists), как в check-login и Signin -
+	// это by design ради UX формы регистрации; перебор аккаунтов закрывается rate-limit'ом (отдельная задача).
+	// TODO: добавить rate-limit (частота регистраций/повторной отправки кода по identifier+IP)
 	op, err := ht.useCaseCreateUser.Execute(r.Context(), req.Realm, lz.Language(), req.UserEmail)
 	if err != nil {
 		if errors.Is(err, mrauth.ErrEmailAlreadyExists) {
@@ -172,9 +184,9 @@ func (ht *Auth) Signin(w http.ResponseWriter, r *http.Request) error {
 
 	lz := ht.parser.Localizer(r)
 
-	// TODO: ограничивать частую отправку событий на авторизацию
-	// TODO: писать, что код подтверждения уже был выслан, повторить попытку можно через N минут
-
+	// существование логина раскрывается осознанно (ErrLoginNotExists), как в check-login и Signup -
+	// это by design ради UX формы входа; перебор аккаунтов закрывается rate-limit'ом (отдельная задача).
+	// TODO: добавить rate-limit (частота попыток входа/повторной отправки кода по identifier+IP)
 	op, err := ht.useCaseAuthUser.Execute(r.Context(), req.Realm, lz.Language(), req.UserLogin)
 	if err != nil {
 		if errors.Is(err, mrauth.ErrLoginNotExists) {
@@ -202,49 +214,17 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	lz := ht.parser.Localizer(r)
-
-	// сначала операцию необходимо подтвердить
-	op, err := ht.useCaseConfirmOperation.Execute(r.Context(), lz.Language(), req.Token, req.Secret)
+	// шаг 1: подтвердить операцию (включая ветку 2FA)
+	op, ok, err := ht.confirmFlow.confirm(w, r, req.Token, req.Secret, "Confirm your identity to sign in by 2fa")
 	if err != nil {
-		if errors.Is(err, secureoperation.ErrConfirmCodeIsIncorrect) || errors.Is(err, secureoperation.ErrNoAttemptsToConfirmOperation) {
-			return ht.sender.Send(
-				w,
-				http.StatusBadRequest,
-				ht.operationResponse.NewErrorConfirmOperation(
-					mrresp.NewError400Response(
-						r,
-						mrresp.ErrorAttribute{
-							Code:      "secret",
-							Detail:    lz.TranslateError(err),
-							DebugInfo: ht.debugFunc(err),
-						},
-					),
-					op,
-				),
-			)
-		}
-
-		if errors.Is(err, errors.ErrRecordNotFound) {
-			return mrauth.ErrTokenNotFoundOrExpired
-		}
-
-		return err
+		return err // ошибка подтверждения операции
 	}
 
-	// если необходимо дополнительное подтверждение (2fa)
-	if op.Is(operationstatus.Opened) {
-		return ht.sender.Send(
-			w,
-			http.StatusOK,
-			ht.operationResponse.NewConfirmOperation(
-				op,
-				lz.Translate("Confirm your identity to sign in by 2fa"),
-			),
-		)
+	if !ok {
+		return nil // требуется доп. подтверждение (2FA) или код неверен — ответ уже отправлен
 	}
 
-	// если операция была подтверждена
+	// шаг 2: открыть сессию и выдать пару токенов
 	tk, err := ht.useCaseOpenSession.Execute(
 		r.Context(),
 		dto.SessionMeta{
@@ -254,7 +234,7 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 		op,
 	)
 	if err != nil {
-		return ht.wrapError(err)
+		return err
 	}
 
 	if r.Header.Get("X-Use-Cookie") == "true" {
@@ -352,10 +332,15 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 
 	realms := make([]model.UserRealm, 0, len(info.Realms))
 	for _, realm := range info.Realms {
+		realmName, ok := ht.realmRegistry.NameByID(realm.RealmID)
+		if !ok {
+			realmName = "id:" + strconv.FormatUint(uint64(realm.RealmID), 10)
+		}
+
 		realms = append(
 			realms,
 			model.UserRealm{
-				Name:     realm.Realm,
+				Name:     realmName,
 				UserKind: realm.Kind,
 			},
 		)
@@ -375,8 +360,4 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 			Status:       info.User.Status,
 		},
 	)
-}
-
-func (ht *Auth) wrapError(err error) error {
-	return err
 }

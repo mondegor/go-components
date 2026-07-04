@@ -35,14 +35,14 @@ func NewUserRealmPostgres(
 func (re *UserRealmPostgres) Fetch(ctx context.Context, userID uuid.UUID) ([]entity.UserRealm, error) {
 	sql := `
         SELECT
-            user_realm,
+            realm_id,
 			user_kind
         FROM
             ` + re.tableName + `
         WHERE
             user_id = $1
         ORDER BY
-            user_realm ASC;`
+            realm_id ASC;`
 
 	cursor, err := re.client.Conn(ctx).Query(
 		ctx,
@@ -58,12 +58,12 @@ func (re *UserRealmPostgres) Fetch(ctx context.Context, userID uuid.UUID) ([]ent
 	rows := make([]entity.UserRealm, 0)
 
 	for cursor.Next() {
-		row := entity.UserRealm{ // ??????????????????????????????????????
+		row := entity.UserRealm{
 			UserID: userID,
 		}
 
 		err = cursor.Scan(
-			&row.Realm,
+			&row.RealmID,
 			&row.Kind,
 		)
 		if err != nil {
@@ -77,21 +77,21 @@ func (re *UserRealmPostgres) Fetch(ctx context.Context, userID uuid.UUID) ([]ent
 }
 
 // FetchOne - возвращает вид пользователя в указанном realm.
-func (re *UserRealmPostgres) FetchOne(ctx context.Context, userID uuid.UUID, realm string) (row entity.UserRealm, err error) {
+func (re *UserRealmPostgres) FetchOne(ctx context.Context, userID uuid.UUID, realmID uint16) (row entity.UserRealm, err error) {
 	sql := `
 		SELECT
 			user_kind
 		FROM
 			` + re.tableName + `
 		WHERE
-			user_id = $1 AND user_realm = $2
+			user_id = $1 AND realm_id = $2
 		LIMIT 1;`
 
 	err = re.client.Conn(ctx).QueryRow(
 		ctx,
 		sql,
 		userID,
-		realm,
+		realmID,
 	).Scan(
 		&row.Kind,
 	)
@@ -100,7 +100,7 @@ func (re *UserRealmPostgres) FetchOne(ctx context.Context, userID uuid.UUID, rea
 	}
 
 	row.UserID = userID
-	row.Realm = realm
+	row.RealmID = realmID
 
 	return row, nil
 }
@@ -111,20 +111,26 @@ func (re *UserRealmPostgres) Insert(ctx context.Context, row entity.UserRealm) e
 		INSERT INTO ` + re.tableName + `
 			(
 				user_id,
-				user_realm,
+				realm_id,
 				user_kind
 			)
 		VALUES
-			($1, $2, $3);`
+			($1, $2, $3)
+		ON CONFLICT
+			(user_id, realm_id) DO NOTHING;`
 
 	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		row.UserID,
-		row.Realm,
+		row.RealmID,
 		row.Kind,
 	)
 	if err != nil {
+		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+			return errors.ErrEventRecordAlreadyExists
+		}
+
 		return re.errorWrapper.Wrap(err)
 	}
 
@@ -140,13 +146,13 @@ func (re *UserRealmPostgres) UpdateKind(ctx context.Context, row entity.UserReal
 			user_kind = $3,
 			updated_at = NOW()
         WHERE
-            user_id = $1 AND user_realm = $2;`
+            user_id = $1 AND realm_id = $2;`
 
 	err := re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		row.UserID,
-		row.Realm,
+		row.RealmID,
 		row.Kind,
 	)
 	if err != nil {
@@ -157,18 +163,18 @@ func (re *UserRealmPostgres) UpdateKind(ctx context.Context, row entity.UserReal
 }
 
 // Delete - удаляет привязку пользователя к указанному realm.
-func (re *UserRealmPostgres) Delete(ctx context.Context, userID uuid.UUID, realm string) error {
+func (re *UserRealmPostgres) Delete(ctx context.Context, userID uuid.UUID, realmID uint16) error {
 	sql := `
 		DELETE FROM
 			` + re.tableName + `
 		WHERE
-			user_id = $1 AND user_realm = $2;`
+			user_id = $1 AND realm_id = $2;`
 
 	err := re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		userID,
-		realm,
+		realmID,
 	)
 	if err != nil {
 		return re.errorWrapper.Wrap(err)

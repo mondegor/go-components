@@ -7,7 +7,6 @@ import (
 	"github.com/mondegor/go-sysmess/mrprocess/helper"
 	"github.com/mondegor/go-sysmess/mrstorage"
 
-	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/usecase/clean"
 )
 
@@ -19,8 +18,8 @@ const (
 // InitAuthTokenCleaner - создаёт зацикленный воркер очистки истёкших auth-токенов.
 func InitAuthTokenCleaner(
 	txManager mrstorage.DBTxManager,
-	storage *repository.AuthTokenPostgres,
-	queue *repository.SessionCleanupQueuePostgres,
+	storage clean.AuthTokenStorage,
+	queue clean.SessionCleanupQueue,
 	eventEmitter mrevent.Emitter,
 ) *helper.ItemBatchPlayer {
 	return helper.NewItemBatchPlayerWithDurationLimit(

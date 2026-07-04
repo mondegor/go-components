@@ -17,32 +17,32 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MockauthTokenStorage is a mock of authTokenStorage interface.
-type MockauthTokenStorage struct {
+// MockAuthTokenStorage is a mock of AuthTokenStorage interface.
+type MockAuthTokenStorage struct {
 	ctrl     *gomock.Controller
-	recorder *MockauthTokenStorageMockRecorder
+	recorder *MockAuthTokenStorageMockRecorder
 	isgomock struct{}
 }
 
-// MockauthTokenStorageMockRecorder is the mock recorder for MockauthTokenStorage.
-type MockauthTokenStorageMockRecorder struct {
-	mock *MockauthTokenStorage
+// MockAuthTokenStorageMockRecorder is the mock recorder for MockAuthTokenStorage.
+type MockAuthTokenStorageMockRecorder struct {
+	mock *MockAuthTokenStorage
 }
 
-// NewMockauthTokenStorage creates a new mock instance.
-func NewMockauthTokenStorage(ctrl *gomock.Controller) *MockauthTokenStorage {
-	mock := &MockauthTokenStorage{ctrl: ctrl}
-	mock.recorder = &MockauthTokenStorageMockRecorder{mock}
+// NewMockAuthTokenStorage creates a new mock instance.
+func NewMockAuthTokenStorage(ctrl *gomock.Controller) *MockAuthTokenStorage {
+	mock := &MockAuthTokenStorage{ctrl: ctrl}
+	mock.recorder = &MockAuthTokenStorageMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockauthTokenStorage) EXPECT() *MockauthTokenStorageMockRecorder {
+func (m *MockAuthTokenStorage) EXPECT() *MockAuthTokenStorageMockRecorder {
 	return m.recorder
 }
 
 // DeleteExpiredNonRefresh mocks base method.
-func (m *MockauthTokenStorage) DeleteExpiredNonRefresh(ctx context.Context, limit int) (int, error) {
+func (m *MockAuthTokenStorage) DeleteExpiredNonRefresh(ctx context.Context, limit int) (int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteExpiredNonRefresh", ctx, limit)
 	ret0, _ := ret[0].(int)
@@ -51,13 +51,13 @@ func (m *MockauthTokenStorage) DeleteExpiredNonRefresh(ctx context.Context, limi
 }
 
 // DeleteExpiredNonRefresh indicates an expected call of DeleteExpiredNonRefresh.
-func (mr *MockauthTokenStorageMockRecorder) DeleteExpiredNonRefresh(ctx, limit any) *gomock.Call {
+func (mr *MockAuthTokenStorageMockRecorder) DeleteExpiredNonRefresh(ctx, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredNonRefresh", reflect.TypeOf((*MockauthTokenStorage)(nil).DeleteExpiredNonRefresh), ctx, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredNonRefresh", reflect.TypeOf((*MockAuthTokenStorage)(nil).DeleteExpiredNonRefresh), ctx, limit)
 }
 
 // DeleteExpiredRefresh mocks base method.
-func (m *MockauthTokenStorage) DeleteExpiredRefresh(ctx context.Context, limit int) ([]entity.SessionPK, error) {
+func (m *MockAuthTokenStorage) DeleteExpiredRefresh(ctx context.Context, limit int) ([]entity.SessionPK, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteExpiredRefresh", ctx, limit)
 	ret0, _ := ret[0].([]entity.SessionPK)
@@ -66,37 +66,37 @@ func (m *MockauthTokenStorage) DeleteExpiredRefresh(ctx context.Context, limit i
 }
 
 // DeleteExpiredRefresh indicates an expected call of DeleteExpiredRefresh.
-func (mr *MockauthTokenStorageMockRecorder) DeleteExpiredRefresh(ctx, limit any) *gomock.Call {
+func (mr *MockAuthTokenStorageMockRecorder) DeleteExpiredRefresh(ctx, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredRefresh", reflect.TypeOf((*MockauthTokenStorage)(nil).DeleteExpiredRefresh), ctx, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredRefresh", reflect.TypeOf((*MockAuthTokenStorage)(nil).DeleteExpiredRefresh), ctx, limit)
 }
 
-// MocksessionCleanupQueue is a mock of sessionCleanupQueue interface.
-type MocksessionCleanupQueue struct {
+// MockSessionCleanupQueue is a mock of SessionCleanupQueue interface.
+type MockSessionCleanupQueue struct {
 	ctrl     *gomock.Controller
-	recorder *MocksessionCleanupQueueMockRecorder
+	recorder *MockSessionCleanupQueueMockRecorder
 	isgomock struct{}
 }
 
-// MocksessionCleanupQueueMockRecorder is the mock recorder for MocksessionCleanupQueue.
-type MocksessionCleanupQueueMockRecorder struct {
-	mock *MocksessionCleanupQueue
+// MockSessionCleanupQueueMockRecorder is the mock recorder for MockSessionCleanupQueue.
+type MockSessionCleanupQueueMockRecorder struct {
+	mock *MockSessionCleanupQueue
 }
 
-// NewMocksessionCleanupQueue creates a new mock instance.
-func NewMocksessionCleanupQueue(ctrl *gomock.Controller) *MocksessionCleanupQueue {
-	mock := &MocksessionCleanupQueue{ctrl: ctrl}
-	mock.recorder = &MocksessionCleanupQueueMockRecorder{mock}
+// NewMockSessionCleanupQueue creates a new mock instance.
+func NewMockSessionCleanupQueue(ctrl *gomock.Controller) *MockSessionCleanupQueue {
+	mock := &MockSessionCleanupQueue{ctrl: ctrl}
+	mock.recorder = &MockSessionCleanupQueueMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MocksessionCleanupQueue) EXPECT() *MocksessionCleanupQueueMockRecorder {
+func (m *MockSessionCleanupQueue) EXPECT() *MockSessionCleanupQueueMockRecorder {
 	return m.recorder
 }
 
 // Enqueue mocks base method.
-func (m *MocksessionCleanupQueue) Enqueue(ctx context.Context, pks []entity.SessionPK) error {
+func (m *MockSessionCleanupQueue) Enqueue(ctx context.Context, pks []entity.SessionPK) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Enqueue", ctx, pks)
 	ret0, _ := ret[0].(error)
@@ -104,7 +104,7 @@ func (m *MocksessionCleanupQueue) Enqueue(ctx context.Context, pks []entity.Sess
 }
 
 // Enqueue indicates an expected call of Enqueue.
-func (mr *MocksessionCleanupQueueMockRecorder) Enqueue(ctx, pks any) *gomock.Call {
+func (mr *MockSessionCleanupQueueMockRecorder) Enqueue(ctx, pks any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enqueue", reflect.TypeOf((*MocksessionCleanupQueue)(nil).Enqueue), ctx, pks)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Enqueue", reflect.TypeOf((*MockSessionCleanupQueue)(nil).Enqueue), ctx, pks)
 }

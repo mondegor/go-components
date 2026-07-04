@@ -29,24 +29,26 @@ func InitHttpModule(
 	auth2faConfig authcfg.Auth2FA,
 	jwtConfig authcfg.JWT,
 	cookieConfig authcfg.RefreshCookie,
+	sessionSoftThreshold, sessionHardThreshold int8,
 	appResolver module.AppResolver, // OPTIONAL
 	locationResolver module.LocationResolver, // OPTIONAL
 	authTokensTableName,
 	secureOperationTableName,
 	// secureOperationLogTableName,
 	sessionsTableName,
+	sessionsExcessQueueTableName,
 	usersTableName,
 	// usersActivityLogTableName,
 	usersActivityStatTableName,
 	usersAuth2faTableName,
 	usersRealmsTableName string,
-	maxUserSessions uint16,
 	debugFunc func(value any) string,
 ) initing.HttpModule {
 	storageAuthToken := initAuthTokenPostgres(dbConnManager, authTokensTableName)
+	storageSessionExcessQueue := initSessionExcessQueuePostgres(dbConnManager, sessionsExcessQueueTableName)
 	storageSecureOperation := initSecureOperationPostgres(dbConnManager, secureOperationTableName)
 	// storageSecureOperationLog := initSecureOperationLogPostgres(dbConnManager, secureOperationLogTableName)
-	storageSession := initSessionPostgres(dbConnManager, sessionsTableName, int(maxUserSessions))
+	storageSession := initSessionPostgres(dbConnManager, sessionsTableName)
 	storageUser := initUserPostgres(dbConnManager, usersTableName)
 	storageCheckUser := initCheckUserPostgres(dbConnManager, usersTableName)
 	storageUserActivityStat := initUserActivityStatPostgres(dbConnManager, usersActivityStatTableName)
@@ -82,6 +84,7 @@ func InitHttpModule(
 						storageUserActivityStat,
 						storageSession,
 						storageAuthToken,
+						storageSessionExcessQueue,
 						storageSecureOperation,
 						useCaseConfirmOperation,
 						locker,
@@ -91,6 +94,8 @@ func InitHttpModule(
 						userRealms,
 						jwtConfig,
 						cookieConfig,
+						sessionSoftThreshold,
+						sessionHardThreshold,
 						debugFunc,
 					)
 				},
@@ -102,6 +107,7 @@ func InitHttpModule(
 						storageUserRealm,
 						requestParser,
 						responseSender,
+						userRealms,
 						jwtConfig.Verifier,
 					)
 				},
@@ -132,6 +138,7 @@ func InitHttpModule(
 						requestParser,
 						responseFileSender,
 						notifierAPI,
+						userRealms,
 						operationConfig,
 						auth2faConfig,
 						debugFunc,
@@ -147,6 +154,7 @@ func InitHttpModule(
 						responseSender,
 						appResolver,
 						locationResolver,
+						userRealms,
 						jwtConfig.Verifier,
 					)
 				},

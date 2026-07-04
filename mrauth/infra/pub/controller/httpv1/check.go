@@ -71,6 +71,11 @@ func (ht *Check) Handlers() []mrserver.HttpHandler {
 }
 
 // CheckLogin - проверяет доступность логина (email/телефон) для регистрации в указанном realm.
+//
+// Ручка by design публична (PermissionEveryone) и раскрывает занятость логина ради UX формы
+// регистрации - как и говорящие ошибки в Signin/Signup. Перебор аккаунтов через неё закрывается
+// не сокрытием ответа, а rate-limit'ом (отдельная задача).
+// TODO: добавить rate-limit (частота проверок доступности логина по identifier+IP).
 func (ht *Check) CheckLogin(w http.ResponseWriter, r *http.Request) error {
 	req := model.CheckLoginRequest{}
 

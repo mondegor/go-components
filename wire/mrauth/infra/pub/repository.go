@@ -51,9 +51,8 @@ func initUserActivityStatPostgres(
 func initSessionPostgres(
 	dbConnManager mrstorage.DBConnManager,
 	tableName string,
-	maxSessionLimit int,
 ) *repository.SessionPostgres {
-	return repository.NewSessionPostgres(dbConnManager, tableName, maxSessionLimit)
+	return repository.NewSessionPostgres(dbConnManager, tableName)
 }
 
 func initAuthTokenPostgres(
@@ -61,6 +60,13 @@ func initAuthTokenPostgres(
 	tableName string,
 ) *repository.AuthTokenPostgres {
 	return repository.NewAuthTokenPostgres(dbConnManager, tableName)
+}
+
+func initSessionExcessQueuePostgres(
+	dbConnManager mrstorage.DBConnManager,
+	tableName string,
+) *repository.SessionExcessQueuePostgres {
+	return repository.NewSessionExcessQueuePostgres(dbConnManager, tableName)
 }
 
 func initSecureOperationPostgres(

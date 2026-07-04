@@ -10,7 +10,6 @@ import (
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
@@ -27,7 +26,7 @@ type (
 	Operation struct {
 		parser                   validate.RequestParser
 		sender                   mrserver.ResponseSender
-		useCaseConfirmOperation  confirmOperationUseCase
+		confirmFlow              confirmOperationFlow
 		useCaseResendConfirmCode resendConfirmCodeUseCase
 		useCaseRevokeOperation   revokeOperationUseCase
 		operationResponse        confirmOperationResponse
@@ -60,9 +59,15 @@ func NewOperation(
 	}
 
 	return &Operation{
-		parser:                   parser,
-		sender:                   sender,
-		useCaseConfirmOperation:  useCaseConfirmOperation,
+		parser: parser,
+		sender: sender,
+		confirmFlow: confirmOperationFlow{
+			parser:            parser,
+			sender:            sender,
+			useCase:           useCaseConfirmOperation,
+			operationResponse: operationResponse,
+			debugFunc:         debugFunc,
+		},
 		useCaseResendConfirmCode: useCaseResendConfirmCode,
 		useCaseRevokeOperation:   useCaseRevokeOperation,
 		operationResponse:        operationResponse,
@@ -87,41 +92,13 @@ func (ht *Operation) Confirm(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	lz := ht.parser.Localizer(r)
-
-	op, err := ht.useCaseConfirmOperation.Execute(r.Context(), lz.Language(), req.Token, req.Secret)
+	_, ok, err := ht.confirmFlow.confirm(w, r, req.Token, req.Secret, "Confirm your operation by 2fa")
 	if err != nil {
-		if errors.Is(err, secureoperation.ErrConfirmCodeIsIncorrect) || errors.Is(err, secureoperation.ErrNoAttemptsToConfirmOperation) {
-			return ht.sender.Send(
-				w,
-				http.StatusBadRequest,
-				ht.operationResponse.NewErrorConfirmOperation(
-					mrresp.NewError400Response(
-						r,
-						mrresp.ErrorAttribute{
-							Code:      "secret",
-							Detail:    lz.TranslateError(err),
-							DebugInfo: ht.debugFunc(err),
-						},
-					),
-					op,
-				),
-			)
-		}
-
-		return ht.wrapError(err)
+		return err // ошибка подтверждения операции
 	}
 
-	// если необходимо дополнительное подтверждение (2fa)
-	if op.Is(operationstatus.Opened) {
-		return ht.sender.Send(
-			w,
-			http.StatusOK,
-			ht.operationResponse.NewConfirmOperation(
-				op,
-				lz.Translate("Confirm your operation by 2fa"),
-			),
-		)
+	if !ok {
+		return nil // требуется доп. подтверждение (2FA) или код неверен — ответ уже отправлен
 	}
 
 	// если операция была подтверждена
@@ -162,7 +139,7 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 			)
 		}
 
-		return ht.wrapError(err)
+		return err
 	}
 
 	return ht.sender.Send(
@@ -192,10 +169,4 @@ func (ht *Operation) Revoke(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	return ht.sender.SendNoContent(w)
-}
-
-func (ht *Operation) wrapError(err error) error {
-	// ConfirmCode is not correct
-	// operation already confirmed | operation is not opened
-	return err
 }

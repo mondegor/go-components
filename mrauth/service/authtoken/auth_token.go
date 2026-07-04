@@ -23,12 +23,12 @@ const (
 type (
 	// AuthToken - сервис выпуска, ротации и отзыва пар токенов авторизации сессии.
 	AuthToken struct {
-		txManager         mrstorage.DBTxManager
-		storage           authTokenStorage
-		errorWrapper      errors.Wrapper
-		logger            mrlog.Logger
-		realm2tokenIssuer map[string]mrauth.TokenIssuer
-		gracePeriod       time.Duration
+		txManager    mrstorage.DBTxManager
+		storage      authTokenStorage
+		errorWrapper errors.Wrapper
+		logger       mrlog.Logger
+		realm2props  map[string]Realm
+		gracePeriod  time.Duration
 	}
 
 	authTokenStorage interface {
@@ -38,9 +38,9 @@ type (
 		RevokeSessionByRefreshToken(ctx context.Context, refreshToken string) error
 	}
 
-	// Realm - сопоставление имени realm с его издателем токенов (TokenIssuer).
+	// Realm - сопоставление идентификатора realm с его издателем токенов (TokenIssuer).
 	Realm struct {
-		Name        string
+		ID          uint16
 		TokenIssuer mrauth.TokenIssuer
 	}
 )
@@ -49,21 +49,27 @@ type (
 func New(
 	txManager mrstorage.DBTxManager,
 	storage authTokenStorage,
+	realmRegistry mrauth.RealmRegistry,
 	logger mrlog.Logger,
 	allowedRealms []Realm,
 ) *AuthToken {
-	realm2tokenIssuer := make(map[string]mrauth.TokenIssuer, len(allowedRealms))
+	realm2props := make(map[string]Realm, len(allowedRealms))
 	for _, realm := range allowedRealms {
-		realm2tokenIssuer[realm.Name] = realm.TokenIssuer
+		realmName, ok := realmRegistry.NameByID(realm.ID)
+		if !ok {
+			continue
+		}
+
+		realm2props[realmName] = realm
 	}
 
 	return &AuthToken{
-		txManager:         txManager,
-		storage:           storage,
-		errorWrapper:      errors.NewServiceOperationFailedWrapper(),
-		logger:            logger,
-		realm2tokenIssuer: realm2tokenIssuer,
-		gracePeriod:       revokeGracePeriod,
+		txManager:    txManager,
+		storage:      storage,
+		errorWrapper: errors.NewServiceOperationFailedWrapper(),
+		logger:       logger,
+		realm2props:  realm2props,
+		gracePeriod:  revokeGracePeriod,
 	}
 }
 
@@ -73,12 +79,12 @@ func (sv *AuthToken) Create(ctx context.Context, userScopes dto.UserScopes) (tok
 		return dto.AuthTokenPair{}, errors.ErrIncorrectInputData.New("userScopes.SessionID is required")
 	}
 
-	tokenIssuer, ok := sv.realm2tokenIssuer[userScopes.Realm]
+	realmProps, ok := sv.realm2props[userScopes.Realm]
 	if !ok {
 		return dto.AuthTokenPair{}, errors.ErrIncorrectInputData.New("realm is unknown")
 	}
 
-	tokenPair, err = tokenIssuer.CreateTokenPair(userScopes)
+	tokenPair, err = realmProps.TokenIssuer.CreateTokenPair(userScopes)
 	if err != nil {
 		return dto.AuthTokenPair{}, sv.errorWrapper.Wrap(err)
 	}
@@ -91,6 +97,7 @@ func (sv *AuthToken) Create(ctx context.Context, userScopes dto.UserScopes) (tok
 			Token:     tokenPair.Refresh.Token,
 			Type:      authtokentype.Refresh,
 			UserID:    tokenPair.UserID,
+			RealmID:   realmProps.ID,
 			SessionID: userScopes.SessionID,
 			Scopes:    tokenPair.Scopes,
 			ExpiresAt: time.Now().Add(tokenPair.Refresh.ExpiresIn).Round(1 * time.Second),
@@ -106,6 +113,7 @@ func (sv *AuthToken) Create(ctx context.Context, userScopes dto.UserScopes) (tok
 				Token:     tokenPair.Access.Token,
 				Type:      authtokentype.Access,
 				UserID:    tokenPair.UserID,
+				RealmID:   realmProps.ID,
 				SessionID: userScopes.SessionID,
 				Scopes:    tokenPair.Scopes,
 				ExpiresAt: time.Now().Add(tokenPair.Access.ExpiresIn).Round(1 * time.Second),
@@ -167,12 +175,12 @@ func (sv *AuthToken) lastSessionToken(ctx context.Context, userScopes dto.UserSc
 
 	// если access пустой, то значит это JWT токен, поэтому он перевыпускается
 	if access.Token == "" {
-		tokenIssuer, ok := sv.realm2tokenIssuer[userScopes.Realm]
+		realmProps, ok := sv.realm2props[userScopes.Realm]
 		if !ok {
 			return dto.AuthTokenPair{}, errors.ErrIncorrectInputData.New("realm is unknown")
 		}
 
-		pair, err := tokenIssuer.CreateTokenPair(userScopes)
+		pair, err := realmProps.TokenIssuer.CreateTokenPair(userScopes)
 		if err != nil {
 			return dto.AuthTokenPair{}, sv.errorWrapper.Wrap(err)
 		}

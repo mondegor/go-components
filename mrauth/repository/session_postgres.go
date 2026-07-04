@@ -12,19 +12,12 @@ import (
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
-const (
-	// defaultMaxUserSessionLimit - верхний предел числа сессий пользователя,
-	// возвращаемых FetchListByUserID, когда лимит не задан в настройках.
-	defaultMaxUserSessionLimit = 16
-)
-
 type (
 	// SessionPostgres - хранилище пользовательских сессий в PostgreSQL.
 	SessionPostgres struct {
-		client         mrstorage.DBConnManager
-		errorWrapper   errors.Wrapper
-		tableName      string
-		fetchListLimit string
+		client       mrstorage.DBConnManager
+		errorWrapper errors.Wrapper
+		tableName    string
 	}
 )
 
@@ -32,22 +25,32 @@ type (
 func NewSessionPostgres(
 	client mrstorage.DBConnManager,
 	tableName string,
-	maxUserSessionLimit int,
 ) *SessionPostgres {
-	if maxUserSessionLimit < 1 {
-		maxUserSessionLimit = defaultMaxUserSessionLimit
-	}
-
 	return &SessionPostgres{
-		client:         client,
-		errorWrapper:   errors.NewInfraStorageWrapper(),
-		tableName:      tableName,
-		fetchListLimit: mrstorage.NonZeroLimit(maxUserSessionLimit) + ";",
+		client:       client,
+		errorWrapper: errors.NewInfraStorageWrapper(),
+		tableName:    tableName,
 	}
 }
 
-// FetchListByUserID - возвращает строки сессий пользователя (не более maxSessionLimit).
-func (re *SessionPostgres) FetchListByUserID(ctx context.Context, userID uuid.UUID) ([]entity.Session, error) {
+// FetchOrderedListByUserIDAndSessionIDs - возвращает строки метаданных сессий пользователя по
+// заданным session_id, упорядоченные по последней активности (updated_at DESC, при равенстве -
+// больший session_id вперёд для детерминированности). Набор ограничивается переданными
+// идентификаторами, что согласует выборку с FetchOpenSessionIDs и убирает неограниченное чтение.
+func (re *SessionPostgres) FetchOrderedListByUserIDAndSessionIDs(
+	ctx context.Context,
+	userID uuid.UUID,
+	sessionIDs []uint32,
+	limit int,
+) ([]entity.Session, error) {
+	if len(sessionIDs) == 0 {
+		return nil, nil
+	}
+
+	if limit < 1 {
+		limit = len(sessionIDs)
+	}
+
 	sql := `
 		SELECT
 			session_id,
@@ -58,13 +61,16 @@ func (re *SessionPostgres) FetchListByUserID(ctx context.Context, userID uuid.UU
 		FROM
 			` + re.tableName + `
 		WHERE
-			user_id = $1
-		` + re.fetchListLimit
+			user_id = $1 AND session_id = ANY($2::int8[])
+		ORDER BY
+			updated_at DESC, session_id DESC
+		` + mrstorage.NonZeroLimit(limit) + `;`
 
 	cursor, err := re.client.Conn(ctx).Query(
 		ctx,
 		sql,
 		userID,
+		sessionIDs,
 	)
 	if err != nil {
 		return nil, re.errorWrapper.Wrap(err)
@@ -101,7 +107,7 @@ func (re *SessionPostgres) FetchListByUserID(ctx context.Context, userID uuid.UU
 
 // Insert - сохраняет строку сессии при её открытии с заранее заданным row.SessionID.
 // Возможные ошибки:
-//   - ErrSessionIDCollision - такой session_id уже занят (конфликт первичного ключа).
+//   - ErrEventRecordAlreadyExists - такой session_id уже занят (конфликт первичного ключа).
 func (re *SessionPostgres) Insert(ctx context.Context, row entity.Session) error {
 	sql := `
 		INSERT INTO ` + re.tableName + `
@@ -129,7 +135,7 @@ func (re *SessionPostgres) Insert(ctx context.Context, row entity.Session) error
 	)
 	if err != nil {
 		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-			return ErrSessionIDCollision
+			return errors.ErrEventRecordAlreadyExists
 		}
 
 		return re.errorWrapper.Wrap(err)

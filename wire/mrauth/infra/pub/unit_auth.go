@@ -15,6 +15,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service"
 	"github.com/mondegor/go-components/mrauth/service/authtoken"
+	"github.com/mondegor/go-components/mrauth/service/authuser"
 	"github.com/mondegor/go-components/mrauth/service/check"
 	sessionsrv "github.com/mondegor/go-components/mrauth/service/session"
 	"github.com/mondegor/go-components/mrauth/service/userinfo"
@@ -39,6 +40,7 @@ func initUnitAuthController(
 	storageUserActivityStat *repository.UserActivityStatPostgres,
 	storageSession *repository.SessionPostgres,
 	storageAuthToken *repository.AuthTokenPostgres,
+	storageSessionExcessQueue *repository.SessionExcessQueuePostgres,
 	storageSecureOperation *repository.SecureOperationPostgres,
 	useCaseConfirmOperation *operation.ConfirmOperation,
 	locker mrlock.Locker,
@@ -48,11 +50,30 @@ func initUnitAuthController(
 	userRealms []authcfg.UserRealm,
 	jwtConfig authcfg.JWT,
 	cookieConfig authcfg.RefreshCookie,
+	sessionSoftThreshold, sessionHardThreshold int8,
 	debugFunc func(value any) string,
 ) (mrserver.HttpController, error) {
+	realmRegistry := mapping.OptionUserRealmsToRealmRegistry(userRealms)
+
 	checkUserService := check.NewUserLogin(
 		storageCheckUser,
 		storageUserRealm,
+		realmRegistry,
+	)
+
+	factory2FA := service.NewFactoryConfirm2FA(
+		storageUser,
+		storageAuth2fa,
+		action.NewConfirmBy2fa(
+			[]action.Option{
+				action.WithMaxAttempts(5), // TODO: в настройки
+				action.WithExpiry(30 * time.Minute),
+			},
+			[]action.Option{
+				action.WithMaxAttempts(5), // TODO: в настройки
+				action.WithExpiry(30 * time.Minute),
+			},
+		),
 	)
 
 	useCaseCreateUser := usecaseauth.NewCreateUser(
@@ -60,6 +81,7 @@ func initUnitAuthController(
 		checkUserService,
 		storageSecureOperation,
 		notifierAPI,
+		factory2FA,
 		locker,
 		mapping.OptionUserRealmsToConfirmCreateUserRealms(userRealms),
 	)
@@ -69,26 +91,14 @@ func initUnitAuthController(
 		checkUserService,
 		storageSecureOperation,
 		notifierAPI,
-		service.NewFactoryConfirm2FA(
-			storageUser,
-			storageAuth2fa,
-			action.NewConfirmBy2fa(
-				[]action.Option{
-					action.WithMaxAttempts(5), // TODO: в настройки
-					action.WithExpiry(30 * time.Minute),
-				},
-				[]action.Option{
-					action.WithMaxAttempts(5), // TODO: в настройки
-					action.WithExpiry(30 * time.Minute),
-				},
-			),
-		),
+		factory2FA,
 		mapping.OptionUserRealmsToConfirmCreateSessionRealms(userRealms),
 	)
 
 	serviceAuthToken := authtoken.New(
 		dbConnManager,
 		storageAuthToken,
+		realmRegistry,
 		logger,
 		mapping.OptionUserRealmsToCreateSessionRealms(userRealms, jwtConfig),
 	)
@@ -97,25 +107,25 @@ func initUnitAuthController(
 		dbConnManager,
 		sessionsrv.NewIssuer(storageSession),
 		storageUserActivityStat,
-		storageAuthToken, // openSessionFetcher
-		storageAuthToken, // sessionCloser
-		locker,
-		handler.NewCreateUser(
-			dbConnManager,
-			storageUser,
-			storageUserRealm,
-			notifierAPI,
-			logger,
-		),
-		handler.NewBeforeAuthUser(
-			storageUser,
-			storageUserRealm,
-			notifierAPI,
-			logger,
+		storageAuthToken,          // openSessionCounter
+		storageSessionExcessQueue, // excessQueueProducer
+		handler.NewAuthFlow(
+			authuser.New(
+				dbConnManager,
+				storageUser,
+				storageUserRealm,
+				realmRegistry,
+				notifierAPI,
+				logger,
+			),
 		),
 		serviceAuthToken,
+		storageSecureOperation,
+		realmRegistry,
 		logger,
 		mapping.OptionUserRealmsToSessionLimitRealms(userRealms),
+		int(sessionSoftThreshold),
+		int(sessionHardThreshold),
 	)
 
 	useCaseContinueSession := session.NewContinueSession(
@@ -153,6 +163,7 @@ func initUnitAuthController(
 		useCaseContinueSession,
 		useCaseCloseSession,
 		serviceUserInfo,
+		realmRegistry,
 		bag.NewOperationResponse(debugFunc),
 		debugFunc,
 	)

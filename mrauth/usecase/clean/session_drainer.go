@@ -10,30 +10,31 @@ import (
 
 type (
 	// SessionDrainer - воркер, сливающий очередь удаления сессий батчами.
-	// Реализует интерфейс handler для helper.ItemBatchPlayer: Execute(ctx, limit) -> count.
 	// Разделение ответственности: consumer выбирает/удаляет пары из очереди, deleter атомарно
 	// удаляет из них реально осиротевшие строки сессий (проверка осиротелости и удаление - в
 	// одном запросе, что исключает гонку с параллельным переоткрытием сессии).
 	SessionDrainer struct {
-		consumer     sessionCleanupQueueConsumer
-		deleter      orphanSessionDeleter
+		consumer     SessionCleanupQueueConsumer
+		deleter      OrphanSessionDeleter
 		errorWrapper errors.Wrapper
 	}
 
-	sessionCleanupQueueConsumer interface {
+	// SessionCleanupQueueConsumer - очередь удаления сессий: выборка и подтверждение пачки.
+	SessionCleanupQueueConsumer interface {
 		Fetch(ctx context.Context, limit int) ([]entity.SessionPK, error)
 		Delete(ctx context.Context, pks []entity.SessionPK) error
 	}
 
-	orphanSessionDeleter interface {
+	// OrphanSessionDeleter - атомарное удаление реально осиротевших строк сессий.
+	OrphanSessionDeleter interface {
 		DeleteOrphaned(ctx context.Context, candidates []entity.SessionPK) error
 	}
 )
 
 // NewSessionDrainer - создаёт объект SessionDrainer.
 func NewSessionDrainer(
-	consumer sessionCleanupQueueConsumer,
-	deleter orphanSessionDeleter,
+	consumer SessionCleanupQueueConsumer,
+	deleter OrphanSessionDeleter,
 ) *SessionDrainer {
 	return &SessionDrainer{
 		consumer:     consumer,

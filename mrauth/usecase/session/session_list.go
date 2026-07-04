@@ -2,11 +2,11 @@ package session
 
 import (
 	"context"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrtype"
-	"github.com/mondegor/go-sysmess/util/slices/ordered"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -20,17 +20,19 @@ type (
 		openFetcher      openSessionFetcher
 		closer           sessionCloser
 		resolver         sessionResolver
+		realmRegistry    mrauth.RealmRegistry
 		appResolver      mrauth.AppResolver
 		locationResolver mrauth.LocationResolver
+		limiter          *sessionLimiter
 		errorWrapper     errors.Wrapper
 	}
 
 	sessionLister interface {
-		FetchListByUserID(ctx context.Context, userID uuid.UUID) ([]entity.Session, error)
+		FetchOrderedListByUserIDAndSessionIDs(ctx context.Context, userID uuid.UUID, sessionIDs []uint32, limit int) ([]entity.Session, error)
 	}
 
 	openSessionFetcher interface {
-		FetchOpenSessionIDs(ctx context.Context, userID uuid.UUID) (sessionIDs []uint32, err error)
+		FetchOpenSessionIDs(ctx context.Context, userID uuid.UUID, realmID uint16) (sessionIDs []uint32, err error)
 	}
 
 	sessionCloser interface {
@@ -48,8 +50,10 @@ func NewList(
 	openFetcher openSessionFetcher,
 	closer sessionCloser,
 	resolver sessionResolver,
+	realmRegistry mrauth.RealmRegistry,
 	appResolver mrauth.AppResolver,
 	locationResolver mrauth.LocationResolver,
+	allowedRealms []LimitRealm,
 ) *List {
 	if appResolver == nil {
 		appResolver = func(_ string) (string, string) {
@@ -68,43 +72,73 @@ func NewList(
 		openFetcher:      openFetcher,
 		closer:           closer,
 		resolver:         resolver,
+		realmRegistry:    realmRegistry,
 		appResolver:      appResolver,
 		locationResolver: locationResolver,
+		limiter:          newSessionLimiter(allowedRealms, 0, 0),
 		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
 // GetList - возвращает список открытых сессий пользователя.
 func (uc *List) GetList(ctx context.Context, userID uuid.UUID, currentAccessToken string) ([]dto.UserSession, error) {
-	openSessionIDs, err := uc.openFetcher.FetchOpenSessionIDs(ctx, userID)
+	scopes, err := uc.resolver.FetchOneByAccessToken(ctx, currentAccessToken)
 	if err != nil {
 		return nil, uc.errorWrapper.Wrap(err)
 	}
 
-	if len(openSessionIDs) == 0 {
-		return make([]dto.UserSession, 0), nil
+	realmID, ok := uc.realmRegistry.IDByName(scopes.Realm)
+	if !ok {
+		return nil, errors.ErrInternalIncorrectInputData.WithDetails("realm is unknown", "realm", scopes.Realm)
 	}
 
-	var currentSessionID uint32
-
-	if scopes, resolveErr := uc.resolver.FetchOneByAccessToken(ctx, currentAccessToken); resolveErr == nil {
-		currentSessionID = scopes.SessionID
-	}
-
-	sessions, err := uc.storage.FetchListByUserID(ctx, userID)
+	// список скоупится по realm текущего токена: лимит сессий per-(user, realm), поэтому
+	// и показываем только сессии этого realm, согласованно с обрезкой по его лимиту ниже
+	openSessionIDs, err := uc.openFetcher.FetchOpenSessionIDs(ctx, userID, realmID)
 	if err != nil {
 		return nil, uc.errorWrapper.Wrap(err)
 	}
 
-	openSessionIDs = ordered.SortedUnique(openSessionIDs)
+	// текущая сессия обязана присутствовать среди открытых сессий своего realm (её токен только что
+	// успешно зарезолвлен) - иначе нарушен инвариант; пустой набор открытых сессий тоже аномалия.
+	if !slices.Contains(openSessionIDs, scopes.SessionID) {
+		return nil, errors.ErrInternalIncorrectInputData.WithDetails(
+			"current session is not among open sessions", "sessionId", scopes.SessionID,
+		)
+	}
 
-	list := make([]dto.UserSession, 0, len(openSessionIDs))
+	// Метаданные выбираются ровно по открытым сессиям realm (отдельная фильтрация по членству не
+	// нужна), уже упорядоченные по активности и обрезанные по лимиту: пользователь может временно
+	// держать больше сессий, чем лимит (фоновая чистка ещё не сработала) - показываем только самые
+	// активные в рамках лимита.
+	sessions, err := uc.storage.FetchOrderedListByUserIDAndSessionIDs(
+		ctx, userID, openSessionIDs, uc.limiter.Limit(realmID, scopes.Kind),
+	)
+	if err != nil {
+		return nil, uc.errorWrapper.Wrap(err)
+	}
 
-	for _, session := range sessions {
-		if !ordered.BinaryContains(openSessionIDs, session.SessionID) {
-			continue // сессия без действующих токенов является закрытой
+	// текущая сессия могла выпасть за пределы лимита (как наименее активная из открытых) - тогда её
+	// нет в усечённом списке. Догружаем её отдельным запросом и заменяем последнюю (наименее активную)
+	// строку, сохраняя размер списка в рамках лимита и гарантируя IsCurrent для текущей сессии.
+	if !slices.ContainsFunc(sessions, func(s entity.Session) bool { return s.SessionID == scopes.SessionID }) {
+		current, err := uc.storage.FetchOrderedListByUserIDAndSessionIDs(ctx, userID, []uint32{scopes.SessionID}, 0)
+		if err != nil {
+			return nil, uc.errorWrapper.Wrap(err)
 		}
 
+		if len(current) == 0 {
+			return nil, errors.ErrInternalIncorrectInputData.WithDetails(
+				"current session metadata not found", "sessionId", scopes.SessionID,
+			)
+		}
+
+		sessions[len(sessions)-1] = current[0]
+	}
+
+	list := make([]dto.UserSession, 0, len(sessions))
+
+	for _, session := range sessions {
 		appName, deviceName := uc.appResolver(session.UserAgent)
 		lastIP := mrtype.NewIP(session.LastIP).String()
 
@@ -118,7 +152,7 @@ func (uc *List) GetList(ctx context.Context, userID uuid.UUID, currentAccessToke
 				Location:   uc.locationResolver(lastIP),
 				CreatedAt:  session.CreatedAt,
 				UpdatedAt:  session.UpdatedAt,
-				IsCurrent:  session.SessionID == currentSessionID,
+				IsCurrent:  session.SessionID == scopes.SessionID,
 			},
 		)
 	}

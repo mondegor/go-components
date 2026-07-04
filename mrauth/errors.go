@@ -11,15 +11,20 @@ var (
 	// ErrTokenNotFoundOrExpired - token not found or expired.
 	ErrTokenNotFoundOrExpired = errors.NewUserError("TokenNotFoundOrExpired", "auth token not found or expired")
 
-	// ErrTooManyOpenSessionRequests - сработало временное ограничение на открытие новой сессии:
-	// вход выполняется слишком часто, нужно повторить попытку позже.
-	ErrTooManyOpenSessionRequests = errors.NewUserError("TooManyOpenSessionRequests", "too many session open requests, try again later")
+	// ErrSessionLimitExceededTryLater - превышен лимит одновременных сессий (hard-порог):
+	// вход временно отклонён, пока фоновая чистка не освободит место. Нужно повторить попытку позже.
+	ErrSessionLimitExceededTryLater = errors.NewUserError("SessionLimitExceededTryLater", "session limit exceeded, try again later")
 
 	// ErrLoginNotExists - login not exists.
 	ErrLoginNotExists = errors.NewUserError("ErrLoginNotExists", "login not exists")
 
 	// ErrEmailAlreadyExists - entity already exists.
 	ErrEmailAlreadyExists = errors.NewUserError("EmailAlreadyExists", "email already exists")
+
+	// ErrSignupAlreadyInProgressTryLater - для этого email уже идёт процесс регистрации (код
+	// недавно отправлен): повторная попытка временно отклонена как анти-спам. Не раскрывает,
+	// зарегистрирован ли email. Нужно повторить попытку позже.
+	ErrSignupAlreadyInProgressTryLater = errors.NewUserError("SignupAlreadyInProgressTryLater", "signup already in progress, try again later")
 
 	// ErrPhoneAlreadyExists - entity already exists.
 	ErrPhoneAlreadyExists = errors.NewUserError("PhoneAlreadyExists", "phone already exists")

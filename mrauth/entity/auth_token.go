@@ -14,6 +14,7 @@ type (
 		Token     string
 		Type      authtokentype.Enum
 		UserID    uuid.UUID
+		RealmID   uint16
 		SessionID uint32
 		Scopes    AuthTokenScopes
 		ExpiresAt time.Time

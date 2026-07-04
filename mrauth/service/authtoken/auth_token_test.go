@@ -17,13 +17,17 @@ import (
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/service/authtoken"
 	"github.com/mondegor/go-components/mrauth/service/authtoken/mock"
+	"github.com/mondegor/go-components/mrauth/service/realm"
 )
 
 //go:generate mockgen -source=auth_token.go -destination=mock/auth_token.go -package=mock
 //go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-sysmess/mrstorage DBTxManager
 //go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenIssuer
 
-const testRealm = "site/admin"
+const (
+	testRealm          = "site/admin"
+	testRealmID uint16 = 1
+)
 
 type AuthTokenSuite struct {
 	suite.Suite
@@ -51,8 +55,9 @@ func (s *AuthTokenSuite) SetupTest() {
 	s.sv = authtoken.New(
 		s.tx,
 		s.storage,
+		realm.New([]realm.Realm{{ID: testRealmID, Name: testRealm}}),
 		mrlog.NopLogger(),
-		[]authtoken.Realm{{Name: testRealm, TokenIssuer: s.issuer}},
+		[]authtoken.Realm{{ID: testRealmID, TokenIssuer: s.issuer}},
 	)
 }
 

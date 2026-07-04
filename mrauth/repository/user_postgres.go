@@ -114,7 +114,7 @@ func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldV
 }
 
 // Insert - добавляет нового пользователя и возвращает сгенерированный идентификатор.
-func (re *UserPostgres) Insert(ctx context.Context, row entity.User) (rowID uuid.UUID, err error) {
+func (re *UserPostgres) Insert(ctx context.Context, row entity.User) error {
 	sql := `
 		INSERT INTO ` + re.tableName + `
 			(
@@ -125,9 +125,7 @@ func (re *UserPostgres) Insert(ctx context.Context, row entity.User) (rowID uuid
 				user_status
 			)
 		VALUES
-			(gen_random_uuid(), $1, $2, $3, $4)
-        RETURNING
-            user_id;`
+			($1, $2, $3, $4, $5);`
 
 	var userPhone *uint64
 
@@ -136,21 +134,20 @@ func (re *UserPostgres) Insert(ctx context.Context, row entity.User) (rowID uuid
 		userPhone = &row.Phone
 	}
 
-	err = re.client.Conn(ctx).QueryRow(
+	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
+		row.ID,
 		row.Email,
 		userPhone,
 		row.LangCode,
 		row.Status,
-	).Scan(
-		&row.ID,
 	)
 	if err != nil {
-		return uuid.Nil, re.errorWrapper.Wrap(err)
+		return re.errorWrapper.Wrap(err)
 	}
 
-	return row.ID, nil
+	return nil
 }
 
 // UpdateEmail - обновляет email пользователя.

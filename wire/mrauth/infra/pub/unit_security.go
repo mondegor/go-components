@@ -19,6 +19,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/validate"
 	"github.com/mondegor/go-components/mrnotifier"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
+	"github.com/mondegor/go-components/wire/mrauth/mapping"
 )
 
 func initSecurityController(
@@ -31,6 +32,7 @@ func initSecurityController(
 	requestParser *validate.Parser,
 	responseFileSender mrserver.FileResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
+	userRealms []authcfg.UserRealm,
 	operationConfig authcfg.OperationConfirm,
 	auth2faConfig authcfg.Auth2FA,
 	debugFunc func(value any) string,
@@ -38,6 +40,7 @@ func initSecurityController(
 	checkUserService := check.NewUserLogin(
 		storageCheckUser,
 		storageUserRealm,
+		mapping.OptionUserRealmsToRealmRegistry(userRealms),
 	)
 
 	totpAuthenticator := totp.NewAuthenticator("PrintShopApp", 64) // TODO: сделать настройку

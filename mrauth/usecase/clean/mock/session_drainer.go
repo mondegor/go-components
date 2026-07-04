@@ -17,32 +17,32 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MocksessionCleanupQueueConsumer is a mock of sessionCleanupQueueConsumer interface.
-type MocksessionCleanupQueueConsumer struct {
+// MockSessionCleanupQueueConsumer is a mock of SessionCleanupQueueConsumer interface.
+type MockSessionCleanupQueueConsumer struct {
 	ctrl     *gomock.Controller
-	recorder *MocksessionCleanupQueueConsumerMockRecorder
+	recorder *MockSessionCleanupQueueConsumerMockRecorder
 	isgomock struct{}
 }
 
-// MocksessionCleanupQueueConsumerMockRecorder is the mock recorder for MocksessionCleanupQueueConsumer.
-type MocksessionCleanupQueueConsumerMockRecorder struct {
-	mock *MocksessionCleanupQueueConsumer
+// MockSessionCleanupQueueConsumerMockRecorder is the mock recorder for MockSessionCleanupQueueConsumer.
+type MockSessionCleanupQueueConsumerMockRecorder struct {
+	mock *MockSessionCleanupQueueConsumer
 }
 
-// NewMocksessionCleanupQueueConsumer creates a new mock instance.
-func NewMocksessionCleanupQueueConsumer(ctrl *gomock.Controller) *MocksessionCleanupQueueConsumer {
-	mock := &MocksessionCleanupQueueConsumer{ctrl: ctrl}
-	mock.recorder = &MocksessionCleanupQueueConsumerMockRecorder{mock}
+// NewMockSessionCleanupQueueConsumer creates a new mock instance.
+func NewMockSessionCleanupQueueConsumer(ctrl *gomock.Controller) *MockSessionCleanupQueueConsumer {
+	mock := &MockSessionCleanupQueueConsumer{ctrl: ctrl}
+	mock.recorder = &MockSessionCleanupQueueConsumerMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MocksessionCleanupQueueConsumer) EXPECT() *MocksessionCleanupQueueConsumerMockRecorder {
+func (m *MockSessionCleanupQueueConsumer) EXPECT() *MockSessionCleanupQueueConsumerMockRecorder {
 	return m.recorder
 }
 
 // Delete mocks base method.
-func (m *MocksessionCleanupQueueConsumer) Delete(ctx context.Context, pks []entity.SessionPK) error {
+func (m *MockSessionCleanupQueueConsumer) Delete(ctx context.Context, pks []entity.SessionPK) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", ctx, pks)
 	ret0, _ := ret[0].(error)
@@ -50,13 +50,13 @@ func (m *MocksessionCleanupQueueConsumer) Delete(ctx context.Context, pks []enti
 }
 
 // Delete indicates an expected call of Delete.
-func (mr *MocksessionCleanupQueueConsumerMockRecorder) Delete(ctx, pks any) *gomock.Call {
+func (mr *MockSessionCleanupQueueConsumerMockRecorder) Delete(ctx, pks any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MocksessionCleanupQueueConsumer)(nil).Delete), ctx, pks)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockSessionCleanupQueueConsumer)(nil).Delete), ctx, pks)
 }
 
 // Fetch mocks base method.
-func (m *MocksessionCleanupQueueConsumer) Fetch(ctx context.Context, limit int) ([]entity.SessionPK, error) {
+func (m *MockSessionCleanupQueueConsumer) Fetch(ctx context.Context, limit int) ([]entity.SessionPK, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Fetch", ctx, limit)
 	ret0, _ := ret[0].([]entity.SessionPK)
@@ -65,37 +65,37 @@ func (m *MocksessionCleanupQueueConsumer) Fetch(ctx context.Context, limit int) 
 }
 
 // Fetch indicates an expected call of Fetch.
-func (mr *MocksessionCleanupQueueConsumerMockRecorder) Fetch(ctx, limit any) *gomock.Call {
+func (mr *MockSessionCleanupQueueConsumerMockRecorder) Fetch(ctx, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fetch", reflect.TypeOf((*MocksessionCleanupQueueConsumer)(nil).Fetch), ctx, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fetch", reflect.TypeOf((*MockSessionCleanupQueueConsumer)(nil).Fetch), ctx, limit)
 }
 
-// MockorphanSessionDeleter is a mock of orphanSessionDeleter interface.
-type MockorphanSessionDeleter struct {
+// MockOrphanSessionDeleter is a mock of OrphanSessionDeleter interface.
+type MockOrphanSessionDeleter struct {
 	ctrl     *gomock.Controller
-	recorder *MockorphanSessionDeleterMockRecorder
+	recorder *MockOrphanSessionDeleterMockRecorder
 	isgomock struct{}
 }
 
-// MockorphanSessionDeleterMockRecorder is the mock recorder for MockorphanSessionDeleter.
-type MockorphanSessionDeleterMockRecorder struct {
-	mock *MockorphanSessionDeleter
+// MockOrphanSessionDeleterMockRecorder is the mock recorder for MockOrphanSessionDeleter.
+type MockOrphanSessionDeleterMockRecorder struct {
+	mock *MockOrphanSessionDeleter
 }
 
-// NewMockorphanSessionDeleter creates a new mock instance.
-func NewMockorphanSessionDeleter(ctrl *gomock.Controller) *MockorphanSessionDeleter {
-	mock := &MockorphanSessionDeleter{ctrl: ctrl}
-	mock.recorder = &MockorphanSessionDeleterMockRecorder{mock}
+// NewMockOrphanSessionDeleter creates a new mock instance.
+func NewMockOrphanSessionDeleter(ctrl *gomock.Controller) *MockOrphanSessionDeleter {
+	mock := &MockOrphanSessionDeleter{ctrl: ctrl}
+	mock.recorder = &MockOrphanSessionDeleterMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockorphanSessionDeleter) EXPECT() *MockorphanSessionDeleterMockRecorder {
+func (m *MockOrphanSessionDeleter) EXPECT() *MockOrphanSessionDeleterMockRecorder {
 	return m.recorder
 }
 
 // DeleteOrphaned mocks base method.
-func (m *MockorphanSessionDeleter) DeleteOrphaned(ctx context.Context, candidates []entity.SessionPK) error {
+func (m *MockOrphanSessionDeleter) DeleteOrphaned(ctx context.Context, candidates []entity.SessionPK) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOrphaned", ctx, candidates)
 	ret0, _ := ret[0].(error)
@@ -103,7 +103,7 @@ func (m *MockorphanSessionDeleter) DeleteOrphaned(ctx context.Context, candidate
 }
 
 // DeleteOrphaned indicates an expected call of DeleteOrphaned.
-func (mr *MockorphanSessionDeleterMockRecorder) DeleteOrphaned(ctx, candidates any) *gomock.Call {
+func (mr *MockOrphanSessionDeleterMockRecorder) DeleteOrphaned(ctx, candidates any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrphaned", reflect.TypeOf((*MockorphanSessionDeleter)(nil).DeleteOrphaned), ctx, candidates)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrphaned", reflect.TypeOf((*MockOrphanSessionDeleter)(nil).DeleteOrphaned), ctx, candidates)
 }

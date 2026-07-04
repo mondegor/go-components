@@ -13,6 +13,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/usecase/session"
 	"github.com/mondegor/go-components/mrauth/validate"
+	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
+	"github.com/mondegor/go-components/wire/mrauth/mapping"
 )
 
 type (
@@ -28,6 +30,7 @@ func initSessionsController(
 	responseSender mrserver.ResponseSender,
 	appResolver module.AppResolver,
 	locationResolver module.LocationResolver,
+	userRealms []authcfg.UserRealm,
 	jwtKeys crypt.KeySet, // OPTIONAL
 ) (mrserver.HttpController, error) {
 	resolver := sessionResolver(storageAuthToken)
@@ -43,8 +46,10 @@ func initSessionsController(
 		storageAuthToken, // openSessionFetcher
 		storageAuthToken, // sessionCloser
 		resolver,
+		mapping.OptionUserRealmsToRealmRegistry(userRealms),
 		appResolver,
 		locationResolver,
+		mapping.OptionUserRealmsToSessionLimitRealms(userRealms),
 	)
 
 	controller := httpv1.NewSession(

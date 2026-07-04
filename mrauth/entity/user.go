@@ -21,9 +21,9 @@ type (
 
 	// UserRealm - привязка пользователя к зоне действия.
 	UserRealm struct {
-		UserID uuid.UUID
-		Realm  string
-		Kind   string
+		UserID  uuid.UUID
+		RealmID uint16
+		Kind    string
 	}
 
 	// UserActivityLog - информация об активности пользователя.

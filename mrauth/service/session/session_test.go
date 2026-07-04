@@ -2,14 +2,13 @@ package session_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service/session"
 	"github.com/mondegor/go-components/mrauth/service/session/mock"
 )
@@ -53,7 +52,7 @@ func (s *IssuerSuite) TestHappy() {
 func (s *IssuerSuite) TestCollisionThenSuccess() {
 	// первый подобранный session_id занят -> сервис перегенерирует id и повторяет вставку
 	gomock.InOrder(
-		s.storage.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(repository.ErrSessionIDCollision),
+		s.storage.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(errors.ErrEventRecordAlreadyExists),
 		s.storage.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil),
 	)
 
@@ -63,12 +62,12 @@ func (s *IssuerSuite) TestCollisionThenSuccess() {
 }
 
 func (s *IssuerSuite) TestCollisionExhausted() {
-	// session_id занят на всех попытках -> возвращается ErrSessionIDCollision
+	// session_id занят на всех попытках -> возвращается ErrEventRecordAlreadyExists
 	s.storage.EXPECT().Insert(gomock.Any(), gomock.Any()).
-		Return(repository.ErrSessionIDCollision).Times(maxInsertAttempts)
+		Return(errors.ErrEventRecordAlreadyExists).Times(maxInsertAttempts)
 
 	_, err := s.svc.Issue(s.ctx, entity.Session{})
-	s.Require().ErrorIs(err, repository.ErrSessionIDCollision)
+	s.Require().ErrorIs(err, errors.ErrEventRecordAlreadyExists)
 }
 
 func (s *IssuerSuite) TestInsertOtherErrorNoRetry() {

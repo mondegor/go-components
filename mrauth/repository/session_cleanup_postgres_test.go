@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-storage/mrtests/infra"
+	"github.com/mondegor/go-sysmess/errors"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -62,13 +63,24 @@ func (ts *SessionCleanupPostgresTestSuite) seedSession(userID uuid.UUID, session
 	ts.Require().NoError(err)
 }
 
+func (ts *SessionCleanupPostgresTestSuite) seedSessionAt(userID uuid.UUID, sessionID uint32, updatedAt time.Time) {
+	err := ts.pgt.ConnManager().Conn(ts.ctx).Exec(
+		ts.ctx,
+		`INSERT INTO sample_schema.sessions (user_id, session_id, updated_at) VALUES ($1, $2, $3);`,
+		userID,
+		sessionID,
+		updatedAt,
+	)
+	ts.Require().NoError(err)
+}
+
 func (ts *SessionCleanupPostgresTestSuite) seedToken(userID uuid.UUID, sessionID uint32, tokenType, tokenStatus int, expiresAt time.Time) {
 	err := ts.pgt.ConnManager().Conn(ts.ctx).Exec(
 		ts.ctx,
 		`INSERT INTO sample_schema.auth_tokens
-			(auth_token, token_type, user_id, session_id, token_scopes, token_status, expires_at)
+			(auth_token, token_type, user_id, realm_id, session_id, token_scopes, token_status, expires_at)
 		VALUES
-			($1, $2, $3, $4, '{}'::jsonb, $5, $6);`,
+			($1, $2, $3, 1, $4, '{}'::jsonb, $5, $6);`,
 		uuid.NewString(),
 		tokenType,
 		userID,
@@ -104,26 +116,52 @@ func (ts *SessionCleanupPostgresTestSuite) TestDeleteOrphaned() {
 	repo := repository.NewOrphanSessionDeleterPostgres(ts.pgt.ConnManager(), sessionsTableName, authTokensTableName)
 	ts.Require().NoError(repo.DeleteOrphaned(ts.ctx, candidates))
 
-	sessionRepo := repository.NewSessionPostgres(ts.pgt.ConnManager(), sessionsTableName, 16)
+	sessionRepo := repository.NewSessionPostgres(ts.pgt.ConnManager(), sessionsTableName)
 
-	rows, err := sessionRepo.FetchListByUserID(ts.ctx, userID)
+	rows, err := sessionRepo.FetchOrderedListByUserIDAndSessionIDs(ts.ctx, userID, []uint32{1, 2, 3, 4}, 0)
 	ts.Require().NoError(err)
 	ts.Require().Len(rows, 1)
 	ts.Equal(uint32(2), rows[0].SessionID) // осталась только живая сессия
 }
 
 // TestInsertSessionIDCollision - повторная вставка той же пары (user_id, session_id)
-// возвращает ErrSessionIDCollision, а не дублирует строку.
+// возвращает ErrEventRecordAlreadyExists, а не дублирует строку.
 func (ts *SessionCleanupPostgresTestSuite) TestInsertSessionIDCollision() {
 	userID := uuid.New()
-	repo := repository.NewSessionPostgres(ts.pgt.ConnManager(), sessionsTableName, 16)
+	repo := repository.NewSessionPostgres(ts.pgt.ConnManager(), sessionsTableName)
 
 	row := entity.Session{UserID: userID, SessionID: 42, UserAgent: "ua", LastIP: 1}
 
 	ts.Require().NoError(repo.Insert(ts.ctx, row))
 
 	err := repo.Insert(ts.ctx, row)
-	ts.Require().ErrorIs(err, repository.ErrSessionIDCollision)
+	ts.Require().ErrorIs(err, errors.ErrEventRecordAlreadyExists)
+}
+
+// TestFetchOrderedListByUserIDAndSessionIDs - выборка упорядочена активными вперёд (updated_at DESC,
+// при равенстве - больший session_id вперёд), а положительный limit оставляет только новейшие.
+func (ts *SessionCleanupPostgresTestSuite) TestFetchOrderedListByUserIDAndSessionIDs() {
+	userID := uuid.New()
+	base := time.Now()
+
+	// строки сеются в перемешанном порядке относительно ожидаемого результата
+	ts.seedSessionAt(userID, 1, base.Add(-3*time.Minute)) // наименее активная
+	ts.seedSessionAt(userID, 3, base.Add(-1*time.Minute)) // наиболее активная
+	ts.seedSessionAt(userID, 2, base.Add(-2*time.Minute))
+
+	sessionRepo := repository.NewSessionPostgres(ts.pgt.ConnManager(), sessionsTableName)
+
+	// без лимита: все три, новыми вперёд
+	rows, err := sessionRepo.FetchOrderedListByUserIDAndSessionIDs(ts.ctx, userID, []uint32{1, 2, 3}, 0)
+	ts.Require().NoError(err)
+	ts.Require().Len(rows, 3)
+	ts.Equal([]uint32{3, 2, 1}, []uint32{rows[0].SessionID, rows[1].SessionID, rows[2].SessionID})
+
+	// limit=2: только две новейшие
+	rows, err = sessionRepo.FetchOrderedListByUserIDAndSessionIDs(ts.ctx, userID, []uint32{1, 2, 3}, 2)
+	ts.Require().NoError(err)
+	ts.Require().Len(rows, 2)
+	ts.Equal([]uint32{3, 2}, []uint32{rows[0].SessionID, rows[1].SessionID})
 }
 
 // TestEvictExpireDrainChain - сквозная цепочка: эвикт сессии (revoke её refresh-токена) ->
@@ -143,7 +181,7 @@ func (ts *SessionCleanupPostgresTestSuite) TestEvictExpireDrainChain() {
 	authRepo := repository.NewAuthTokenPostgres(conn, authTokensTableName)
 	queueRepo := repository.NewSessionCleanupQueuePostgres(conn, sessionsCleanupQueueTableName)
 	orphanRepo := repository.NewOrphanSessionDeleterPostgres(conn, sessionsTableName, authTokensTableName)
-	sessionRepo := repository.NewSessionPostgres(conn, sessionsTableName, 16)
+	sessionRepo := repository.NewSessionPostgres(conn, sessionsTableName)
 
 	// 1. эвикт: токен сессии переводится в REVOKED с expires_at = NOW()
 	ts.Require().NoError(authRepo.RevokeTokensBySessionIDs(ts.ctx, userID, []uint32{sessionID}))
@@ -165,7 +203,7 @@ func (ts *SessionCleanupPostgresTestSuite) TestEvictExpireDrainChain() {
 	ts.Require().NoError(queueRepo.Delete(ts.ctx, pks))
 
 	// сессия удалена, очередь пуста
-	rows, err := sessionRepo.FetchListByUserID(ts.ctx, userID)
+	rows, err := sessionRepo.FetchOrderedListByUserIDAndSessionIDs(ts.ctx, userID, []uint32{sessionID}, 0)
 	ts.Require().NoError(err)
 	ts.Empty(rows)
 

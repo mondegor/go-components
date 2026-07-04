@@ -12,7 +12,8 @@ import (
 type (
 	// UserRealm - конфигурация realm (области аутентификации): токены, виды пользователей, подтверждение операций.
 	UserRealm struct {
-		Name             string           `yaml:"name"`
+		ID               uint16           `yaml:"id"`   // числовой идентификатор realm (хранится в БД)
+		Name             string           `yaml:"name"` // имя realm (только для отображения и API)
 		AuthToken        Token            `yaml:"auth_token"`
 		UserKinds        []UserKind       `yaml:"user_kinds"`
 		RegisterUserKind string           `yaml:"register_user_kind"`
@@ -77,7 +78,14 @@ type (
 		OverrideAuthToken       Token                   `yaml:"override_auth_token"`
 		DefaultOperationConfirm OperationConfirm        `yaml:"default_operation_confirm"`
 		Auth2FA                 Auth2FA                 `yaml:"auth_2fa"`
-		MaxUserSessions         uint16                  `yaml:"max_user_sessions"`
+
+		// SessionSoftThreshold - отклонение от лимита сессий, при достижении которого пользователь
+		// ставится в очередь на фоновую чистку.
+		SessionSoftThreshold int8 `yaml:"session_soft_threshold"`
+
+		// SessionHardThreshold - отклонение от лимита сессий, при достижении которого вход временно
+		// отклоняется (должно быть не ниже soft).
+		SessionHardThreshold int8 `yaml:"session_hard_threshold"`
 	}
 
 	// JWT - настройки и ключи для подписи (issuer) и проверки (verifier) access-токенов.

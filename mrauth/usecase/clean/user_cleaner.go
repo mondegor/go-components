@@ -10,12 +10,13 @@ import (
 type (
 	// UserCleaner - объект, удаляющий старые записи лога активности пользователей.
 	UserCleaner struct {
-		storageLog   userActivityLogStorage
+		storageLog   UserActivityLogStorage
 		logLifeTime  time.Duration
 		errorWrapper errors.Wrapper
 	}
 
-	userActivityLogStorage interface {
+	// UserActivityLogStorage - хранилище лога активности пользователей для удаления устаревших записей.
+	UserActivityLogStorage interface {
 		DeleteBeforeDate(ctx context.Context, datetime time.Time, limit int) (count int, err error)
 	}
 )
@@ -23,7 +24,7 @@ type (
 // NewUserCleaner - создаёт объект UserCleaner.
 // logLifeTime - срок хранения записей лога активности (записи старше удаляются).
 func NewUserCleaner(
-	storageLog userActivityLogStorage,
+	storageLog UserActivityLogStorage,
 	logLifeTime time.Duration,
 ) *UserCleaner {
 	return &UserCleaner{

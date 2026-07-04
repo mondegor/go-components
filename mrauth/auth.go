@@ -39,6 +39,14 @@ type (
 		CreateByUserID(ctx context.Context, userID uuid.UUID) (dto.User2FA, error)
 	}
 
+	// RealmRegistry - реестр соответствия числового идентификатора realm его имени.
+	// Имя используется на границах системы (HTTP, token scopes, отображение),
+	// идентификатор - как компактный ключ хранения в БД.
+	RealmRegistry interface {
+		IDByName(name string) (id uint16, ok bool)
+		NameByID(id uint16) (name string, ok bool)
+	}
+
 	// TokenGenerator - генератор случайных токенов заданной длины.
 	TokenGenerator interface {
 		GenToken() (string, error)

@@ -9,7 +9,6 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/repository"
 )
 
 const (
@@ -47,7 +46,7 @@ func (s *Issuer) Issue(ctx context.Context, session entity.Session) (sessionID u
 
 		if err = s.storage.Insert(ctx, session); err != nil {
 			// session_id занят и попытки не закончились - перегенерируем id и повторяем вставку
-			if errors.Is(err, repository.ErrSessionIDCollision) && attempt < maxInsertAttempts {
+			if errors.Is(err, errors.ErrEventRecordAlreadyExists) && attempt < maxInsertAttempts {
 				continue
 			}
 

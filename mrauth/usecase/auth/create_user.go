@@ -10,6 +10,7 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
@@ -27,6 +28,7 @@ type (
 		userChecker      userLoginChecker
 		storageOperation operationCreator
 		notifierAPI      mrnotifier.NoteProducer
+		factory2FA       user2faActionCreator
 		locker           mrlock.Locker
 		errorWrapper     errors.Wrapper
 		realm2operation  map[string]createUserOperation
@@ -39,7 +41,11 @@ type (
 	}
 
 	createUserOperation interface {
-		Create(langCode string, address contactaddress.ContactAddress) (secureoperation.SecureOperation, error)
+		Create(user2FA dto.User2FA, langCode string, address contactaddress.ContactAddress) (secureoperation.SecureOperation, error)
+	}
+
+	user2faActionCreator interface {
+		CreateByUserLogin(ctx context.Context, userLogin contactaddress.ContactAddress) (dto.User2FA, error)
 	}
 )
 
@@ -49,6 +55,7 @@ func NewCreateUser(
 	userChecker userLoginChecker,
 	storageOperation operationCreator,
 	notifierAPI mrnotifier.NoteProducer,
+	factory2FA user2faActionCreator,
 	locker mrlock.Locker,
 	allowedRealms []CreateUserRealm,
 ) *CreateUser {
@@ -62,6 +69,7 @@ func NewCreateUser(
 		userChecker:      userChecker,
 		storageOperation: storageOperation,
 		notifierAPI:      notifierAPI,
+		factory2FA:       factory2FA,
 		locker:           locker,
 		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
 		realm2operation:  realm2operation,
@@ -80,10 +88,12 @@ func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail st
 		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New(err)
 	}
 
+	// лок держится до createUserLockTimeout и НЕ освобождается при успехе - это намеренный
+	// анти-спам троттл повторной отправки кода подтверждения на тот же email
 	unlockEmail, err := co.locker.LockWithExpiry(ctx, createUserLockKeyPrefix+realm+":"+parsedLogin.Value(), createUserLockTimeout)
 	if err != nil {
 		if errors.Is(err, mrlock.ErrLockKeyNotObtained) {
-			return secureoperation.SecureOperation{}, mrauth.ErrEmailAlreadyExists
+			return secureoperation.SecureOperation{}, mrauth.ErrSignupAlreadyInProgressTryLater
 		}
 
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
@@ -101,7 +111,16 @@ func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail st
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
-	op, err = operationCreator.Create(langCode, parsedLogin)
+	// если email уже принадлежит существующему пользователю, его 2FA будет добавлен вторым шагом
+	// операции (для нового email пользователь не найден и используется пустой User2FA)
+	user2FA, err := co.factory2FA.CreateByUserLogin(ctx, parsedLogin)
+	if err != nil {
+		if !errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+			return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
+		}
+	}
+
+	op, err = operationCreator.Create(user2FA, langCode, parsedLogin)
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}

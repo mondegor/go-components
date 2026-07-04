@@ -23,6 +23,14 @@ const (
 
 	// defaultRecoveryLowThreshold - остаток кодов по умолчанию, при котором слать предупреждение.
 	defaultRecoveryLowThreshold = 2
+
+	// minSessionThreshold - нижняя граница soft/hard отклонения от лимита сессий
+	// (зеркалит клампинг domain-слоя correctThresholds).
+	minSessionThreshold int8 = -4
+
+	// maxSessionThreshold - потолок soft/hard отклонения от лимита сессий
+	// (зеркалит клампинг domain-слоя correctThresholds).
+	maxSessionThreshold int8 = 16
 )
 
 // CorrectValuesAuth2FA - подставляет значения по умолчанию в незаданные поля настроек 2FA.
@@ -42,12 +50,21 @@ func CorrectValuesAuth2FA(cfg Auth2FA) Auth2FA {
 	return cfg
 }
 
-// ValidateRealms - проверяет конфигурацию realm'ов: уникальность имён, корректность типов токенов,
+// ValidateRealms - проверяет конфигурацию realm'ов: уникальность id и имён, корректность типов токенов,
 // TTL jwt-токенов и принадлежность ролей известному набору.
 func ValidateRealms(realms []UserRealm, allRoles []string) error {
 	uniqRealms := make(map[string]bool, len(realms))
+	uniqRealmIDs := make(map[uint16]bool, len(realms))
 
 	for _, realm := range realms {
+		if realm.ID == 0 {
+			return fmt.Errorf("realm id is empty for realm '%s'", realm.Name)
+		}
+
+		if uniqRealmIDs[realm.ID] {
+			return fmt.Errorf("duplicate realm id '%d'", realm.ID)
+		}
+
 		if uniqRealms[realm.Name] {
 			return fmt.Errorf("duplicate realm name '%s'", realm.Name)
 		}
@@ -60,6 +77,7 @@ func ValidateRealms(realms []UserRealm, allRoles []string) error {
 			return fmt.Errorf("invalid token type for realm (type='%s', realm='%s')", realm.AuthToken.AccessType, realm.Name)
 		}
 
+		uniqRealmIDs[realm.ID] = true
 		uniqRealms[realm.Name] = true
 
 		if err := validateRealm(realm, allRoles); err != nil {
@@ -164,4 +182,27 @@ func IsJWTUsed(realms []UserRealm) bool {
 	}
 
 	return false
+}
+
+// ValidateSessionThresholds - проверяет отклонения soft/hard от лимита сессий, которые хост
+// передаёт в модуль: оба должны лежать в диапазоне [minSessionThreshold, maxSessionThreshold]
+// и hard >= soft.
+//
+// Это host-only reference-валидация уровня composition-root: предполагается, что её вызывает
+// host-приложение из своего init-пути (внутри библиотеки она намеренно не вызывается). Конкретный
+// проект может использовать её как есть либо написать собственную.
+func ValidateSessionThresholds(soft, hard int8) error {
+	if soft < minSessionThreshold || hard < minSessionThreshold {
+		return fmt.Errorf("session threshold below min (got soft=%d hard=%d, min=%d)", soft, hard, minSessionThreshold)
+	}
+
+	if soft > maxSessionThreshold || hard > maxSessionThreshold {
+		return fmt.Errorf("session threshold exceeds max (got soft=%d hard=%d, max=%d)", soft, hard, maxSessionThreshold)
+	}
+
+	if hard < soft {
+		return fmt.Errorf("session hard threshold must be >= soft (got soft=%d hard=%d)", soft, hard)
+	}
+
+	return nil
 }

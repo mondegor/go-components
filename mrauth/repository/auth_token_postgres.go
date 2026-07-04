@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,9 +18,10 @@ import (
 type (
 	// AuthTokenPostgres - хранилище токенов авторизации в PostgreSQL.
 	AuthTokenPostgres struct {
-		client       mrstorage.DBConnManager
-		errorWrapper errors.Wrapper
-		tableName    string
+		client                     mrstorage.DBConnManager
+		errorWrapper               errors.Wrapper
+		tableName                  string
+		whereRefreshTokenAndStatus string // расчитывается заранее для эффективной работы планировщика Postgres
 	}
 )
 
@@ -32,6 +34,9 @@ func NewAuthTokenPostgres(
 		client:       client,
 		errorWrapper: errors.NewInfraStorageWrapper(),
 		tableName:    tableName,
+		whereRefreshTokenAndStatus: " AND token_type = " + strconv.FormatUint(uint64(authtokentype.Refresh), 10) +
+			" AND token_status = " +
+			strconv.FormatUint(uint64(authtokenstatus.Enabled), 10),
 	}
 }
 
@@ -82,11 +87,37 @@ func (re *AuthTokenPostgres) FetchOneByAccessToken(ctx context.Context, accessTo
 	return row, nil
 }
 
-// FetchOpenSessionIDs - возвращает идентификаторы открытых сессий пользователя,
+// FetchOpenSessionCount - возвращает число открытых сессий пользователя в указанном realm
+// (сессия открыта = есть действующий не истёкший refresh токен). Лимит сессий скоупится
+// по (user_id, realm), поэтому счёт ведётся в пределах одного realm.
+func (re *AuthTokenPostgres) FetchOpenSessionCount(ctx context.Context, userID uuid.UUID, realmID uint16) (count int, err error) {
+	sql := `
+		SELECT
+			COUNT(DISTINCT session_id)
+		FROM
+			` + re.tableName + `
+		WHERE
+			user_id = $1 AND realm_id = $2` + re.whereRefreshTokenAndStatus + ` AND expires_at > NOW();`
+
+	err = re.client.Conn(ctx).QueryRow(
+		ctx,
+		sql,
+		userID,
+		realmID,
+	).Scan(&count)
+	if err != nil {
+		return 0, re.errorWrapper.Wrap(err)
+	}
+
+	return count, nil
+}
+
+// FetchOpenSessionIDs - возвращает идентификаторы открытых сессий пользователя в указанном realm,
 // отсортированные по возрасту действующего refresh токена (created_at, по возрастанию):
 // первыми идут сессии, refresh токен которых дольше всех не обновлялся (наименее активные).
-// Открыта = есть действующий не истёкший refresh токен.
-func (re *AuthTokenPostgres) FetchOpenSessionIDs(ctx context.Context, userID uuid.UUID) (rows []uint32, err error) {
+// Открыта = есть действующий не истёкший refresh токен. Скоуп по realm согласован с
+// FetchOpenSessionCount: лимит сессий считается и обрезается в пределах одного realm.
+func (re *AuthTokenPostgres) FetchOpenSessionIDs(ctx context.Context, userID uuid.UUID, realmID uint16) (rows []uint32, err error) {
 	// GROUP BY используется на всякий случай, так как на сессию приходится ровно один enabled refresh токен;
 	// MIN(created_at) устойчив к такому "на всякий случай" дубликату
 	sql := `
@@ -95,7 +126,7 @@ func (re *AuthTokenPostgres) FetchOpenSessionIDs(ctx context.Context, userID uui
 		FROM
 			` + re.tableName + `
 		WHERE
-			user_id = $1 AND token_type = $2 AND token_status = $3 AND expires_at > NOW()
+			user_id = $1 AND realm_id = $2` + re.whereRefreshTokenAndStatus + ` AND expires_at > NOW()
 		GROUP BY
 			session_id
 		ORDER BY
@@ -105,8 +136,7 @@ func (re *AuthTokenPostgres) FetchOpenSessionIDs(ctx context.Context, userID uui
 		ctx,
 		sql,
 		userID,
-		authtokentype.Refresh,
-		authtokenstatus.Enabled,
+		realmID,
 	)
 	if err != nil {
 		return nil, re.errorWrapper.Wrap(err)
@@ -142,6 +172,7 @@ func (re *AuthTokenPostgres) Insert(ctx context.Context, rows []entity.AuthToken
 	tokens := make([]string, 0, len(rows))
 	tokenTypes := make([]int16, 0, len(rows))
 	userIDs := make([]uuid.UUID, 0, len(rows))
+	realmIDs := make([]uint16, 0, len(rows))
 	sessionIDs := make([]uint32, 0, len(rows))
 	scopes := make([]entity.AuthTokenScopes, 0, len(rows))
 	expiresAts := make([]time.Time, 0, len(rows))
@@ -150,6 +181,7 @@ func (re *AuthTokenPostgres) Insert(ctx context.Context, rows []entity.AuthToken
 		tokens = append(tokens, row.Token)
 		tokenTypes = append(tokenTypes, int16(row.Type))
 		userIDs = append(userIDs, row.UserID)
+		realmIDs = append(realmIDs, row.RealmID)
 		sessionIDs = append(sessionIDs, row.SessionID)
 		scopes = append(scopes, row.Scopes) // userID/sessionID будут исключены, т.к. они сохраняются в отдельных полях
 		expiresAts = append(expiresAts, row.ExpiresAt)
@@ -161,15 +193,16 @@ func (re *AuthTokenPostgres) Insert(ctx context.Context, rows []entity.AuthToken
 				auth_token,
 				token_type,
 				user_id,
+				realm_id,
 				session_id,
 				token_scopes,
 				token_status,
 				expires_at
 			)
-		SELECT token, token_type, user_id, session_id, token_scopes, $7, expires_at
+		SELECT token, token_type, user_id, realm_id, session_id, token_scopes, $8, expires_at
 		FROM
-			UNNEST($1::varchar[], $2::int2[], $3::uuid[], $4::int8[], $5::jsonb[], $6::timestamptz[])
-			as t(token, token_type, user_id, session_id, token_scopes, expires_at);`
+			UNNEST($1::varchar[], $2::int2[], $3::uuid[], $4::int4[], $5::int8[], $6::jsonb[], $7::timestamptz[])
+			as t(token, token_type, user_id, realm_id, session_id, token_scopes, expires_at);`
 
 	err := re.client.Conn(ctx).Exec(
 		ctx,
@@ -177,6 +210,7 @@ func (re *AuthTokenPostgres) Insert(ctx context.Context, rows []entity.AuthToken
 		tokens,
 		tokenTypes,
 		userIDs,
+		realmIDs,
 		sessionIDs,
 		scopes,
 		expiresAts,

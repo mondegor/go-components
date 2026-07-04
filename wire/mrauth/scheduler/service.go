@@ -23,12 +23,22 @@ const (
 	defaultLogLifeTime   = 7 * 24 * time.Hour
 
 	defaultCleanRecordsCaption = "CleanRecords"
-	defaultCleanRecordsPeriod  = 45 * time.Minute
+
+	// defaultCleanRecordsPeriod - период между запусками очистки записей. Низкий дью-цикл:
+	// воркеры на ItemBatchPlayer выходят сразу при первом неполном батче, поэтому в простое
+	// короткий период почти бесплатен, а под churn'ом ограничивает рост и bloat очередей.
+	// TODO: добавить алармы по глубине sessions_cleanup_queue и возрасту старейшего created_at,
+	// чтобы ловить ситуацию, когда даже этого периода не хватает (до партиционирования).
+	defaultCleanRecordsPeriod = 10 * time.Minute
 
 	// defaultCleanRecordsTimeout - таймаут задачи должен перекрывать суммарную длительность
 	// всех зацикленных воркеров очистки (каждый крутится до своего предела длительности,
 	// см. wire/mrauth/clean), иначе под большим backlog'ом последний воркер упрётся в дедлайн контекста.
 	defaultCleanRecordsTimeout = 300 * time.Second
+
+	defaultTrimSessionsCaption = "TrimSessions"
+	defaultTrimSessionsPeriod  = 5 * time.Minute
+	defaultTrimSessionsTimeout = 60 * time.Second
 )
 
 // NewService - создаёт планировщик фоновых задач очистки модуля Auth.
@@ -49,7 +59,8 @@ func NewService(
 	secureOperationLogTableName,
 	usersActivityLogTableName,
 	sessionsTableName,
-	sessionsCleanupQueueTableName string,
+	sessionsCleanupQueueTableName,
+	sessionsExcessQueueTableName string,
 	opts ...Option,
 ) *schedule.TaskScheduler {
 	o := options{
@@ -60,6 +71,12 @@ func NewService(
 			task.WithCaption(defaultCleanRecordsCaption),
 			task.WithPeriod(defaultCleanRecordsPeriod),
 			task.WithTimeout(defaultCleanRecordsTimeout),
+		},
+		taskTrimSessionsOpts: []task.Option{
+			task.WithCaptionPrefix(defaultCaptionPrefix),
+			task.WithCaption(defaultTrimSessionsCaption),
+			task.WithPeriod(defaultTrimSessionsPeriod),
+			task.WithTimeout(defaultTrimSessionsTimeout),
 		},
 	}
 
@@ -114,10 +131,24 @@ func NewService(
 		eventEmitter,
 	)
 
+	orphanSessionDeleter := repository.NewOrphanSessionDeleterPostgres(client, sessionsTableName, authTokensTableName)
+
 	// drain-воркер сливает очередь удаления сессий батчами до её опустошения/таймаута
 	sessionDrainer := clean.InitSessionDrainer(
 		sessionCleanupQueue,
-		repository.NewOrphanSessionDeleterPostgres(client, sessionsTableName, authTokensTableName),
+		orphanSessionDeleter,
+		eventEmitter,
+	)
+
+	// триммер лишних сессий: по каждому пользователю из очереди ревокает дубли устройства и
+	// старейшие сессии сверх лимита, затем сам удаляет осиротевшие строки
+	sessionExcessTrimmer := clean.InitSessionExcessTrimmer(
+		client,
+		repository.NewSessionExcessQueuePostgres(client, sessionsExcessQueueTableName),
+		authTokenStorage, // openFetcher
+		repository.NewSessionPostgres(client, sessionsTableName), // lister
+		authTokenStorage, // closer
+		orphanSessionDeleter,
 		eventEmitter,
 	)
 
@@ -142,11 +173,18 @@ func NewService(
 		o.taskCleanerOpts...,
 	)
 
+	trimSessionsTask := task.NewJobWrapper(
+		mrprocess.JobFunc(func(ctx context.Context) error {
+			return sessionExcessTrimmer.Execute(ctx, o.cleanLimit)
+		}),
+		o.taskTrimSessionsOpts...,
+	)
+
 	return schedule.NewTaskScheduler(
 		errorHandler,
 		logger,
 		traceManager,
 		schedule.WithCaptionPrefix(o.captionPrefix),
-		schedule.WithTasks(cleanerTask),
+		schedule.WithTasks(cleanerTask, trimSessionsTask),
 	)
 }

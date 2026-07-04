@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mrlock"
 	"github.com/mondegor/go-sysmess/mrlog"
 	"github.com/mondegor/go-sysmess/mrstorage"
 
@@ -18,65 +17,53 @@ import (
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
-const (
-	openSessionLockKeyPrefix = "auth.open-session:"
-	openSessionLockTimeout   = 15 * time.Second
-	defaultSessionMax        = 4 // максимум одновременных сессий, если для kind не задан лимит
-)
-
 type (
 	// OpenSession - открытие новой сессии после подтверждённой операции авторизации.
 	OpenSession struct {
-		txManager             mrstorage.DBTxManager
-		sessionIssuer         sessionIssuer
-		storageUserActivity   userActivityStatCreator
-		openSessionFetcher    openSessionFetcher
-		sessionCloser         sessionCloser
-		locker                mrlock.Locker // ограничивает частоту открытия сессий пользователя (кулдаун входа)
-		handlerCreateUser     operationHandlerCreateUser
-		handlerBeforeAuthUser operationHandlerBeforeAuthUser
-		tokenCreator          tokenCreator
-		logger                mrlog.Logger
-		sessionLimits         map[realmKindKey]int
-		errorWrapper          errors.Wrapper
-	}
-
-	// realmKindKey - составной ключ "realm + вид пользователя" для мапы лимитов сессий.
-	realmKindKey struct {
-		realm string
-		kind  string
-	}
-
-	// LimitRealm - лимиты одновременных сессий по видам пользователя (kind) внутри realm.
-	LimitRealm struct {
-		Name       string
-		KindLimits []UserKindLimit
-	}
-
-	// UserKindLimit - лимит одновременных сессий для вида пользователя (kind).
-	UserKindLimit struct {
-		Kind       string
-		SessionMax uint16
+		txManager           mrstorage.DBTxManager
+		sessionIssuer       sessionIssuer
+		storageUserActivity userActivityStatCreator
+		openSessionCounter  openSessionCounter
+		excessQueue         excessQueueProducer
+		handlerAuthFlow     authFlowHandler
+		tokenCreator        tokenCreator
+		storageOperation    operationConsumer
+		realmRegistry       mrauth.RealmRegistry
+		logger              mrlog.Logger
+		limiter             *sessionLimiter
+		errorWrapper        errors.Wrapper
 	}
 
 	sessionIssuer interface {
 		Issue(ctx context.Context, session entity.Session) (sessionID uint32, err error)
 	}
 
+	// openSessionCounter - считает открытые сессии пользователя в realm для контроля лимита на входе.
+	openSessionCounter interface {
+		FetchOpenSessionCount(ctx context.Context, userID uuid.UUID, realmID uint16) (count int, err error)
+	}
+
 	userActivityStatCreator interface {
 		InsertOrUpdate(ctx context.Context, row entity.UserActivityStat) error
 	}
 
-	operationHandlerCreateUser interface {
-		Execute(ctx context.Context, payload []byte) (userScopes dto.UserScopes, err error) // сделать DTO и объединить CreateUser + BeforeAuthUser интерфейсы
+	// excessQueueProducer - ставит пользователя в очередь на фоновую чистку лишних сессий его realm.
+	excessQueueProducer interface {
+		Enqueue(ctx context.Context, userID uuid.UUID, realmID uint16, sessionMax int) error
 	}
 
-	operationHandlerBeforeAuthUser interface {
-		Execute(ctx context.Context, userID uuid.UUID, payload []byte) (userScopes dto.UserScopes, err error) // сделать DTO
+	authFlowHandler interface {
+		Execute(ctx context.Context, op secureoperation.SecureOperation) (userScopes dto.UserScopes, notifyAuthSuccess func(context.Context), err error)
 	}
 
 	tokenCreator interface {
 		Create(ctx context.Context, userScopes dto.UserScopes) (token dto.AuthTokenPair, err error)
+	}
+
+	// operationConsumer - потребляет (удаляет) подтверждённую операцию в транзакции открытия
+	// сессии, делая её одноразовым «билетом».
+	operationConsumer interface {
+		Delete(ctx context.Context, token string) error
 	}
 )
 
@@ -85,119 +72,104 @@ func NewOpenSession(
 	txManager mrstorage.DBTxManager,
 	sessionIssuer sessionIssuer,
 	storageUserActivity userActivityStatCreator,
-	openSessionFetcher openSessionFetcher,
-	sessionCloser sessionCloser,
-	locker mrlock.Locker,
-	handlerCreateUser operationHandlerCreateUser,
-	handlerBeforeAuthUser operationHandlerBeforeAuthUser,
+	openSessionCounter openSessionCounter,
+	excessQueue excessQueueProducer,
+	handlerAuthFlow authFlowHandler,
 	tokenCreator tokenCreator,
+	storageOperation operationConsumer,
+	realmRegistry mrauth.RealmRegistry,
 	logger mrlog.Logger,
 	allowedRealms []LimitRealm,
+	softThreshold, hardThreshold int,
 ) *OpenSession {
-	sessionLimits := make(map[realmKindKey]int)
-
-	for _, realm := range allowedRealms {
-		for _, kind := range realm.KindLimits {
-			// не заданный лимит (0) заменяется значением по умолчанию
-			if kind.SessionMax < 1 {
-				kind.SessionMax = defaultSessionMax
-			}
-
-			sessionLimits[realmKindKey{realm: realm.Name, kind: kind.Kind}] = int(kind.SessionMax)
-		}
-	}
-
 	return &OpenSession{
-		txManager:             txManager,
-		sessionIssuer:         sessionIssuer,
-		storageUserActivity:   storageUserActivity,
-		openSessionFetcher:    openSessionFetcher,
-		sessionCloser:         sessionCloser,
-		locker:                locker,
-		handlerCreateUser:     handlerCreateUser,
-		handlerBeforeAuthUser: handlerBeforeAuthUser,
-		tokenCreator:          tokenCreator,
-		logger:                logger,
-		sessionLimits:         sessionLimits,
-		errorWrapper:          errors.NewServiceRecordNotFoundWrapper(),
+		txManager:           txManager,
+		sessionIssuer:       sessionIssuer,
+		storageUserActivity: storageUserActivity,
+		openSessionCounter:  openSessionCounter,
+		excessQueue:         excessQueue,
+		handlerAuthFlow:     handlerAuthFlow,
+		tokenCreator:        tokenCreator,
+		storageOperation:    storageOperation,
+		realmRegistry:       realmRegistry,
+		logger:              logger,
+		limiter:             newSessionLimiter(allowedRealms, softThreshold, hardThreshold),
+		errorWrapper:        errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
 // Execute - открывает новую сессию: сохраняет строку сессии (с генерацией её идентификатора),
 // выпускает пару токенов и фиксирует активность пользователя.
 func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op secureoperation.SecureOperation) (authToken dto.AuthTokenPair, err error) {
-	var userScopes dto.UserScopes
+	if op.Name != unit.NameConfirmCreateUser && op.Name != unit.NameAuthorizeUser {
+		return dto.AuthTokenPair{}, errors.ErrAccessForbidden
+	}
 
 	if !op.Is(operationstatus.Confirmed) {
 		return dto.AuthTokenPair{}, secureoperation.ErrOperationIsNotConfirmed
 	}
 
+	userScopes, notifyAuthSuccess, err := uc.handlerAuthFlow.Execute(ctx, op)
+	if err != nil {
+		return dto.AuthTokenPair{}, uc.errorWrapper.Wrap(err)
+	}
+
+	realmID, ok := uc.realmRegistry.IDByName(userScopes.Realm)
+	if !ok {
+		return dto.AuthTokenPair{}, errors.ErrInternalIncorrectInputData.WithDetails("realm is unknown", "realm", userScopes.Realm)
+	}
+
+	// проверка лимита сессий: при достижении soft пользователь ставится в очередь
+	// на фоновую чистку, при достижении hard вход временно отклоняется
+	if err = uc.applySessionLimit(ctx, userScopes.UserID, realmID, userScopes.Kind); err != nil {
+		return dto.AuthTokenPair{}, uc.errorWrapper.Wrap(err)
+	}
+
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
-		switch op.Name {
-		case unit.NameConfirmCreateUser:
-			userScopes, err = uc.handlerCreateUser.Execute(ctx, op.Payload)
-			if err != nil {
-				return err
-			}
-		case unit.NameAuthorizeUser:
-			userScopes, err = uc.handlerBeforeAuthUser.Execute(ctx, op.UserID, op.Payload)
-			if err != nil {
-				return err
-			}
-		default:
-			return errors.ErrAccessForbidden
-		}
-
-		// кулдаун входа по пользователю: не более одного открытия сессии за openSessionLockTimeout.
-		// Берётся до подсчёта сессий и удерживается через выпуск токенов и commit, поэтому закрывает
-		// гонку (TOCTOU), когда два конкурентных логина оба прошли бы проверку лимита и вместе его превысили.
-		openSessionUnlock, err := uc.locker.LockWithExpiry(ctx, openSessionLockKeyPrefix+userScopes.UserID.String(), openSessionLockTimeout)
-		if err != nil {
-			if errors.Is(err, mrlock.ErrLockKeyNotObtained) {
-				return mrauth.ErrTooManyOpenSessionRequests
-			}
-
-			return err
-		}
-		// при ошибке снимаем блокировку сразу - неудачный логин не должен наказываться кулдауном;
-		// при успехе не трогаем: она сама истечёт по таймауту и работает как кулдаун до следующего входа
-		defer func() {
-			if err != nil {
-				openSessionUnlock()
-			}
-		}()
-
-		// проверка лимита до выпуска токенов: Create вставляет refresh-токен новой сессии,
-		// поэтому подсчёт открытых сессий должен пройти раньше, иначе новая сессия посчитает сама себя
-		if err = uc.enforceSessionLimit(ctx, userScopes.UserID, userScopes.Realm, userScopes.Kind); err != nil {
-			return err
-		}
-
 		// realIP=0 при ошибке/IPv6 - поток login не должен падать из-за этого
 		realIP, _, _ := meta.ClientIP.ToUint()
 
 		// строка сессии выпускается ПЕРВОЙ (issuer генерирует уникальный session_id и
 		// вставляет строку): делаем это до выпуска токена - иначе конфликт на вставке откатил
 		// бы и уже вставленный refresh-токен; sid в токене берётся из записанного идентификатора
-		userScopes.SessionID, err = uc.sessionIssuer.Issue(ctx, entity.Session{
-			UserID:    userScopes.UserID,
-			UserAgent: meta.UserAgent,
-			LastIP:    realIP,
-		})
+		userScopes.SessionID, err = uc.sessionIssuer.Issue(
+			ctx,
+			entity.Session{
+				UserID:    userScopes.UserID,
+				UserAgent: meta.UserAgent,
+				LastIP:    realIP,
+			},
+		)
 		if err != nil {
 			return err
 		}
 
+		// токен подписывается асимметричным ключом (RSA/JWT) - операция CPU-bound, и здесь
+		// она выполняется ВНУТРИ транзакции, удерживая соединение из пула, что удлиняет
+		// транзакцию и снижает пропускную способность пула под нагрузкой. Вынести подпись из
+		// транзакции мешает порядок: sid берётся из session_id, который генерируется Issue выше
+		// внутри этой же транзакции. Осознанный trade-off: удержание транзакции на время подписи
+		// принято ради согласованности session_id и токена.
+		// TODO: под нагрузкой вынести подпись из транзакции - генерировать session_id заранее
+		// (вне tx), подписать токен, затем короткая INSERT-only транзакция (сессия + токен).
 		authToken, err = uc.tokenCreator.Create(ctx, userScopes)
+		if err != nil {
+			return err
+		}
 
-		return err
+		// операция потребляется (удаляется) последней в той же транзакции: одноразовый билет,
+		// окно реплея закрыто. Delete через ExecRow вернёт ErrEventStorageNoRecordFound, если
+		// строки уже нет (её потребил конкурентный запрос) - транзакция откатывается; DELETE
+		// берёт row-lock и сериализует конкурентные открытия одного токена (оптимистично, без
+		// отдельной блокирующей выборки). При любом сбое выше всё откатывается, операция остаётся
+		// Confirmed и вход можно безопасно повторить тем же токеном (ConfirmOperation идемпотентен)
+		return uc.storageOperation.Delete(ctx, op.Token)
 	})
 	if err != nil {
 		return dto.AuthTokenPair{}, uc.errorWrapper.Wrap(err)
 	}
 
-	// Активность пользователя пишется ВНЕ транзакции и best-effort: это некритичная статистика
-	// "последнего входа" (отдельная таблица, без требований согласованности с сессией/токенами).
+	// Активность пользователя пишется ВНЕ транзакции: это некритичная статистика "последнего входа".
 	// Внутри транзакции её сбой откатывал бы уже выпущенные сессию и токены, а сама запись удлиняла
 	// бы удержание транзакции. К этому моменту commit уже прошёл - сессия открыта
 	// и токены выданы, поэтому потерю одного обновления телеметрии при транзиентном сбое БД
@@ -213,30 +185,53 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 		uc.logger.Error(ctx, "failed to insert user activity stat", "user_id", userScopes.UserID, "error", err)
 	}
 
+	if notifyAuthSuccess != nil {
+		notifyAuthSuccess(ctx)
+	}
+
 	return authToken, nil
 }
 
-// enforceSessionLimit - если открытие новой сессии превысит лимит вида пользователя,
-// закрывает наименее активные открытые сессии, чтобы освободить место.
-// FetchOpenSessionIDs возвращает сессии, отсортированные по возрасту refresh токена
-// (наименее активные первыми), поэтому закрывается префикс списка.
-func (uc *OpenSession) enforceSessionLimit(ctx context.Context, userID uuid.UUID, realm, kind string) error {
-	// limit == 0 означает, что realm/kind не сконфигурирован - применяется значение по умолчанию
-	limit := uc.sessionLimits[realmKindKey{realm: realm, kind: kind}]
-	if limit == 0 {
-		limit = defaultSessionMax
-	}
-
-	openIDs, err := uc.openSessionFetcher.FetchOpenSessionIDs(ctx, userID)
+// applySessionLimit - сигналит на фоновую чистку лишних сессий и применяет hard-лимит на вход.
+// Лишние сессии не закрываются синхронно: при достижении soft пользователь ставится в очередь
+// (фоновый SessionExcessTrimmer ужмёт его сессии до лимита), при достижении hard вход временно
+// отклоняется, пока чистка не освободит место от лишних сессий.
+//
+// Контроль лимита eventual-consistent, а НЕ строгий: openCount читается вне транзакции и без
+// блокировки (прежний синхронный mrlock-кулдаун намеренно убран ради дешёвого горячего пути входа).
+// Поэтому при burst'е конкурентных входов одного пользователя все запросы видят одинаковый openCount
+// и могут одновременно проскочить hard-гейт - число открытых сессий способно временно превысить hard.
+// фоновый SessionExcessTrimmer сведёт счёт обратно к лимиту. Если потребуется строгий потолок -
+// входной путь надо сериализовать (advisory-lock / счётчик).
+//
+// Сигнал на фоновую чистку ставится ДО hard-гейта, поэтому отказ во входе (N >= hard) тоже
+// планирует чистку: иначе пользователь, перепрыгнувший hard, отклонялся бы на каждом входе без
+// шанса на авто-разблокировку.
+//
+// Сигнал может быть ПРОПУЩЕН (никто не поставит в очередь) только в одном случае: пользователь
+// стартует с M <= soft-2 живых сессий и burst'ом конкурентных входов перепрыгивает soft (а то и
+// hard) за один заход - все запросы читают одинаковый N = M, для каждого N+1 = M+1 < soft, и ни
+// один не ставит сигнал. Это самоизлечивается: следующий же (последовательный) вход видит
+// N = M+K >= soft и ставит сигнал - даже если этот вход отклоняется по hard.
+func (uc *OpenSession) applySessionLimit(ctx context.Context, userID uuid.UUID, realmID uint16, kind string) error {
+	openCount, err := uc.openSessionCounter.FetchOpenSessionCount(ctx, userID, realmID)
 	if err != nil {
 		return err
 	}
 
+	limit, soft, hard := uc.limiter.thresholds(realmID, kind)
+
 	// +1 - место под открываемую сессию
-	toClose := len(openIDs) + 1 - limit
-	if toClose <= 0 {
-		return nil
+	if openCount+1 >= soft {
+		// постановка в очередь не должна валить логин - чистка наверстает на след. входе
+		if err := uc.excessQueue.Enqueue(ctx, userID, realmID, limit); err != nil {
+			uc.logger.Error(ctx, "failed to enqueue user for session excess cleanup", "user_id", userID, "error", err)
+		}
 	}
 
-	return uc.sessionCloser.RevokeTokensBySessionIDs(ctx, userID, openIDs[:toClose])
+	if openCount >= hard {
+		return mrauth.ErrSessionLimitExceededTryLater
+	}
+
+	return nil
 }

@@ -3,8 +3,6 @@ package unit
 import (
 	"encoding/json"
 
-	"github.com/google/uuid"
-
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
@@ -45,8 +43,14 @@ func NewCreateUser(
 	}
 }
 
-// Create - создаёт операцию создания пользователя по его email.
-func (o *CreateUser) Create(langCode string, userEmail contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
+// Create - создаёт операцию создания пользователя по его email. Если email уже принадлежит
+// существующему пользователю с включённым 2FA, то его второй фактор добавляется вторым шагом
+// подтверждения - иначе регистрация в новый realm стала бы обходом 2FA.
+func (o *CreateUser) Create(
+	user2FA dto.User2FA,
+	langCode string,
+	userEmail contactaddress.ContactAddress,
+) (secureoperation.SecureOperation, error) {
 	operationToken, err := o.tokenGenerator.GenToken()
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
@@ -69,16 +73,22 @@ func (o *CreateUser) Create(langCode string, userEmail contactaddress.ContactAdd
 		return secureoperation.SecureOperation{}, err
 	}
 
-	confirmAction, err := o.actionCreator.Create(userEmail, confirmCode, hashedCode)
+	actions := make([]secureoperation.ConfirmAction, 1, 2)
+
+	actions[0], err = o.actionCreator.Create(userEmail, confirmCode, hashedCode)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
+	}
+
+	if user2FA.Action2FA.Method > 0 {
+		actions = append(actions, user2FA.Action2FA)
 	}
 
 	return secureoperation.NewOperation(
 		operationToken,
 		NameConfirmCreateUser,
-		uuid.Nil,
-		[]secureoperation.ConfirmAction{confirmAction},
+		user2FA.ID,
+		actions,
 		payload,
 	)
 }

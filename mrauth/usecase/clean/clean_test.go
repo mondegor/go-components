@@ -20,6 +20,7 @@ import (
 //go:generate mockgen -source=operation_cleaner.go -destination=mock/operation_cleaner.go -package=mock
 //go:generate mockgen -source=user_cleaner.go -destination=mock/user_cleaner.go -package=mock
 //go:generate mockgen -source=session_drainer.go -destination=mock/session_drainer.go -package=mock
+//go:generate mockgen -source=session_excess_trimmer.go -destination=mock/session_excess_trimmer.go -package=mock
 //go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-sysmess/mrstorage DBTxManager
 
 // runJob - выполняет переданный в txManager.Do замыкание синхронно (без реальной транзакции).
@@ -35,8 +36,8 @@ func TestAuthTokenCleaner_Execute_SumsCounts(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	tx := mock.NewMockDBTxManager(ctrl)
-	storage := mock.NewMockauthTokenStorage(ctrl)
-	queue := mock.NewMocksessionCleanupQueue(ctrl)
+	storage := mock.NewMockAuthTokenStorage(ctrl)
+	queue := mock.NewMockSessionCleanupQueue(ctrl)
 
 	candidates := []entity.SessionPK{
 		{UserID: uuid.New(), SessionID: 1},
@@ -61,8 +62,8 @@ func TestAuthTokenCleaner_Execute_NonRefreshErrorSkipsTx(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	tx := mock.NewMockDBTxManager(ctrl)
-	storage := mock.NewMockauthTokenStorage(ctrl)
-	queue := mock.NewMocksessionCleanupQueue(ctrl)
+	storage := mock.NewMockAuthTokenStorage(ctrl)
+	queue := mock.NewMockSessionCleanupQueue(ctrl)
 
 	storage.EXPECT().DeleteExpiredNonRefresh(gomock.Any(), 100).Return(0, errors.New("boom"))
 	// tx.Do / DeleteExpiredRefresh / Enqueue не должны вызываться
@@ -79,8 +80,8 @@ func TestAuthTokenCleaner_Execute_EnqueueErrorPropagates(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	tx := mock.NewMockDBTxManager(ctrl)
-	storage := mock.NewMockauthTokenStorage(ctrl)
-	queue := mock.NewMocksessionCleanupQueue(ctrl)
+	storage := mock.NewMockAuthTokenStorage(ctrl)
+	queue := mock.NewMockSessionCleanupQueue(ctrl)
 
 	candidates := []entity.SessionPK{{UserID: uuid.New(), SessionID: 1}}
 
@@ -102,8 +103,8 @@ func TestOperationCleaner_Execute_SumsCounts(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 
-	storage := mock.NewMockoperationStorage(ctrl)
-	storageLog := mock.NewMockoperationLogStorage(ctrl)
+	storage := mock.NewMockOperationStorage(ctrl)
+	storageLog := mock.NewMockOperationLogStorage(ctrl)
 
 	storage.EXPECT().DeleteExpired(gomock.Any(), 100).Return(3, nil)
 	storageLog.EXPECT().DeleteBeforeDate(gomock.Any(), gomock.Any(), 100).Return(4, nil)
@@ -122,7 +123,7 @@ func TestUserCleaner_Execute(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 
-	storageLog := mock.NewMockuserActivityLogStorage(ctrl)
+	storageLog := mock.NewMockUserActivityLogStorage(ctrl)
 	storageLog.EXPECT().DeleteBeforeDate(gomock.Any(), gomock.Any(), 100).Return(9, nil)
 
 	uc := clean.NewUserCleaner(storageLog, time.Hour)
@@ -139,8 +140,8 @@ func TestSessionDrainer_Execute_EmptyQueue(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 
-	consumer := mock.NewMocksessionCleanupQueueConsumer(ctrl)
-	deleter := mock.NewMockorphanSessionDeleter(ctrl)
+	consumer := mock.NewMockSessionCleanupQueueConsumer(ctrl)
+	deleter := mock.NewMockOrphanSessionDeleter(ctrl)
 
 	consumer.EXPECT().Fetch(gomock.Any(), 100).Return([]entity.SessionPK{}, nil)
 	// DeleteOrphaned / consumer.Delete не вызываются при пустой пачке
@@ -157,8 +158,8 @@ func TestSessionDrainer_Execute_HappyPath(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 
-	consumer := mock.NewMocksessionCleanupQueueConsumer(ctrl)
-	deleter := mock.NewMockorphanSessionDeleter(ctrl)
+	consumer := mock.NewMockSessionCleanupQueueConsumer(ctrl)
+	deleter := mock.NewMockOrphanSessionDeleter(ctrl)
 
 	pks := []entity.SessionPK{
 		{UserID: uuid.New(), SessionID: 1},
@@ -183,8 +184,8 @@ func TestSessionDrainer_Execute_DeleteErrorSkipsAck(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 
-	consumer := mock.NewMocksessionCleanupQueueConsumer(ctrl)
-	deleter := mock.NewMockorphanSessionDeleter(ctrl)
+	consumer := mock.NewMockSessionCleanupQueueConsumer(ctrl)
+	deleter := mock.NewMockOrphanSessionDeleter(ctrl)
 
 	pks := []entity.SessionPK{{UserID: uuid.New(), SessionID: 1}}
 
@@ -203,8 +204,8 @@ func TestSessionDrainer_Execute_FetchError(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 
-	consumer := mock.NewMocksessionCleanupQueueConsumer(ctrl)
-	deleter := mock.NewMockorphanSessionDeleter(ctrl)
+	consumer := mock.NewMockSessionCleanupQueueConsumer(ctrl)
+	deleter := mock.NewMockOrphanSessionDeleter(ctrl)
 
 	consumer.EXPECT().Fetch(gomock.Any(), 100).Return(nil, errors.New("fetch failed"))
 

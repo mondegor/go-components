@@ -18,6 +18,7 @@ type (
 	UserLogin struct {
 		storageCheckUser checkUserStorage
 		storageUserRealm userRealmStorage
+		realmRegistry    mrauth.RealmRegistry
 		errorWrapper     errors.Wrapper
 	}
 
@@ -27,7 +28,7 @@ type (
 	}
 
 	userRealmStorage interface {
-		FetchOne(ctx context.Context, userID uuid.UUID, realm string) (row entity.UserRealm, err error)
+		FetchOne(ctx context.Context, userID uuid.UUID, realmID uint16) (row entity.UserRealm, err error)
 	}
 )
 
@@ -35,10 +36,12 @@ type (
 func NewUserLogin(
 	storageCheckUser checkUserStorage,
 	storageUserRealm userRealmStorage,
+	realmRegistry mrauth.RealmRegistry,
 ) *UserLogin {
 	return &UserLogin{
 		storageCheckUser: storageCheckUser,
 		storageUserRealm: storageUserRealm,
+		realmRegistry:    realmRegistry,
 		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 	}
 }
@@ -108,7 +111,13 @@ func (sv *UserLogin) checkAvailabilityRealmPhone(ctx context.Context, realm stri
 }
 
 func (sv *UserLogin) checkUserRealm(ctx context.Context, userID uuid.UUID, realm string, errIfExists error) error {
-	if _, err := sv.storageUserRealm.FetchOne(ctx, userID, realm); err != nil {
+	realmID, ok := sv.realmRegistry.IDByName(realm)
+	if !ok {
+		// пустой или неизвестный realm: привязки к несуществующему realm быть не может, логин доступен
+		return nil
+	}
+
+	if _, err := sv.storageUserRealm.FetchOne(ctx, userID, realmID); err != nil {
 		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 			return nil
 		}

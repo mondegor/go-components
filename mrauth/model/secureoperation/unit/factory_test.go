@@ -187,20 +187,51 @@ func TestChangeTOTP_Create(t *testing.T) {
 func TestCreateUser_Create(t *testing.T) {
 	t.Parallel()
 
-	f := unit.NewCreateUser("shop", "customer", fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+	t.Run("new user - single email action, nil user id", func(t *testing.T) {
+		t.Parallel()
 
-	op, err := f.Create("en", contactaddress.NewEmail("user@example.com"))
-	require.NoError(t, err)
-	assert.Equal(t, unit.NameConfirmCreateUser, op.Name)
-	assert.Equal(t, uuid.Nil, op.UserID)
-	require.Len(t, op.Actions(), 1)
+		f := unit.NewCreateUser("shop", "customer", fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
 
-	var p dto.CreateUserOperation
-	require.NoError(t, json.Unmarshal(op.Payload, &p))
-	assert.Equal(t, "shop", p.Realm)
-	assert.Equal(t, "customer", p.UserKind)
-	assert.Equal(t, "en", p.LangCode)
-	assert.Equal(t, "user@example.com", p.Email)
+		// для нового email usecase передаёт пустой User2FA
+		op, err := f.Create(dto.User2FA{}, "en", contactaddress.NewEmail("user@example.com"))
+		require.NoError(t, err)
+		assert.Equal(t, unit.NameConfirmCreateUser, op.Name)
+		assert.Equal(t, uuid.Nil, op.UserID)
+		require.Len(t, op.Actions(), 1)
+
+		var p dto.CreateUserOperation
+		require.NoError(t, json.Unmarshal(op.Payload, &p))
+		assert.Equal(t, "shop", p.Realm)
+		assert.Equal(t, "customer", p.UserKind)
+		assert.Equal(t, "en", p.LangCode)
+		assert.Equal(t, "user@example.com", p.Email)
+	})
+
+	t.Run("existing user with 2fa - appends second action and binds user id", func(t *testing.T) {
+		t.Parallel()
+
+		f := unit.NewCreateUser("shop", "customer", fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+
+		user2FA := userWith2FA()
+
+		op, err := f.Create(user2FA, "en", contactaddress.NewEmail("user@example.com"))
+		require.NoError(t, err)
+		require.Len(t, op.Actions(), 2)
+		assert.Equal(t, user2FA.ID, op.UserID)
+	})
+
+	t.Run("existing user without 2fa - single email action", func(t *testing.T) {
+		t.Parallel()
+
+		f := unit.NewCreateUser("shop", "customer", fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+
+		user2FA := userWithout2FA()
+
+		op, err := f.Create(user2FA, "en", contactaddress.NewEmail("user@example.com"))
+		require.NoError(t, err)
+		require.Len(t, op.Actions(), 1)
+		assert.Equal(t, user2FA.ID, op.UserID)
+	})
 }
 
 func TestDisable2FA_Create(t *testing.T) {

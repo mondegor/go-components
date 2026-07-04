@@ -27,15 +27,15 @@ VALUES  ('5ad9475b-25e5-4014-9331-567a61c51f24', 'mondegor@gmail.com', 792627512
 
 CREATE TABLE sample_schema.users_realms (
     user_id uuid NOT NULL REFERENCES sample_schema.users(user_id) ON DELETE CASCADE,
-    user_realm character varying(32) NOT NULL, -- domain + '/' + user_group
+    realm_id int4 NOT NULL,
     user_kind character varying(16) NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT NOW(),
     updated_at timestamp with time zone NOT NULL DEFAULT NOW(),
-    CONSTRAINT pk_users_realms PRIMARY KEY (user_id, user_realm)
+    CONSTRAINT pk_users_realms PRIMARY KEY (user_id, realm_id)
 );
 
-INSERT INTO sample_schema.users_realms (user_id, user_realm, user_kind, created_at, updated_at)
-VALUES  ('5ad9475b-25e5-4014-9331-567a61c51f24', 'printshop/providers', 'standard', '2024-12-09 04:39:08.482000 +03:00', '2024-12-09 04:39:08.482000 +03:00');
+INSERT INTO sample_schema.users_realms (user_id, realm_id, user_kind, created_at, updated_at)
+VALUES  ('5ad9475b-25e5-4014-9331-567a61c51f24', 1/*realm1/group1*/, 'standard', '2024-12-09 04:39:08.482000 +03:00', '2024-12-09 04:39:08.482000 +03:00');
 
 -- --------------------------------------------------------------------------------------------------
 
@@ -121,6 +121,28 @@ ALTER TABLE sample_schema.sessions_cleanup_queue SET (
 
 -- --------------------------------------------------------------------------------------------------
 
+CREATE TABLE sample_schema.sessions_excess_queue (
+    user_id uuid NOT NULL,
+    realm_id int4 NOT NULL,
+    session_max int4 NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT NOW(),
+    CONSTRAINT pk_sessions_excess_queue PRIMARY KEY (user_id, realm_id)
+);
+
+CREATE INDEX ix_sessions_excess_queue_created_at ON sample_schema.sessions_excess_queue (created_at);
+
+-- sessions_excess_queue - очередь пользователей на фоновую чистку лишних сессий (enqueue при входе
+-- по достижении soft-порога -> trim очереди). Тот же высокий churn, что и у sessions_cleanup_queue,
+-- поэтому autovacuum тоже агрессивнее дефолтного. Дедуплицируется по (user_id, realm_id)
+-- (один ряд на пару пользователь+realm).
+ALTER TABLE sample_schema.sessions_excess_queue SET (
+    autovacuum_vacuum_scale_factor = 0.05,
+    autovacuum_vacuum_threshold = 200,
+    autovacuum_analyze_scale_factor = 0.05
+);
+
+-- --------------------------------------------------------------------------------------------------
+
 -- На будущее (возможное направление масштабирования): разнести auth_tokens по типам токенов в
 -- отдельные таблицы и для короткоживущих перейти с DELETE на DROP PARTITION.
 --   * Самые короткоживущие - opaque access-токены (access_type='session'; JWT-access в БД не лежит).
@@ -137,6 +159,7 @@ CREATE TABLE sample_schema.auth_tokens (
     auth_token character varying(128) NOT NULL CONSTRAINT pk_auth_tokens PRIMARY KEY,
     token_type int2 NOT NULL, -- 1=ACCESS, 2=REFRESH, 3=API
     user_id uuid NOT NULL,
+    realm_id int4 NOT NULL,
     session_id int8 NOT NULL,
     token_scopes jsonb NOT NULL,
     token_status int2 NOT NULL, -- 1=ENABLED, 2=REVOKED
@@ -147,6 +170,12 @@ CREATE TABLE sample_schema.auth_tokens (
 CREATE INDEX ix_auth_tokens_user_id_session_id ON sample_schema.auth_tokens (user_id, session_id);
 CREATE INDEX ix_auth_tokens_token_type_expires_at ON sample_schema.auth_tokens (token_type, expires_at); -- очистка refresh-токенов
 CREATE INDEX ix_auth_tokens_expires_at ON sample_schema.auth_tokens (expires_at); -- очистка не-refresh токенов
+
+-- счётчик открытых сессий на горячем пути логина:
+-- только живые refresh-токены, отфильтрованные по realm;
+-- индекс не раздувается невычищенными REVOKED/EXPIRED строками
+CREATE INDEX ix_auth_tokens_user_id_realm_id_session_id ON sample_schema.auth_tokens (user_id, realm_id, session_id)
+    WHERE token_type = 2 AND token_status = 1; -- 2=REFRESH, 1=ENABLED
 
 -- auth_tokens - таблица с высоким churn'ом (постоянная выдача/ротация/очистка токенов): дефолтный
 -- autovacuum не поспевает за DELETE'ами -> bloat heap'а и индексов очистки. Чаще запускаем autovacuum.

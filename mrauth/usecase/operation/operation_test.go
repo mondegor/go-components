@@ -241,12 +241,11 @@ func TestConfirmOperation_Success_NotConfirmedNotifies(t *testing.T) {
 func TestConfirmOperation_Success_ConfirmedRunsCommit(t *testing.T) {
 	t.Parallel()
 
-	op := confirmedOp(t)
 	committed := false
-	storage := &fakeStorage{fetchOp: op}
+	storage := &fakeStorage{fetchOp: openedEmailOp(t)} // в хранилище операция ещё Opened
 	notifier := &fakeNotifier{}
 	preparer := fakeConfirmPreparer{
-		outOp: op,
+		outOp: confirmedOp(t), // Prepare подтверждает её и возвращает commit второго фактора
 		commit: func(context.Context) error {
 			committed = true
 
@@ -262,14 +261,32 @@ func TestConfirmOperation_Success_ConfirmedRunsCommit(t *testing.T) {
 	require.Equal(t, 0, notifier.sent) // подтверждённая операция не отправляет код
 }
 
+// TestConfirmOperation_AlreadyConfirmedIsIdempotent - повторное подтверждение уже подтверждённой
+// операции замыкается накоротко: Prepare/Replace не вызываются, операция возвращается как успех
+// (нужно, чтобы поток открытия сессии можно было безопасно повторить после сбоя сессии).
+func TestConfirmOperation_AlreadyConfirmedIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	storage := &fakeStorage{fetchOp: confirmedOp(t)}
+	notifier := &fakeNotifier{}
+	// preparer вернул бы ошибку, если бы был вызван - проверяем, что короткое замыкание сработало
+	preparer := fakeConfirmPreparer{err: errors.New("Prepare must not be called")}
+	uc := operation.NewConfirmOperation(fakeTx{}, storage, notifier, preparer)
+
+	out, err := uc.Execute(context.Background(), "en", "token", "code123")
+	require.NoError(t, err)
+	assert.True(t, out.Is(operationstatus.Confirmed))
+	assert.False(t, storage.replaced)
+	assert.Equal(t, 0, notifier.sent)
+}
+
 func TestConfirmOperation_Success_Auth2FARaceRejectedAsWrongCode(t *testing.T) {
 	t.Parallel()
 
-	op := confirmedOp(t)
-	storage := &fakeStorage{fetchOp: op}
+	storage := &fakeStorage{fetchOp: openedEmailOp(t)} // в хранилище операция ещё Opened
 	notifier := &fakeNotifier{}
 	preparer := fakeConfirmPreparer{
-		outOp: op,
+		outOp: confirmedOp(t),
 		// второй фактор уже израсходован конкурентным подтверждением
 		commit: func(context.Context) error {
 			return sysmesserrors.ErrEventStorageNoRecordFound

@@ -17,32 +17,32 @@ import (
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MockoperationStorage is a mock of operationStorage interface.
-type MockoperationStorage struct {
+// MockOperationStorage is a mock of OperationStorage interface.
+type MockOperationStorage struct {
 	ctrl     *gomock.Controller
-	recorder *MockoperationStorageMockRecorder
+	recorder *MockOperationStorageMockRecorder
 	isgomock struct{}
 }
 
-// MockoperationStorageMockRecorder is the mock recorder for MockoperationStorage.
-type MockoperationStorageMockRecorder struct {
-	mock *MockoperationStorage
+// MockOperationStorageMockRecorder is the mock recorder for MockOperationStorage.
+type MockOperationStorageMockRecorder struct {
+	mock *MockOperationStorage
 }
 
-// NewMockoperationStorage creates a new mock instance.
-func NewMockoperationStorage(ctrl *gomock.Controller) *MockoperationStorage {
-	mock := &MockoperationStorage{ctrl: ctrl}
-	mock.recorder = &MockoperationStorageMockRecorder{mock}
+// NewMockOperationStorage creates a new mock instance.
+func NewMockOperationStorage(ctrl *gomock.Controller) *MockOperationStorage {
+	mock := &MockOperationStorage{ctrl: ctrl}
+	mock.recorder = &MockOperationStorageMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockoperationStorage) EXPECT() *MockoperationStorageMockRecorder {
+func (m *MockOperationStorage) EXPECT() *MockOperationStorageMockRecorder {
 	return m.recorder
 }
 
 // DeleteExpired mocks base method.
-func (m *MockoperationStorage) DeleteExpired(ctx context.Context, limit int) (int, error) {
+func (m *MockOperationStorage) DeleteExpired(ctx context.Context, limit int) (int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteExpired", ctx, limit)
 	ret0, _ := ret[0].(int)
@@ -51,37 +51,37 @@ func (m *MockoperationStorage) DeleteExpired(ctx context.Context, limit int) (in
 }
 
 // DeleteExpired indicates an expected call of DeleteExpired.
-func (mr *MockoperationStorageMockRecorder) DeleteExpired(ctx, limit any) *gomock.Call {
+func (mr *MockOperationStorageMockRecorder) DeleteExpired(ctx, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpired", reflect.TypeOf((*MockoperationStorage)(nil).DeleteExpired), ctx, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpired", reflect.TypeOf((*MockOperationStorage)(nil).DeleteExpired), ctx, limit)
 }
 
-// MockoperationLogStorage is a mock of operationLogStorage interface.
-type MockoperationLogStorage struct {
+// MockOperationLogStorage is a mock of OperationLogStorage interface.
+type MockOperationLogStorage struct {
 	ctrl     *gomock.Controller
-	recorder *MockoperationLogStorageMockRecorder
+	recorder *MockOperationLogStorageMockRecorder
 	isgomock struct{}
 }
 
-// MockoperationLogStorageMockRecorder is the mock recorder for MockoperationLogStorage.
-type MockoperationLogStorageMockRecorder struct {
-	mock *MockoperationLogStorage
+// MockOperationLogStorageMockRecorder is the mock recorder for MockOperationLogStorage.
+type MockOperationLogStorageMockRecorder struct {
+	mock *MockOperationLogStorage
 }
 
-// NewMockoperationLogStorage creates a new mock instance.
-func NewMockoperationLogStorage(ctrl *gomock.Controller) *MockoperationLogStorage {
-	mock := &MockoperationLogStorage{ctrl: ctrl}
-	mock.recorder = &MockoperationLogStorageMockRecorder{mock}
+// NewMockOperationLogStorage creates a new mock instance.
+func NewMockOperationLogStorage(ctrl *gomock.Controller) *MockOperationLogStorage {
+	mock := &MockOperationLogStorage{ctrl: ctrl}
+	mock.recorder = &MockOperationLogStorageMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockoperationLogStorage) EXPECT() *MockoperationLogStorageMockRecorder {
+func (m *MockOperationLogStorage) EXPECT() *MockOperationLogStorageMockRecorder {
 	return m.recorder
 }
 
 // DeleteBeforeDate mocks base method.
-func (m *MockoperationLogStorage) DeleteBeforeDate(ctx context.Context, datetime time.Time, limit int) (int, error) {
+func (m *MockOperationLogStorage) DeleteBeforeDate(ctx context.Context, datetime time.Time, limit int) (int, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteBeforeDate", ctx, datetime, limit)
 	ret0, _ := ret[0].(int)
@@ -90,7 +90,7 @@ func (m *MockoperationLogStorage) DeleteBeforeDate(ctx context.Context, datetime
 }
 
 // DeleteBeforeDate indicates an expected call of DeleteBeforeDate.
-func (mr *MockoperationLogStorageMockRecorder) DeleteBeforeDate(ctx, datetime, limit any) *gomock.Call {
+func (mr *MockOperationLogStorageMockRecorder) DeleteBeforeDate(ctx, datetime, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBeforeDate", reflect.TypeOf((*MockoperationLogStorage)(nil).DeleteBeforeDate), ctx, datetime, limit)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteBeforeDate", reflect.TypeOf((*MockOperationLogStorage)(nil).DeleteBeforeDate), ctx, datetime, limit)
 }

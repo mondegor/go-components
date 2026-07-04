@@ -89,6 +89,12 @@ func (co *ConfirmOperation) Execute(
 			return co.errorWrapper.Wrap(err)
 		}
 
+		// идемпотентность: повторное подтверждение уже подтверждённой
+		// операции ничего не меняет (секрет уже израсходован, действий не осталось)
+		if op.Is(operationstatus.Confirmed) {
+			return nil
+		}
+
 		var commitConfirmed func(ctx context.Context) error
 
 		op, commitConfirmed, err = co.operationPreparer.Prepare(ctx, op, confirmCode)
