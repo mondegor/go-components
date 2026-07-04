@@ -25,19 +25,24 @@ type (
 		kind    string
 	}
 
-	// sessionLimiter - резолвер лимита одновременных сессий и производных порогов (soft/hard)
-	// по realm/kind. Общий для OpenSession (пороги входа) и List (обрезка списка).
+	// limitResolver - резолвер лимита одновременных сессий по realm/kind. Используется
+	// в List (обрезка списка), где нужны только лимиты без порогов soft/hard.
+	limitResolver struct {
+		limits map[realmKindKey]int
+	}
+
+	// sessionLimiter - limitResolver, дополненный производными порогами soft/hard.
+	// Используется в OpenSession, где нужны и лимит, и пороги входа.
 	sessionLimiter struct {
-		limits        map[realmKindKey]int
+		*limitResolver
 		softThreshold int
 		hardThreshold int
 	}
 )
 
-// newSessionLimiter - создаёт резолвер лимитов из конфигурации realm'ов: не заданный (0)
-// лимит вида пользователя заменяется значением по умолчанию. Отклонения soft/hard порогов
-// нормализуются (см. correctThresholds).
-func newSessionLimiter(realms []LimitRealm, soft, hard int) *sessionLimiter {
+// newLimitResolver - создаёт резолвер лимитов из конфигурации realm'ов: не заданный (0)
+// лимит вида пользователя заменяется значением по умолчанию.
+func newLimitResolver(realms []LimitRealm) *limitResolver {
 	limits := make(map[realmKindKey]int)
 
 	for _, realm := range realms {
@@ -51,10 +56,16 @@ func newSessionLimiter(realms []LimitRealm, soft, hard int) *sessionLimiter {
 		}
 	}
 
+	return &limitResolver{limits: limits}
+}
+
+// newSessionLimiter - создаёт резолвер лимитов с порогами: строит limitResolver и
+// нормализует отклонения soft/hard порогов (см. correctThresholds).
+func newSessionLimiter(realms []LimitRealm, soft, hard int) *sessionLimiter {
 	soft, hard = correctThresholds(soft, hard)
 
 	return &sessionLimiter{
-		limits:        limits,
+		limitResolver: newLimitResolver(realms),
 		softThreshold: soft,
 		hardThreshold: hard,
 	}
@@ -62,7 +73,7 @@ func newSessionLimiter(realms []LimitRealm, soft, hard int) *sessionLimiter {
 
 // Limit - максимум одновременных сессий для realm/kind. Для не сконфигурированной пары
 // (в т.ч. пустого kind) возвращает значение по умолчанию.
-func (l *sessionLimiter) Limit(realmID uint16, kind string) int {
+func (l *limitResolver) Limit(realmID uint16, kind string) int {
 	if limit, ok := l.limits[realmKindKey{realmID: realmID, kind: kind}]; ok {
 		if limit > 0 {
 			return limit

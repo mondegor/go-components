@@ -23,7 +23,7 @@ type (
 		realmRegistry    mrauth.RealmRegistry
 		appResolver      mrauth.AppResolver
 		locationResolver mrauth.LocationResolver
-		limiter          *sessionLimiter
+		limiter          *limitResolver
 		errorWrapper     errors.Wrapper
 	}
 
@@ -75,7 +75,7 @@ func NewList(
 		realmRegistry:    realmRegistry,
 		appResolver:      appResolver,
 		locationResolver: locationResolver,
-		limiter:          newSessionLimiter(allowedRealms, 0, 0),
+		limiter:          newLimitResolver(allowedRealms),
 		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
 	}
 }

@@ -17,6 +17,13 @@ import (
 
 type (
 	// AuthTokenPostgres - хранилище токенов авторизации в PostgreSQL.
+	//
+	// Токены хранятся и ищутся в открытом виде (WHERE auth_token = $1): это осознанный
+	// trade-off. Токены высокоэнтропийные (crypt.TokenGenerator), поэтому brute-force по
+	// хэшу неактуален, а plaintext упрощает поиск. Цена: read-only-компрометация БД (дамп,
+	// реплика, бэкап) даёт готовые к использованию токены - принятый риск. Возможное будущее
+	// усиление (defense-in-depth) - хранить sha256(token) в колонке, отдавая plaintext только
+	// в момент выпуска; сейчас не реализуется.
 	AuthTokenPostgres struct {
 		client                     mrstorage.DBConnManager
 		errorWrapper               errors.Wrapper

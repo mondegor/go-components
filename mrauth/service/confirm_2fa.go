@@ -72,7 +72,7 @@ func (sv *FactoryConfirm2FA) CreateByUserID(ctx context.Context, userID uuid.UUI
 }
 
 func (sv *FactoryConfirm2FA) createUser2FA(ctx context.Context, user *entity.User) (dto.User2FA, error) {
-	// TODO: ???????????????????????????
+	// в 2FA-поток допускается только активный пользователь; Draft/Disabled/Blocked отклоняются.
 	if user.Status != userstatus.Enabled {
 		return dto.User2FA{}, errors.New("user status is not enabled")
 	}
