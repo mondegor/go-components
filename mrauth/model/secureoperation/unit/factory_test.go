@@ -193,7 +193,7 @@ func TestCreateUser_Create(t *testing.T) {
 		f := unit.NewCreateUser("shop", "customer", fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
 
 		// для нового email usecase передаёт пустой User2FA
-		op, err := f.Create(dto.User2FA{}, "en", contactaddress.NewEmail("user@example.com"))
+		op, err := f.Create(dto.User2FA{}, "en", contactaddress.NewEmail("user@example.com"), "203.0.113.7")
 		require.NoError(t, err)
 		assert.Equal(t, unit.NameConfirmCreateUser, op.Name)
 		assert.Equal(t, uuid.Nil, op.UserID)
@@ -205,6 +205,7 @@ func TestCreateUser_Create(t *testing.T) {
 		assert.Equal(t, "customer", p.UserKind)
 		assert.Equal(t, "en", p.LangCode)
 		assert.Equal(t, "user@example.com", p.Email)
+		assert.Equal(t, "203.0.113.7", p.RegisteredIP)
 	})
 
 	t.Run("existing user with 2fa - appends second action and binds user id", func(t *testing.T) {
@@ -214,7 +215,7 @@ func TestCreateUser_Create(t *testing.T) {
 
 		user2FA := userWith2FA()
 
-		op, err := f.Create(user2FA, "en", contactaddress.NewEmail("user@example.com"))
+		op, err := f.Create(user2FA, "en", contactaddress.NewEmail("user@example.com"), "203.0.113.7")
 		require.NoError(t, err)
 		require.Len(t, op.Actions(), 2)
 		assert.Equal(t, user2FA.ID, op.UserID)
@@ -227,7 +228,7 @@ func TestCreateUser_Create(t *testing.T) {
 
 		user2FA := userWithout2FA()
 
-		op, err := f.Create(user2FA, "en", contactaddress.NewEmail("user@example.com"))
+		op, err := f.Create(user2FA, "en", contactaddress.NewEmail("user@example.com"), "203.0.113.7")
 		require.NoError(t, err)
 		require.Len(t, op.Actions(), 1)
 		assert.Equal(t, user2FA.ID, op.UserID)

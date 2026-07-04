@@ -53,9 +53,9 @@ func (ts *Auth2FAPostgresTestSuite) seedUser() uuid.UUID {
 
 	sql := `
 		INSERT INTO sample_schema.users
-			(user_id, user_email, lang_code, user_status)
+			(user_id, user_email, lang_code, registered_ip, user_status)
 		VALUES
-			($1, $2, $3, $4);`
+			($1, $2, $3, $4, $5);`
 
 	err := ts.pgt.ConnManager().Conn(ts.ctx).Exec(
 		ts.ctx,
@@ -63,6 +63,7 @@ func (ts *Auth2FAPostgresTestSuite) seedUser() uuid.UUID {
 		userID,
 		userID.String()+"@localhost",
 		"ru-RU",
+		"203.0.113.7",
 		2, // ENABLED
 	)
 	ts.Require().NoError(err)

@@ -27,7 +27,7 @@ type (
 		byLoginErr  error
 		fetchOne    entity.User
 		fetchOneErr error
-		inserted    []entity.User
+		inserted    []entity.ExtendedUser
 	}
 
 	fakeUserRealmStorage struct {
@@ -54,7 +54,7 @@ func (f *fakeUserStorage) FetchOneByLogin(context.Context, contactaddress.Contac
 	return f.byLogin, f.byLoginErr
 }
 
-func (f *fakeUserStorage) Insert(_ context.Context, row entity.User) error {
+func (f *fakeUserStorage) Insert(_ context.Context, row entity.ExtendedUser) error {
 	f.inserted = append(f.inserted, row)
 
 	return nil
@@ -104,12 +104,16 @@ func TestResolveUser_NewEmail(t *testing.T) {
 	storageUserRealm := &fakeUserRealmStorage{}
 	notifier := &fakeNotifier{}
 
-	userID, err := newService(storageUser, storageUserRealm, notifier).ResolveUser(context.Background(), uuid.Nil, newCreateIn())
+	in := newCreateIn()
+	in.RegisteredIP = "203.0.113.7"
+
+	userID, err := newService(storageUser, storageUserRealm, notifier).ResolveUser(context.Background(), uuid.Nil, in)
 	require.NoError(t, err)
 	assert.NotEqual(t, uuid.Nil, userID)
 
 	require.Len(t, storageUser.inserted, 1)
 	assert.Equal(t, userID, storageUser.inserted[0].ID)
+	assert.Equal(t, "203.0.113.7", storageUser.inserted[0].RegisteredIP, "IP регистрации фиксируется у нового пользователя")
 	require.Len(t, storageUserRealm.inserted, 1)
 	assert.Equal(t, []string{"user.registration.success.site/admin", "user.was.registered"}, notifier.events)
 }

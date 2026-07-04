@@ -50,6 +50,7 @@ func (o *CreateUser) Create(
 	user2FA dto.User2FA,
 	langCode string,
 	userEmail contactaddress.ContactAddress,
+	registeredIP string,
 ) (secureoperation.SecureOperation, error) {
 	operationToken, err := o.tokenGenerator.GenToken()
 	if err != nil {
@@ -63,10 +64,11 @@ func (o *CreateUser) Create(
 
 	payload, err := json.Marshal(
 		dto.CreateUserOperation{
-			Realm:    o.realm,
-			UserKind: o.userKind,
-			LangCode: langCode,
-			Email:    userEmail.Value(),
+			Realm:        o.realm,
+			UserKind:     o.userKind,
+			LangCode:     langCode,
+			Email:        userEmail.Value(),
+			RegisteredIP: registeredIP,
 		},
 	)
 	if err != nil {

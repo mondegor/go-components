@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mraccess"
+	"github.com/mondegor/go-sysmess/mrtype"
 	"github.com/mondegor/go-sysmess/util/casttype"
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
@@ -52,7 +53,11 @@ type (
 	}
 
 	createUserUseCase interface {
-		Execute(ctx context.Context, realm, langCode, userEmail string) (secureoperation.SecureOperation, error)
+		Execute(
+			ctx context.Context,
+			realm, langCode, userEmail string,
+			registeredIP mrtype.DetailedIP,
+		) (secureoperation.SecureOperation, error)
 	}
 
 	authUserUseCase interface {
@@ -155,7 +160,7 @@ func (ht *Auth) Signup(w http.ResponseWriter, r *http.Request) error {
 	// занятость email раскрывается осознанно (ErrEmailAlreadyExists), как в check-login и Signin -
 	// это by design ради UX формы регистрации; перебор аккаунтов закрывается rate-limit'ом (отдельная задача).
 	// TODO: добавить rate-limit (частота регистраций/повторной отправки кода по identifier+IP)
-	op, err := ht.useCaseCreateUser.Execute(r.Context(), req.Realm, lz.Language(), req.UserEmail)
+	op, err := ht.useCaseCreateUser.Execute(r.Context(), req.Realm, lz.Language(), req.UserEmail, ht.parser.DetailedIP(r))
 	if err != nil {
 		if errors.Is(err, mrauth.ErrEmailAlreadyExists) {
 			return errors.WithCustomCode(err, "userEmail")

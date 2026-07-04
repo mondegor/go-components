@@ -50,7 +50,7 @@ type (
 	userStorage interface {
 		FetchOne(ctx context.Context, userID uuid.UUID) (entity.User, error)
 		FetchOneByLogin(ctx context.Context, userLogin contactaddress.ContactAddress) (entity.User, error)
-		Insert(ctx context.Context, row entity.User) error
+		Insert(ctx context.Context, row entity.ExtendedUser) error
 	}
 
 	userRealmStorage interface {
@@ -156,11 +156,14 @@ func (s *Service) registerNewUser(ctx context.Context, in dto.CreateUserOperatio
 	err := s.txManager.Do(ctx, func(ctx context.Context) error {
 		err := s.storageUser.Insert(
 			ctx,
-			entity.User{
-				ID:       userID,
-				Email:    in.Email,
-				LangCode: in.LangCode,
-				Status:   userstatus.Enabled,
+			entity.ExtendedUser{
+				User: entity.User{
+					ID:       userID,
+					Email:    in.Email,
+					LangCode: in.LangCode,
+					Status:   userstatus.Enabled,
+				},
+				RegisteredIP: in.RegisteredIP,
 			},
 		)
 		if err != nil {

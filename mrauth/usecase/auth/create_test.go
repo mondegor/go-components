@@ -10,6 +10,7 @@ import (
 	sysmesserrors "github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrlock"
 	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-sysmess/mrtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -48,9 +49,10 @@ type (
 	}
 
 	fakeUserOpFactory struct {
-		op         secureoperation.SecureOperation
-		err        error
-		gotUser2FA dto.User2FA
+		op              secureoperation.SecureOperation
+		err             error
+		gotUser2FA      dto.User2FA
+		gotRegisteredIP string
 	}
 
 	fakeLocker struct {
@@ -98,8 +100,14 @@ func (f fakeSessionOpFactory) Create(dto.User2FA, string, string, contactaddress
 	return f.op, f.err
 }
 
-func (f *fakeUserOpFactory) Create(user2FA dto.User2FA, _ string, _ contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
+func (f *fakeUserOpFactory) Create(
+	user2FA dto.User2FA,
+	_ string,
+	_ contactaddress.ContactAddress,
+	registeredIP string,
+) (secureoperation.SecureOperation, error) {
 	f.gotUser2FA = user2FA
+	f.gotRegisteredIP = registeredIP
 
 	return f.op, f.err
 }
@@ -234,7 +242,7 @@ func TestCreateUser_Execute(t *testing.T) {
 		t.Parallel()
 
 		uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, fakeUser2FAFactory{}, &fakeLocker{}, &fakeUserOpFactory{})
-		_, err := uc.Execute(context.Background(), "unknown", "en", "user@example.com")
+		_, err := uc.Execute(context.Background(), "unknown", "en", "user@example.com", mrtype.NewIP(3405803783))
 		require.Error(t, err)
 	})
 
@@ -242,7 +250,7 @@ func TestCreateUser_Execute(t *testing.T) {
 		t.Parallel()
 
 		uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, fakeUser2FAFactory{}, &fakeLocker{}, &fakeUserOpFactory{})
-		_, err := uc.Execute(context.Background(), "shop", "en", "bad")
+		_, err := uc.Execute(context.Background(), "shop", "en", "bad", mrtype.NewIP(3405803783))
 		require.Error(t, err)
 	})
 
@@ -257,7 +265,7 @@ func TestCreateUser_Execute(t *testing.T) {
 			&fakeLocker{err: mrlock.ErrLockKeyNotObtained},
 			&fakeUserOpFactory{},
 		)
-		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com")
+		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(3405803783))
 		require.ErrorIs(t, err, mrauth.ErrSignupAlreadyInProgressTryLater)
 	})
 
@@ -266,12 +274,14 @@ func TestCreateUser_Execute(t *testing.T) {
 
 		creator := &fakeOpCreator{}
 		notifier := &fakeNotifier{}
-		uc := newCreateUser(fakeUserChecker{}, creator, notifier, fakeUser2FAFactory{}, &fakeLocker{}, &fakeUserOpFactory{op: openedEmailOp(t)})
+		opFactory := &fakeUserOpFactory{op: openedEmailOp(t)}
+		uc := newCreateUser(fakeUserChecker{}, creator, notifier, fakeUser2FAFactory{}, &fakeLocker{}, opFactory)
 
-		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com")
+		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(3405803783))
 		require.NoError(t, err)
 		require.True(t, creator.inserted)
 		require.True(t, notifier.sent)
+		require.Equal(t, "203.0.113.7", opFactory.gotRegisteredIP, "IP регистрации доезжает до фабрики операции")
 	})
 
 	t.Run("checker error", func(t *testing.T) {
@@ -285,7 +295,7 @@ func TestCreateUser_Execute(t *testing.T) {
 			&fakeLocker{},
 			&fakeUserOpFactory{op: openedEmailOp(t)},
 		)
-		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com")
+		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(3405803783))
 		require.Error(t, err)
 	})
 
@@ -294,7 +304,7 @@ func TestCreateUser_Execute(t *testing.T) {
 
 		factory := fakeUser2FAFactory{err: errors.New("2fa boom")}
 		uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, factory, &fakeLocker{}, &fakeUserOpFactory{op: openedEmailOp(t)})
-		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com")
+		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(3405803783))
 		require.Error(t, err)
 	})
 
@@ -307,7 +317,7 @@ func TestCreateUser_Execute(t *testing.T) {
 		opFactory := &fakeUserOpFactory{op: openedEmailOp(t)}
 		uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, factory, &fakeLocker{}, opFactory)
 
-		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com")
+		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(3405803783))
 		require.NoError(t, err)
 		require.Equal(t, dto.User2FA{}, opFactory.gotUser2FA)
 	})
@@ -323,7 +333,7 @@ func TestCreateUser_Execute(t *testing.T) {
 		opFactory := &fakeUserOpFactory{op: openedEmailOp(t)}
 		uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, fakeUser2FAFactory{user: user2FA}, &fakeLocker{}, opFactory)
 
-		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com")
+		_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(3405803783))
 		require.NoError(t, err)
 		require.Equal(t, user2FA, opFactory.gotUser2FA)
 	})

@@ -19,6 +19,13 @@ type (
 		Status   userstatus.Enum
 	}
 
+	// ExtendedUser - пользователь с расширенными полями.
+	ExtendedUser struct {
+		User
+
+		RegisteredIP string // IP на момент создания аккаунта, фиксируется однократно (write-once)
+	}
+
 	// UserRealm - привязка пользователя к зоне действия.
 	UserRealm struct {
 		UserID  uuid.UUID

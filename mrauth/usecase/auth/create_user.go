@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-sysmess/errors"
 	"github.com/mondegor/go-sysmess/mrlock"
 	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-sysmess/mrtype"
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -41,7 +42,7 @@ type (
 	}
 
 	createUserOperation interface {
-		Create(user2FA dto.User2FA, langCode string, address contactaddress.ContactAddress) (secureoperation.SecureOperation, error)
+		Create(user2FA dto.User2FA, langCode string, address contactaddress.ContactAddress, registeredIP string) (secureoperation.SecureOperation, error)
 	}
 
 	user2faActionCreator interface {
@@ -76,9 +77,14 @@ func NewCreateUser(
 	}
 }
 
-// Execute - возвращает строковое значение настройки с указанным идентификатором.
-func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail string) (op secureoperation.SecureOperation, err error) {
-	operationCreator, ok := co.realm2operation[realm]
+// Execute - инициирует создание пользователя: открывает защищённую операцию подтверждения по коду
+// и отправляет код на email. registeredIP фиксируется в payload операции как IP регистрации.
+func (co *CreateUser) Execute(
+	ctx context.Context,
+	realm, langCode, userEmail string,
+	registeredIP mrtype.DetailedIP,
+) (op secureoperation.SecureOperation, err error) {
+	opCreator, ok := co.realm2operation[realm]
 	if !ok {
 		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("realm is unknown")
 	}
@@ -120,7 +126,7 @@ func (co *CreateUser) Execute(ctx context.Context, realm, langCode, userEmail st
 		}
 	}
 
-	op, err = operationCreator.Create(user2FA, langCode, parsedLogin)
+	op, err = opCreator.Create(user2FA, langCode, parsedLogin, registeredIP.String())
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}

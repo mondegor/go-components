@@ -85,7 +85,7 @@ func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldV
 		FROM
 			` + re.tableName + `
 		WHERE
-			` + fieldName + ` = $1
+			` + fieldName + ` = $1 AND deleted_at IS NULL
 		LIMIT 1;`
 
 	var userPhone *uint64
@@ -114,7 +114,7 @@ func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldV
 }
 
 // Insert - добавляет нового пользователя и возвращает сгенерированный идентификатор.
-func (re *UserPostgres) Insert(ctx context.Context, row entity.User) error {
+func (re *UserPostgres) Insert(ctx context.Context, row entity.ExtendedUser) error {
 	sql := `
 		INSERT INTO ` + re.tableName + `
 			(
@@ -122,10 +122,11 @@ func (re *UserPostgres) Insert(ctx context.Context, row entity.User) error {
 				user_email,
 				user_phone,
 				lang_code,
+				registered_ip,
 				user_status
 			)
 		VALUES
-			($1, $2, $3, $4, $5);`
+			($1, $2, $3, $4, $5, $6);`
 
 	var userPhone *uint64
 
@@ -141,6 +142,7 @@ func (re *UserPostgres) Insert(ctx context.Context, row entity.User) error {
 		row.Email,
 		userPhone,
 		row.LangCode,
+		row.RegisteredIP,
 		row.Status,
 	)
 	if err != nil {
