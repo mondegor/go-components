@@ -24,7 +24,7 @@ type (
 		Secret string `json:"secret,omitempty" validate:"omitempty,min=4,max=32"`
 	}
 
-	// ContinueSessionRequest - запрос на подтверждение операции.
+	// ContinueSessionRequest - запрос на продление текущей сессии по refresh токену.
 	ContinueSessionRequest struct {
 		RefreshToken string `json:"refresh_token" validate:"required,min=64,max=128"`
 	}
@@ -34,7 +34,7 @@ type (
 		RefreshToken string `json:"refresh_token" validate:"required,min=64,max=128"`
 	}
 
-	// SuccessAccessResponse - запрос на авторизацию пользователя в системе.
+	// SuccessAccessResponse - ответ с выданной парой токенов доступа к аккаунту.
 	SuccessAccessResponse struct {
 		AccessToken  string `json:"access_token"`
 		ExpiresIn    uint32 `json:"expires_in"`
@@ -42,7 +42,7 @@ type (
 		Message      string `json:"message,omitempty"`       // OPTIONAL
 	}
 
-	// UserInfoResponse - запрос на авторизацию пользователя в системе.
+	// UserInfoResponse - ответ со сводной информацией о текущем пользователе.
 	UserInfoResponse struct {
 		Email        string           `json:"email"`
 		Phone        string           `json:"phone,omitempty"`
@@ -52,15 +52,15 @@ type (
 		Auth2FAType  auth2fatype.Enum `json:"auth_2fa_type"`
 		Realms       []UserRealm      `json:"realms"`
 		Status       userstatus.Enum  `json:"status"`
-		// CreatedAt    time.Time       `json:"created_at"`
-		// UpdatedAt    time.Time       `json:"updated_at"`
+		CreatedAt    string           `json:"created_at"`
+		UpdatedAt    string           `json:"updated_at"`
 	}
 
-	// UserRealm - запрос на авторизацию пользователя в системе.
+	// UserRealm - realm пользователя с его видом в ответе с информацией о пользователе.
 	UserRealm struct {
-		Name     string `json:"name"`
-		UserKind string `json:"user_kind"`
-		// CreatedAt time.Time `json:"created_at"`
-		// UpdatedAt time.Time `json:"updated_at"`
+		Name      string `json:"name"`
+		UserKind  string `json:"user_kind"`
+		CreatedAt string `json:"created_at"`
+		UpdatedAt string `json:"updated_at"`
 	}
 )

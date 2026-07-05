@@ -115,7 +115,7 @@ func TestResolveUser_NewEmail(t *testing.T) {
 	assert.Equal(t, userID, storageUser.inserted[0].ID)
 	assert.Equal(t, "203.0.113.7", storageUser.inserted[0].RegisteredIP, "IP регистрации фиксируется у нового пользователя")
 	require.Len(t, storageUserRealm.inserted, 1)
-	assert.Equal(t, []string{"user.registration.success.site/admin", "user.was.registered"}, notifier.events)
+	assert.Equal(t, []string{"user.registration.success.site.admin", "user.was.registered"}, notifier.events)
 }
 
 // чистый ретрай того же токена (userID=Nil): пользователь и привязка к realm уже зафиксированы
@@ -157,7 +157,7 @@ func TestResolveUser_ExistingUserMissingRealmBinding(t *testing.T) {
 	assert.Empty(t, storageUser.inserted, "existing user must not be re-inserted")
 	require.Len(t, storageUserRealm.inserted, 1, "missing realm binding must be created")
 	assert.Equal(t, existingID, storageUserRealm.inserted[0].UserID)
-	assert.Equal(t, []string{"user.registration.success.site/admin"}, notifier.events)
+	assert.Equal(t, []string{"user.registration.success.site.admin"}, notifier.events)
 }
 
 // известный пользователь (userID!=Nil, привязка к новому realm): поиск по email не выполняется,
@@ -178,7 +178,7 @@ func TestResolveUser_KnownUserBindsToRealm(t *testing.T) {
 	assert.Empty(t, storageUser.inserted, "known user must not be inserted")
 	require.Len(t, storageUserRealm.inserted, 1)
 	assert.Equal(t, knownID, storageUserRealm.inserted[0].UserID)
-	assert.Equal(t, []string{"user.registration.success.site/admin"}, notifier.events)
+	assert.Equal(t, []string{"user.registration.success.site.admin"}, notifier.events)
 }
 
 // известный пользователь (userID!=Nil), уже привязанный к realm: повторная привязка даёт дубль,
@@ -235,5 +235,5 @@ func TestPrepareAuthorization_DefersRealmSpecificNotice(t *testing.T) {
 	require.NotNil(t, notify)
 
 	notify(context.Background())
-	assert.Equal(t, []string{"user.authorization.success.site/admin"}, notifier.events)
+	assert.Equal(t, []string{"user.authorization.success.site.admin"}, notifier.events)
 }

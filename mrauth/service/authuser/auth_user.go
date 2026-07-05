@@ -10,6 +10,7 @@ import (
 	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/bag/notice"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/userstatus"
@@ -37,6 +38,8 @@ type (
 	// * authorization.success откладывается: PrepareAuthorization возвращает callback, который
 	//   OpenSession вызывает после commit'а транзакции сессии (после hard-гейта). registration/
 	//   was.registered шлются сразу на своём commit'е (идемпотентны - ровно один раз на realm).
+	//
+	// Суффикс <realm> в ключах событий формируется через notice.KeyByEventAndRealm.
 	Service struct {
 		txManager        mrstorage.DBTxManager
 		storageUser      userStorage
@@ -134,7 +137,7 @@ func (s *Service) PrepareAuthorization(ctx context.Context, userID uuid.UUID, in
 	}
 
 	notifyAuthSuccess := func(ctx context.Context) {
-		s.notify(ctx, "user.authorization.success."+in.Realm, conv.Group{
+		s.notify(ctx, notice.KeyByEventAndRealm("user.authorization.success", in.Realm), conv.Group{
 			"lang": in.LangCode,
 			"to":   user.Email,
 		})
@@ -177,7 +180,7 @@ func (s *Service) registerNewUser(ctx context.Context, in dto.CreateUserOperatio
 	}
 
 	// новый аккаунт: уведомление о регистрации юзеру
-	s.notify(ctx, "user.registration.success."+in.Realm, conv.Group{
+	s.notify(ctx, notice.KeyByEventAndRealm("user.registration.success", in.Realm), conv.Group{
 		"lang": in.LangCode,
 		"to":   in.Email,
 	})
@@ -206,7 +209,7 @@ func (s *Service) bindUserToRealm(ctx context.Context, userID uuid.UUID, in dto.
 	}
 
 	// аккаунт уже существовал, создана новая привязка к realm (равносильно регистрации)
-	s.notify(ctx, "user.registration.success."+in.Realm, conv.Group{
+	s.notify(ctx, notice.KeyByEventAndRealm("user.registration.success", in.Realm), conv.Group{
 		"lang": in.LangCode,
 		"to":   in.Email,
 	})

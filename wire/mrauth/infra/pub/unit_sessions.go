@@ -26,6 +26,7 @@ type (
 func initSessionsController(
 	storageSession *repository.SessionPostgres,
 	storageAuthToken *repository.AuthTokenPostgres,
+	storageUserRealm *repository.UserRealmPostgres,
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 	appResolver module.AppResolver,
@@ -46,6 +47,7 @@ func initSessionsController(
 		storageAuthToken, // openSessionFetcher
 		storageAuthToken, // sessionCloser
 		resolver,
+		storageUserRealm, // userRealmFetcher
 		mapping.OptionUserRealmsToRealmRegistry(userRealms),
 		appResolver,
 		locationResolver,

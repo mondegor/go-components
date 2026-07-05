@@ -72,7 +72,7 @@ type (
 
 	// SessionUseCase - управление открытыми сессиями текущего пользователя.
 	SessionUseCase interface {
-		GetList(ctx context.Context, userID uuid.UUID, currentAccessToken string) ([]dto.UserSession, error)
+		GetList(ctx context.Context, userID uuid.UUID, currentAccessToken, realm string) ([]dto.UserSession, error)
 		Close(ctx context.Context, userID uuid.UUID, sessionIDs []uint32) error
 	}
 )

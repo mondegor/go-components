@@ -535,14 +535,15 @@ func (s *CloseSessionSuite) TestOtherError() {
 type ListSuite struct {
 	suite.Suite
 
-	ctrl     *gomock.Controller
-	ctx      context.Context
-	lister   *mock.MocksessionLister
-	opener   *mock.MockopenSessionFetcher
-	closer   *mock.MocksessionCloser
-	resolver *mock.MocksessionResolver
-	userID   uuid.UUID
-	uc       *session.List
+	ctrl      *gomock.Controller
+	ctx       context.Context
+	lister    *mock.MocksessionLister
+	opener    *mock.MockopenSessionFetcher
+	closer    *mock.MocksessionCloser
+	resolver  *mock.MocksessionResolver
+	userRealm *mock.MockuserRealmFetcher
+	userID    uuid.UUID
+	uc        *session.List
 }
 
 func TestListSuite(t *testing.T) {
@@ -558,8 +559,9 @@ func (s *ListSuite) SetupTest() {
 	s.opener = mock.NewMockopenSessionFetcher(s.ctrl)
 	s.closer = mock.NewMocksessionCloser(s.ctrl)
 	s.resolver = mock.NewMocksessionResolver(s.ctrl)
+	s.userRealm = mock.NewMockuserRealmFetcher(s.ctrl)
 	s.userID = uuid.New()
-	s.uc = session.NewList(s.lister, s.opener, s.closer, s.resolver, testRealmRegistry(), nil, nil, nil)
+	s.uc = session.NewList(s.lister, s.opener, s.closer, s.resolver, s.userRealm, testRealmRegistry(), nil, nil, nil)
 }
 
 func (s *ListSuite) TestGetListFiltersAndMaps() {
@@ -578,7 +580,7 @@ func (s *ListSuite) TestGetListFiltersAndMaps() {
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 0x1f3bc817, Realm: testRealm}, nil)
 	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, open, 4).Return(rows, nil)
 
-	got, err := s.uc.GetList(s.ctx, s.userID, "acc")
+	got, err := s.uc.GetList(s.ctx, s.userID, "acc", "")
 	s.Require().NoError(err)
 	s.Require().Len(got, 2)
 
@@ -593,13 +595,83 @@ func (s *ListSuite) TestGetListFiltersAndMaps() {
 	s.Empty(got[1].LastIP)
 }
 
+// при явно указанном чужом realm членство проверяется через userRealm.FetchOne (даёт kind этого
+// realm), сессии скоупятся по нему, а логика текущей сессии (инвариант/догрузка) пропускается:
+// текущая сессия принадлежит realm токена, поэтому IsCurrent во всей выдаче false.
+func (s *ListSuite) TestGetListForeignRealm() {
+	uc := session.NewList(
+		s.lister,
+		s.opener,
+		s.closer,
+		s.resolver,
+		s.userRealm,
+		testRealmRegistry(),
+		nil,
+		nil,
+		[]session.LimitRealm{{
+			ID:         altRealmID,
+			KindLimits: []session.UserKindLimit{{Kind: "k", SessionMax: 2}},
+		}},
+	)
+
+	open := []uint32{1, 2}
+	rows := []entity.Session{
+		{UserID: s.userID, SessionID: 1},
+		{UserID: s.userID, SessionID: 2},
+	}
+
+	// текущий токен realm "site/admin", запрошен другой realm "r" (altRealmID); текущая сессия
+	// (99) принадлежит realm токена и в списке чужого realm не встречается
+	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 99, Realm: testRealm, Kind: "other"}, nil)
+	s.userRealm.EXPECT().FetchOne(gomock.Any(), s.userID, altRealmID).Return(entity.UserRealm{Kind: "k"}, nil)
+	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, altRealmID).Return(open, nil)
+	// лимит берётся по kind чужого realm ("k" -> 2), а не по kind токена
+	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, open, 2).Return(rows, nil)
+
+	got, err := uc.GetList(s.ctx, s.userID, "acc", altRealm)
+	s.Require().NoError(err)
+	s.Require().Len(got, 2)
+	s.False(got[0].IsCurrent)
+	s.False(got[1].IsCurrent)
+}
+
+// чужой realm без открытых сессий: инвариант текущей сессии пропущен, выдача пуста (без паники).
+func (s *ListSuite) TestGetListForeignRealmEmpty() {
+	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
+	s.userRealm.EXPECT().FetchOne(gomock.Any(), s.userID, altRealmID).Return(entity.UserRealm{Kind: "k"}, nil)
+	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, altRealmID).Return([]uint32{}, nil)
+	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, []uint32{}, gomock.Any()).Return(nil, nil)
+
+	got, err := s.uc.GetList(s.ctx, s.userID, "acc", altRealm)
+	s.Require().NoError(err)
+	s.Empty(got)
+}
+
+// пользователь не является членом запрошенного realm (нет привязки): доступ к чужим сессиям
+// запрещён - AccessForbidden (403), открытые сессии не выбираются.
+func (s *ListSuite) TestGetListForeignRealmNotMemberFails() {
+	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
+	s.userRealm.EXPECT().FetchOne(gomock.Any(), s.userID, altRealmID).Return(entity.UserRealm{}, errors.ErrEventStorageNoRecordFound)
+
+	_, err := s.uc.GetList(s.ctx, s.userID, "acc", altRealm)
+	s.Require().ErrorIs(err, errors.ErrAccessForbidden)
+}
+
+// неизвестное имя realm от клиента - клиентская ошибка (не Internal), userRealm/opener не вызываются.
+func (s *ListSuite) TestGetListUnknownRealmFails() {
+	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
+
+	_, err := s.uc.GetList(s.ctx, s.userID, "acc", "unknown/realm")
+	s.Require().ErrorIs(err, errors.ErrIncorrectInputData)
+}
+
 func (s *ListSuite) TestGetListEmptyOpenSetFails() {
 	// пустой набор открытых сессий - нарушение инварианта (текущая сессия обязана там быть):
 	// Internal-ошибка, lister.FetchOrdered... НЕ вызывается.
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
 	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, testRealmID).Return([]uint32{}, nil)
 
-	_, err := s.uc.GetList(s.ctx, s.userID, "acc")
+	_, err := s.uc.GetList(s.ctx, s.userID, "acc", "")
 	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
 }
 
@@ -609,7 +681,7 @@ func (s *ListSuite) TestGetListCurrentSessionNotOpenFails() {
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 99, Realm: testRealm}, nil)
 	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, testRealmID).Return([]uint32{1, 2}, nil)
 
-	_, err := s.uc.GetList(s.ctx, s.userID, "acc")
+	_, err := s.uc.GetList(s.ctx, s.userID, "acc", "")
 	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
 }
 
@@ -621,6 +693,7 @@ func (s *ListSuite) TestGetListCurrentSessionOutsideLimitRefetched() {
 		s.opener,
 		s.closer,
 		s.resolver,
+		s.userRealm,
 		testRealmRegistry(),
 		nil,
 		nil,
@@ -645,7 +718,7 @@ func (s *ListSuite) TestGetListCurrentSessionOutsideLimitRefetched() {
 	// догрузка одной текущей сессии (limit=0)
 	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, []uint32{3}, 0).Return(current, nil)
 
-	got, err := uc.GetList(s.ctx, s.userID, "acc")
+	got, err := uc.GetList(s.ctx, s.userID, "acc", "")
 	s.Require().NoError(err)
 	s.Require().Len(got, 2)
 	s.Equal(uint32(1), got[0].SessionID)
@@ -661,6 +734,7 @@ func (s *ListSuite) TestGetListCurrentSessionRefetchEmptyFails() {
 		s.opener,
 		s.closer,
 		s.resolver,
+		s.userRealm,
 		testRealmRegistry(),
 		nil,
 		nil,
@@ -683,7 +757,7 @@ func (s *ListSuite) TestGetListCurrentSessionRefetchEmptyFails() {
 	// догрузка текущей сессии вернула пусто - Internal-ошибка
 	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, []uint32{3}, 0).Return(nil, nil)
 
-	_, err := uc.GetList(s.ctx, s.userID, "acc")
+	_, err := uc.GetList(s.ctx, s.userID, "acc", "")
 	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
 }
 
@@ -693,6 +767,7 @@ func (s *ListSuite) TestGetListResolversEnrich() {
 		s.opener,
 		s.closer,
 		s.resolver,
+		s.userRealm,
 		testRealmRegistry(),
 		func(ua string) (string, string) { return "app:" + ua, "dev:" + ua },
 		func(ip string) string { return "loc:" + ip },
@@ -705,7 +780,7 @@ func (s *ListSuite) TestGetListResolversEnrich() {
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
 	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, []uint32{1}, 4).Return(rows, nil)
 
-	got, err := uc.GetList(s.ctx, s.userID, "acc")
+	got, err := uc.GetList(s.ctx, s.userID, "acc", "")
 	s.Require().NoError(err)
 	s.Require().Len(got, 1)
 	s.Equal("app:UA", got[0].AppName)
@@ -718,7 +793,7 @@ func (s *ListSuite) TestGetListResolverErrorFatal() {
 	// поэтому при его ошибке opener и lister не вызываются, а GetList возвращает ошибку.
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{}, errors.New("token revoked"))
 
-	got, err := s.uc.GetList(s.ctx, s.userID, "acc")
+	got, err := s.uc.GetList(s.ctx, s.userID, "acc", "")
 	s.Require().Error(err)
 	s.Empty(got)
 }
@@ -730,6 +805,7 @@ func (s *ListSuite) TestGetListPassesLimitAndPreservesOrder() {
 		s.opener,
 		s.closer,
 		s.resolver,
+		s.userRealm,
 		testRealmRegistry(),
 		nil,
 		nil,
@@ -754,7 +830,7 @@ func (s *ListSuite) TestGetListPassesLimitAndPreservesOrder() {
 	// лимит realm "r"/kind "k" == 2 передаётся в репозиторий
 	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, open, 2).Return(rows, nil)
 
-	got, err := uc.GetList(s.ctx, s.userID, "acc")
+	got, err := uc.GetList(s.ctx, s.userID, "acc", "")
 	s.Require().NoError(err)
 	s.Require().Len(got, 2)
 	s.Equal(uint32(3), got[0].SessionID)
@@ -766,7 +842,7 @@ func (s *ListSuite) TestGetListOpenFetcherError() {
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
 	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, testRealmID).Return(nil, errors.New("db down"))
 
-	_, err := s.uc.GetList(s.ctx, s.userID, "acc")
+	_, err := s.uc.GetList(s.ctx, s.userID, "acc", "")
 	s.Require().Error(err)
 }
 
@@ -775,7 +851,7 @@ func (s *ListSuite) TestGetListListerError() {
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
 	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, []uint32{1}, 4).Return(nil, errors.New("db down"))
 
-	_, err := s.uc.GetList(s.ctx, s.userID, "acc")
+	_, err := s.uc.GetList(s.ctx, s.userID, "acc", "")
 	s.Require().Error(err)
 }
 

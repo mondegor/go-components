@@ -36,7 +36,9 @@ func (re *UserRealmPostgres) Fetch(ctx context.Context, userID uuid.UUID) ([]ent
 	sql := `
         SELECT
             realm_id,
-			user_kind
+			user_kind,
+			created_at,
+			updated_at
         FROM
             ` + re.tableName + `
         WHERE
@@ -65,6 +67,8 @@ func (re *UserRealmPostgres) Fetch(ctx context.Context, userID uuid.UUID) ([]ent
 		err = cursor.Scan(
 			&row.RealmID,
 			&row.Kind,
+			&row.CreatedAt,
+			&row.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err

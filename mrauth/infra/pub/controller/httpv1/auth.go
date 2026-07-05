@@ -292,7 +292,7 @@ func (ht *Auth) ContinueSession(w http.ResponseWriter, r *http.Request) error {
 
 	return ht.sender.Send(
 		w,
-		http.StatusOK,
+		http.StatusCreated,
 		model.SuccessAccessResponse{
 			AccessToken:  tk.Access.Token,
 			ExpiresIn:    uint32(tk.Access.ExpiresIn / time.Second), //nolint:gosec
@@ -345,8 +345,10 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 		realms = append(
 			realms,
 			model.UserRealm{
-				Name:     realmName,
-				UserKind: realm.Kind,
+				Name:      realmName,
+				UserKind:  realm.Kind,
+				CreatedAt: realm.CreatedAt.Round(1 * time.Second).Format(time.RFC3339),
+				UpdatedAt: realm.UpdatedAt.Round(1 * time.Second).Format(time.RFC3339),
 			},
 		)
 	}
@@ -363,6 +365,8 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 			Auth2FAType:  info.Auth2FA.Type,
 			Realms:       realms,
 			Status:       info.User.Status,
+			CreatedAt:    info.User.CreatedAt.Round(1 * time.Second).Format(time.RFC3339),
+			UpdatedAt:    info.User.UpdatedAt.Round(1 * time.Second).Format(time.RFC3339),
 		},
 	)
 }

@@ -81,7 +81,9 @@ func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldV
 			user_email,
 			user_phone,
 			lang_code,
-			user_status
+			user_status,
+			created_at,
+			updated_at
 		FROM
 			` + re.tableName + `
 		WHERE
@@ -100,6 +102,8 @@ func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldV
 		&userPhone,
 		&row.LangCode,
 		&row.Status,
+		&row.CreatedAt,
+		&row.UpdatedAt,
 	)
 	if err != nil {
 		return entity.User{}, re.errorWrapper.Wrap(err)

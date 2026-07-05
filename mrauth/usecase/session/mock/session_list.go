@@ -173,3 +173,42 @@ func (mr *MocksessionResolverMockRecorder) FetchOneByAccessToken(ctx, accessToke
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchOneByAccessToken", reflect.TypeOf((*MocksessionResolver)(nil).FetchOneByAccessToken), ctx, accessToken)
 }
+
+// MockuserRealmFetcher is a mock of userRealmFetcher interface.
+type MockuserRealmFetcher struct {
+	ctrl     *gomock.Controller
+	recorder *MockuserRealmFetcherMockRecorder
+	isgomock struct{}
+}
+
+// MockuserRealmFetcherMockRecorder is the mock recorder for MockuserRealmFetcher.
+type MockuserRealmFetcherMockRecorder struct {
+	mock *MockuserRealmFetcher
+}
+
+// NewMockuserRealmFetcher creates a new mock instance.
+func NewMockuserRealmFetcher(ctrl *gomock.Controller) *MockuserRealmFetcher {
+	mock := &MockuserRealmFetcher{ctrl: ctrl}
+	mock.recorder = &MockuserRealmFetcherMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockuserRealmFetcher) EXPECT() *MockuserRealmFetcherMockRecorder {
+	return m.recorder
+}
+
+// FetchOne mocks base method.
+func (m *MockuserRealmFetcher) FetchOne(ctx context.Context, userID uuid.UUID, realmID uint16) (entity.UserRealm, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchOne", ctx, userID, realmID)
+	ret0, _ := ret[0].(entity.UserRealm)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchOne indicates an expected call of FetchOne.
+func (mr *MockuserRealmFetcherMockRecorder) FetchOne(ctx, userID, realmID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchOne", reflect.TypeOf((*MockuserRealmFetcher)(nil).FetchOne), ctx, userID, realmID)
+}

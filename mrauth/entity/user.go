@@ -12,11 +12,13 @@ import (
 type (
 	// User - пользователь.
 	User struct {
-		ID       uuid.UUID
-		Email    string
-		Phone    uint64
-		LangCode string
-		Status   userstatus.Enum
+		ID        uuid.UUID
+		Email     string
+		Phone     uint64
+		LangCode  string
+		Status    userstatus.Enum
+		CreatedAt time.Time
+		UpdatedAt time.Time
 	}
 
 	// ExtendedUser - пользователь с расширенными полями.
@@ -28,9 +30,11 @@ type (
 
 	// UserRealm - привязка пользователя к зоне действия.
 	UserRealm struct {
-		UserID  uuid.UUID
-		RealmID uint16
-		Kind    string
+		UserID    uuid.UUID
+		RealmID   uint16
+		Kind      string
+		CreatedAt time.Time
+		UpdatedAt time.Time
 	}
 
 	// UserActivityLog - информация об активности пользователя.

@@ -26,7 +26,8 @@ patch:
     "400":
       # Токен операции должен быть указан
       # Токен операции некорректен или недействителен
-      $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
+      # Повторная отправка временно ограничена (слишком часто) — с operation_state
+      $ref: "../components/responses/Auth.ResponseJson.Error400.yaml"
     "403":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
     "500":

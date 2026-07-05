@@ -150,6 +150,7 @@ func InitHttpModule(
 					return initSessionsController(
 						storageSession,
 						storageAuthToken,
+						storageUserRealm,
 						requestParser,
 						responseSender,
 						appResolver,

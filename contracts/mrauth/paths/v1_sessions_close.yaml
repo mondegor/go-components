@@ -22,6 +22,9 @@ post:
   responses:
     "204":
       description: Указанные сессии пользователя были закрыты
+    "400":
+      # Идентификаторы сессий (session_ids) некорректны
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
     "401":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
     "403":

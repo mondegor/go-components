@@ -32,7 +32,7 @@ type (
 	}
 
 	sessionUseCase interface {
-		GetList(ctx context.Context, userID uuid.UUID, currentAccessToken string) ([]dto.UserSession, error)
+		GetList(ctx context.Context, userID uuid.UUID, currentAccessToken, realm string) ([]dto.UserSession, error)
 		Close(ctx context.Context, userID uuid.UUID, sessionIDs []uint32) error
 	}
 )
@@ -60,7 +60,9 @@ func (ht *Session) Handlers() []mrserver.HttpHandler {
 
 // GetList - возвращает список открытых сессий текущего пользователя.
 func (ht *Session) GetList(w http.ResponseWriter, r *http.Request) error {
-	list, err := ht.useCase.GetList(r.Context(), ht.parser.UserID(r), request.AccessToken(r))
+	realm := ht.parser.FilterString(r, "realm")
+
+	list, err := ht.useCase.GetList(r.Context(), ht.parser.UserID(r), request.AccessToken(r), realm)
 	if err != nil {
 		return err
 	}

@@ -13,5 +13,8 @@ get:
   responses:
     "200":
       $ref: "../components/responses/Auth.Check.ResponseJson.Jwks.yaml"
+    "404":
+      # В режиме access_type=session JWKS не публикуется (JWT-ключи отсутствуют)
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error404.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

@@ -14,8 +14,8 @@ content:
           description: Метод и URL запроса
           type: string
           example: "POST /users/123456"
-        operation_status:
-          $ref: "../models/Auth.Response.Model.ConfirmOperationStatus.yaml"
+        operation_state:
+          $ref: "../models/Auth.Response.Model.ConfirmOperationState.yaml"
         errors:
           $ref: "../../_shared/components/models/Api.Response.Model.ErrorList.yaml"
         time:

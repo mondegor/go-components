@@ -91,8 +91,7 @@ patch:
 
   responses:
     "201":
-      # Открыта новая сессия пользователя и сгенерированы Refresh и Access токены
-      # Регенерированы Refresh и Access токены для текущей сессии пользователя
+      # Регенерированы Refresh и Access токены для текущей сессии пользователя (sid сохраняется)
       $ref: "../components/responses/Auth.ResponseJson.SuccessAccess.yaml"
     "400":
       # Refresh токен должен быть указан
@@ -105,21 +104,36 @@ patch:
 
 delete:
   summary: Auth/R5. Метод закрытия текущей сессий пользователя
-  description: Метод предназначен для закрытия текущей сессии пользователя
+  description: |-
+    Метод предназначен для закрытия текущей сессии пользователя.
+
+    Если в заголовке запроса присутствует кука RTID, refreshToken берётся из неё и тело не требуется
+    (web-клиент). Иначе (мобайл/API-клиент) refreshToken должен быть передан в теле запроса.
   operationId: closeUserSession
   tags:
     - Auth
   x-auth-scopes:
     - any-users
 
-#  parameters:
-#    - $ref: "../_shared/components/parameters/Api.Request.Header.AcceptLanguage.yaml"
-#    - $ref: "../_shared/components/parameters/Api.Request.Header.CorrelationID.yaml"
-#    - $ref: "../_shared/components/parameters/Api.Request.Query.Language.yaml"
+  parameters:
+    # - $ref: "../_shared/components/parameters/Api.Request.Header.AcceptLanguage.yaml"
+    # - $ref: "../_shared/components/parameters/Api.Request.Header.CorrelationID.yaml"
+    # - $ref: "../_shared/components/parameters/Api.Request.Query.Language.yaml"
+    - $ref: "../components/parameters/Auth.Request.Cookie.Web.RefreshToken.yaml"
+
+  requestBody:
+    required: false
+    content:
+      application/json;charset=UTF-8:
+        schema:
+          $ref: "../components/models/Auth.Request.Model.ContinueSession.yaml"
 
   responses:
     "204":
       description: Текущая сессия пользователя была закрыта
+    "400":
+      # Refresh токен должен быть указан (для не-cookie клиента)
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
     "401":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
     "500":

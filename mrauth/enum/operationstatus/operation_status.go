@@ -11,7 +11,7 @@ import (
 const (
 	Opened    Enum = iota + 1 // открыт
 	Confirmed                 // подтверждена
-	// Updating                             // на обновлении.
+	// Updating                  // на обновлении.
 )
 
 const (

@@ -1,0 +1,8 @@
+description: Realm, чьи сессии нужно вернуть (если не указано, берётся realm текущей сессии)
+name: realm
+in: query
+required: false
+schema:
+  type: string
+  maxLength: 32
+example: "domain_name/user_group"
