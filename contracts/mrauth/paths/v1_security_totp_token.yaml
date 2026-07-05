@@ -1,0 +1,37 @@
+get:
+  summary: Auth/SC/R6. Метод возвращает QR-код TOTP генератора для 2FA аутентификации пользователя
+  description: |-
+    Метод предназначен для применения операции по установке TOTP генератора для 2FA аутентификации пользователя.
+    В ответ возвращается QR-код (изображение) для добавления генератора в приложение 2FA аутентификации,
+    построенный на основе секрета, который уже сохранён в операции. При этом сам TOTP генератор пока не
+    активируется и 2FA не включается: для этого пользователь должен подтвердить владение генератором,
+    отправив код из приложения через `POST /v1/security/apply-totp`, который и активирует генератор,
+    включит 2FA и единоразово выдаст набор одноразовых аварийных кодов.
+  operationId: renderTotpGeneratorQr
+  tags:
+    - Auth.Security
+  x-auth-scopes:
+    - any-users
+
+  parameters:
+    # - $ref: "../_shared/components/parameters/Api.Request.Header.AcceptLanguage.yaml"
+    # - $ref: "../_shared/components/parameters/Api.Request.Header.CorrelationID.yaml"
+    # - $ref: "../_shared/components/parameters/Api.Request.Query.Language.yaml"
+    - $ref: "../components/parameters/Auth.Security.Request.Path.Token.yaml"
+
+  responses:
+    '200':
+      description: QR-код TOTP генератора (изображение для сканирования приложением 2FA)
+      content:
+        image/png:
+          schema:
+            type: string
+            format: binary
+    '400':
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
+    '401':
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
+    '403':
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    '500':
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

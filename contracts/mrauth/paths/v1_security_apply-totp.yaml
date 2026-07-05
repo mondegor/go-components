@@ -1,0 +1,40 @@
+post:
+  summary: Auth/SC/R7. Метод проверяет TOTP-код и привязывает генератор, выдавая аварийные коды
+  description: |-
+    Пользователь вводит код из TOTP-приложения для подтверждения владения генератором.
+    При успехе генератор привязывается, 2FA по TOTP включается и единоразово возвращается
+    набор одноразовых аварийных кодов (их нужно сохранить — повторно они не показываются).
+  operationId: applyTotpGenerator
+  tags:
+    - Auth.Security
+  x-auth-scopes:
+    - any-users
+
+  #  parameters:
+  #    - $ref: "../_shared/components/parameters/Api.Request.Header.AcceptLanguage.yaml"
+  #    - $ref: "../_shared/components/parameters/Api.Request.Header.CorrelationID.yaml"
+  #    - $ref: "../_shared/components/parameters/Api.Request.Query.Language.yaml"
+
+  requestBody:
+    required: true
+    content:
+      application/json;charset=UTF-8:
+        schema:
+          $ref: "../components/models/Auth.Security.Request.Model.ApplyTotpGenerator.yaml"
+  responses:
+    '200':
+      description: TOTP-генератор привязан, возвращены аварийные коды
+      content:
+        application/json;charset=UTF-8:
+          schema:
+            $ref: "../components/models/Auth.Security.Response.RecoveryCodes.yaml"
+    "400":
+      # Токен операции должен быть указан
+      # Токен операции некорректен или недействителен
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
+    "401":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
+    "403":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    "500":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

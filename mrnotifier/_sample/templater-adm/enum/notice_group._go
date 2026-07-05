@@ -1,0 +1,114 @@
+package enum
+
+import (
+	"database/sql/driver"
+	"encoding/json"
+
+	"github.com/mondegor/go-webcore/mrcore"
+)
+
+const (
+	_                 NoticeGroup = iota
+	NoticeGroupUsers              // NoticeGroupUsers - строковый тип настройки
+	NoticeGroupAdmins             // NoticeGroupAdmins - список строковых элементов
+
+	noticeGroupLast     = uint8(NoticeGroupAdmins)
+	enumNameNoticeGroup = "NoticeGroup"
+)
+
+type (
+	// NoticeGroup - тип значения настройки.
+	NoticeGroup uint8
+)
+
+var (
+	noticeGroupName = map[NoticeGroup]string{ //nolint:gochecknoglobals
+		NoticeGroupUsers:  "USERS",
+		NoticeGroupAdmins: "ADMINS",
+	}
+
+	noticeGroupValue = map[string]NoticeGroup{ //nolint:gochecknoglobals
+		"USERS":  NoticeGroupUsers,
+		"ADMINS": NoticeGroupAdmins,
+	}
+)
+
+// ParseAndSet - парсит указанное значение и если оно валидно, то устанавливает его числовое значение.
+func (e *NoticeGroup) ParseAndSet(value string) error {
+	if parsedValue, ok := noticeGroupValue[value]; ok {
+		*e = parsedValue
+
+		return nil
+	}
+
+	return mrcore.ErrInternalKeyNotFoundInSource.New(value, enumNameNoticeGroup)
+}
+
+// Set - устанавливает указанное значение, если оно является enum значением.
+func (e *NoticeGroup) Set(value uint8) error {
+	if value > 0 && value <= noticeGroupLast {
+		*e = NoticeGroup(value)
+
+		return nil
+	}
+
+	return mrcore.ErrInternalKeyNotFoundInSource.New(value, enumNameNoticeGroup)
+}
+
+// String - comment method.
+func (e NoticeGroup) String() string {
+	return noticeGroupName[e]
+}
+
+// Empty - проверяет, что enum значение не установлено.
+func (e NoticeGroup) Empty() bool {
+	return e == 0
+}
+
+// MarshalJSON - переводит enum значение в строковое представление.
+func (e NoticeGroup) MarshalJSON() ([]byte, error) {
+	return json.Marshal(e.String())
+}
+
+// UnmarshalJSON - переводит строковое значение в enum представление.
+func (e *NoticeGroup) UnmarshalJSON(data []byte) error {
+	var value string
+
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+
+	return e.ParseAndSet(value)
+}
+
+// Scan implements the Scanner interface.
+func (e *NoticeGroup) Scan(value any) error {
+	if val, ok := value.(int64); ok {
+		return e.Set(uint8(val))
+	}
+
+	return mrcore.ErrInternalTypeAssertion.New(enumNameNoticeGroup, value)
+}
+
+// Value implements the driver.Valuer interface.
+func (e NoticeGroup) Value() (driver.Value, error) {
+	return uint8(e), nil
+}
+
+// ParseNoticeGroupList - парсит массив строковых значений и
+// возвращает соответствующий массив enum значений.
+func ParseNoticeGroupList(items []string) ([]NoticeGroup, error) {
+	var tmp NoticeGroup
+
+	parsedItems := make([]NoticeGroup, len(items))
+
+	for i := range items {
+		if err := tmp.ParseAndSet(items[i]); err != nil {
+			return nil, err
+		}
+
+		parsedItems[i] = tmp
+	}
+
+	return parsedItems, nil
+}

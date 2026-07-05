@@ -1,19 +1,16 @@
 package mrmailer
 
 import (
-	"github.com/mondegor/go-sysmess/mrerr"
+	"github.com/mondegor/go-sysmess/errors"
 )
 
 var (
-	// ErrCheckMessageHasNotData - message data is not specified.
-	ErrCheckMessageHasNotData = mrerr.NewProto(
-		"mrmailer.errCheckMessageHasNotData", mrerr.ErrorKindInternal, "data is not specified for message {{ .name }}")
+	// ErrInternalCheckMessageHasNotData - message data is not specified (attr: channel).
+	ErrInternalCheckMessageHasNotData = errors.NewInternalProto("data is not specified for message")
 
-	// ErrCheckMessageHasAFewData - only one message data is expected.
-	ErrCheckMessageHasAFewData = mrerr.NewProto(
-		"mrmailer.errCheckMessageHasAFewData", mrerr.ErrorKindInternal, "only one data is expected for message {{ .name }}")
+	// ErrInternalCheckMessageHasAFewData - only one message data is expected (attr: channel).
+	ErrInternalCheckMessageHasAFewData = errors.NewInternalProto("only one data is expected for message")
 
-	// ErrProviderClientNotSpecified - there is no provider client to send this message of type.
-	ErrProviderClientNotSpecified = mrerr.NewProto(
-		"mrmailer.errProviderClientNotSpecified", mrerr.ErrorKindInternal, "there is no provider client to send this message of type {{ .type }}")
+	// ErrInternalProviderClientNotSpecified - there is no provider client to send this message of type (attrs: channel, type).
+	ErrInternalProviderClientNotSpecified = errors.NewInternalProto("there is no provider client to send this message of type")
 )

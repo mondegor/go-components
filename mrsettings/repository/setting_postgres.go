@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/mondegor/go-storage/mrsql"
-	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrmsg"
-	"github.com/mondegor/go-webcore/mrcore"
+	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
+	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrsettings/entity"
 )
@@ -21,9 +21,9 @@ type (
 	// SettingPostgres - репозиторий для хранения элементов настроек.
 	SettingPostgres struct {
 		client       mrstorage.DBConnManager
+		errorWrapper errors.Wrapper
 		table        mrsql.DBTableInfo
 		condBuilder  mrstorage.SQLConditionBuilder
-		errorWrapper mrcore.StorageErrorWrapper
 		condition    mrstorage.SQLPartFunc // OPTIONAL
 	}
 )
@@ -33,7 +33,6 @@ func NewSettingPostgres(
 	client mrstorage.DBConnManager,
 	table mrsql.DBTableInfo,
 	whereBuilder mrstorage.SQLConditionBuilder,
-	errorWrapper mrcore.StorageErrorWrapper,
 	condition mrstorage.SQLPartFunc, // OPTIONAL
 ) *SettingPostgres {
 	if table.Name == "" {
@@ -46,7 +45,7 @@ func NewSettingPostgres(
 
 	return &SettingPostgres{
 		client:       client,
-		errorWrapper: errorWrapper,
+		errorWrapper: errors.NewInfraStorageWrapper(),
 		table:        table,
 		condBuilder:  whereBuilder,
 		condition:    condition,
@@ -112,7 +111,7 @@ func (re *SettingPostgres) Fetch(ctx context.Context, lastUpdated time.Time) ([]
 	return rows, cursor.Err()
 }
 
-// FetchOne - возвращает настройку по указанному ID.
+// FetchOne - возвращает настройку по указанному SettingID.
 func (re *SettingPostgres) FetchOne(ctx context.Context, id uint64) (entity.Setting, error) {
 	args := []any{
 		id,
@@ -148,7 +147,7 @@ func (re *SettingPostgres) FetchOne(ctx context.Context, id uint64) (entity.Sett
 		&row.Value,
 	)
 	if err != nil {
-		return entity.Setting{}, re.errorWrapper.WrapErrorEntity(err, re.table.Name, mrmsg.Data{re.table.PrimaryKey: id})
+		return entity.Setting{}, re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"id": id})
 	}
 
 	return row, nil
@@ -157,7 +156,7 @@ func (re *SettingPostgres) FetchOne(ctx context.Context, id uint64) (entity.Sett
 // Update - обновляет указанную настройку.
 func (re *SettingPostgres) Update(ctx context.Context, row entity.Setting) error {
 	args := []any{
-		row.Name,
+		row.ID,
 		row.Type,
 		row.Value,
 	}
@@ -176,15 +175,14 @@ func (re *SettingPostgres) Update(ctx context.Context, row entity.Setting) error
 		WHERE
 			` + re.table.PrimaryKey + ` = $1 AND setting_type = $2` + whereStr + `;`
 
-	err := re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		mrsql.MergeArgs(args, whereArgs)...,
 	)
 	if err != nil {
-		// TODO: добавить ошибку, если не удалось обновить настройку из-за условия WHERE
-		return re.errorWrapper.WrapErrorEntity(err, re.table.Name, mrmsg.Data{re.table.PrimaryKey: row.Name})
+		return re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"id": row.ID, "type": row.Type, "where": whereStr})
 	}
 
-	return err
+	return nil
 }

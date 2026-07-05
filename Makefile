@@ -10,14 +10,11 @@ deps-upgrade:
 generate:
 	mrcmd go-dev generate
 
-fmt:
-	mrcmd go-dev fmt
-
-fmti:
-	mrcmd go-dev fmti
-
 lint:
-	mrcmd golangci-lint check
+	mrcmd go-dev fmt
+	mrcmd go-dev fmti
+	mrcmd go-dev fmti2
+	mrcmd go-dev lint
 
 test:
 	mrcmd go-dev test
@@ -28,4 +25,4 @@ test-report:
 plantuml:
 	mrcmd plantuml build-all
 
-.PHONY: deps deps-upgrade generate fmt fmti lint test test-report plantuml
+.PHONY: deps deps-upgrade generate lint test test-report plantuml

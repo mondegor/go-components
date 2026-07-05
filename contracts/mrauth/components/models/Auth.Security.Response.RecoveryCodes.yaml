@@ -1,0 +1,12 @@
+type: object
+required:
+  - recovery_codes
+properties:
+  recovery_codes:
+    description: Набор одноразовых аварийных кодов, выданных при включении 2FA (по паролю или TOTP) либо при их перевыпуске
+    type: array
+    items:
+      type: string
+    example:
+      - "QW39L7R0-417X5FKV"
+      - "67DO040V-17K59ABP"

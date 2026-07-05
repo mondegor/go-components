@@ -2,15 +2,13 @@ package repository
 
 import (
 	"context"
-	"strings"
 	"time"
 
-	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
-	"github.com/mondegor/go-storage/mrsql"
-	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 
-	"github.com/mondegor/go-components/mrqueue/entity"
-	"github.com/mondegor/go-components/mrqueue/enum"
+	"github.com/mondegor/go-components/mrqueue/dto"
+	"github.com/mondegor/go-components/mrqueue/enum/itemstatus"
 )
 
 type (
@@ -31,14 +29,22 @@ func NewQueuePostgres(client mrstorage.DBConnManager, table mrsql.DBTableInfo) *
 
 // Insert - добавляет список записей в очередь со статусом READY.
 // Если указано ReadyDelayed, то обработка записи откладывается на указанный период времени.
-func (re *QueuePostgres) Insert(ctx context.Context, rows []entity.Item) error {
+func (re *QueuePostgres) Insert(ctx context.Context, rows []dto.Item) error {
 	if len(rows) == 0 {
 		return nil
 	}
 
-	var sql strings.Builder
+	ids := make([]uint64, 0, len(rows))
+	retryAttempts := make([]int16, 0, len(rows))
+	readyDelayed := make([]int32, 0, len(rows))
 
-	sql.WriteString(`
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+		retryAttempts = append(retryAttempts, row.RetryAttempts)
+		readyDelayed = append(readyDelayed, int32(row.ReadyDelayed.Milliseconds()/1000)) //nolint:gosec
+	}
+
+	sql := `
 		INSERT INTO ` + re.table.Name + `
 			(
 				` + re.table.PrimaryKey + `,
@@ -46,40 +52,24 @@ func (re *QueuePostgres) Insert(ctx context.Context, rows []entity.Item) error {
 				item_status,
 				updated_at
 			)
-		VALUES `)
-
-	const countLineArgs = 4
-
-	// generate: ($1, $2, $3, NOW() + INTERVAL '1 second' * $4), ...
-	sqlValues := placeholdedvalues.New(
-		&sql,
-		placeholdedvalues.WithCountArgs(countLineArgs),
-		placeholdedvalues.WithLineMiddle(map[uint32]string{countLineArgs - 1: ", NOW() + INTERVAL '1 second' * "}),
-	)
-
-	values := make([]any, 0, len(rows)*countLineArgs)
-	argumentNumber := sqlValues.WriteFirstLine()
-
-	for i, row := range rows {
-		if i > 0 {
-			argumentNumber = sqlValues.WriteNextLine(argumentNumber)
-		}
-
-		values = append(values, row.ID, row.RetryAttempts, enum.ItemStatusReady, row.ReadyDelayed.Seconds())
-	}
-
-	sql.WriteByte(';')
+		SELECT id, remaining_attempts, $4, NOW() + INTERVAL '1 second' * ready_delayed
+		FROM
+			UNNEST($1::int8[], $2::int2[], $3::int4[])
+			as t(id, remaining_attempts, ready_delayed);`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,
-		sql.String(),
-		values...,
+		sql,
+		ids,
+		retryAttempts,
+		readyDelayed,
+		itemstatus.Ready,
 	)
 }
 
 // FetchAndUpdateStatusReadyToProcessing - выбирает ограниченный список записей из очереди находящихся в статусе READY
 // в порядке их добавления и переводит эти записи в статус PROCESSING.
-func (re *QueuePostgres) FetchAndUpdateStatusReadyToProcessing(ctx context.Context, limit uint32) (rowsIDs []uint64, err error) {
+func (re *QueuePostgres) FetchAndUpdateStatusReadyToProcessing(ctx context.Context, limit int) (rowsIDs []uint64, err error) {
 	sql := `
 		WITH ready_to_processing as (
 			SELECT
@@ -90,7 +80,7 @@ func (re *QueuePostgres) FetchAndUpdateStatusReadyToProcessing(ctx context.Conte
 			  	item_status = $1 AND updated_at <= NOW()
 			ORDER BY
 				updated_at ASC
-		    LIMIT $3
+		    ` + mrstorage.NonZeroLimit(limit) + `
 			FOR UPDATE SKIP LOCKED
 		)
 		UPDATE
@@ -110,9 +100,8 @@ func (re *QueuePostgres) FetchAndUpdateStatusReadyToProcessing(ctx context.Conte
 		re.client,
 		sql,
 		limit,
-		enum.ItemStatusReady,
-		enum.ItemStatusProcessing,
-		limit,
+		itemstatus.Ready,
+		itemstatus.Processing,
 	)
 }
 
@@ -132,8 +121,8 @@ func (re *QueuePostgres) UpdateStatusProcessingToReady(ctx context.Context, rows
 		ctx,
 		sql,
 		rowsIDs,
-		enum.ItemStatusProcessing,
-		enum.ItemStatusReady,
+		itemstatus.Processing,
+		itemstatus.Ready,
 	)
 }
 
@@ -150,18 +139,18 @@ func (re *QueuePostgres) UpdateStatusProcessingToRetry(ctx context.Context, rowI
 		WHERE
 			` + re.table.PrimaryKey + ` = $1 AND item_status = $2;`
 
-	return re.client.Conn(ctx).Exec(
+	return re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		rowID,
-		enum.ItemStatusProcessing,
-		enum.ItemStatusRetry,
+		itemstatus.Processing,
+		itemstatus.Retry,
 	)
 }
 
-// FetchAndUpdateStatusProcessingToRetryByTimeout - возвращает ограниченный список записей находящихся долгое время
-// в статусе PROCESSING (например, в случае если обработка записи подвисла) предварительно переведя их в статус RETRY.
-func (re *QueuePostgres) FetchAndUpdateStatusProcessingToRetryByTimeout(ctx context.Context, timeout time.Duration, limit uint32) (rowIDs []uint64, err error) {
+// UpdateStatusProcessingToRetryByTimeout - переводит ограниченный список записей из статуса PROCESSING в статус RETRY находящихся там долгое время
+// (например, в случае если обработка записи подвисла).
+func (re *QueuePostgres) UpdateStatusProcessingToRetryByTimeout(ctx context.Context, timeout time.Duration, limit int) (rowIDs []uint64, err error) {
 	sql := `
 		WITH processing_to_retry as (
 			SELECT
@@ -172,7 +161,7 @@ func (re *QueuePostgres) FetchAndUpdateStatusProcessingToRetryByTimeout(ctx cont
 			  	item_status = $1 AND updated_at < NOW() - INTERVAL '1 second' * $2
 			ORDER BY
 				updated_at ASC
-		    LIMIT $4
+		    ` + mrstorage.NonZeroLimit(limit) + `
 			FOR UPDATE SKIP LOCKED
 		)
 		UPDATE
@@ -192,16 +181,15 @@ func (re *QueuePostgres) FetchAndUpdateStatusProcessingToRetryByTimeout(ctx cont
 		re.client,
 		sql,
 		limit,
-		enum.ItemStatusProcessing,
+		itemstatus.Processing,
 		uint32(timeout.Seconds()),
-		enum.ItemStatusRetry,
-		limit,
+		itemstatus.Retry,
 	)
 }
 
-// FetchAndUpdateStatusRetryToReady - переводит ограниченный список записей из статуса RETRY в статус READY
+// UpdateStatusRetryToReady - переводит ограниченный список записей из статуса RETRY в статус READY
 // учитывая указанную задержку нахождения записи в этом статусе и положительное кол-во попыток.
-func (re *QueuePostgres) FetchAndUpdateStatusRetryToReady(ctx context.Context, delayed time.Duration, limit uint32) (rowIDs []uint64, err error) {
+func (re *QueuePostgres) UpdateStatusRetryToReady(ctx context.Context, delayed time.Duration, limit int) (rowIDs []uint64, err error) {
 	sql := `
 		WITH retry_to_ready as (
 			SELECT
@@ -214,7 +202,7 @@ func (re *QueuePostgres) FetchAndUpdateStatusRetryToReady(ctx context.Context, d
 				remaining_attempts > 0
 			ORDER BY
 				updated_at ASC
-		    LIMIT $4
+		    ` + mrstorage.NonZeroLimit(limit) + `
 			FOR UPDATE SKIP LOCKED
 		)
 		UPDATE
@@ -234,16 +222,15 @@ func (re *QueuePostgres) FetchAndUpdateStatusRetryToReady(ctx context.Context, d
 		re.client,
 		sql,
 		limit,
-		enum.ItemStatusRetry,
+		itemstatus.Retry,
 		uint32(delayed.Seconds()),
-		enum.ItemStatusReady,
-		limit,
+		itemstatus.Ready,
 	)
 }
 
 // DeleteRetryWithoutAttempts - удаляет из очереди ограниченный список записей находящихся
 // в статусе RETRY и с нулевым кол-вом попыток в целях разгрузки очереди. Возвращает ID записей, которые были удалены.
-func (re *QueuePostgres) DeleteRetryWithoutAttempts(ctx context.Context, limit uint32) (rowsIDs []uint64, err error) {
+func (re *QueuePostgres) DeleteRetryWithoutAttempts(ctx context.Context, limit int) (rowsIDs []uint64, err error) {
 	sql := `
 		WITH retry_without_attempts as (
 			SELECT
@@ -254,7 +241,7 @@ func (re *QueuePostgres) DeleteRetryWithoutAttempts(ctx context.Context, limit u
 			  	item_status = $1 AND remaining_attempts = 0
 			ORDER BY
 				updated_at ASC
-		    LIMIT $2
+		    ` + mrstorage.NonZeroLimit(limit) + `
 		)
 		DELETE FROM
 			` + re.table.Name + ` t1
@@ -270,20 +257,19 @@ func (re *QueuePostgres) DeleteRetryWithoutAttempts(ctx context.Context, limit u
 		re.client,
 		sql,
 		limit,
-		enum.ItemStatusRetry,
-		limit,
+		itemstatus.Retry,
 	)
 }
 
-// Delete - удаляет запись из очереди по указанному ID и находящеюся в указанном статусе.
-func (re *QueuePostgres) Delete(ctx context.Context, rowID uint64, status enum.ItemStatus) error {
+// Delete - удаляет запись из очереди по указанному rowID и находящеюся в указанном статусе.
+func (re *QueuePostgres) Delete(ctx context.Context, rowID uint64, status itemstatus.Enum) error {
 	sql := `
 		DELETE FROM
 			` + re.table.Name + `
 		WHERE
 			` + re.table.PrimaryKey + ` = $1 AND item_status = $2;`
 
-	return re.client.Conn(ctx).Exec(
+	return re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		rowID,

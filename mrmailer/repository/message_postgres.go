@@ -2,12 +2,11 @@ package repository
 
 import (
 	"context"
-	"strings"
 
-	"github.com/mondegor/go-storage/mrpostgres/stream/placeholdedvalues"
-	"github.com/mondegor/go-storage/mrsql"
-	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 
+	"github.com/mondegor/go-components/mrmailer/dto"
 	"github.com/mondegor/go-components/mrmailer/entity"
 )
 
@@ -76,44 +75,34 @@ func (re *MessagePostgres) Insert(ctx context.Context, rows []entity.Message) er
 		return nil
 	}
 
-	var sql strings.Builder
+	ids := make([]uint64, 0, len(rows))
+	channels := make([]string, 0, len(rows))
+	datas := make([]dto.MessageData, 0, len(rows))
 
-	sql.WriteString(`
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+		channels = append(channels, row.Channel)
+		datas = append(datas, row.Data)
+	}
+
+	sql := `
 		INSERT INTO ` + re.table.Name + `
 			(
 				` + re.table.PrimaryKey + `,
 				message_channel,
-				message_data,
-				created_at
+				message_data
 			)
-		VALUES `)
-
-	const countLineArgs = 3
-
-	// generate: ($1, $2, $3, NOW()), ...
-	sqlValues := placeholdedvalues.New(
-		&sql,
-		placeholdedvalues.WithCountArgs(countLineArgs),
-		placeholdedvalues.WithLinePostfix(", NOW()"),
-	)
-
-	values := make([]any, 0, len(rows)*countLineArgs)
-	argumentNumber := sqlValues.WriteFirstLine()
-
-	for i, row := range rows {
-		if i > 0 {
-			argumentNumber = sqlValues.WriteNextLine(argumentNumber)
-		}
-
-		values = append(values, row.ID, row.Channel, row.Data)
-	}
-
-	sql.WriteByte(';')
+		SELECT *
+		FROM
+			UNNEST($1::int8[], $2::text[], $3::jsonb[])
+			as t(id, message_channel, message_data);`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,
-		sql.String(),
-		values...,
+		sql,
+		ids,
+		channels,
+		datas,
 	)
 }
 
@@ -125,9 +114,14 @@ func (re *MessagePostgres) DeleteByIDs(ctx context.Context, rowsIDs []uint64) er
 		WHERE
 			` + re.table.PrimaryKey + ` = ANY($1);`
 
-	return re.client.Conn(ctx).Exec(
+	_, err := re.client.Conn(ctx).ExecAffected(
 		ctx,
 		sql,
 		rowsIDs,
 	)
+	if err != nil {
+		return err // TODO: errorWrapper
+	}
+
+	return nil
 }

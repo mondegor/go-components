@@ -3,9 +3,9 @@ package repository
 import (
 	"context"
 
-	"github.com/mondegor/go-storage/mrstorage"
-	"github.com/mondegor/go-sysmess/mrmsg"
-	"github.com/mondegor/go-webcore/mrcore"
+	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-sysmess/util/conv"
 
 	"github.com/mondegor/go-components/mrnotifier/template/entity"
 )
@@ -14,22 +14,25 @@ type (
 	// VariablePostgres - репозиторий для хранения переменных шаблонов со значениями по умолчанию.
 	VariablePostgres struct {
 		client       mrstorage.DBConnManager
+		errorWrapper errors.Wrapper
 		tableName    string
-		errorWrapper mrcore.StorageErrorWrapper
 	}
 )
 
 // NewVariablePostgres - создаёт объект VariablePostgres.
-func NewVariablePostgres(client mrstorage.DBConnManager, tableName string, errorWrapper mrcore.StorageErrorWrapper) *VariablePostgres {
+func NewVariablePostgres(
+	client mrstorage.DBConnManager,
+	tableName string,
+) *VariablePostgres {
 	return &VariablePostgres{
 		client:       client,
 		tableName:    tableName,
-		errorWrapper: errorWrapper,
+		errorWrapper: errors.NewInfraStorageWrapper(),
 	}
 }
 
 // Fetch - возвращает список переменных со значениями по умолчанию по их названиям.
-func (re *VariablePostgres) Fetch(ctx context.Context, vars []string) ([]entity.Variable, error) {
+func (re *VariablePostgres) Fetch(ctx context.Context, vars []string) (rows []entity.Variable, err error) {
 	sql := `
 		SELECT
 			var_name,
@@ -45,12 +48,12 @@ func (re *VariablePostgres) Fetch(ctx context.Context, vars []string) ([]entity.
 		vars,
 	)
 	if err != nil {
-		return nil, re.errorWrapper.WrapErrorEntity(err, re.tableName, mrmsg.Data{"vars": vars})
+		return nil, re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"vars": vars})
 	}
 
 	defer cursor.Close()
 
-	rows := make([]entity.Variable, 0, len(vars))
+	rows = make([]entity.Variable, 0, len(vars))
 
 	for cursor.Next() {
 		var row entity.Variable
@@ -60,7 +63,7 @@ func (re *VariablePostgres) Fetch(ctx context.Context, vars []string) ([]entity.
 			&row.DefaultValue,
 		)
 		if err != nil {
-			return nil, re.errorWrapper.WrapErrorEntity(err, re.tableName, mrmsg.Data{"vars": vars})
+			return nil, re.errorWrapper.Wrap(err, "log.storage_data", conv.Group{"vars": vars})
 		}
 
 		rows = append(rows, row)

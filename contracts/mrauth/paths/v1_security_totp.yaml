@@ -1,0 +1,40 @@
+post:
+  summary: Auth/SC/R5. Метод создания операции на установку TOTP генератора для 2FA аутентификации пользователя
+  description: |-
+    Метод предназначен для создания операции установки TOTP генератора в качестве второго фактора
+    (2FA по TOTP) для текущего пользователя.
+
+    **Важно:** установить TOTP как 2FA можно только когда 2FA **выключена**. Если уже включён любой
+    второй фактор (пароль или TOTP), метод возвращает ошибку — сначала нужно отключить 2FA через
+    `POST /v1/security/disable2fa`, и только затем привязать новый TOTP генератор.
+
+    ### Алгоритм установки TOTP как 2FA (2FA выключена):
+    1. `POST /v1/security/totp` — создаётся операция (в ней генерируется TOTP-секрет) и отправляется
+      код подтверждения на текущий емаил;
+    2. Пользователь указывает полученный код и подтверждает операцию (`POST /v1/operation/confirm`);
+    3. `GET /v1/security/totp/{token}` — пользователь получает QR-код и добавляет генератор в
+      TOTP-приложение (сам генератор пока не активирован);
+    4. `POST /v1/security/apply-totp` (код из приложения) — генератор активируется, включается 2FA
+      по TOTP и единоразово возвращается набор одноразовых аварийных кодов (их нужно сохранить);
+    5. На текущий емаил отправляется уведомление, что включена 2FA по TOTP;
+  operationId: changeUser2faTotpGenerator
+  tags:
+    - Auth.Security
+  x-auth-scopes:
+    - any-users
+
+  #  parameters:
+  #    - $ref: "../_shared/components/parameters/Api.Request.Header.AcceptLanguage.yaml"
+  #    - $ref: "../_shared/components/parameters/Api.Request.Header.CorrelationID.yaml"
+  #    - $ref: "../_shared/components/parameters/Api.Request.Query.Language.yaml"
+
+  responses:
+    "200":
+      $ref: "../components/responses/Auth.ResponseJson.WaitingConfirmOperation.yaml"
+    "400":
+      # 2FA уже включена - сначала нужно отключить её (disable2fa)
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
+    "401":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
+    "500":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

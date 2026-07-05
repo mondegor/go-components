@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/mondegor/go-storage/mrsql"
-	"github.com/mondegor/go-storage/mrstorage"
+	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 )
 
 type (
@@ -29,11 +29,10 @@ func (re *CompletedPostgres) Insert(ctx context.Context, rowID uint64) error {
 	sql := `
 		INSERT INTO ` + re.table.Name + `
 			(
-				` + re.table.PrimaryKey + `,
-				updated_at
+				` + re.table.PrimaryKey + `
 			)
 		VALUES
-			($1, NOW());`
+			($1);`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,
@@ -44,7 +43,7 @@ func (re *CompletedPostgres) Insert(ctx context.Context, rowID uint64) error {
 
 // Delete - удаляет ограниченный список записей из успешно обработанных.
 // Возвращает ID записей, которые были удалены.
-func (re *CompletedPostgres) Delete(ctx context.Context, expiry time.Duration, limit uint32) (rowsIDs []uint64, err error) {
+func (re *CompletedPostgres) Delete(ctx context.Context, expiry time.Duration, limit int) (rowsIDs []uint64, err error) {
 	sql := `
 		WITH completed_expired_items as (
 			SELECT
@@ -55,7 +54,7 @@ func (re *CompletedPostgres) Delete(ctx context.Context, expiry time.Duration, l
 				updated_at <= NOW() - INTERVAL '1 second' * $1
 			ORDER BY
 				updated_at ASC
-		    LIMIT $2
+		    ` + mrstorage.NonZeroLimit(limit) + `
 		)
 		DELETE FROM
 			` + re.table.Name + ` t1
@@ -72,6 +71,5 @@ func (re *CompletedPostgres) Delete(ctx context.Context, expiry time.Duration, l
 		sql,
 		limit,
 		uint32(expiry.Seconds()),
-		limit,
 	)
 }

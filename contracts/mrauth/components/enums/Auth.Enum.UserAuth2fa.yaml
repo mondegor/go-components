@@ -1,0 +1,11 @@
+description: |-
+  Тип двухфакторной аутентификации пользователя:
+  - NONE - отсутствует (отключена);
+  - PASSWORD - дополнительная авторизация по паролю;
+  - TOTP - дополнительная авторизация по TOTP;
+type: string
+enum:
+  - NONE
+  - PASSWORD
+  - TOTP
+example: "PASSWORD"

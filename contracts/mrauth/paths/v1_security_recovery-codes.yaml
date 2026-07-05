@@ -1,0 +1,35 @@
+post:
+  summary: Auth/SC/R10. Метод создания операции перевыпуска одноразовых аварийных кодов
+  description: |-
+    Метод предназначен для перевыпуска набора одноразовых аварийных кодов текущего пользователя
+    без смены второго фактора (например, когда коды заканчиваются). Требует включённую 2FA.
+
+    ### Алгоритм перевыпуска аварийных кодов:
+    1. Отправляется код подтверждения на текущий емаил;
+    2. Пользователь указывает полученный код и подтверждает перевыпуск (`POST /v1/operation/confirm`);
+    3. Пользователю предлагается ввести пароль или TOTP код (или один из оставшихся аварийных кодов);
+    4. После подтверждения пользователь применяет операцию методом `POST /v1/security/apply-recovery-codes`,
+       который заменяет набор аварийных кодов на новый и единоразово возвращает его
+       (старые коды становятся недействительными);
+    5. На текущий емаил отправляется уведомление, что аварийные коды были перевыпущены;
+  operationId: regenerateUser2faRecoveryCodes
+  tags:
+    - Auth.Security
+  x-auth-scopes:
+    - any-users
+
+  #  parameters:
+  #    - $ref: "../_shared/components/parameters/Api.Request.Header.AcceptLanguage.yaml"
+  #    - $ref: "../_shared/components/parameters/Api.Request.Header.CorrelationID.yaml"
+  #    - $ref: "../_shared/components/parameters/Api.Request.Query.Language.yaml"
+
+  responses:
+    "200":
+      $ref: "../components/responses/Auth.ResponseJson.WaitingConfirmOperation.yaml"
+    "400":
+      # 2FA аутентификация выключена - перевыпускать аварийные коды нечему
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
+    "401":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
+    "500":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"
