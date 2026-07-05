@@ -3,7 +3,7 @@ package mrauth
 import (
 	"strings"
 
-	"github.com/mondegor/go-sysmess/mraccess"
+	"github.com/mondegor/go-core/mraccess"
 )
 
 // NewUserProvider - создаёт получателя произвольных настроек из БД.

@@ -1,7 +1,7 @@
 package entity
 
 import (
-	"github.com/mondegor/go-sysmess/mrworkflow/itemstatus"
+	"github.com/mondegor/go-core/mrworkflow/itemstatus"
 )
 
 type (

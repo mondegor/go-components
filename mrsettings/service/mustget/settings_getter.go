@@ -3,7 +3,7 @@ package mustget
 import (
 	"context"
 
-	"github.com/mondegor/go-sysmess/mrlog"
+	"github.com/mondegor/go-core/mrlog"
 
 	"github.com/mondegor/go-components/mrsettings"
 )

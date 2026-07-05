@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-core/errors"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 

@@ -1,7 +1,7 @@
 package bag
 
 import (
-	"github.com/mondegor/go-sysmess/util/xtime"
+	"github.com/mondegor/go-core/util/xtime"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"

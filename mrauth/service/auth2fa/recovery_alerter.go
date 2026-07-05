@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/util/conv"
+	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrnotifier"
 )

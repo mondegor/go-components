@@ -1,8 +1,8 @@
 package initing
 
 import (
-	"github.com/mondegor/go-sysmess/mraccess"
-	"github.com/mondegor/go-sysmess/mrlog"
+	"github.com/mondegor/go-core/mraccess"
+	"github.com/mondegor/go-core/mrlog"
 
 	"github.com/mondegor/go-components/wire/mrauth/config"
 )

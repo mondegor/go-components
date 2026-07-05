@@ -1,7 +1,7 @@
 package mrnotifier
 
 import (
-	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-core/errors"
 )
 
 // ErrSystemTemplateNotRegistered - no template is registered for the notification with lang (attrs: template, lang, status).

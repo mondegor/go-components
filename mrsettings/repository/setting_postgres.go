@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
-	"github.com/mondegor/go-sysmess/util/conv"
+	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrstorage"
+	"github.com/mondegor/go-core/mrstorage/mrsql"
+	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrsettings/entity"
 )

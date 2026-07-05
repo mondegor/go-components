@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrlog"
+	"github.com/mondegor/go-core/mrlog"
 	"github.com/mondegor/go-webcore/mrserver/request"
 
 	"github.com/mondegor/go-components/mrauth/dto"

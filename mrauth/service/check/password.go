@@ -1,7 +1,7 @@
 package check
 
 import (
-	"github.com/mondegor/go-sysmess/util/crypt/password"
+	"github.com/mondegor/go-core/util/crypt/password"
 )
 
 type (

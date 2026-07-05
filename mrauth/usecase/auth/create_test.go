@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	sysmesserrors "github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mrlock"
-	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrtype"
+	sysmesserrors "github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrlock"
+	"github.com/mondegor/go-core/mrstorage"
+	"github.com/mondegor/go-core/mrtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/mondegor/go-components/mrauth"

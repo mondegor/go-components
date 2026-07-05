@@ -3,7 +3,7 @@ package adapter
 import (
 	"context"
 
-	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-webcore/mrclient"
 
 	"github.com/mondegor/go-components/mrmailer"

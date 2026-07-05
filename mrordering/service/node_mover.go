@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 
-	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mrentity"
-	"github.com/mondegor/go-sysmess/mrevent"
-	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/util/conv"
+	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrentity"
+	"github.com/mondegor/go-core/mrevent"
+	"github.com/mondegor/go-core/mrstorage"
+	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrordering"
 	"github.com/mondegor/go-components/mrordering/entity"

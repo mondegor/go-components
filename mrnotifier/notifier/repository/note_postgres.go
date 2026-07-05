@@ -3,8 +3,8 @@ package repository
 import (
 	"context"
 
-	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
+	"github.com/mondegor/go-core/mrstorage"
+	"github.com/mondegor/go-core/mrstorage/mrsql"
 
 	"github.com/mondegor/go-components/mrnotifier/notifier/entity"
 )

@@ -3,8 +3,8 @@ package mrnotifier
 import (
 	"context"
 
-	"github.com/mondegor/go-sysmess/mrapp"
-	"github.com/mondegor/go-sysmess/mrtrace"
+	"github.com/mondegor/go-core/mrapp"
+	"github.com/mondegor/go-core/mrtrace"
 
 	"github.com/mondegor/go-components/mrnotifier/notifier/dto"
 )

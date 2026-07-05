@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	sysmesserrors "github.com/mondegor/go-sysmess/errors"
+	sysmesserrors "github.com/mondegor/go-core/errors"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
@@ -18,7 +18,7 @@ import (
 )
 
 //go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth AuthTokenFetcher
-//go:generate mockgen -destination=mock/mraccess.go -package=mock github.com/mondegor/go-sysmess/mraccess RightsGetter
+//go:generate mockgen -destination=mock/mraccess.go -package=mock github.com/mondegor/go-core/mraccess RightsGetter
 
 const allowedRealm = "site/admin"
 

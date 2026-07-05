@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-core/mrstorage"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -21,7 +21,7 @@ import (
 //go:generate mockgen -source=user_cleaner.go -destination=mock/user_cleaner.go -package=mock
 //go:generate mockgen -source=session_drainer.go -destination=mock/session_drainer.go -package=mock
 //go:generate mockgen -source=session_excess_trimmer.go -destination=mock/session_excess_trimmer.go -package=mock
-//go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-sysmess/mrstorage DBTxManager
+//go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
 
 // runJob - выполняет переданный в txManager.Do замыкание синхронно (без реальной транзакции).
 func runJob(_ context.Context, job func(context.Context) error, _ ...mrstorage.TxOption) error {

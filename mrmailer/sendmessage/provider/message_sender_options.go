@@ -1,7 +1,7 @@
 package provider
 
 import (
-	"github.com/mondegor/go-sysmess/mrtrace"
+	"github.com/mondegor/go-core/mrtrace"
 
 	"github.com/mondegor/go-components/mrmailer"
 )

@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-core/errors"
 	pqotp "github.com/pquerna/otp"
 	pqtotp "github.com/pquerna/otp/totp"
 )

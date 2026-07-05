@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	sysmesserrors "github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mrlog"
-	"github.com/mondegor/go-sysmess/mrstorage"
+	sysmesserrors "github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrlog"
+	"github.com/mondegor/go-core/mrstorage"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
@@ -21,7 +21,7 @@ import (
 )
 
 //go:generate mockgen -source=auth_token.go -destination=mock/auth_token.go -package=mock
-//go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-sysmess/mrstorage DBTxManager
+//go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
 //go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenIssuer
 
 const (

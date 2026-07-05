@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/mondegor/go-core/mrstorage/mrsql"
 	"github.com/mondegor/go-storage/mrtests/infra"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/mondegor/go-components/mrmailer"

@@ -3,7 +3,7 @@ package scheduler
 import (
 	"time"
 
-	"github.com/mondegor/go-sysmess/mrprocess/job/task"
+	"github.com/mondegor/go-core/mrprocess/job/task"
 )
 
 type (

@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mraccess"
-	modelmedia "github.com/mondegor/go-sysmess/mrmodel/media"
+	"github.com/mondegor/go-core/mraccess"
+	modelmedia "github.com/mondegor/go-core/mrmodel/media"
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"

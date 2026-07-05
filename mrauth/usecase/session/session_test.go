@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mrlog"
-	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrlog"
+	"github.com/mondegor/go-core/mrstorage"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
@@ -43,8 +43,8 @@ func testRealmRegistry() mrauth.RealmRegistry {
 //go:generate mockgen -source=session_continue.go -destination=mock/session_continue.go -package=mock
 //go:generate mockgen -source=session_close.go -destination=mock/session_close.go -package=mock
 //go:generate mockgen -source=session_list.go -destination=mock/session_list.go -package=mock
-//go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-sysmess/mrstorage DBTxManager
-//go:generate mockgen -destination=mock/mrevent.go -package=mock github.com/mondegor/go-sysmess/mrevent Emitter
+//go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
+//go:generate mockgen -destination=mock/mrevent.go -package=mock github.com/mondegor/go-core/mrevent Emitter
 
 func okScopes() dto.UserScopes {
 	return dto.UserScopes{UserID: uuid.New(), Realm: "site/admin", Kind: "admin", LangCode: "en"}

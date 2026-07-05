@@ -3,8 +3,8 @@ package handler
 import (
 	"context"
 
-	"github.com/mondegor/go-sysmess/errors"
-	tracectx "github.com/mondegor/go-sysmess/mrtrace/context"
+	"github.com/mondegor/go-core/errors"
+	tracectx "github.com/mondegor/go-core/mrtrace/context"
 
 	"github.com/mondegor/go-components/mrmailer"
 	"github.com/mondegor/go-components/mrmailer/entity"

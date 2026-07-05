@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mraccess"
-	"github.com/mondegor/go-sysmess/mrlog"
-	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mraccess"
+	"github.com/mondegor/go-core/mrlog"
+	"github.com/mondegor/go-core/mrstorage"
 
 	"github.com/mondegor/go-components/mrauth/bag/jwt/crypt"
 	"github.com/mondegor/go-components/wire/mrauth"

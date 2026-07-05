@@ -5,9 +5,9 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mrpostgres/db"
-	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrpostgres/db"
+	"github.com/mondegor/go-core/mrstorage"
 
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"

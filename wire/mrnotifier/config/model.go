@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	processcfg "github.com/mondegor/go-sysmess/mrprocess/config"
+	processcfg "github.com/mondegor/go-core/mrprocess/config"
 )
 
 type (

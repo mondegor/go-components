@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/util/casttype"
+	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/util/casttype"
 
 	"github.com/mondegor/go-components/mrsettings/dto"
 	"github.com/mondegor/go-components/mrsettings/entity"
