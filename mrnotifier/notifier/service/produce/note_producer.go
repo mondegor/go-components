@@ -3,10 +3,10 @@ package produce
 import (
 	"context"
 
-	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrtrace"
-	"github.com/mondegor/go-sysmess/util/conv"
+	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrstorage"
+	"github.com/mondegor/go-core/mrtrace"
+	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrnotifier"
 	"github.com/mondegor/go-components/mrnotifier/notifier/entity"

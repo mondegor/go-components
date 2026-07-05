@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-core/mrstorage"
 	"github.com/stretchr/testify/require"
 
 	"github.com/mondegor/go-components/mrauth/bag/crypt"

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mrmsg/templater"
+	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrmsg/templater"
 
 	"github.com/mondegor/go-components/mrnotifier"
 	"github.com/mondegor/go-components/mrnotifier/notifier/buildnotice"

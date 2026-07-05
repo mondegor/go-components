@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrnotifier/notifier/dto"
 	templateentity "github.com/mondegor/go-components/mrnotifier/template/entity"

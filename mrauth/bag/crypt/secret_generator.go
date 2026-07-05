@@ -1,8 +1,8 @@
 package crypt
 
 import (
-	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/util/crypt"
+	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/util/crypt"
 	"golang.org/x/crypto/bcrypt"
 )
 

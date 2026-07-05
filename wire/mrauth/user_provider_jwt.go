@@ -1,7 +1,7 @@
 package mrauth
 
 import (
-	"github.com/mondegor/go-sysmess/mraccess"
+	"github.com/mondegor/go-core/mraccess"
 
 	"github.com/mondegor/go-components/mrauth/bag/jwt/crypt"
 	"github.com/mondegor/go-components/mrauth/component/get"

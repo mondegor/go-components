@@ -13,17 +13,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **mrnotifier** — template-based personalized notifications, built on mrqueue.
 - **mrauth** — authentication, 2FA, sessions, JWT, and secure operations.
 
-It builds on sibling libraries that you will see imported everywhere; understanding their roles is essential. Most of the foundation now lives under a single module, **`go-sysmess`**:
-- `go-sysmess/mrstorage` (`DBConnManager`, `DBTxManager`), `mrstorage/mrsql` (`DBTableInfo`) — DB access and transaction management.
-- `go-sysmess/errors` (sentinel errors, `Wrapper`), `mrevent` (`Emitter`) — error handling and event emission.
-- `go-sysmess/mrprocess` (`helper.ItemBatchPlayer`, `mrprocess/schedule`, `mrprocess/job/task`, `mrprocess/config`) — background workers and scheduling. Use `mrprocess.JobFunc`, not the old `mrworker.JobFunc`.
-- plus `go-sysmess` helpers `mrlog`, `mrtrace`, `mrpostgres`, `mraccess`, `mrtype`, `util`, etc.
+It builds on sibling libraries that you will see imported everywhere; understanding their roles is essential. Most of the foundation now lives under a single module, **`go-core`**:
+- `go-core/mrstorage` (`DBConnManager`, `DBTxManager`), `mrstorage/mrsql` (`DBTableInfo`) — DB access and transaction management.
+- `go-core/errors` (sentinel errors, `Wrapper`), `mrevent` (`Emitter`) — error handling and event emission.
+- `go-core/mrprocess` (`helper.ItemBatchPlayer`, `mrprocess/schedule`, `mrprocess/job/task`, `mrprocess/config`) — background workers and scheduling. Use `mrprocess.JobFunc`, not the old `mrworker.JobFunc`.
+- plus `go-core` helpers `mrlog`, `mrtrace`, `mrpostgres`, `mraccess`, `mrtype`, `util`, etc.
 
 The two other sibling modules are now narrowly scoped:
 - `go-webcore` — the HTTP layer only (`mrserver`, `mrclient`, `mrview`, request parsers/responses), used by the `infra/pub/controller/httpv1` adapters.
 - `go-storage` — test infrastructure only: `go-storage/mrtests/infra.PostgresTester` for repository integration tests.
 
-> Note: an earlier reorg moved these packages around. The DB, worker/scheduler, errors and event packages used to live in `go-storage`/`go-webcore` (`mrworker`, `mrworker/process/schedule`, …) and were consolidated into `go-sysmess` (`mrprocess`, `mrprocess/schedule`, …). When you see stale `mrworker`/`go-storage/mrstorage`/`go-webcore/mrworker` references, they should be the `go-sysmess` equivalents.
+> Note: an earlier reorg moved these packages around. The DB, worker/scheduler, errors and event packages used to live in `go-storage`/`go-webcore` (`mrworker`, `mrworker/process/schedule`, …) and were consolidated into `go-core` (`mrprocess`, `mrprocess/schedule`, …). When you see stale `mrworker`/`go-storage/mrstorage`/`go-webcore/mrworker` references, they should be the `go-core` equivalents.
 
 ## Commands
 
@@ -55,7 +55,7 @@ Direct Go usage when `mrcmd` is unavailable:
 - `infra/` — adapters such as HTTP v1 controllers (`infra/pub/controller/httpv1`) and worker handlers.
 - `_sample/migrations/` — example SQL migrations showing the expected table shape; used by integration tests.
 
-**`wire/`** mirrors the component tree and holds the **composition-root factories** (`InitXxx` functions) that assemble a service/usecase from its dependencies (txManager, storage, event emitter, options) and wrap it in a `go-sysmess/mrprocess/helper` worker (e.g. `helper.NewItemBatchPlayerWithDurationLimit`). When adding a new runnable component, add its constructor here.
+**`wire/`** mirrors the component tree and holds the **composition-root factories** (`InitXxx` functions) that assemble a service/usecase from its dependencies (txManager, storage, event emitter, options) and wrap it in a `go-core/mrprocess/helper` worker (e.g. `helper.NewItemBatchPlayerWithDurationLimit`). When adding a new runnable component, add its constructor here.
 
 **Functional options pattern** is used throughout: constructors take `opts ...Option`; defaults (including a default `errors.Wrapper` and no-op callbacks) are applied in `New(...)`, then options override them. Optional collaborators are marked `// OPTIONAL` in the struct.
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mraccess"
+	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mraccess"
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth"

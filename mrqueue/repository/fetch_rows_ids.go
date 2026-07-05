@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-core/mrstorage"
 )
 
 func fetchRowsIDs(ctx context.Context, client mrstorage.DBConnManager, sql string, limit int, args ...any) (rowsIDs []uint64, err error) {

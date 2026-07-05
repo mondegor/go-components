@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	sysmesserrors "github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-storage/mrtests/infra"
-	sysmesserrors "github.com/mondegor/go-sysmess/errors"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/mondegor/go-components/mrauth/entity"

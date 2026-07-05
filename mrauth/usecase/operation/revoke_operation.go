@@ -3,7 +3,7 @@ package operation
 import (
 	"context"
 
-	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-core/errors"
 )
 
 type (

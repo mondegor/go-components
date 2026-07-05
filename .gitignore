@@ -7,3 +7,7 @@
 /.env
 /Makefile.mk
 /test-coverage-full.html
+
+out.gotext.json
+
+/tmp

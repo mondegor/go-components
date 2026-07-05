@@ -1,10 +1,10 @@
 package producer
 
 import (
-	"github.com/mondegor/go-sysmess/mrpostgres/sequence"
-	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
-	"github.com/mondegor/go-sysmess/mrtrace"
+	"github.com/mondegor/go-core/mrpostgres/sequence"
+	"github.com/mondegor/go-core/mrstorage"
+	"github.com/mondegor/go-core/mrstorage/mrsql"
+	"github.com/mondegor/go-core/mrtrace"
 
 	"github.com/mondegor/go-components/mrnotifier/notifier/repository"
 	"github.com/mondegor/go-components/mrnotifier/notifier/service/produce"

@@ -3,8 +3,8 @@ package config
 import (
 	"time"
 
-	accesscfg "github.com/mondegor/go-sysmess/mraccess/config"
-	processcfg "github.com/mondegor/go-sysmess/mrprocess/config"
+	accesscfg "github.com/mondegor/go-core/mraccess/config"
+	processcfg "github.com/mondegor/go-core/mrprocess/config"
 
 	jwtcrypt "github.com/mondegor/go-components/mrauth/bag/jwt/crypt"
 )

@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-webcore/mrclient"
 	"github.com/mondegor/go-webcore/mrclient/mail"
 

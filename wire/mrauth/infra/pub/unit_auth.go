@@ -3,10 +3,10 @@ package pub
 import (
 	"time"
 
-	"github.com/mondegor/go-sysmess/mrevent"
-	"github.com/mondegor/go-sysmess/mrlock"
-	"github.com/mondegor/go-sysmess/mrlog"
-	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-core/mrevent"
+	"github.com/mondegor/go-core/mrlock"
+	"github.com/mondegor/go-core/mrlog"
+	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"

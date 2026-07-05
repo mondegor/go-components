@@ -1,8 +1,8 @@
 package mrauth
 
 import (
-	"github.com/mondegor/go-sysmess/mraccess"
-	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-core/mraccess"
+	"github.com/mondegor/go-core/mrstorage"
 
 	"github.com/mondegor/go-components/mrauth/component/get"
 	"github.com/mondegor/go-components/mrauth/repository"

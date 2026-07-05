@@ -5,8 +5,8 @@ import (
 	"slices"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mrtype"
+	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrtype"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"

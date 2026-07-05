@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-sysmess/errors"
+	"github.com/mondegor/go-core/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 

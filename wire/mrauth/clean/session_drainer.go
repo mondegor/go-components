@@ -1,8 +1,8 @@
 package clean
 
 import (
-	"github.com/mondegor/go-sysmess/mrevent"
-	"github.com/mondegor/go-sysmess/mrprocess/helper"
+	"github.com/mondegor/go-core/mrevent"
+	"github.com/mondegor/go-core/mrprocess/helper"
 
 	"github.com/mondegor/go-components/mrauth/usecase/clean"
 )

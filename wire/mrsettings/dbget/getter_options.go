@@ -1,7 +1,7 @@
 package dbget
 
 import (
-	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-core/mrstorage"
 
 	"github.com/mondegor/go-components/mrsettings/field/parse"
 )

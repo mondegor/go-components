@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 
-	tracectx "github.com/mondegor/go-sysmess/mrtrace/context"
+	tracectx "github.com/mondegor/go-core/mrtrace/context"
 
 	"github.com/mondegor/go-components/mrnotifier"
 	"github.com/mondegor/go-components/mrnotifier/notifier/dto"

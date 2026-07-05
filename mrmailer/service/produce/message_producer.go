@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrtrace"
+	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrstorage"
+	"github.com/mondegor/go-core/mrtrace"
 
 	"github.com/mondegor/go-components/mrmailer"
 	"github.com/mondegor/go-components/mrmailer/dto"

@@ -3,8 +3,8 @@ package consume
 import (
 	"context"
 
-	"github.com/mondegor/go-sysmess/errors"
-	"github.com/mondegor/go-sysmess/mrstorage"
+	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrstorage"
 
 	"github.com/mondegor/go-components/mrqueue"
 )

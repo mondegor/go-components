@@ -1,7 +1,7 @@
 package processor
 
 import (
-	"github.com/mondegor/go-sysmess/mrprocess/consume"
+	"github.com/mondegor/go-core/mrprocess/consume"
 
 	"github.com/mondegor/go-components/mrnotifier/notifier/entity"
 )

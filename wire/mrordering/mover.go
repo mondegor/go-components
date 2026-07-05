@@ -1,10 +1,10 @@
 package mrordering
 
 import (
-	"github.com/mondegor/go-sysmess/mrevent"
-	"github.com/mondegor/go-sysmess/mrpostgres/builder/part"
-	"github.com/mondegor/go-sysmess/mrstorage"
-	"github.com/mondegor/go-sysmess/mrstorage/mrsql"
+	"github.com/mondegor/go-core/mrevent"
+	"github.com/mondegor/go-core/mrpostgres/builder/part"
+	"github.com/mondegor/go-core/mrstorage"
+	"github.com/mondegor/go-core/mrstorage/mrsql"
 
 	"github.com/mondegor/go-components/mrordering/repository"
 	"github.com/mondegor/go-components/mrordering/service"

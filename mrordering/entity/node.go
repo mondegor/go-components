@@ -1,7 +1,7 @@
 package entity
 
 import (
-	"github.com/mondegor/go-sysmess/mrentity"
+	"github.com/mondegor/go-core/mrentity"
 )
 
 const (
