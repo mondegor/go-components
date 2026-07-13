@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrlock"
 	"github.com/mondegor/go-core/mrstorage"
@@ -12,6 +13,10 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
@@ -31,22 +36,31 @@ type (
 		notifierAPI      mrnotifier.NoteProducer
 		factory2FA       user2faActionCreator
 		locker           mrlock.Locker
+		logOperation     operationLogger
 		errorWrapper     errors.Wrapper
 		realm2operation  map[string]createUserOperation
 	}
 
-	// CreateUserRealm - сообщение для получателя.
+	// CreateUserRealm - сопоставление realm с операцией создания пользователя для него.
 	CreateUserRealm struct {
 		Name      string
 		Operation createUserOperation
 	}
 
 	createUserOperation interface {
+		// Name - имя создаваемой операции; используется для событий журнала, возникающих
+		// до её создания (pre-op), чтобы они не разъезжались с именем самой операции.
+		Name() string
 		Create(user2FA dto.User2FA, langCode string, address contactaddress.ContactAddress, registeredIP string) (secureoperation.SecureOperation, error)
 	}
 
 	user2faActionCreator interface {
 		CreateByUserLogin(ctx context.Context, userLogin contactaddress.ContactAddress) (dto.User2FA, error)
+	}
+
+	// operationLogger - best-effort продюсер записей журнала защищённых операций.
+	operationLogger interface {
+		Log(ctx context.Context, entry entity.SecureOperationLog)
 	}
 )
 
@@ -58,6 +72,7 @@ func NewCreateUser(
 	notifierAPI mrnotifier.NoteProducer,
 	factory2FA user2faActionCreator,
 	locker mrlock.Locker,
+	logOperation operationLogger,
 	allowedRealms []CreateUserRealm,
 ) *CreateUser {
 	realm2operation := make(map[string]createUserOperation, len(allowedRealms))
@@ -72,6 +87,7 @@ func NewCreateUser(
 		notifierAPI:      notifierAPI,
 		factory2FA:       factory2FA,
 		locker:           locker,
+		logOperation:     logOperation,
 		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
 		realm2operation:  realm2operation,
 	}
@@ -99,6 +115,20 @@ func (co *CreateUser) Execute(
 	unlockEmail, err := co.locker.LockWithExpiry(ctx, createUserLockKeyPrefix+realm+":"+parsedLogin.Value(), createUserLockTimeout)
 	if err != nil {
 		if errors.Is(err, mrlock.ErrLockKeyNotObtained) {
+			// анти-спам троттл повторной регистрации: фиксируем в журнале заблокированную попытку
+			// (операция не создана, поэтому её имя берётся у фабрики, а метод подтверждения неизвестен)
+			co.logOperation.Log(
+				ctx,
+				entity.NewSecureOperationLog(
+					uuid.Nil,
+					registeredIP,
+					opCreator.Name(),
+					confirmmethod.Unspecified,
+					logstatus.Blocked,
+					logreason.Throttled,
+				),
+			)
+
 			return secureoperation.SecureOperation{}, mrauth.ErrSignupAlreadyInProgressTryLater
 		}
 
@@ -136,8 +166,6 @@ func (co *CreateUser) Execute(
 			return co.errorWrapper.Wrap(err)
 		}
 
-		// TODO: записать операцию в журнал
-
 		return op.NotifyByEmail(
 			func(address, confirmCode string) error {
 				return co.notifierAPI.Send(
@@ -155,6 +183,19 @@ func (co *CreateUser) Execute(
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
+
+	// операция создана: фиксируем инициацию регистрации в журнале (запись вне транзакции)
+	co.logOperation.Log(
+		ctx,
+		entity.NewSecureOperationLog(
+			uuid.Nil,
+			registeredIP,
+			op.Name,
+			op.FirstActionMethod(),
+			logstatus.Opened,
+			logreason.Unspecified,
+		),
+	)
 
 	return op, nil
 }

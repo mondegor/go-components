@@ -290,3 +290,39 @@ func (mr *MockoperationConsumerMockRecorder) Delete(ctx, token any) *gomock.Call
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockoperationConsumer)(nil).Delete), ctx, token)
 }
+
+// MockoperationLogger is a mock of operationLogger interface.
+type MockoperationLogger struct {
+	ctrl     *gomock.Controller
+	recorder *MockoperationLoggerMockRecorder
+	isgomock struct{}
+}
+
+// MockoperationLoggerMockRecorder is the mock recorder for MockoperationLogger.
+type MockoperationLoggerMockRecorder struct {
+	mock *MockoperationLogger
+}
+
+// NewMockoperationLogger creates a new mock instance.
+func NewMockoperationLogger(ctrl *gomock.Controller) *MockoperationLogger {
+	mock := &MockoperationLogger{ctrl: ctrl}
+	mock.recorder = &MockoperationLoggerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockoperationLogger) EXPECT() *MockoperationLoggerMockRecorder {
+	return m.recorder
+}
+
+// Log mocks base method.
+func (m *MockoperationLogger) Log(ctx context.Context, entry entity.SecureOperationLog) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Log", ctx, entry)
+}
+
+// Log indicates an expected call of Log.
+func (mr *MockoperationLoggerMockRecorder) Log(ctx, entry any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Log", reflect.TypeOf((*MockoperationLogger)(nil).Log), ctx, entry)
+}

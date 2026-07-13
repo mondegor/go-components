@@ -5,10 +5,14 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
@@ -34,10 +38,11 @@ func TestApplyPassword_Confirmed_BindsAndReturnsCodes(t *testing.T) {
 	binder := &fakeBinder{}
 	verifier := &fakeOpVerifier{op: op}
 	notifier := &fakeNotifier{}
+	logOperation := &fakeOperationLogger{}
 
-	uc := security.NewApplyPassword(fakeTx{}, binder, verifier, crypt.NewSecretGenerator(10), notifier, 8)
+	uc := security.NewApplyPassword(fakeTx{}, binder, verifier, crypt.NewSecretGenerator(10), notifier, logOperation, 8)
 
-	codes, err := uc.Execute(context.Background(), userID, "op-token")
+	codes, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token")
 	require.NoError(t, err)
 	require.Len(t, codes, 8)
 	require.Equal(t, auth2fatype.Password, binder.saved.Type)
@@ -46,6 +51,9 @@ func TestApplyPassword_Confirmed_BindsAndReturnsCodes(t *testing.T) {
 	require.NotEqual(t, codes, binder.saved.RecoveryCodes) // хранятся хеши, возвращается plaintext
 	require.Equal(t, "op-token", verifier.deletedToken)
 	require.True(t, notifier.sent)
+	require.Len(t, logOperation.entries, 1)
+	assert.Equal(t, logstatus.Applied, logOperation.entries[0].LogStatus)
+	assert.Equal(t, unit.NameConfirmChangePassword, logOperation.entries[0].OperationName)
 }
 
 func TestApplyPassword_ReissuesNewCodesEachTime(t *testing.T) {
@@ -55,12 +63,15 @@ func TestApplyPassword_ReissuesNewCodesEachTime(t *testing.T) {
 	payload := `{"new_password":"hashed-pwd","email":"u@e"}`
 	gen := crypt.NewSecretGenerator(10)
 
-	uc := security.NewApplyPassword(fakeTx{}, &fakeBinder{}, &fakeOpVerifier{op: confirmedPasswordOp(userID, payload)}, gen, &fakeNotifier{}, 8)
+	uc := security.NewApplyPassword(
+		fakeTx{}, &fakeBinder{}, &fakeOpVerifier{op: confirmedPasswordOp(userID, payload)}, gen, &fakeNotifier{},
+		&fakeOperationLogger{}, 8,
+	)
 
-	first, err := uc.Execute(context.Background(), userID, "op-token")
+	first, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token")
 	require.NoError(t, err)
 
-	second, err := uc.Execute(context.Background(), userID, "op-token")
+	second, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token")
 	require.NoError(t, err)
 
 	require.NotEqual(t, first, second) // каждая смена пароля выдаёт новый набор кодов
@@ -76,12 +87,16 @@ func TestApplyPassword_WrongOperationName_NoBind(t *testing.T) {
 	binder := &fakeBinder{}
 	verifier := &fakeOpVerifier{op: op}
 	notifier := &fakeNotifier{}
+	logOperation := &fakeOperationLogger{}
 
-	uc := security.NewApplyPassword(fakeTx{}, binder, verifier, crypt.NewSecretGenerator(10), notifier, 8)
+	uc := security.NewApplyPassword(fakeTx{}, binder, verifier, crypt.NewSecretGenerator(10), notifier, logOperation, 8)
 
-	codes, err := uc.Execute(context.Background(), userID, "op-token")
+	codes, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token")
 	require.Error(t, err)
 	require.Nil(t, codes)
 	require.Empty(t, verifier.deletedToken)
 	require.False(t, notifier.sent)
+	require.Len(t, logOperation.entries, 1)
+	assert.Equal(t, logstatus.Blocked, logOperation.entries[0].LogStatus)
+	assert.Equal(t, logreason.AccessForbidden, logOperation.entries[0].Reason)
 }

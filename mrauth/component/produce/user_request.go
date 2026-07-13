@@ -70,7 +70,7 @@ func (rs *UserRequest) Emit(r *http.Request, _ []byte, _ int, _ []byte, _ int, _
 		VisitedAt:     time.Now(),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), pushTimeout)
 	defer cancel()
 
 	if err := rs.producer.PushMessage(ctx, activityLog); err != nil {

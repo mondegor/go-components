@@ -7,6 +7,7 @@ import (
 type (
 	// SessionMeta - метаданные клиента, фиксируемые при открытии сессии.
 	// UserAgent и ClientIP - недоверенный ввод, контролируемый клиентом.
+	// TODO: можно объединить с ActorMeta.
 	SessionMeta struct {
 		UserAgent string
 		ClientIP  mrtype.DetailedIP

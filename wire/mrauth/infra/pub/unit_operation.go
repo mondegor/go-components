@@ -5,6 +5,7 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
+	"github.com/mondegor/go-components/mrauth/component/produce"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
@@ -19,6 +20,7 @@ func initOperationController(
 	dbConnManager mrstorage.DBConnManager,
 	storageSecureOperation *repository.SecureOperationPostgres,
 	useCaseConfirmOperation *operation.ConfirmOperation,
+	operationLogger *produce.SecureOperationLogger,
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
@@ -33,9 +35,10 @@ func initOperationController(
 			crypt.NewSecretGenerator(int(operationConfig.TokenLength)), // TODO: длина должна зависеть от realm
 			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
 		),
+		operationLogger,
 	)
 
-	useCaseRevokeOperation := operation.NewRevokeOperation(storageSecureOperation)
+	useCaseRevokeOperation := operation.NewRevokeOperation(storageSecureOperation, operationLogger)
 
 	controller := httpv1.NewOperation(
 		requestParser,

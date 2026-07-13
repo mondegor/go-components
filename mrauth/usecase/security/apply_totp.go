@@ -12,6 +12,9 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrnotifier"
@@ -33,6 +36,7 @@ type (
 		codeGenerator    recoveryCodesGenerator
 		totpValidator    totpValidator
 		notifierAPI      mrnotifier.NoteProducer
+		logOperation     operationLogger
 		errorWrapper     errors.Wrapper
 		recoveryCount    int
 	}
@@ -58,6 +62,7 @@ func NewApplyTOTPGenerator(
 	codeGenerator recoveryCodesGenerator,
 	totpValidator totpValidator,
 	notifierAPI mrnotifier.NoteProducer,
+	logOperation operationLogger,
 	recoveryCount int,
 ) *ApplyTOTPGenerator {
 	recoveryCount = clampRecoveryCount(recoveryCount)
@@ -69,6 +74,7 @@ func NewApplyTOTPGenerator(
 		codeGenerator:    codeGenerator,
 		totpValidator:    totpValidator,
 		notifierAPI:      notifierAPI,
+		logOperation:     logOperation,
 		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
 		recoveryCount:    recoveryCount,
 	}
@@ -77,8 +83,12 @@ func NewApplyTOTPGenerator(
 // Execute - проверяет TOTP-код, введённый пользователем, против секрета операции
 // и при успехе в одной транзакции привязывает TOTP-генератор, удаляет операцию,
 // отправляет уведомление и возвращает аварийные коды в открытом виде (показываются один раз).
-func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, operationToken, totpCode string) ([]string, error) {
-	if userID == uuid.Nil {
+func (uc *ApplyTOTPGenerator) Execute(
+	ctx context.Context,
+	actor dto.ActorMeta,
+	operationToken, totpCode string,
+) (plainCodes []string, err error) {
+	if actor.VisitorID == uuid.Nil {
 		return nil, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -90,25 +100,38 @@ func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, ope
 		return nil, errors.ErrRecordNotFound // TODO: возможно, стоит возвращать ошибку о некорректном параметре
 	}
 
-	var plain []string
+	var (
+		operationName  string
+		actionMethod   confirmmethod.Enum
+		failedLogState logState
+	)
 
-	err := uc.txManager.Do(ctx, func(ctx context.Context) error {
+	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		op, err := uc.storageOperation.FetchOneForUpdate(ctx, operationToken)
 		if err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		if userID != op.UserID {
+		operationName = op.Name
+		actionMethod = op.FirstActionMethod()
+
+		if actor.VisitorID != op.UserID {
+			failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
+
 			return errors.ErrAccessForbidden
 		}
 
 		// TODO: проверить, что пользователь не заблокирован
 
 		if op.Name != unit.NameConfirmChangeTOTP {
+			failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
+
 			return errors.ErrAccessForbidden
 		}
 
 		if !op.Is(operationstatus.Confirmed) {
+			failedLogState = newLogState(logstatus.Blocked, logreason.NotConfirmed)
+
 			return errors.New("operation is not confirmed")
 		}
 
@@ -127,12 +150,14 @@ func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, ope
 		}
 
 		if !ok {
+			failedLogState = newLogState(logstatus.ConfirmFailed, logreason.WrongCode)
+
 			return errors.ErrIncorrectInputData.New("invalid totp code")
 		}
 
 		var hashed []string
 
-		plain, hashed, err = uc.codeGenerator.GenerateRecoveryCodes(uc.recoveryCount)
+		plainCodes, hashed, err = uc.codeGenerator.GenerateRecoveryCodes(uc.recoveryCount)
 		if err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
@@ -157,10 +182,29 @@ func (uc *ApplyTOTPGenerator) Execute(ctx context.Context, userID uuid.UUID, ope
 		return uc.notifierAPI.Send(ctx, "user.totp.changed", conv.Group{"to": payload.Email})
 	})
 	if err != nil {
+		if failedLogState.isSet() {
+			// или обращение к чужой, неподходящей или ещё не подтверждённой операции: фиксируем блокировку;
+			// или неверный TOTP-код: фиксируем в журнале как неудачное подтверждение;
+			uc.logOperation.Log(
+				ctx,
+				actor.NewOperationLog(
+					operationName, actionMethod, failedLogState.status, failedLogState.reason,
+				),
+			)
+		}
+
 		return nil, uc.errorWrapper.Wrap(err)
 	}
 
-	return plain, nil
+	// операция смены TOTP применена: фиксируем в журнале (запись вне транзакции)
+	uc.logOperation.Log(
+		ctx,
+		actor.NewOperationLog(
+			operationName, actionMethod, logstatus.Applied, logreason.Unspecified,
+		),
+	)
+
+	return plainCodes, nil
 }
 
 // clampRecoveryCount - ограничивает число аварийных кодов диапазоном [minRecoveryCount, maxRecoveryCount]:

@@ -9,6 +9,9 @@ import (
 	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
@@ -22,6 +25,7 @@ type (
 		notifierAPI                 mrnotifier.NoteProducer
 		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
 		factoryOperationRegenerate  user2faOperationCreator
+		logOperation                operationLogger
 		errorWrapper                errors.Wrapper
 	}
 )
@@ -33,6 +37,7 @@ func NewRegenerateRecoveryProperty(
 	notifierAPI mrnotifier.NoteProducer,
 	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
 	factoryOperationRegenerate user2faOperationCreator,
+	logOperation operationLogger,
 ) *RegenerateRecoveryProperty {
 	return &RegenerateRecoveryProperty{
 		txManager:                   txManager,
@@ -40,18 +45,22 @@ func NewRegenerateRecoveryProperty(
 		notifierAPI:                 notifierAPI,
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
 		factoryOperationRegenerate:  factoryOperationRegenerate,
+		logOperation:                logOperation,
 		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
 // Execute - создаёт операцию перевыпуска аварийных кодов и в той же транзакции
 // отправляет пользователю код её подтверждения.
-func (uc *RegenerateRecoveryProperty) Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error) {
-	if userID == uuid.Nil {
+func (uc *RegenerateRecoveryProperty) Execute(
+	ctx context.Context,
+	actor dto.ActorMeta,
+) (secureoperation.SecureOperation, error) {
+	if actor.VisitorID == uuid.Nil {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
-	user2FA, err := uc.factoryUser2FAConfirmAction.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
+	user2FA, err := uc.factoryUser2FAConfirmAction.CreateByUserID(ctx, actor.VisitorID) // TODO: объединить CreateByUserLogin и CreateByUserID
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
@@ -82,6 +91,14 @@ func (uc *RegenerateRecoveryProperty) Execute(ctx context.Context, userID uuid.U
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
+
+	// операция перевыпуска recovery-кодов создана: фиксируем инициацию в журнале (запись вне транзакции)
+	uc.logOperation.Log(
+		ctx,
+		actor.NewOperationLog(
+			op.Name, op.FirstActionMethod(), logstatus.Opened, logreason.Unspecified,
+		),
+	)
 
 	return op, nil
 }

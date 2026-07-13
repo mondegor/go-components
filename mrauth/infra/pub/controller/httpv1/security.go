@@ -9,6 +9,7 @@ import (
 	modelmedia "github.com/mondegor/go-core/mrmodel/media"
 	"github.com/mondegor/go-webcore/mrserver"
 
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
@@ -48,27 +49,27 @@ type (
 	}
 
 	changeEmailUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, newEmail string) (secureoperation.SecureOperation, error)
+		Execute(ctx context.Context, actor dto.ActorMeta, newEmail string) (secureoperation.SecureOperation, error)
 	}
 
 	changePhoneUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, newPhone string) (secureoperation.SecureOperation, error)
+		Execute(ctx context.Context, actor dto.ActorMeta, newPhone string) (secureoperation.SecureOperation, error)
 	}
 
 	applyOperationUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, operationToken string) error
+		Execute(ctx context.Context, actor dto.ActorMeta, operationToken string) error
 	}
 
 	changePasswordUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, newPassword string) (secureoperation.SecureOperation, error)
+		Execute(ctx context.Context, actor dto.ActorMeta, newPassword string) (secureoperation.SecureOperation, error)
 	}
 
 	applyPasswordUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, operationToken string) ([]string, error)
+		Execute(ctx context.Context, actor dto.ActorMeta, operationToken string) ([]string, error)
 	}
 
 	changeTOTPGeneratorUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error)
+		Execute(ctx context.Context, actor dto.ActorMeta) (secureoperation.SecureOperation, error)
 	}
 
 	renderTOTPGeneratorQRUseCase interface {
@@ -76,19 +77,19 @@ type (
 	}
 
 	applyTOTPGeneratorUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, operationToken, totpCode string) ([]string, error)
+		Execute(ctx context.Context, actor dto.ActorMeta, operationToken, totpCode string) ([]string, error)
 	}
 
 	regenerateRecoveryUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error)
+		Execute(ctx context.Context, actor dto.ActorMeta) (secureoperation.SecureOperation, error)
 	}
 
 	applyRecoveryUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, operationToken string) ([]string, error)
+		Execute(ctx context.Context, actor dto.ActorMeta, operationToken string) ([]string, error)
 	}
 
 	disable2FAUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID) (secureoperation.SecureOperation, error)
+		Execute(ctx context.Context, actor dto.ActorMeta) (secureoperation.SecureOperation, error)
 	}
 )
 
@@ -152,7 +153,7 @@ func (ht *Security) ChangeEmail(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	op, err := ht.useCaseChangeEmailProperty.Execute(r.Context(), ht.parser.UserID(r), req.NewEmail)
+	op, err := ht.useCaseChangeEmailProperty.Execute(r.Context(), ht.userActor(r), req.NewEmail)
 	if err != nil {
 		return err
 	}
@@ -175,7 +176,7 @@ func (ht *Security) ChangePhone(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	op, err := ht.useCaseChangePhoneProperty.Execute(r.Context(), ht.parser.UserID(r), req.NewPhone)
+	op, err := ht.useCaseChangePhoneProperty.Execute(r.Context(), ht.userActor(r), req.NewPhone)
 	if err != nil {
 		return err
 	}
@@ -198,7 +199,7 @@ func (ht *Security) ApplyOperation(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	if err := ht.useCaseApplyOperation.Execute(r.Context(), ht.parser.UserID(r), req.Token); err != nil {
+	if err := ht.useCaseApplyOperation.Execute(r.Context(), ht.userActor(r), req.Token); err != nil {
 		return err
 	}
 
@@ -213,7 +214,7 @@ func (ht *Security) ChangePassword(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	op, err := ht.useCaseChangePasswordProperty.Execute(r.Context(), ht.parser.UserID(r), req.NewPassword)
+	op, err := ht.useCaseChangePasswordProperty.Execute(r.Context(), ht.userActor(r), req.NewPassword)
 	if err != nil {
 		return err
 	}
@@ -237,7 +238,7 @@ func (ht *Security) ApplyPassword(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 
-	codes, err := ht.useCaseApplyPassword.Execute(r.Context(), ht.parser.UserID(r), req.Token)
+	codes, err := ht.useCaseApplyPassword.Execute(r.Context(), ht.userActor(r), req.Token)
 	if err != nil {
 		return err
 	}
@@ -247,7 +248,7 @@ func (ht *Security) ApplyPassword(w http.ResponseWriter, r *http.Request) error 
 
 // ChangeTOTPGenerator - создаёт операцию на установку/изменение TOTP генератора пользователя.
 func (ht *Security) ChangeTOTPGenerator(w http.ResponseWriter, r *http.Request) error {
-	op, err := ht.useCaseChangeTOTPProperty.Execute(r.Context(), ht.parser.UserID(r))
+	op, err := ht.useCaseChangeTOTPProperty.Execute(r.Context(), ht.userActor(r))
 	if err != nil {
 		return err
 	}
@@ -284,7 +285,7 @@ func (ht *Security) ApplyTOTPGenerator(w http.ResponseWriter, r *http.Request) e
 		return err
 	}
 
-	codes, err := ht.useCaseApplyTOTPGenerator.Execute(r.Context(), ht.parser.UserID(r), req.Token, req.Code)
+	codes, err := ht.useCaseApplyTOTPGenerator.Execute(r.Context(), ht.userActor(r), req.Token, req.Code)
 	if err != nil {
 		return err
 	}
@@ -294,7 +295,7 @@ func (ht *Security) ApplyTOTPGenerator(w http.ResponseWriter, r *http.Request) e
 
 // RegenerateRecoveryCodes - создаёт операцию перевыпуска аварийных кодов пользователя.
 func (ht *Security) RegenerateRecoveryCodes(w http.ResponseWriter, r *http.Request) error {
-	op, err := ht.useCaseRegenerateRecovery.Execute(r.Context(), ht.parser.UserID(r))
+	op, err := ht.useCaseRegenerateRecovery.Execute(r.Context(), ht.userActor(r))
 	if err != nil {
 		return err
 	}
@@ -318,7 +319,7 @@ func (ht *Security) ApplyRecoveryCodes(w http.ResponseWriter, r *http.Request) e
 		return err
 	}
 
-	codes, err := ht.useCaseApplyRecovery.Execute(r.Context(), ht.parser.UserID(r), req.Token)
+	codes, err := ht.useCaseApplyRecovery.Execute(r.Context(), ht.userActor(r), req.Token)
 	if err != nil {
 		return err
 	}
@@ -328,7 +329,7 @@ func (ht *Security) ApplyRecoveryCodes(w http.ResponseWriter, r *http.Request) e
 
 // Disable2FA - создаёт операцию на отключение 2FA аутентификации пользователя.
 func (ht *Security) Disable2FA(w http.ResponseWriter, r *http.Request) error {
-	op, err := ht.useCaseDisable2FA.Execute(r.Context(), ht.parser.UserID(r))
+	op, err := ht.useCaseDisable2FA.Execute(r.Context(), ht.userActor(r))
 	if err != nil {
 		return err
 	}
@@ -345,4 +346,13 @@ func (ht *Security) Disable2FA(w http.ResponseWriter, r *http.Request) error {
 
 func (ht *Security) getRawToken(r *http.Request) string {
 	return ht.parser.PathParamString(r, "token")
+}
+
+// userActor - собирает метаданные клиента для журнала защищённых операций.
+// Поток аутентифицирован (PermissionAnyUser), поэтому посетитель - это сам пользователь.
+func (ht *Security) userActor(r *http.Request) dto.ActorMeta {
+	return dto.ActorMeta{
+		VisitorID: ht.parser.UserID(r),
+		ClientIP:  ht.parser.DetailedIP(r),
+	}
 }

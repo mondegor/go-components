@@ -5,6 +5,7 @@ import (
 
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
+	"github.com/mondegor/go-components/mrauth/component/produce"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service/auth2fa"
@@ -18,6 +19,7 @@ func initConfirmOperationUseCase(
 	storageSecureOperation *repository.SecureOperationPostgres,
 	storageAuth2fa *repository.Auth2FAPostgres,
 	notifierAPI mrnotifier.NoteProducer,
+	operationLogger *produce.SecureOperationLogger,
 	operationConfig authcfg.OperationConfirm,
 	auth2faConfig authcfg.Auth2FA,
 ) *operation.ConfirmOperation {
@@ -41,5 +43,6 @@ func initConfirmOperationUseCase(
 				),
 			),
 		),
+		operationLogger,
 	)
 }

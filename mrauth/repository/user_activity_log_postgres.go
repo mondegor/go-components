@@ -12,7 +12,7 @@ import (
 )
 
 type (
-	// UserActivityLogPostgres - репозиторий для хранения элементов настроек.
+	// UserActivityLogPostgres - репозиторий журнала активности пользователей.
 	UserActivityLogPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper errors.Wrapper
@@ -32,7 +32,7 @@ func NewUserActivityLogPostgres(
 	}
 }
 
-// Insert - фиксирует изменение настройки.
+// Insert - фиксирует пачку записей журнала активности пользователей.
 func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserActivityLogMessage) error {
 	if len(rows) == 0 {
 		return nil
@@ -47,9 +47,13 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserAc
 	visitedAts := make([]time.Time, 0, len(rows))
 
 	for _, row := range rows {
+		// IPv4 сохраняется числом, для остальных адресов (IPv6) остаётся только строковое
+		// представление: одна такая запись не должна срывать вставку всей пачки
+		// TODO: ToUint() возвращает ошибку, если не-IPv4 является ЛЮБОЙ из адресов (real, proxy),
+		// поэтому валидный real IPv4 теряется при IPv6 в proxy; надёжнее брать row.UserIP.Real.To4().
 		realIP, _, err := row.UserIP.ToUint()
 		if err != nil {
-			return err // TODO: можно логировать ошибку
+			realIP = 0
 		}
 
 		userIDs = append(userIDs, row.UserID)
@@ -66,7 +70,7 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserAc
 			(
 				user_id,
 				user_ip,
-				user_ip_string,
+				user_ip_str,
 				user_agent,
 				request_path,
 				request_status,
@@ -75,7 +79,7 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserAc
 		SELECT *
 		FROM
 			UNNEST($1::uuid[], $2::int8[], $3::text[], $4::text[], $5::text[], $6::int4[], $7::timestamptz[])
-			as t(user_id, user_ip, user_ip_string, user_agent, request_path, request_status, visited_at);`
+			as t(user_id, user_ip, user_ip_str, user_agent, request_path, request_status, visited_at);`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,

@@ -4,12 +4,14 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mraccess"
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
@@ -34,11 +36,11 @@ type (
 	}
 
 	resendConfirmCodeUseCase interface {
-		Execute(ctx context.Context, langCode, operationToken string) (secureoperation.SecureOperation, error)
+		Execute(ctx context.Context, actor dto.ActorMeta, langCode, operationToken string) (secureoperation.SecureOperation, error)
 	}
 
 	revokeOperationUseCase interface {
-		Execute(ctx context.Context, operationToken string) error
+		Execute(ctx context.Context, actor dto.ActorMeta, operationToken string) error
 	}
 )
 
@@ -115,7 +117,15 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 
 	lz := ht.parser.Localizer(r)
 
-	op, err := ht.useCaseResendConfirmCode.Execute(r.Context(), lz.Language(), req.Token)
+	op, err := ht.useCaseResendConfirmCode.Execute(
+		r.Context(),
+		dto.ActorMeta{
+			VisitorID: uuid.Nil, // анонимный поток операции: форензику несёт ClientIP
+			ClientIP:  ht.parser.DetailedIP(r),
+		},
+		lz.Language(),
+		req.Token,
+	)
 	if err != nil {
 		if errors.Is(err, errors.ErrRecordNotFound) {
 			return mrauth.ErrTokenNotFoundOrExpired
@@ -160,7 +170,14 @@ func (ht *Operation) Revoke(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	if err := ht.useCaseRevokeOperation.Execute(r.Context(), req.Token); err != nil {
+	if err := ht.useCaseRevokeOperation.Execute(
+		r.Context(),
+		dto.ActorMeta{
+			VisitorID: uuid.Nil, // отзыв операции по токену: форензику несёт ClientIP
+			ClientIP:  ht.parser.DetailedIP(r),
+		},
+		req.Token,
+	); err != nil {
 		if errors.Is(err, errors.ErrRecordNotFound) {
 			return mrauth.ErrTokenNotFoundOrExpired
 		}

@@ -3,11 +3,13 @@ package httpv1
 import (
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
@@ -34,7 +36,16 @@ func (f confirmOperationFlow) confirm(
 ) (op secureoperation.SecureOperation, ok bool, err error) {
 	lz := f.parser.Localizer(r)
 
-	op, err = f.useCase.Execute(r.Context(), lz.Language(), token, secret)
+	op, err = f.useCase.Execute(
+		r.Context(),
+		dto.ActorMeta{
+			VisitorID: uuid.Nil, // анонимный поток подтверждения: форензику несёт ClientIP
+			ClientIP:  f.parser.DetailedIP(r),
+		},
+		lz.Language(),
+		token,
+		secret,
+	)
 	if err != nil {
 		if errors.Is(err, secureoperation.ErrConfirmCodeIsIncorrect) ||
 			errors.Is(err, secureoperation.ErrNoAttemptsToConfirmOperation) {

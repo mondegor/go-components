@@ -7,13 +7,18 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/mrstorage"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 )
 
@@ -100,12 +105,14 @@ func TestVerifyTOTPGenerator_ValidCode_BindsAndReturnsCodes(t *testing.T) {
 	gen := crypt.NewSecretGenerator(10)
 	auth := totp.NewAuthenticator("TestIssuer", 20)
 
-	uc := security.NewApplyTOTPGenerator(fakeTx{}, binder, verifier, gen, auth, notifier, 10)
+	logOperation := &fakeOperationLogger{}
+
+	uc := security.NewApplyTOTPGenerator(fakeTx{}, binder, verifier, gen, auth, notifier, logOperation, 10)
 
 	code, err := auth.GenerateCode(secret, time.Now())
 	require.NoError(t, err)
 
-	codes, err := uc.Execute(context.Background(), userID, "op-token", code)
+	codes, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token", code)
 	require.NoError(t, err)
 	require.Len(t, codes, 10)
 	require.Equal(t, auth2fatype.TOTP, binder.saved.Type)
@@ -114,6 +121,9 @@ func TestVerifyTOTPGenerator_ValidCode_BindsAndReturnsCodes(t *testing.T) {
 	require.NotEqual(t, codes, binder.saved.RecoveryCodes) // хранятся хеши, возвращается plaintext
 	require.Equal(t, "op-token", verifier.deletedToken)
 	require.True(t, notifier.sent)
+	require.Len(t, logOperation.entries, 1)
+	assert.Equal(t, logstatus.Applied, logOperation.entries[0].LogStatus)
+	assert.Equal(t, unit.NameConfirmChangeTOTP, logOperation.entries[0].OperationName)
 }
 
 func TestVerifyTOTPGenerator_InvalidCode_NoBind(t *testing.T) {
@@ -128,12 +138,18 @@ func TestVerifyTOTPGenerator_InvalidCode_NoBind(t *testing.T) {
 	gen := crypt.NewSecretGenerator(10)
 	auth := totp.NewAuthenticator("TestIssuer", 20)
 
-	uc := security.NewApplyTOTPGenerator(fakeTx{}, binder, verifier, gen, auth, notifier, 10)
+	logOperation := &fakeOperationLogger{}
 
-	codes, err := uc.Execute(context.Background(), userID, "op-token", "000000")
+	uc := security.NewApplyTOTPGenerator(fakeTx{}, binder, verifier, gen, auth, notifier, logOperation, 10)
+
+	codes, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token", "000000")
 	require.Error(t, err)
 	require.Nil(t, codes)
 	require.Equal(t, entity.Auth2FA{}, binder.saved)
 	require.Empty(t, verifier.deletedToken)
 	require.False(t, notifier.sent)
+	// неверный TOTP-код - это неудачное подтверждение, а не блокировка
+	require.Len(t, logOperation.entries, 1)
+	assert.Equal(t, logstatus.ConfirmFailed, logOperation.entries[0].LogStatus)
+	assert.Equal(t, logreason.WrongCode, logOperation.entries[0].Reason)
 }

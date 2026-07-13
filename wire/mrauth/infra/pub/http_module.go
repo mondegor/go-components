@@ -1,6 +1,8 @@
 package pub
 
 import (
+	"context"
+
 	"github.com/mondegor/go-core/mrevent"
 	"github.com/mondegor/go-core/mrlock"
 	"github.com/mondegor/go-core/mrlog"
@@ -9,9 +11,19 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 
 	module "github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/component/produce"
+	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/validate"
 	"github.com/mondegor/go-components/mrnotifier"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
+)
+
+type (
+	// SecureOperationLogProducer - продюсер записей журнала защищённых операций,
+	// поставляемый хостом (обычно коллектор wire/mrauth/oplogger/collector).
+	SecureOperationLogProducer interface {
+		PushMessage(ctx context.Context, entry entity.SecureOperationLog) error
+	}
 )
 
 // InitHttpModule - создаёт все компоненты модуля и возвращает его HTTP-контроллеры.
@@ -24,6 +36,7 @@ func InitHttpModule(
 	responseSender mrserver.ResponseSender,
 	responseFileSender mrserver.FileResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
+	secureOperationLogProducer SecureOperationLogProducer,
 	userRealms []authcfg.UserRealm,
 	operationConfig authcfg.OperationConfirm,
 	auth2faConfig authcfg.Auth2FA,
@@ -58,11 +71,14 @@ func InitHttpModule(
 
 	auth2faConfig = authcfg.CorrectValuesAuth2FA(auth2faConfig)
 
+	operationLogger := produce.NewSecureOperationLogger(secureOperationLogProducer, logger)
+
 	useCaseConfirmOperation := initConfirmOperationUseCase(
 		dbConnManager,
 		storageSecureOperation,
 		storageAuth2fa,
 		notifierAPI,
+		operationLogger,
 		operationConfig,
 		auth2faConfig,
 	)
@@ -87,6 +103,7 @@ func InitHttpModule(
 						storageSessionExcessQueue,
 						storageSecureOperation,
 						useCaseConfirmOperation,
+						operationLogger,
 						locker,
 						requestParser,
 						responseSender,
@@ -118,6 +135,7 @@ func InitHttpModule(
 						dbConnManager,
 						storageSecureOperation,
 						useCaseConfirmOperation,
+						operationLogger,
 						requestParser,
 						responseSender,
 						notifierAPI,
@@ -135,6 +153,7 @@ func InitHttpModule(
 						storageUserRealm,
 						storageAuth2fa,
 						storageSecureOperation,
+						operationLogger,
 						requestParser,
 						responseFileSender,
 						notifierAPI,

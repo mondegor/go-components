@@ -7,6 +7,9 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
+	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
@@ -18,6 +21,7 @@ type (
 		storageOperation  operationResender
 		notifierAPI       mrnotifier.NoteProducer
 		operationPreparer resendOperationPreparer
+		logOperation      operationLogger
 		errorWrapper      errors.Wrapper
 	}
 
@@ -37,25 +41,34 @@ func NewResendCode(
 	storageOperation operationResender,
 	notifierAPI mrnotifier.NoteProducer,
 	operationPreparer resendOperationPreparer,
+	logOperation operationLogger,
 ) *ResendCode {
 	return &ResendCode{
 		txManager:         txManager,
 		storageOperation:  storageOperation,
 		notifierAPI:       notifierAPI,
 		operationPreparer: operationPreparer,
+		logOperation:      logOperation,
 		errorWrapper:      errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
 // Execute - повторно отправляет код подтверждения текущего действия операции.
 // Выполняется в одной транзакции, что исключает гонку повторной отправки с подтверждением того же токена.
-func (co *ResendCode) Execute(ctx context.Context, langCode, operationToken string) (op secureoperation.SecureOperation, err error) {
+func (co *ResendCode) Execute(
+	ctx context.Context,
+	actor dto.ActorMeta,
+	langCode, operationToken string,
+) (op secureoperation.SecureOperation, err error) {
 	if operationToken == "" {
 		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("operationToken is empty")
 	}
 
-	// resendCodeErr - бизнес-результат временной невозможности повторной отправки кода
+	// resendCodeErr - бизнес-результат временной невозможности повторной отправки кода.
 	var resendCodeErr error
+
+	operationLogStatus := logstatus.ResentCode
+	operationLogReason := logreason.Unspecified
 
 	err = co.txManager.Do(ctx, func(ctx context.Context) error {
 		op, err = co.storageOperation.FetchOneForUpdate(ctx, operationToken)
@@ -63,10 +76,16 @@ func (co *ResendCode) Execute(ctx context.Context, langCode, operationToken stri
 			return co.errorWrapper.Wrap(err)
 		}
 
+		// владелец операции известен - он и фиксируется как посетитель
+		// (поток повторной отправки анонимный, в actor приходит uuid.Nil)
+		actor = actor.WithVisitor(op.UserID)
+
 		op, err = co.operationPreparer.Prepare(op)
 		if err != nil {
 			if errors.Is(err, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted) {
 				resendCodeErr = err
+				operationLogStatus = logstatus.Blocked
+				operationLogReason = logreason.Throttled
 
 				return nil
 			}
@@ -77,8 +96,6 @@ func (co *ResendCode) Execute(ctx context.Context, langCode, operationToken stri
 		if err = co.storageOperation.Replace(ctx, operationToken, op); err != nil {
 			return co.errorWrapper.Wrap(err)
 		}
-
-		// TODO: записать операцию в журнал
 
 		return op.NotifyByEmail(
 			func(address, confirmCode string) error {
@@ -98,6 +115,14 @@ func (co *ResendCode) Execute(ctx context.Context, langCode, operationToken stri
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
+
+	// транзакция зафиксирована: пишем намеченную запись журнала вне транзакции
+	co.logOperation.Log(
+		ctx,
+		actor.NewOperationLog(
+			op.Name, op.FirstActionMethod(), operationLogStatus, operationLogReason,
+		),
+	)
 
 	// возвращается бизнес-ошибка вместе с актуальным состоянием операции
 	if resendCodeErr != nil {

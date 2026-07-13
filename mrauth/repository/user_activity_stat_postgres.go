@@ -74,7 +74,7 @@ func (re *UserActivityStatPostgres) InsertOrUpdate(ctx context.Context, row enti
 			(
 				user_id,
 				last_login_ip,
-				last_login_ip_string,
+				last_login_ip_str,
 				last_logged_at,
 				last_visited_at
 			)
@@ -84,7 +84,7 @@ func (re *UserActivityStatPostgres) InsertOrUpdate(ctx context.Context, row enti
 			(user_id) DO UPDATE
 		SET
 			last_login_ip = EXCLUDED.last_login_ip,
-			last_login_ip_string = EXCLUDED.last_login_ip_string,
+			last_login_ip_str = EXCLUDED.last_login_ip_str,
 			last_logged_at = EXCLUDED.last_logged_at,
 			last_visited_at = EXCLUDED.last_visited_at;`
 
