@@ -6,85 +6,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
-
-func TestSecureOperation_PublicInfo(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		token         string
-		operationName string
-		actions       []secureoperation.ConfirmAction
-		want          secureoperation.DTO
-	}{
-		{
-			name:          "test1",
-			token:         "token",
-			operationName: "name1",
-			actions: []secureoperation.ConfirmAction{
-				{
-					Method:        confirmmethod.Email,
-					MaxAttempts:   10,
-					MaxResends:    5,
-					MinResendTime: 5 * time.Minute,
-					Expiry:        10 * time.Minute,
-				},
-			},
-			want: secureoperation.DTO{
-				Token:             "token",
-				ConfirmMethod:     confirmmethod.Email,
-				RemainingAttempts: 10,
-				RemainingResends:  5,
-				ResendsAt:         time.Now().Add(5 * time.Minute).Round(1 * time.Second),  // TODO: не надёжно, переделать
-				ExpiresAt:         time.Now().Add(10 * time.Minute).Round(1 * time.Second), // TODO: не надёжно, переделать
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := secureoperation.NewOperation(tt.token, tt.operationName, uuid.Nil, tt.actions, nil)
-			require.NoError(t, err)
-			require.Equal(t, tt.want, got.PublicInfo())
-
-			got = secureoperation.SecureOperation{
-				Token:             tt.token,
-				Name:              tt.operationName,
-				UserID:            uuid.Nil,
-				RemainingAttempts: tt.actions[0].MaxAttempts,
-				RemainingResends:  tt.actions[0].MaxResends,
-				ResendsAt:         time.Now().Add(tt.actions[0].MinResendTime).Round(1 * time.Second),
-				Payload:           nil,
-				Status:            operationstatus.Opened,
-				ExpiresAt:         time.Now().Add(tt.actions[0].Expiry).Round(1 * time.Second),
-			}
-			require.NoError(t, secureoperation.WakeUp(&got, tt.actions))
-			assert.Equal(t, tt.want, got.PublicInfo())
-		})
-	}
-}
-
-func TestSecureOperation_PublicInfoConfirmedNoActions(t *testing.T) {
-	t.Parallel()
-
-	// у подтверждённой операции нет действий: PublicInfo не должен паниковать.
-	op := secureoperation.SecureOperation{
-		Token:  "token",
-		Status: operationstatus.Confirmed,
-	}
-
-	got := op.PublicInfo()
-	assert.Equal(t, "token", got.Token)
-	assert.Equal(t, confirmmethod.Enum(0), got.ConfirmMethod)
-}
 
 func Test_NewOperationWithError(t *testing.T) {
 	t.Parallel()

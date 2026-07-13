@@ -52,6 +52,11 @@ func NewAuthorizeUser(
 	return o.authorizer
 }
 
+// Name - возвращает название создаваемой операции.
+func (o *AuthorizeUser) Name() string {
+	return NameAuthorizeUser
+}
+
 // Create - создаёт операцию авторизации пользователя по его логину (email/телефон).
 func (o *AuthorizeUser) Create(user2FA dto.User2FA, realm, langCode string, userLogin contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
 	operationToken, err := o.tokenGenerator.GenToken()

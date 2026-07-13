@@ -9,6 +9,9 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
@@ -23,6 +26,7 @@ type (
 		storageOperation            operationCreator
 		notifierAPI                 mrnotifier.NoteProducer
 		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
+		logOperation                operationLogger
 		errorWrapper                errors.Wrapper
 		realm2operation             map[string]createSessionOperation
 	}
@@ -42,6 +46,9 @@ type (
 	}
 
 	createSessionOperation interface {
+		// Name - имя создаваемой операции; используется для событий журнала, возникающих
+		// до её создания (pre-op), чтобы они не разъезжались с именем самой операции.
+		Name() string
 		Create(user2FA dto.User2FA, realm, langCode string, address contactaddress.ContactAddress) (secureoperation.SecureOperation, error)
 	}
 )
@@ -53,6 +60,7 @@ func NewCreateSession(
 	storageOperation operationCreator,
 	notifierAPI mrnotifier.NoteProducer,
 	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
+	logOperation operationLogger,
 	allowedRealms []CreateSessionRealm,
 ) *CreateSession {
 	realm2operation := make(map[string]createSessionOperation, len(allowedRealms))
@@ -67,18 +75,23 @@ func NewCreateSession(
 		notifierAPI:                 notifierAPI,
 		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
+		logOperation:                logOperation,
 		realm2operation:             realm2operation,
 	}
 }
 
 // Execute - проверяет логин пользователя в рамках realm, создаёт операцию создания
 // сессии и в той же транзакции отправляет пользователю код её подтверждения.
-func (co *CreateSession) Execute(ctx context.Context, realm, langCode, userLogin string) (secureoperation.SecureOperation, error) {
+func (co *CreateSession) Execute(
+	ctx context.Context,
+	actor dto.ActorMeta,
+	realm, langCode, userLogin string,
+) (secureoperation.SecureOperation, error) {
 	if userLogin == "" {
 		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("userLogin is empty")
 	}
 
-	operationCreator, ok := co.realm2operation[realm]
+	opCreator, ok := co.realm2operation[realm]
 	if !ok {
 		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("realm is unknown")
 	}
@@ -90,6 +103,15 @@ func (co *CreateSession) Execute(ctx context.Context, realm, langCode, userLogin
 
 	err = co.userChecker.CheckAvailabilityRealm(ctx, realm, parsedLogin)
 	if err == nil {
+		// логина не существует: фиксируем в журнале попытку входа по несуществующему логину
+		// (операция не создана, поэтому её имя берётся у фабрики, а метод подтверждения неизвестен)
+		co.logOperation.Log(
+			ctx,
+			actor.NewOperationLog(
+				opCreator.Name(), confirmmethod.Unspecified, logstatus.Blocked, logreason.LoginNotExists,
+			),
+		)
+
 		return secureoperation.SecureOperation{}, mrauth.ErrLoginNotExists
 	}
 
@@ -102,7 +124,7 @@ func (co *CreateSession) Execute(ctx context.Context, realm, langCode, userLogin
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
-	op, err := operationCreator.Create(user2FA, realm, langCode, parsedLogin)
+	op, err := opCreator.Create(user2FA, realm, langCode, parsedLogin)
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
@@ -111,8 +133,6 @@ func (co *CreateSession) Execute(ctx context.Context, realm, langCode, userLogin
 		if err = co.storageOperation.Insert(ctx, op); err != nil {
 			return co.errorWrapper.Wrap(err)
 		}
-
-		// TODO: записать операцию в журнал
 
 		return op.NotifyByEmail(
 			func(address, confirmCode string) error {
@@ -131,6 +151,18 @@ func (co *CreateSession) Execute(ctx context.Context, realm, langCode, userLogin
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
+
+	// вход выполняется существующим пользователем, поэтому он и фиксируется как посетитель
+	// (поток входа анонимный, в actor приходит uuid.Nil)
+	actor = actor.WithVisitor(op.UserID)
+
+	// операция создана: фиксируем инициацию входа в журнале (запись вне транзакции)
+	co.logOperation.Log(
+		ctx,
+		actor.NewOperationLog(
+			op.Name, op.FirstActionMethod(), logstatus.Opened, logreason.Unspecified,
+		),
+	)
 
 	return op, nil
 }

@@ -7,6 +7,11 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
+	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
@@ -20,6 +25,7 @@ type (
 		storageOperation  operationConfirmer
 		notifierAPI       mrnotifier.NoteProducer
 		operationPreparer confirmOperationPreparer
+		logOperation      operationLogger
 		errorWrapper      errors.Wrapper
 	}
 
@@ -36,6 +42,11 @@ type (
 			confirmCode string,
 		) (secureoperation.SecureOperation, func(ctx context.Context) error, error)
 	}
+
+	// operationLogger - best-effort продюсер записей журнала защищённых операций.
+	operationLogger interface {
+		Log(ctx context.Context, entry entity.SecureOperationLog)
+	}
 )
 
 // NewConfirmOperation - создаёт объект ConfirmOperation.
@@ -44,12 +55,14 @@ func NewConfirmOperation(
 	storageOperation operationConfirmer,
 	notifierAPI mrnotifier.NoteProducer,
 	operationPreparer confirmOperationPreparer,
+	logOperation operationLogger,
 ) *ConfirmOperation {
 	return &ConfirmOperation{
 		txManager:         txManager,
 		storageOperation:  storageOperation,
 		notifierAPI:       notifierAPI,
 		operationPreparer: operationPreparer,
+		logOperation:      logOperation,
 		errorWrapper:      errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
@@ -61,6 +74,7 @@ func NewConfirmOperation(
 // и исключает «размножение» попыток.
 func (co *ConfirmOperation) Execute(
 	ctx context.Context,
+	actor dto.ActorMeta,
 	langCode, operationToken, confirmCode string,
 ) (op secureoperation.SecureOperation, err error) {
 	if operationToken == "" {
@@ -77,10 +91,12 @@ func (co *ConfirmOperation) Execute(
 		// попыток откатится; поэтому ошибка возвращается не из замыкания, а после коммита
 		confirmCodeErr error
 
-		// auth2faRace - второй фактор (аварийный код или TOTP-шаг) уже израсходован
-		// конкурентным подтверждением того же пользователя; в отличие от confirmCodeErr
-		// транзакция при этом откатывается, а результат отдаётся как неверный код
-		auth2faRace bool
+		// имя и метод текущего подтверждаемого действия, зафиксированные до модификации op в Prepare
+		operationName string
+		actionMethod  confirmmethod.Enum
+
+		operationLogStatus logstatus.Enum
+		operationLogReason logreason.Enum
 	)
 
 	err = co.txManager.Do(ctx, func(ctx context.Context) error {
@@ -95,12 +111,21 @@ func (co *ConfirmOperation) Execute(
 			return nil
 		}
 
+		operationName = op.Name
+		actionMethod = op.FirstActionMethod()
+
+		// владелец операции известен - он и фиксируется как посетитель
+		// (поток подтверждения анонимный, в actor приходит uuid.Nil)
+		actor = actor.WithVisitor(op.UserID)
+
 		var commitConfirmed func(ctx context.Context) error
 
 		op, commitConfirmed, err = co.operationPreparer.Prepare(ctx, op, confirmCode)
 		if err != nil {
 			if errors.Is(err, secureoperation.ErrNoAttemptsToConfirmOperation) {
 				confirmCodeErr = err
+				operationLogStatus = logstatus.Blocked
+				operationLogReason = logreason.AttemptsExhausted
 
 				return nil
 			}
@@ -116,17 +141,17 @@ func (co *ConfirmOperation) Execute(
 				return co.errorWrapper.Wrap(errUpdate)
 			}
 
-			// TODO: записать операцию в журнал
-
 			op.RemainingAttempts = attempts
 
 			if attempts > 0 {
 				confirmCodeErr = err
+				operationLogStatus = logstatus.ConfirmFailed
+				operationLogReason = logreason.WrongCode
 
 				return nil
 			}
 
-			// TODO: при исчерпании попыток уведомить пользователя и зафиксировать событие в журнале.
+			// TODO: при исчерпании попыток уведомить пользователя.
 			// co.eventEmitter.Emit(
 			// 	 ctx,
 			// 	 "Confirm",
@@ -136,6 +161,8 @@ func (co *ConfirmOperation) Execute(
 			// )
 
 			confirmCodeErr = secureoperation.ErrNoAttemptsToConfirmOperation.Wrap(err)
+			operationLogStatus = logstatus.Blocked
+			operationLogReason = logreason.AttemptsExhausted
 
 			return nil
 		}
@@ -151,7 +178,8 @@ func (co *ConfirmOperation) Execute(
 				// пользователя. Откатываем транзакцию (повторное использование одного кода
 				// недопустимо) и ниже отдаём это как неверный код, а не как внутреннюю ошибку
 				if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
-					auth2faRace = true
+					operationLogStatus = logstatus.ConfirmFailed
+					operationLogReason = logreason.TOTPReplay
 
 					return err
 				}
@@ -160,13 +188,17 @@ func (co *ConfirmOperation) Execute(
 			}
 		}
 
-		// TODO: записать операцию в журнал
-
 		// если все действия подтверждены
 		if op.Is(operationstatus.Confirmed) {
+			operationLogStatus = logstatus.Confirmed
+			operationLogReason = logreason.Unspecified
+
 			// TODO: асинхронный запуск каких либо работ после подтверждения операции
 			return nil
 		}
+
+		operationLogStatus = logstatus.ConfirmSuccess
+		operationLogReason = logreason.Unspecified
 
 		// 2fa подтверждение
 		return op.NotifyByEmail(
@@ -185,11 +217,29 @@ func (co *ConfirmOperation) Execute(
 		)
 	})
 	if err != nil {
-		if auth2faRace {
+		if operationLogReason == logreason.TOTPReplay {
+			// повтор TOTP-шага / гонка 2FA: транзакция откатилась, но событие атаки фиксируем в журнале
+			co.logOperation.Log(
+				ctx,
+				actor.NewOperationLog(
+					operationName, actionMethod, operationLogStatus, operationLogReason,
+				),
+			)
+
 			return secureoperation.SecureOperation{}, secureoperation.ErrConfirmCodeIsIncorrect
 		}
 
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
+	}
+
+	if operationName != "" {
+		// транзакция зафиксирована: пишем намеченную запись журнала вне транзакции
+		co.logOperation.Log(
+			ctx,
+			actor.NewOperationLog(
+				operationName, actionMethod, operationLogStatus, operationLogReason,
+			),
+		)
 	}
 
 	// неверный или исчерпанный код: транзакция уже зафиксировала декремент счётчика попыток,

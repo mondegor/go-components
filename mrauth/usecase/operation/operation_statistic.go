@@ -20,13 +20,13 @@ type (
 	}
 )
 
-// NewStatistic - создаёт объект Session.
+// NewStatistic - создаёт объект Statistic.
 func NewStatistic(
 	storageLog operationLogStorage,
 ) *Statistic {
 	return &Statistic{
 		storageLog:   storageLog,
-		errorWrapper: errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper: errors.NewServiceOperationFailedWrapper(),
 	}
 }
 

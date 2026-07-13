@@ -1,4 +1,4 @@
-package confirmmethod
+package logstatus
 
 import (
 	"database/sql/driver"
@@ -7,47 +7,59 @@ import (
 	"math"
 )
 
-// Методы подтверждения подлинности пользователя.
+// Статусы записи журнала защищённых операций (крупный исход события).
 const (
-	Unspecified Enum = iota // метод не указан (pre-op события)
-	Email                   // по емаилу
-	Phone                   // по телефону
-	Password                // по паролю
-	TOTP                    // по TOTP
+	Opened         Enum = iota + 1 // операция инициирована
+	ResentCode                     // код подтверждения отправлен повторно
+	ConfirmSuccess                 // действие подтверждено успешно
+	ConfirmFailed                  // подтверждение действия не удалось
+	Confirmed                      // операция полностью подтверждена
+	Revoked                        // операция отозвана
+	Applied                        // операция применена
+	Blocked                        // событие заблокировано (атака/лимит/троттлинг)
+	SessionOpened                  // сессия открыта, пользователь вошёл (токены выданы)
 )
 
 const (
-	enumLast = uint8(TOTP)
-	enumName = "ConfirmMethod"
+	enumLast = uint8(SessionOpened)
+	enumName = "LogStatus"
 )
 
 type (
-	// Enum - статус элемента.
+	// Enum - статус записи журнала.
 	Enum uint8
 )
 
 //nolint:gochecknoglobals
 var (
 	enumKeys = map[Enum]string{
-		Unspecified: "UNSPECIFIED",
-		Email:       "EMAIL",
-		Phone:       "PHONE",
-		Password:    "PASSWORD",
-		TOTP:        "TOTP",
+		Opened:         "OPENED",
+		ResentCode:     "RESENT_CODE",
+		ConfirmSuccess: "CONFIRM_SUCCESS",
+		ConfirmFailed:  "CONFIRM_FAILED",
+		Confirmed:      "CONFIRMED",
+		Revoked:        "REVOKED",
+		Applied:        "APPLIED",
+		Blocked:        "BLOCKED",
+		SessionOpened:  "SESSION_OPENED",
 	}
 
 	enumValues = map[string]Enum{
-		"UNSPECIFIED": Unspecified,
-		"EMAIL":       Email,
-		"PHONE":       Phone,
-		"PASSWORD":    Password,
-		"TOTP":        TOTP,
+		"OPENED":          Opened,
+		"RESENT_CODE":     ResentCode,
+		"CONFIRM_SUCCESS": ConfirmSuccess,
+		"CONFIRM_FAILED":  ConfirmFailed,
+		"CONFIRMED":       Confirmed,
+		"REVOKED":         Revoked,
+		"APPLIED":         Applied,
+		"BLOCKED":         Blocked,
+		"SESSION_OPENED":  SessionOpened,
 	}
 )
 
 // Set - устанавливает указанное значение, если оно является enum значением.
 func (e *Enum) Set(value uint8) error {
-	if value <= enumLast {
+	if value > 0 && value <= enumLast {
 		*e = Enum(value)
 
 		return nil

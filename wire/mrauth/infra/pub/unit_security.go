@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
+	"github.com/mondegor/go-components/mrauth/component/produce"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
@@ -29,6 +30,7 @@ func initSecurityController(
 	storageUserRealm *repository.UserRealmPostgres,
 	storageAuth2fa *repository.Auth2FAPostgres,
 	storageSecureOperation *repository.SecureOperationPostgres,
+	operationLogger *produce.SecureOperationLogger,
 	requestParser *validate.Parser,
 	responseFileSender mrserver.FileResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
@@ -72,6 +74,7 @@ func initSecurityController(
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
 		),
+		operationLogger,
 	)
 
 	useCaseChangePhoneProperty := security.NewChangePhoneProperty(
@@ -86,6 +89,7 @@ func initSecurityController(
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
 		),
+		operationLogger,
 	)
 
 	useCaseChangePasswordProperty := security.NewChangePasswordProperty(
@@ -99,6 +103,7 @@ func initSecurityController(
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
 		),
+		operationLogger,
 	)
 
 	useCaseChangeTOTPProperty := security.NewChangeTOTPGeneratorProperty(
@@ -113,6 +118,7 @@ func initSecurityController(
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
 		),
+		operationLogger,
 	)
 
 	useCaseDisable2FA := security.NewDisable2FA(
@@ -126,11 +132,13 @@ func initSecurityController(
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
 		),
+		operationLogger,
 	)
 
 	useCaseApplyOperation := security.NewApplyOperation(
 		dbConnManager,
 		storageSecureOperation,
+		operationLogger,
 		map[string]mrauth.OperationHandler{
 			unit.NameConfirmChangeEmail: handler.NewChangeEmail(
 				dbConnManager,
@@ -162,6 +170,7 @@ func initSecurityController(
 		crypt.NewSecretGenerator(int(auth2faConfig.RecoveryCodeLength)),
 		totpAuthenticator,
 		notifierAPI,
+		operationLogger,
 		int(auth2faConfig.RecoveryCount),
 	)
 
@@ -171,6 +180,7 @@ func initSecurityController(
 		storageSecureOperation,
 		crypt.NewSecretGenerator(int(auth2faConfig.RecoveryCodeLength)),
 		notifierAPI,
+		operationLogger,
 		int(auth2faConfig.RecoveryCount),
 	)
 
@@ -185,6 +195,7 @@ func initSecurityController(
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
 		),
+		operationLogger,
 	)
 
 	useCaseApplyRecovery := security.NewApplyRecovery(
@@ -193,6 +204,7 @@ func initSecurityController(
 		storageSecureOperation,
 		crypt.NewSecretGenerator(int(auth2faConfig.RecoveryCodeLength)),
 		notifierAPI,
+		operationLogger,
 		int(auth2faConfig.RecoveryCount),
 	)
 

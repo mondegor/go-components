@@ -126,5 +126,6 @@ type (
 		CleanRecordsLimit        uint32                      `yaml:"clean_records_limit"`
 		LogsLifeTime             time.Duration               `yaml:"logs_life_time"`
 		UserStatRequestCollector processcfg.MessageCollector `yaml:"user_stat_request_collector"`
+		OperationLogCollector    processcfg.MessageCollector `yaml:"operation_log_collector"`
 	}
 )

@@ -12,6 +12,9 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrnotifier"
@@ -26,6 +29,7 @@ type (
 		storageOperation operationDeleter
 		codeGenerator    recoveryCodesGenerator
 		notifierAPI      mrnotifier.NoteProducer
+		logOperation     operationLogger
 		errorWrapper     errors.Wrapper
 		recoveryCount    int
 	}
@@ -38,6 +42,7 @@ func NewApplyPassword(
 	storageOperation operationDeleter,
 	codeGenerator recoveryCodesGenerator,
 	notifierAPI mrnotifier.NoteProducer,
+	logOperation operationLogger,
 	recoveryCount int,
 ) *ApplyPassword {
 	recoveryCount = clampRecoveryCount(recoveryCount)
@@ -48,6 +53,7 @@ func NewApplyPassword(
 		storageOperation: storageOperation,
 		codeGenerator:    codeGenerator,
 		notifierAPI:      notifierAPI,
+		logOperation:     logOperation,
 		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
 		recoveryCount:    recoveryCount,
 	}
@@ -56,8 +62,12 @@ func NewApplyPassword(
 // Execute - проверяет, что операция смены пароля подтверждена, и в одной транзакции
 // привязывает пароль как 2FA, удаляет операцию, отправляет уведомление и возвращает
 // новые аварийные коды в открытом виде (показываются один раз).
-func (uc *ApplyPassword) Execute(ctx context.Context, userID uuid.UUID, operationToken string) ([]string, error) {
-	if userID == uuid.Nil {
+func (uc *ApplyPassword) Execute(
+	ctx context.Context,
+	actor dto.ActorMeta,
+	operationToken string,
+) (plainCodes []string, err error) {
+	if actor.VisitorID == uuid.Nil {
 		return nil, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -65,23 +75,36 @@ func (uc *ApplyPassword) Execute(ctx context.Context, userID uuid.UUID, operatio
 		return nil, errors.ErrRecordNotFound // TODO: возможно, стоит возвращать ошибку о некорректном параметре
 	}
 
-	var plain []string
+	var (
+		operationName  string
+		actionMethod   confirmmethod.Enum
+		failedLogState logState
+	)
 
-	err := uc.txManager.Do(ctx, func(ctx context.Context) error {
+	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		op, err := uc.storageOperation.FetchOneForUpdate(ctx, operationToken)
 		if err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		if userID != op.UserID {
+		operationName = op.Name
+		actionMethod = op.FirstActionMethod()
+
+		if actor.VisitorID != op.UserID {
+			failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
+
 			return errors.ErrAccessForbidden
 		}
 
 		if op.Name != unit.NameConfirmChangePassword {
+			failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
+
 			return errors.ErrAccessForbidden
 		}
 
 		if !op.Is(operationstatus.Confirmed) {
+			failedLogState = newLogState(logstatus.Blocked, logreason.NotConfirmed)
+
 			return errors.New("operation is not confirmed")
 		}
 
@@ -94,9 +117,9 @@ func (uc *ApplyPassword) Execute(ctx context.Context, userID uuid.UUID, operatio
 			return errors.New("operation has no staged password")
 		}
 
-		var hashed []string
+		var hashedCodes []string
 
-		plain, hashed, err = uc.codeGenerator.GenerateRecoveryCodes(uc.recoveryCount)
+		plainCodes, hashedCodes, err = uc.codeGenerator.GenerateRecoveryCodes(uc.recoveryCount)
 		if err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
@@ -107,7 +130,7 @@ func (uc *ApplyPassword) Execute(ctx context.Context, userID uuid.UUID, operatio
 				UserID:        op.UserID,
 				Type:          auth2fatype.Password,
 				Secret:        payload.NewPassword, // уже захеширован при создании операции
-				RecoveryCodes: hashed,
+				RecoveryCodes: hashedCodes,
 			},
 		); err != nil {
 			return uc.errorWrapper.Wrap(err)
@@ -120,8 +143,27 @@ func (uc *ApplyPassword) Execute(ctx context.Context, userID uuid.UUID, operatio
 		return uc.notifierAPI.Send(ctx, "user.password.changed", conv.Group{"to": payload.Email})
 	})
 	if err != nil {
+		if failedLogState.isSet() {
+			// обращение к чужой, неподходящей или ещё не подтверждённой операции:
+			// фиксируем блокировку в журнале
+			uc.logOperation.Log(
+				ctx,
+				actor.NewOperationLog(
+					operationName, actionMethod, failedLogState.status, failedLogState.reason,
+				),
+			)
+		}
+
 		return nil, uc.errorWrapper.Wrap(err)
 	}
 
-	return plain, nil
+	// операция смены пароля применена: фиксируем в журнале (запись вне транзакции)
+	uc.logOperation.Log(
+		ctx,
+		actor.NewOperationLog(
+			operationName, actionMethod, logstatus.Applied, logreason.Unspecified,
+		),
+	)
+
+	return plainCodes, nil
 }

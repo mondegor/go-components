@@ -25,23 +25,6 @@ type (
 		Status            operationstatus.Enum
 		ExpiresAt         time.Time
 	}
-
-	// DTO - публичные данные операции, безопасные для отдачи клиенту.
-	DTO struct {
-		Token             string
-		ConfirmMethod     confirmmethod.Enum
-		RemainingAttempts int16
-		RemainingResends  int16
-		ResendsAt         time.Time
-		ExpiresAt         time.Time
-	}
-
-	// UserDTO - данные подтверждённой операции для дальнейшей обработки прикладной логикой.
-	UserDTO struct {
-		Token   string
-		UserID  uuid.UUID
-		Payload []byte
-	}
 )
 
 // NewOperation - создаёт объект SecureOperation.
@@ -134,38 +117,6 @@ func (o *SecureOperation) checkInvariants() error {
 	return nil
 }
 
-// PublicInfo - возвращает публичные данные операции (метод подтверждения, счётчики, сроки).
-// Для подтверждённой операции (без действий) метод подтверждения остаётся нулевым.
-func (o *SecureOperation) PublicInfo() DTO {
-	var method confirmmethod.Enum
-	if len(o.actions) > 0 {
-		method = o.actions[0].Method
-	}
-
-	return DTO{
-		Token:             o.Token,
-		ConfirmMethod:     method,
-		RemainingAttempts: o.RemainingAttempts,
-		RemainingResends:  o.RemainingResends,
-		ResendsAt:         o.ResendsAt,
-		ExpiresAt:         o.ExpiresAt,
-	}
-}
-
-// UserInfo - возвращает данные операции для прикладной логики; для неподтверждённой
-// операции возвращает пустой UserDTO.
-func (o *SecureOperation) UserInfo() UserDTO {
-	if o.Status == operationstatus.Confirmed {
-		return UserDTO{
-			Token:   o.Token,
-			UserID:  o.UserID,
-			Payload: o.Payload,
-		}
-	}
-
-	return UserDTO{}
-}
-
 // Is - сообщает, находится ли операция в указанном статусе.
 func (o *SecureOperation) Is(status operationstatus.Enum) bool {
 	return o.Status == status
@@ -240,6 +191,11 @@ func (o *SecureOperation) NotifyByEmail(sendFunc func(address, confirmCode strin
 	)
 }
 
+// Actions - возвращает оставшиеся неподтверждённые действия операции.
+func (o *SecureOperation) Actions() []ConfirmAction {
+	return o.actions
+}
+
 // FirstAction - возвращает текущее (первое неподтверждённое) действие операции.
 func (o *SecureOperation) FirstAction() (first ConfirmAction, ok bool) {
 	if len(o.actions) == 0 {
@@ -249,7 +205,12 @@ func (o *SecureOperation) FirstAction() (first ConfirmAction, ok bool) {
 	return o.actions[0], true
 }
 
-// Actions - возвращает оставшиеся неподтверждённые действия операции.
-func (o *SecureOperation) Actions() []ConfirmAction {
-	return o.actions
+// FirstActionMethod - возвращает метод текущего (первого неподтверждённого) действие операции.
+// Если действий нет, то возвращается confirmmethod.Unspecified.
+func (o *SecureOperation) FirstActionMethod() confirmmethod.Enum {
+	if len(o.actions) == 0 {
+		return confirmmethod.Unspecified
+	}
+
+	return o.actions[0].Method
 }

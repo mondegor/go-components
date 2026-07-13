@@ -61,11 +61,11 @@ type (
 	}
 
 	authUserUseCase interface {
-		Execute(ctx context.Context, realm, langCode, userLogin string) (secureoperation.SecureOperation, error)
+		Execute(ctx context.Context, actor dto.ActorMeta, realm, langCode, userLogin string) (secureoperation.SecureOperation, error)
 	}
 
 	confirmOperationUseCase interface {
-		Execute(ctx context.Context, langCode, operationToken, confirmCode string) (secureoperation.SecureOperation, error)
+		Execute(ctx context.Context, actor dto.ActorMeta, langCode, operationToken, confirmCode string) (secureoperation.SecureOperation, error)
 	}
 
 	openSessionUseCase interface {
@@ -73,7 +73,7 @@ type (
 	}
 
 	continueSessionUseCase interface {
-		Execute(ctx context.Context, langCode, refreshToken string) (token dto.AuthTokenPair, err error)
+		Execute(ctx context.Context, actor dto.ActorMeta, langCode, refreshToken string) (token dto.AuthTokenPair, err error)
 	}
 
 	closeSessionUseCase interface {
@@ -192,7 +192,16 @@ func (ht *Auth) Signin(w http.ResponseWriter, r *http.Request) error {
 	// существование логина раскрывается осознанно (ErrLoginNotExists), как в check-login и Signup -
 	// это by design ради UX формы входа; перебор аккаунтов закрывается rate-limit'ом (отдельная задача).
 	// TODO: добавить rate-limit (частота попыток входа/повторной отправки кода по identifier+IP)
-	op, err := ht.useCaseAuthUser.Execute(r.Context(), req.Realm, lz.Language(), req.UserLogin)
+	op, err := ht.useCaseAuthUser.Execute(
+		r.Context(),
+		dto.ActorMeta{
+			VisitorID: uuid.Nil, // анонимный поток входа: форензику несёт ClientIP
+			ClientIP:  ht.parser.DetailedIP(r),
+		},
+		req.Realm,
+		lz.Language(),
+		req.UserLogin,
+	)
 	if err != nil {
 		if errors.Is(err, mrauth.ErrLoginNotExists) {
 			return errors.WithCustomCode(err, "userLogin")
@@ -275,7 +284,15 @@ func (ht *Auth) ContinueSession(w http.ResponseWriter, r *http.Request) error {
 		useCookie = false
 	}
 
-	tk, err := ht.useCaseContinueSession.Execute(r.Context(), ht.parser.Localizer(r).Language(), refreshToken)
+	tk, err := ht.useCaseContinueSession.Execute(
+		r.Context(),
+		dto.ActorMeta{
+			VisitorID: uuid.Nil, // пользователь выводится из токена внутри usecase; форензику несёт ClientIP
+			ClientIP:  ht.parser.DetailedIP(r),
+		},
+		ht.parser.Localizer(r).Language(),
+		refreshToken,
+	)
 	if err != nil {
 		if errors.Is(err, errors.ErrRecordNotFound) {
 			return mrauth.ErrTokenNotFoundOrExpired

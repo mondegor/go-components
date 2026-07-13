@@ -10,7 +10,17 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/repository"
+)
+
+const (
+	// operationNameContinue - имя потока продления сессии для журнала. В этом потоке защищённой
+	// операции нет вообще (перевыпуск идёт по refresh-токену), поэтому имя не у кого спросить
+	// и оно задаётся константой.
+	operationNameContinue = "session.continue"
 )
 
 type (
@@ -19,6 +29,7 @@ type (
 		storage        authTokenStorage
 		tokenRecreator tokenRecreator
 		eventEmitter   mrevent.Emitter
+		logOperation   operationLogger
 		errorWrapper   errors.Wrapper
 		logger         mrlog.Logger
 	}
@@ -37,12 +48,14 @@ func NewContinueSession(
 	storage authTokenStorage,
 	tokenRecreator tokenRecreator,
 	eventEmitter mrevent.Emitter,
+	logOperation operationLogger,
 	logger mrlog.Logger,
 ) *ContinueSession {
 	return &ContinueSession{
 		storage:        storage,
 		tokenRecreator: tokenRecreator,
 		eventEmitter:   eventEmitter,
+		logOperation:   logOperation,
 		errorWrapper:   errors.NewServiceRecordNotFoundWrapper(),
 		logger:         logger,
 	}
@@ -50,7 +63,7 @@ func NewContinueSession(
 
 // Execute - перевыпускает пару токенов по refresh токену; при обнаружении переиспользования
 // отозванного токена вне окна действия отзывает всю сессию.
-func (uc *ContinueSession) Execute(ctx context.Context, _, refreshToken string) (authToken dto.AuthTokenPair, err error) {
+func (uc *ContinueSession) Execute(ctx context.Context, actor dto.ActorMeta, _, refreshToken string) (authToken dto.AuthTokenPair, err error) {
 	if refreshToken == "" {
 		return dto.AuthTokenPair{}, errors.ErrIncorrectInputData.New("refreshToken is empty")
 	}
@@ -64,6 +77,14 @@ func (uc *ContinueSession) Execute(ctx context.Context, _, refreshToken string) 
 			if err := uc.storage.RevokeTokensBySessionID(ctx, tokenErr.UserID, tokenErr.SessionID); err != nil {
 				uc.logger.Error(ctx, "RevokeAlert.RevokeTokensBySessionID", "error", err)
 			}
+
+			// повторное использование refresh-токена (атака): фиксируем блокировку в журнале
+			uc.logOperation.Log(
+				ctx,
+				actor.WithVisitor(tokenErr.UserID).NewOperationLog(
+					operationNameContinue, confirmmethod.Unspecified, logstatus.Blocked, logreason.TokenReuse,
+				),
+			)
 
 			// TODO: отправлять предупреждение пользователю
 

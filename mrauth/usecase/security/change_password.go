@@ -9,6 +9,9 @@ import (
 	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrnotifier"
 )
@@ -22,6 +25,7 @@ type (
 		notifierAPI                 mrnotifier.NoteProducer
 		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
 		factoryOperationPassword    factoryOperationValue2FA
+		logOperation                operationLogger
 		errorWrapper                errors.Wrapper
 	}
 )
@@ -33,6 +37,7 @@ func NewChangePasswordProperty(
 	notifierAPI mrnotifier.NoteProducer,
 	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
 	factoryOperationPassword factoryOperationValue2FA,
+	logOperation operationLogger,
 ) *ChangePasswordProperty {
 	return &ChangePasswordProperty{
 		txManager:                   txManager,
@@ -40,18 +45,23 @@ func NewChangePasswordProperty(
 		notifierAPI:                 notifierAPI,
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
 		factoryOperationPassword:    factoryOperationPassword,
+		logOperation:                logOperation,
 		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
 
 // Execute - создаёт операцию смены пароля и в той же транзакции отправляет
 // пользователю код её подтверждения.
-func (uc *ChangePasswordProperty) Execute(ctx context.Context, userID uuid.UUID, newPassword string) (secureoperation.SecureOperation, error) {
-	if userID == uuid.Nil {
+func (uc *ChangePasswordProperty) Execute(
+	ctx context.Context,
+	actor dto.ActorMeta,
+	newPassword string,
+) (secureoperation.SecureOperation, error) {
+	if actor.VisitorID == uuid.Nil {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
-	user2FA, err := uc.factoryUser2FAConfirmAction.CreateByUserID(ctx, userID) // TODO: объединить CreateByUserLogin и CreateByUserID
+	user2FA, err := uc.factoryUser2FAConfirmAction.CreateByUserID(ctx, actor.VisitorID) // TODO: объединить CreateByUserLogin и CreateByUserID
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
@@ -87,6 +97,14 @@ func (uc *ChangePasswordProperty) Execute(ctx context.Context, userID uuid.UUID,
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
+
+	// операция смены пароля создана: фиксируем инициацию в журнале (запись вне транзакции)
+	uc.logOperation.Log(
+		ctx,
+		actor.NewOperationLog(
+			op.Name, op.FirstActionMethod(), logstatus.Opened, logreason.Unspecified,
+		),
+	)
 
 	return op, nil
 }

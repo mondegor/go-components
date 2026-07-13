@@ -9,6 +9,7 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-webcore/mrserver"
 
+	"github.com/mondegor/go-components/mrauth/component/produce"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
@@ -43,6 +44,7 @@ func initUnitAuthController(
 	storageSessionExcessQueue *repository.SessionExcessQueuePostgres,
 	storageSecureOperation *repository.SecureOperationPostgres,
 	useCaseConfirmOperation *operation.ConfirmOperation,
+	operationLogger *produce.SecureOperationLogger,
 	locker mrlock.Locker,
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
@@ -83,6 +85,7 @@ func initUnitAuthController(
 		notifierAPI,
 		factory2FA,
 		locker,
+		operationLogger,
 		mapping.OptionUserRealmsToConfirmCreateUserRealms(userRealms),
 	)
 
@@ -92,6 +95,7 @@ func initUnitAuthController(
 		storageSecureOperation,
 		notifierAPI,
 		factory2FA,
+		operationLogger,
 		mapping.OptionUserRealmsToConfirmCreateSessionRealms(userRealms),
 	)
 
@@ -122,6 +126,7 @@ func initUnitAuthController(
 		serviceAuthToken,
 		storageSecureOperation,
 		realmRegistry,
+		operationLogger,
 		logger,
 		mapping.OptionUserRealmsToSessionLimitRealms(userRealms),
 		int(sessionSoftThreshold),
@@ -132,6 +137,7 @@ func initUnitAuthController(
 		storageAuthToken,
 		serviceAuthToken,
 		eventEmitter,
+		operationLogger,
 		logger,
 	)
 

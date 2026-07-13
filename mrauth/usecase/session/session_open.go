@@ -12,6 +12,8 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
@@ -29,6 +31,7 @@ type (
 		tokenCreator        tokenCreator
 		storageOperation    operationConsumer
 		realmRegistry       mrauth.RealmRegistry
+		logOperation        operationLogger
 		logger              mrlog.Logger
 		limiter             *sessionLimiter
 		errorWrapper        errors.Wrapper
@@ -65,6 +68,11 @@ type (
 	operationConsumer interface {
 		Delete(ctx context.Context, token string) error
 	}
+
+	// operationLogger - best-effort продюсер записей журнала защищённых операций.
+	operationLogger interface {
+		Log(ctx context.Context, entry entity.SecureOperationLog)
+	}
 )
 
 // NewOpenSession - создаёт объект OpenSession.
@@ -78,6 +86,7 @@ func NewOpenSession(
 	tokenCreator tokenCreator,
 	storageOperation operationConsumer,
 	realmRegistry mrauth.RealmRegistry,
+	logOperation operationLogger,
 	logger mrlog.Logger,
 	allowedRealms []LimitRealm,
 	softThreshold, hardThreshold int,
@@ -92,6 +101,7 @@ func NewOpenSession(
 		tokenCreator:        tokenCreator,
 		storageOperation:    storageOperation,
 		realmRegistry:       realmRegistry,
+		logOperation:        logOperation,
 		logger:              logger,
 		limiter:             newSessionLimiter(allowedRealms, softThreshold, hardThreshold),
 		errorWrapper:        errors.NewServiceRecordNotFoundWrapper(),
@@ -122,6 +132,21 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 	// проверка лимита сессий: при достижении soft пользователь ставится в очередь
 	// на фоновую чистку, при достижении hard вход временно отклоняется
 	if err = uc.applySessionLimit(ctx, userScopes.UserID, realmID, userScopes.Kind); err != nil {
+		if errors.Is(err, mrauth.ErrSessionLimitExceededTryLater) {
+			// жёсткий лимит сессий: фиксируем блокировку входа в журнале
+			uc.logOperation.Log(
+				ctx,
+				entity.NewSecureOperationLog(
+					userScopes.UserID,
+					meta.ClientIP,
+					op.Name,
+					op.FirstActionMethod(),
+					logstatus.Blocked,
+					logreason.SessionLimit,
+				),
+			)
+		}
+
 		return dto.AuthTokenPair{}, uc.errorWrapper.Wrap(err)
 	}
 
@@ -168,6 +193,21 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 	if err != nil {
 		return dto.AuthTokenPair{}, uc.errorWrapper.Wrap(err)
 	}
+
+	// сессия открыта: фиксируем успешный вход в журнале (запись вне транзакции).
+	// Подтверждение самой операции уже зафиксировано как CONFIRMED в ConfirmOperation,
+	// поэтому здесь используется отдельный статус - иначе события неразличимы
+	uc.logOperation.Log(
+		ctx,
+		entity.NewSecureOperationLog(
+			userScopes.UserID,
+			meta.ClientIP,
+			op.Name,
+			op.FirstActionMethod(),
+			logstatus.SessionOpened,
+			logreason.Unspecified,
+		),
+	)
 
 	// Активность пользователя пишется ВНЕ транзакции: это некритичная статистика "последнего входа".
 	// Внутри транзакции её сбой откатывал бы уже выпущенные сессию и токены, а сама запись удлиняла
