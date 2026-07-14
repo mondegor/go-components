@@ -2,7 +2,7 @@ package repository_test
 
 import (
 	"context"
-	"net"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -28,8 +28,8 @@ type logRow struct {
 	ConfirmMethod int16
 	LogStatus     int16
 	Reason        int16
-	ClientIP      int64
-	ClientIPStr   string
+	ClientIP      netip.Addr
+	ClientProxyIP netip.Addr
 	CreatedAt     time.Time
 }
 
@@ -66,7 +66,7 @@ func (ts *SecureOperationLogPostgresTestSuite) SetupTest() {
 func (ts *SecureOperationLogPostgresTestSuite) fetchAll() []logRow {
 	rows, err := ts.pgt.ConnManager().Conn(ts.ctx).Query(
 		ts.ctx,
-		`SELECT visitor_id, operation_name, confirm_method, log_status, reason, client_ip, client_ip_str, created_at
+		`SELECT visitor_id, operation_name, confirm_method, log_status, reason, client_ip, client_proxy_ip, created_at
 		 FROM `+secureOperationsLogTableName+`
 		 ORDER BY record_id`,
 	)
@@ -81,7 +81,7 @@ func (ts *SecureOperationLogPostgresTestSuite) fetchAll() []logRow {
 
 		ts.Require().NoError(rows.Scan(
 			&r.VisitorID, &r.OperationName, &r.ConfirmMethod, &r.LogStatus, &r.Reason,
-			&r.ClientIP, &r.ClientIPStr, &r.CreatedAt,
+			&r.ClientIP, &r.ClientProxyIP, &r.CreatedAt,
 		))
 
 		out = append(out, r)
@@ -99,8 +99,8 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertEmptyNoop() {
 }
 
 // TestInsertRoundTrip - батч из залогиненного и анонимного событий пишется и читается без искажений
-// (проверяет корректность UNNEST-приведений uuid/int2/int8/timestamptz/text, хранение IP числом+строкой
-// и то, что created_at берётся из времени события, а не из времени вставки пачки).
+// (проверяет корректность UNNEST-приведений uuid/int2/inet/timestamptz, хранение real/proxy IP
+// нативным inet и то, что created_at берётся из времени события, а не из времени вставки пачки).
 func (ts *SecureOperationLogPostgresTestSuite) TestInsertRoundTrip() {
 	visitor := uuid.New()
 	eventAt := time.Now().Add(-2 * time.Hour)
@@ -112,7 +112,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertRoundTrip() {
 			ConfirmMethod: confirmmethod.Email,
 			LogStatus:     logstatus.Confirmed,
 			Reason:        logreason.Unspecified,
-			ClientIP:      mrtype.NewIP(0x7F000001), // 127.0.0.1
+			ClientIP:      mrtype.NewDetailedIP(netip.MustParseAddr("127.0.0.1"), netip.MustParseAddr("10.0.0.1")),
 			CreatedAt:     eventAt,
 		},
 		{
@@ -136,8 +136,8 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertRoundTrip() {
 	ts.Equal(int16(confirmmethod.Email), got[0].ConfirmMethod)
 	ts.Equal(int16(logstatus.Confirmed), got[0].LogStatus)
 	ts.Equal(int16(logreason.Unspecified), got[0].Reason)
-	ts.Equal(int64(0x7F000001), got[0].ClientIP)
-	ts.Equal("127.0.0.1", got[0].ClientIPStr)
+	ts.Equal(netip.MustParseAddr("127.0.0.1"), got[0].ClientIP)
+	ts.Equal(netip.MustParseAddr("10.0.0.1"), got[0].ClientProxyIP)
 	ts.WithinDuration(eventAt, got[0].CreatedAt, time.Millisecond)
 
 	ts.Equal(uuid.Nil, got[1].VisitorID)
@@ -145,18 +145,18 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertRoundTrip() {
 	ts.Equal(int16(confirmmethod.Unspecified), got[1].ConfirmMethod)
 	ts.Equal(int16(logstatus.Blocked), got[1].LogStatus)
 	ts.Equal(int16(logreason.TokenReuse), got[1].Reason)
-	ts.Equal(int64(0), got[1].ClientIP)
-	ts.Empty(got[1].ClientIPStr)
+	ts.False(got[1].ClientIP.IsValid())      // IP отсутствует -> NULL
+	ts.False(got[1].ClientProxyIP.IsValid()) // proxy отсутствует -> NULL
 	ts.WithinDuration(eventAt, got[1].CreatedAt, time.Millisecond)
 }
 
-// TestInsertIPv6NotBreaksBatch - IPv6 не приводится к числу, но не должен срывать вставку всей пачки:
-// такая запись сохраняется с client_ip = 0 и полным адресом в client_ip_str.
-func (ts *SecureOperationLogPostgresTestSuite) TestInsertIPv6NotBreaksBatch() {
+// TestInsertIPv6StoredNatively - IPv6-адрес хранится нативным inet наравне с IPv4
+// (в одной пачке с IPv4-записями, без потерь и искажений).
+func (ts *SecureOperationLogPostgresTestSuite) TestInsertIPv6StoredNatively() {
 	rows := []entity.SecureOperationLog{
 		entity.NewSecureOperationLog(
 			uuid.New(),
-			mrtype.NewIP(0x7F000001), // 127.0.0.1
+			mrtype.NewIP(netip.MustParseAddr("127.0.0.1")),
 			"confirm.authorize.user",
 			confirmmethod.Email,
 			logstatus.Opened,
@@ -164,7 +164,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertIPv6NotBreaksBatch() {
 		),
 		entity.NewSecureOperationLog(
 			uuid.Nil,
-			mrtype.DetailedIP{Real: net.ParseIP("2001:db8::1")},
+			mrtype.NewIP(netip.MustParseAddr("2001:db8::1")),
 			"confirm.authorize.user",
 			confirmmethod.Unspecified,
 			logstatus.Blocked,
@@ -172,7 +172,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertIPv6NotBreaksBatch() {
 		),
 		entity.NewSecureOperationLog(
 			uuid.New(),
-			mrtype.NewIP(0xC0000201), // 192.0.2.1
+			mrtype.NewIP(netip.MustParseAddr("192.0.2.1")),
 			"confirm.create.user",
 			confirmmethod.Email,
 			logstatus.Opened,
@@ -185,13 +185,12 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertIPv6NotBreaksBatch() {
 	got := ts.fetchAll()
 	ts.Require().Len(got, 3) // соседние записи пачки не потеряны
 
-	ts.Equal(int64(0x7F000001), got[0].ClientIP)
+	ts.Equal(netip.MustParseAddr("127.0.0.1"), got[0].ClientIP)
 
-	ts.Equal(int64(0), got[1].ClientIP) // IPv6 в int8 не помещается
-	ts.Equal("2001:db8::1", got[1].ClientIPStr)
+	ts.Equal(netip.MustParseAddr("2001:db8::1"), got[1].ClientIP) // IPv6 хранится нативно
 	ts.Equal(int16(logreason.LoginNotExists), got[1].Reason)
 
-	ts.Equal(int64(0xC0000201), got[2].ClientIP)
+	ts.Equal(netip.MustParseAddr("192.0.2.1"), got[2].ClientIP)
 
 	// время события проставляется конструктором записи
 	ts.WithinDuration(time.Now(), got[0].CreatedAt, time.Minute)
@@ -206,7 +205,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestDeleteBeforeDate() {
 			rows,
 			entity.NewSecureOperationLog(
 				uuid.New(),
-				mrtype.NewIP(0x7F000001), // 127.0.0.1
+				mrtype.NewIP(netip.MustParseAddr("127.0.0.1")),
 				"confirm.authorize.user",
 				confirmmethod.Email,
 				logstatus.Opened,

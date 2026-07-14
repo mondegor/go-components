@@ -151,9 +151,6 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 	}
 
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
-		// realIP=0 при ошибке/IPv6 - поток login не должен падать из-за этого
-		realIP, _, _ := meta.ClientIP.ToUint()
-
 		// строка сессии выпускается ПЕРВОЙ (issuer генерирует уникальный session_id и
 		// вставляет строку): делаем это до выпуска токена - иначе конфликт на вставке откатил
 		// бы и уже вставленный refresh-токен; sid в токене берётся из записанного идентификатора
@@ -162,7 +159,7 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 			entity.Session{
 				UserID:    userScopes.UserID,
 				UserAgent: meta.UserAgent,
-				LastIP:    realIP,
+				LastIP:    meta.ClientIP.Real,
 			},
 		)
 		if err != nil {
@@ -216,7 +213,7 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 	// сознательно игнорируется, чтобы не проваливать успешный логин.
 	userActivity := entity.UserActivityStat{
 		UserID:        userScopes.UserID,
-		LastLoginIP:   meta.ClientIP,
+		LastLoginIP:   meta.ClientIP.Real,
 		LastLoggedAt:  time.Now(),
 		LastVisitedAt: time.Now(),
 	}

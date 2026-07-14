@@ -2,6 +2,7 @@ package repository_test
 
 import (
 	"context"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -130,7 +131,7 @@ func (ts *SessionCleanupPostgresTestSuite) TestInsertSessionIDCollision() {
 	userID := uuid.New()
 	repo := repository.NewSessionPostgres(ts.pgt.ConnManager(), sessionsTableName)
 
-	row := entity.Session{UserID: userID, SessionID: 42, UserAgent: "ua", LastIP: 1}
+	row := entity.Session{UserID: userID, SessionID: 42, UserAgent: "ua", LastIP: netip.MustParseAddr("127.0.0.1")}
 
 	ts.Require().NoError(repo.Insert(ts.ctx, row))
 

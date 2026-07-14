@@ -3,6 +3,7 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -56,7 +57,7 @@ type (
 		op              secureoperation.SecureOperation
 		err             error
 		gotUser2FA      dto.User2FA
-		gotRegisteredIP string
+		gotRegisteredIP mrtype.DetailedIP
 	}
 
 	fakeLocker struct {
@@ -124,7 +125,7 @@ func (f *fakeUserOpFactory) Create(
 	user2FA dto.User2FA,
 	_ string,
 	_ contactaddress.ContactAddress,
-	registeredIP string,
+	registeredIP mrtype.DetailedIP,
 ) (secureoperation.SecureOperation, error) {
 	f.gotUser2FA = user2FA
 	f.gotRegisteredIP = registeredIP
@@ -285,7 +286,7 @@ func TestCreateUser_UnknownRealm(t *testing.T) {
 		&fakeUserOpFactory{},
 		&fakeOperationLogger{},
 	)
-	_, err := uc.Execute(context.Background(), "unknown", "en", "user@example.com", mrtype.NewIP(3405803783))
+	_, err := uc.Execute(context.Background(), "unknown", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
 	require.Error(t, err)
 }
 
@@ -301,7 +302,7 @@ func TestCreateUser_InvalidEmail(t *testing.T) {
 		&fakeUserOpFactory{},
 		&fakeOperationLogger{},
 	)
-	_, err := uc.Execute(context.Background(), "shop", "en", "bad", mrtype.NewIP(3405803783))
+	_, err := uc.Execute(context.Background(), "shop", "en", "bad", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
 	require.Error(t, err)
 }
 
@@ -318,7 +319,7 @@ func TestCreateUser_LockNotObtained(t *testing.T) {
 		&fakeUserOpFactory{},
 		logOperation,
 	)
-	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(3405803783))
+	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
 	require.ErrorIs(t, err, mrauth.ErrSignupAlreadyInProgressTryLater)
 	require.Len(t, logOperation.entries, 1)
 	require.Equal(t, logstatus.Blocked, logOperation.entries[0].LogStatus)
@@ -335,11 +336,11 @@ func TestCreateUser_Success(t *testing.T) {
 	logOperation := &fakeOperationLogger{}
 	uc := newCreateUser(fakeUserChecker{}, creator, notifier, fakeUser2FAFactory{}, &fakeLocker{}, opFactory, logOperation)
 
-	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(3405803783))
+	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
 	require.NoError(t, err)
 	require.True(t, creator.inserted)
 	require.True(t, notifier.sent)
-	require.Equal(t, "203.0.113.7", opFactory.gotRegisteredIP, "IP регистрации доезжает до фабрики операции")
+	require.Equal(t, mrtype.NewIP(netip.MustParseAddr("203.0.113.7")), opFactory.gotRegisteredIP, "IP регистрации доезжает до фабрики операции")
 	require.Len(t, logOperation.entries, 1)
 	require.Equal(t, logstatus.Opened, logOperation.entries[0].LogStatus)
 }
@@ -356,7 +357,7 @@ func TestCreateUser_CheckerError(t *testing.T) {
 		&fakeUserOpFactory{op: openedEmailOp(t)},
 		&fakeOperationLogger{},
 	)
-	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(3405803783))
+	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
 	require.Error(t, err)
 }
 
@@ -373,7 +374,7 @@ func TestCreateUser_2FAFactoryError(t *testing.T) {
 		&fakeUserOpFactory{op: openedEmailOp(t)},
 		&fakeOperationLogger{},
 	)
-	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(3405803783))
+	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
 	require.Error(t, err)
 }
 
@@ -386,7 +387,7 @@ func TestCreateUser_NewEmailEmpty2FAForwarded(t *testing.T) {
 	opFactory := &fakeUserOpFactory{op: openedEmailOp(t)}
 	uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, factory, &fakeLocker{}, opFactory, &fakeOperationLogger{})
 
-	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(3405803783))
+	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
 	require.NoError(t, err)
 	require.Equal(t, dto.User2FA{}, opFactory.gotUser2FA)
 }
@@ -410,7 +411,7 @@ func TestCreateUser_ExistingUser2FAForwarded(t *testing.T) {
 		&fakeOperationLogger{},
 	)
 
-	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(3405803783))
+	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
 	require.NoError(t, err)
 	require.Equal(t, user2FA, opFactory.gotUser2FA)
 }

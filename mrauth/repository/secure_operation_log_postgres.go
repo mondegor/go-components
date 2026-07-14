@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,22 +44,11 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 	methods := make([]int16, 0, len(rows))
 	statuses := make([]int16, 0, len(rows))
 	reasons := make([]int16, 0, len(rows))
-	clientIPs := make([]uint32, 0, len(rows))
-	clientIPSs := make([]string, 0, len(rows))
+	clientIPs := make([]netip.Addr, 0, len(rows))
+	clientProxyIPs := make([]netip.Addr, 0, len(rows))
 	createdAts := make([]time.Time, 0, len(rows))
 
 	for _, row := range rows {
-		// IPv4 сохраняется числом, для остальных адресов (IPv6) остаётся только строковое
-		// представление: одна такая запись не должна срывать вставку всей пачки
-		// TODO: все IPv6-клиенты попадают в один бакет client_ip=0, поэтому индекс по client_ip
-		// и rate-limit по IP для них не работают; решить типом inet/bytea(16) или индексом по client_ip_str.
-		// TODO: ToUint() возвращает ошибку, если не-IPv4 является ЛЮБОЙ из адресов (real, proxy),
-		// поэтому валидный real IPv4 теряется при IPv6 в proxy; надёжнее брать row.ClientIP.Real.To4().
-		realIP, _, err := row.ClientIP.ToUint()
-		if err != nil {
-			realIP = 0
-		}
-
 		// защита от записи, собранной литералом (без конструктора): нулевое время события
 		// записалось бы как 0001-01-01 и было бы снесено первым же проходом прунинга
 		createdAt := row.CreatedAt
@@ -71,8 +61,8 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 		methods = append(methods, int16(row.ConfirmMethod))
 		statuses = append(statuses, int16(row.LogStatus))
 		reasons = append(reasons, int16(row.Reason))
-		clientIPs = append(clientIPs, realIP)
-		clientIPSs = append(clientIPSs, row.ClientIP.String())
+		clientIPs = append(clientIPs, row.ClientIP.Real)
+		clientProxyIPs = append(clientProxyIPs, row.ClientIP.Proxy)
 		createdAts = append(createdAts, createdAt)
 	}
 
@@ -85,13 +75,13 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 				log_status,
 				reason,
 				client_ip,
-				client_ip_str,
+				client_proxy_ip,
 				created_at
 			)
 		SELECT *
 		FROM
-			UNNEST($1::uuid[], $2::text[], $3::int2[], $4::int2[], $5::int2[], $6::int8[], $7::text[], $8::timestamptz[])
-			as t(visitor_id, operation_name, confirm_method, log_status, reason, client_ip, client_ip_str, created_at);`
+			UNNEST($1::uuid[], $2::text[], $3::int2[], $4::int2[], $5::int2[], $6::inet[], $7::inet[], $8::timestamptz[])
+			as t(visitor_id, operation_name, confirm_method, log_status, reason, client_ip, client_proxy_ip, created_at);`
 
 	err := re.client.Conn(ctx).Exec(
 		ctx,
@@ -102,7 +92,7 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 		statuses,
 		reasons,
 		clientIPs,
-		clientIPSs,
+		clientProxyIPs,
 		createdAts,
 	)
 	if err != nil {

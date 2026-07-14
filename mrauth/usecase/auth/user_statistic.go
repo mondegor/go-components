@@ -113,8 +113,7 @@ func (uc *UserStatistic) sessionsLastActivity(messages []dto.UserActivityLogMess
 			continue
 		}
 
-		realIP, _, err := msg.UserIP.ToUint()
-		if err != nil {
+		if !msg.UserIP.Real.IsValid() {
 			continue // IP не распознан - пропускаем обновление этой записи
 		}
 
@@ -130,7 +129,7 @@ func (uc *UserStatistic) sessionsLastActivity(messages []dto.UserActivityLogMess
 		latest[key] = dto.SessionLastActivity{
 			UserID:        msg.UserID,
 			SessionID:     msg.SessionID,
-			LastIP:        realIP,
+			LastIP:        msg.UserIP.Real,
 			LastVisitedAt: msg.VisitedAt,
 		}
 	}

@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,7 +42,7 @@ type (
 	SessionLastActivity struct {
 		UserID        uuid.UUID
 		SessionID     uint32
-		LastIP        uint32
+		LastIP        netip.Addr
 		LastVisitedAt time.Time
 	}
 
