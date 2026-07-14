@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,7 +26,7 @@ type (
 	ExtendedUser struct {
 		User
 
-		RegisteredIP string // IP на момент создания аккаунта, фиксируется однократно (write-once)
+		RegisteredIP mrtype.DetailedIP // IP на момент создания аккаунта, фиксируется однократно (write-once)
 	}
 
 	// UserRealm - привязка пользователя к зоне действия.
@@ -51,7 +52,7 @@ type (
 	// UserActivityStat - информация о последней активности пользователя.
 	UserActivityStat struct {
 		UserID        uuid.UUID
-		LastLoginIP   mrtype.DetailedIP
+		LastLoginIP   netip.Addr
 		LastLoggedAt  time.Time
 		LastVisitedAt time.Time
 	}

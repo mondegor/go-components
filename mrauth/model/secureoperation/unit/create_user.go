@@ -3,6 +3,8 @@ package unit
 import (
 	"encoding/json"
 
+	"github.com/mondegor/go-core/mrtype"
+
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
@@ -55,7 +57,7 @@ func (o *CreateUser) Create(
 	user2FA dto.User2FA,
 	langCode string,
 	userEmail contactaddress.ContactAddress,
-	registeredIP string,
+	registeredIP mrtype.DetailedIP,
 ) (secureoperation.SecureOperation, error) {
 	operationToken, err := o.tokenGenerator.GenToken()
 	if err != nil {

@@ -1,5 +1,7 @@
 package dto
 
+import "github.com/mondegor/go-core/mrtype"
+
 type (
 	// WaitingConfirmOperation struct {
 	// 	Token             string
@@ -13,11 +15,11 @@ type (
 
 	// CreateUserOperation - payload операции создания пользователя.
 	CreateUserOperation struct {
-		Realm        string `json:"realm"`
-		UserKind     string `json:"user_kind"`
-		LangCode     string `json:"lang_code"`
-		Email        string `json:"email"`
-		RegisteredIP string `json:"registered_ip"`
+		Realm        string            `json:"realm"`
+		UserKind     string            `json:"user_kind"`
+		LangCode     string            `json:"lang_code"`
+		Email        string            `json:"email"`
+		RegisteredIP mrtype.DetailedIP `json:"registered_ip"`
 	}
 
 	// AuthorizeUserOperation - payload операции авторизации пользователя.

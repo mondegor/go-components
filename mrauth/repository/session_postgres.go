@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,7 +56,7 @@ func (re *SessionPostgres) FetchOrderedListByUserIDAndSessionIDs(
 		SELECT
 			session_id,
 			COALESCE(user_agent, ''),
-			COALESCE(last_ip, 0),
+			last_ip,
 			created_at,
 			updated_at
 		FROM
@@ -153,7 +154,7 @@ func (re *SessionPostgres) UpdateLastActivity(ctx context.Context, rows []dto.Se
 
 	userIDs := make([]uuid.UUID, 0, len(rows))
 	sessionIDs := make([]uint32, 0, len(rows))
-	lastIPs := make([]uint32, 0, len(rows))
+	lastIPs := make([]netip.Addr, 0, len(rows))
 	visitedAts := make([]time.Time, 0, len(rows))
 
 	for _, row := range rows {
@@ -173,7 +174,7 @@ func (re *SessionPostgres) UpdateLastActivity(ctx context.Context, rows []dto.Se
 			(
 				SELECT *
 				FROM
-					UNNEST($1::uuid[], $2::int8[], $3::int8[], $4::timestamptz[])
+					UNNEST($1::uuid[], $2::int8[], $3::inet[], $4::timestamptz[])
 					as t(user_id, session_id, last_ip, updated_at)
 			) t2
 		WHERE

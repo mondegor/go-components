@@ -127,10 +127,11 @@ func (re *UserPostgres) Insert(ctx context.Context, row entity.ExtendedUser) err
 				user_phone,
 				lang_code,
 				registered_ip,
+				registered_proxy_ip,
 				user_status
 			)
 		VALUES
-			($1, $2, $3, $4, $5, $6);`
+			($1, $2, $3, $4, $5, $6, $7);`
 
 	var userPhone *uint64
 
@@ -146,7 +147,8 @@ func (re *UserPostgres) Insert(ctx context.Context, row entity.ExtendedUser) err
 		row.Email,
 		userPhone,
 		row.LangCode,
-		row.RegisteredIP,
+		row.RegisteredIP.Real,
+		row.RegisteredIP.Proxy,
 		row.Status,
 	)
 	if err != nil {

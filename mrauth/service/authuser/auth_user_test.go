@@ -3,12 +3,14 @@ package authuser_test
 import (
 	"context"
 	stderrors "errors"
+	"net/netip"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrlog"
 	"github.com/mondegor/go-core/mrstorage"
+	"github.com/mondegor/go-core/mrtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -105,7 +107,7 @@ func TestResolveUser_NewEmail(t *testing.T) {
 	notifier := &fakeNotifier{}
 
 	in := newCreateIn()
-	in.RegisteredIP = "203.0.113.7"
+	in.RegisteredIP = mrtype.NewIP(netip.MustParseAddr("203.0.113.7"))
 
 	userID, err := newService(storageUser, storageUserRealm, notifier).ResolveUser(context.Background(), uuid.Nil, in)
 	require.NoError(t, err)
@@ -113,7 +115,7 @@ func TestResolveUser_NewEmail(t *testing.T) {
 
 	require.Len(t, storageUser.inserted, 1)
 	assert.Equal(t, userID, storageUser.inserted[0].ID)
-	assert.Equal(t, "203.0.113.7", storageUser.inserted[0].RegisteredIP, "IP регистрации фиксируется у нового пользователя")
+	assert.Equal(t, mrtype.NewIP(netip.MustParseAddr("203.0.113.7")), storageUser.inserted[0].RegisteredIP, "IP регистрации фиксируется у нового пользователя")
 	require.Len(t, storageUserRealm.inserted, 1)
 	assert.Equal(t, []string{"user.registration.success.site.admin", "user.was.registered"}, notifier.events)
 }

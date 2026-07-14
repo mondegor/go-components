@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,26 +40,17 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserAc
 	}
 
 	userIDs := make([]uuid.UUID, 0, len(rows))
-	userIPs := make([]uint32, 0, len(rows))
-	userIPSs := make([]string, 0, len(rows))
+	userIPs := make([]netip.Addr, 0, len(rows))
+	userProxyIPs := make([]netip.Addr, 0, len(rows))
 	userAgents := make([]string, 0, len(rows))
 	requestPaths := make([]string, 0, len(rows))
 	requestStatuses := make([]uint32, 0, len(rows))
 	visitedAts := make([]time.Time, 0, len(rows))
 
 	for _, row := range rows {
-		// IPv4 сохраняется числом, для остальных адресов (IPv6) остаётся только строковое
-		// представление: одна такая запись не должна срывать вставку всей пачки
-		// TODO: ToUint() возвращает ошибку, если не-IPv4 является ЛЮБОЙ из адресов (real, proxy),
-		// поэтому валидный real IPv4 теряется при IPv6 в proxy; надёжнее брать row.UserIP.Real.To4().
-		realIP, _, err := row.UserIP.ToUint()
-		if err != nil {
-			realIP = 0
-		}
-
 		userIDs = append(userIDs, row.UserID)
-		userIPs = append(userIPs, realIP)
-		userIPSs = append(userIPSs, row.UserIP.String())
+		userIPs = append(userIPs, row.UserIP.Real)
+		userProxyIPs = append(userProxyIPs, row.UserIP.Proxy)
 		userAgents = append(userAgents, row.UserAgent)
 		requestPaths = append(requestPaths, row.RequestPath)
 		requestStatuses = append(requestStatuses, row.RequestStatus)
@@ -70,7 +62,7 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserAc
 			(
 				user_id,
 				user_ip,
-				user_ip_str,
+				user_proxy_ip,
 				user_agent,
 				request_path,
 				request_status,
@@ -78,15 +70,15 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserAc
 			)
 		SELECT *
 		FROM
-			UNNEST($1::uuid[], $2::int8[], $3::text[], $4::text[], $5::text[], $6::int4[], $7::timestamptz[])
-			as t(user_id, user_ip, user_ip_str, user_agent, request_path, request_status, visited_at);`
+			UNNEST($1::uuid[], $2::inet[], $3::inet[], $4::text[], $5::text[], $6::int4[], $7::timestamptz[])
+			as t(user_id, user_ip, user_proxy_ip, user_agent, request_path, request_status, visited_at);`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		userIDs,
 		userIPs,
-		userIPSs,
+		userProxyIPs,
 		userAgents,
 		requestPaths,
 		requestStatuses,

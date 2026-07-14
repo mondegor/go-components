@@ -51,7 +51,12 @@ type (
 		// Name - имя создаваемой операции; используется для событий журнала, возникающих
 		// до её создания (pre-op), чтобы они не разъезжались с именем самой операции.
 		Name() string
-		Create(user2FA dto.User2FA, langCode string, address contactaddress.ContactAddress, registeredIP string) (secureoperation.SecureOperation, error)
+		Create(
+			user2FA dto.User2FA,
+			langCode string,
+			address contactaddress.ContactAddress,
+			registeredIP mrtype.DetailedIP,
+		) (secureoperation.SecureOperation, error)
 	}
 
 	user2faActionCreator interface {
@@ -156,7 +161,7 @@ func (co *CreateUser) Execute(
 		}
 	}
 
-	op, err = opCreator.Create(user2FA, langCode, parsedLogin, registeredIP.String())
+	op, err = opCreator.Create(user2FA, langCode, parsedLogin, registeredIP)
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}

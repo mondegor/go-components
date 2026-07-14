@@ -2,6 +2,7 @@ package session_test
 
 import (
 	"context"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -597,8 +598,15 @@ func (s *ListSuite) TestGetListFiltersAndMaps() {
 	// FetchOrderedListByUserIDAndSessionIDs возвращает метаданные ровно по открытым сессиям
 	// (фильтрация и порядок - на стороне репозитория)
 	rows := []entity.Session{
-		{UserID: s.userID, SessionID: 0x1f3bc817, UserAgent: "UA1", LastIP: 0x7f000001, CreatedAt: createdAt, UpdatedAt: lastSeen}, // 127.0.0.1, текущая
-		{UserID: s.userID, SessionID: 0x0000babc, UserAgent: "UA2", LastIP: 0},                                                     // IP=0 -> ""
+		{
+			UserID:    s.userID,
+			SessionID: 0x1f3bc817,
+			UserAgent: "UA1",
+			LastIP:    netip.MustParseAddr("127.0.0.1"),
+			CreatedAt: createdAt,
+			UpdatedAt: lastSeen,
+		}, // текущая
+		{UserID: s.userID, SessionID: 0x0000babc, UserAgent: "UA2"}, // нет IP -> ""
 	}
 	open := []uint32{0x0000babc, 0x1f3bc817}
 
@@ -800,7 +808,7 @@ func (s *ListSuite) TestGetListResolversEnrich() {
 		nil,
 	)
 
-	rows := []entity.Session{{UserID: s.userID, SessionID: 1, UserAgent: "UA", LastIP: 0x7f000001}}
+	rows := []entity.Session{{UserID: s.userID, SessionID: 1, UserAgent: "UA", LastIP: netip.MustParseAddr("127.0.0.1")}}
 
 	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, testRealmID).Return([]uint32{1}, nil)
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)

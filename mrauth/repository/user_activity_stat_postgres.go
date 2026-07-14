@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrstorage"
-	"github.com/mondegor/go-core/mrtype"
 
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -47,22 +46,18 @@ func (re *UserActivityStatPostgres) FetchOne(ctx context.Context, userID uuid.UU
 			user_id = $1
 		LIMIT 1;`
 
-	var lastLoginIP uint32
-
 	err = re.client.Conn(ctx).QueryRow(
 		ctx,
 		sql,
 		userID,
 	).Scan(
-		&lastLoginIP,
+		&row.LastLoginIP,
 		&row.LastLoggedAt,
 		&row.LastVisitedAt,
 	)
 	if err != nil {
 		return entity.UserActivityStat{}, re.errorWrapper.Wrap(err)
 	}
-
-	row.LastLoginIP = mrtype.NewDetailedIP(lastLoginIP, 0)
 
 	return row, nil
 }
@@ -74,31 +69,23 @@ func (re *UserActivityStatPostgres) InsertOrUpdate(ctx context.Context, row enti
 			(
 				user_id,
 				last_login_ip,
-				last_login_ip_str,
 				last_logged_at,
 				last_visited_at
 			)
 		VALUES
-			($1, $2, $3, $4, $5)
+			($1, $2, $3, $4)
 		ON CONFLICT
 			(user_id) DO UPDATE
 		SET
 			last_login_ip = EXCLUDED.last_login_ip,
-			last_login_ip_str = EXCLUDED.last_login_ip_str,
 			last_logged_at = EXCLUDED.last_logged_at,
 			last_visited_at = EXCLUDED.last_visited_at;`
 
-	realIP, _, err := row.LastLoginIP.ToUint()
-	if err != nil {
-		return err // TODO: можно логировать ошибку
-	}
-
-	err = re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		row.UserID,
-		realIP,
-		row.LastLoginIP.String(),
+		row.LastLoginIP,
 		row.LastLoggedAt,
 		row.LastVisitedAt,
 	)

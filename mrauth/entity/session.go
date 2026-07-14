@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,9 +13,9 @@ type (
 		UserID    uuid.UUID
 		SessionID uint32
 		UserAgent string
-		LastIP    uint32    // числовой realIP
-		CreatedAt time.Time // время создания сессии
-		UpdatedAt time.Time // время последней активности сессии
+		LastIP    netip.Addr // realIP последней активности
+		CreatedAt time.Time  // время создания сессии
+		UpdatedAt time.Time  // время последней активности сессии
 	}
 
 	// SessionPK - составной первичный ключ строки сессии (user_id, session_id).
