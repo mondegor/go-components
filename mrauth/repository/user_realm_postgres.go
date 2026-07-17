@@ -52,7 +52,7 @@ func (re *UserRealmPostgres) Fetch(ctx context.Context, userID uuid.UUID) ([]ent
 		userID,
 	)
 	if err != nil {
-		return nil, err
+		return nil, re.errorWrapper.Wrap(err)
 	}
 
 	defer cursor.Close()
@@ -71,13 +71,17 @@ func (re *UserRealmPostgres) Fetch(ctx context.Context, userID uuid.UUID) ([]ent
 			&row.UpdatedAt,
 		)
 		if err != nil {
-			return nil, err
+			return nil, re.errorWrapper.Wrap(err)
 		}
 
 		rows = append(rows, row)
 	}
 
-	return rows, cursor.Err()
+	if err = cursor.Err(); err != nil {
+		return nil, re.errorWrapper.Wrap(err)
+	}
+
+	return rows, nil
 }
 
 // FetchOne - возвращает вид пользователя в указанном realm.

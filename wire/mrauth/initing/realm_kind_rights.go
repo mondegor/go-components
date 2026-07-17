@@ -4,6 +4,7 @@ import (
 	"github.com/mondegor/go-core/mraccess"
 	"github.com/mondegor/go-core/mrlog"
 
+	"github.com/mondegor/go-components/mrauth/model/usergroup"
 	"github.com/mondegor/go-components/wire/mrauth/config"
 )
 
@@ -38,7 +39,7 @@ func InitRealmKindRights(logger mrlog.Logger, realms []config.UserRealm, rights 
 			realmKinds = append(
 				realmKinds,
 				mraccess.RoleGroup{
-					Name:  realm.Name + "/" + kind.Name, // realm/kind
+					Name:  usergroup.Build(realm.Name, kind.Name),
 					Roles: kind.Roles,
 				},
 			)

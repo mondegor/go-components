@@ -32,9 +32,10 @@ type (
 		// Phone    uint64
 	}
 
-	// UserActivityLastVisited - информация о последнем посещении пользователя.
+	// UserActivityLastVisited - информация о последнем посещении пользователя в рамках realm'а.
 	UserActivityLastVisited struct {
 		UserID        uuid.UUID
+		RealmID       uint16
 		LastVisitedAt time.Time
 	}
 
@@ -49,14 +50,30 @@ type (
 	// UserInfo - сгруппированная информация о пользователе.
 	UserInfo struct {
 		User    entity.User
-		Stat    entity.UserActivityStat
 		Auth2FA entity.Auth2FA
-		Realms  []entity.UserRealm
+		Realms  []UserRealmInfo
+	}
+
+	// UserRealmInfo - привязка пользователя к realm'у вместе со статистикой последнего входа.
+	// LastLocation - местоположение последнего входа (человекочитаемый IP, если не резолвится);
+	// LastLoggedAt - время последнего входа в этот realm.
+	UserRealmInfo struct {
+		RealmID      uint16
+		Kind         string
+		LastLocation string
+		LastLoggedAt time.Time
+		CreatedAt    time.Time
+		UpdatedAt    time.Time
 	}
 
 	// UserActivityLogMessage - информация об активности пользователя.
+	// RealmID = 0 - сентинел "realm не определён" (реестр realm'ов разошёлся с провайдерами
+	// пользователей, см. produce.UserRequest.Emit): сессия и журнал обрабатываются как обычно,
+	// per-realm статистика для такого сообщения не ведётся. В конфиге realm id = 0 запрещён
+	// (config.ValidateRealms), поэтому с настоящим realm'ом сентинел не пересекается.
 	UserActivityLogMessage struct {
 		UserID        uuid.UUID         `json:"user_id"`
+		RealmID       uint16            `json:"realm_id"`
 		SessionID     uint32            `json:"session_id"`
 		UserIP        mrtype.DetailedIP `json:"user_ip"`
 		UserAgent     string            `json:"user_agent"`

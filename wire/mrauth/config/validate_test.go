@@ -8,6 +8,30 @@ import (
 	"github.com/mondegor/go-components/wire/mrauth/config"
 )
 
+// TestValidateRealmsKindNameSeparator - '/' в имени вида пользователя отвергается на старте:
+// он ломает разбор группы "{realm}/{kind}" и молча терял бы per-realm статистику этого вида
+// (см. ограничение в описании config.UserRealm).
+func TestValidateRealmsKindNameSeparator(t *testing.T) {
+	t.Parallel()
+
+	makeRealms := func(kindName string) []config.UserRealm {
+		return []config.UserRealm{
+			{
+				ID:               1,
+				Name:             "site/admin", // в имени realm'а '/' допустим
+				RegisterUserKind: kindName,
+				AuthToken:        config.Token{AccessType: "jwt"},
+				UserKinds: []config.UserKind{
+					{Name: kindName, Roles: []string{"guests"}},
+				},
+			},
+		}
+	}
+
+	require.NoError(t, config.ValidateRealms(makeRealms("manager"), []string{"guests"}))
+	require.ErrorContains(t, config.ValidateRealms(makeRealms("manager/ro"), []string{"guests"}), "must not contain separator")
+}
+
 func TestValidateSessionThresholds(t *testing.T) {
 	t.Parallel()
 

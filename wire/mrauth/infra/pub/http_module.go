@@ -114,6 +114,7 @@ func InitHttpModule(
 						sessionSoftThreshold,
 						sessionHardThreshold,
 						debugFunc,
+						locationResolver,
 					)
 				},
 			},

@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
-	"github.com/mondegor/go-core/mrtype"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -33,7 +32,7 @@ type (
 	}
 
 	openSessionFetcher interface {
-		FetchOpenSessionIDs(ctx context.Context, userID uuid.UUID, realmID uint16) (sessionIDs []uint32, err error)
+		FetchOpenSessions(ctx context.Context, userID uuid.UUID, realmID uint16) (entity.OpenSessions, error)
 	}
 
 	sessionCloser interface {
@@ -68,9 +67,7 @@ func NewList(
 	}
 
 	if locationResolver == nil {
-		locationResolver = func(ip string) string {
-			return ip
-		}
+		locationResolver = mrauth.DefaultLocationResolver
 	}
 
 	return &List{
@@ -133,10 +130,12 @@ func (uc *List) GetList(ctx context.Context, userID uuid.UUID, currentAccessToke
 
 	// список формируется по realm: лимит сессий per-(user, realm), поэтому показываем только сессии
 	// этого realm, согласованно с обрезкой по его лимиту ниже
-	openSessionIDs, err := uc.openFetcher.FetchOpenSessionIDs(ctx, userID, realmID)
+	openSessions, err := uc.openFetcher.FetchOpenSessions(ctx, userID, realmID)
 	if err != nil {
 		return nil, uc.errorWrapper.Wrap(err)
 	}
+
+	openSessionIDs := openSessions.IDs()
 
 	// инвариант "текущая сессия среди открытых" и догрузка текущей сессии ниже валидны только для
 	// realm текущей сессии: в чужом realm текущей сессии нет по определению, а список может быть пуст
@@ -178,7 +177,6 @@ func (uc *List) GetList(ctx context.Context, userID uuid.UUID, currentAccessToke
 
 	for _, session := range sessions {
 		appName, deviceName := uc.appResolver(session.UserAgent)
-		lastIP := mrtype.NewIP(session.LastIP).String()
 
 		list = append(
 			list,
@@ -186,10 +184,11 @@ func (uc *List) GetList(ctx context.Context, userID uuid.UUID, currentAccessToke
 				SessionID:  session.SessionID,
 				AppName:    appName,
 				DeviceName: deviceName,
-				LastIP:     lastIP,
-				Location:   uc.locationResolver(lastIP),
+				LastIP:     uc.locationResolver(session.LastIP, mrauth.LocationOnlyIP),
+				Location:   uc.locationResolver(session.LastIP, mrauth.LocationOrEmpty),
 				CreatedAt:  session.CreatedAt,
 				UpdatedAt:  session.UpdatedAt,
+				ExpiresAt:  openSessions.ExpiresAt(session.SessionID),
 				IsCurrent:  session.SessionID == scopes.SessionID,
 			},
 		)

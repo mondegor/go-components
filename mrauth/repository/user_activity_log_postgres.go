@@ -40,6 +40,7 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserAc
 	}
 
 	userIDs := make([]uuid.UUID, 0, len(rows))
+	realmIDs := make([]uint16, 0, len(rows))
 	userIPs := make([]netip.Addr, 0, len(rows))
 	userProxyIPs := make([]netip.Addr, 0, len(rows))
 	userAgents := make([]string, 0, len(rows))
@@ -49,6 +50,7 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserAc
 
 	for _, row := range rows {
 		userIDs = append(userIDs, row.UserID)
+		realmIDs = append(realmIDs, row.RealmID)
 		userIPs = append(userIPs, row.UserIP.Real)
 		userProxyIPs = append(userProxyIPs, row.UserIP.Proxy)
 		userAgents = append(userAgents, row.UserAgent)
@@ -61,6 +63,7 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserAc
 		INSERT INTO ` + re.tableName + `
 			(
 				user_id,
+				realm_id,
 				user_ip,
 				user_proxy_ip,
 				user_agent,
@@ -70,13 +73,14 @@ func (re *UserActivityLogPostgres) Insert(ctx context.Context, rows []dto.UserAc
 			)
 		SELECT *
 		FROM
-			UNNEST($1::uuid[], $2::inet[], $3::inet[], $4::text[], $5::text[], $6::int4[], $7::timestamptz[])
-			as t(user_id, user_ip, user_proxy_ip, user_agent, request_path, request_status, visited_at);`
+			UNNEST($1::uuid[], $2::int4[], $3::inet[], $4::inet[], $5::text[], $6::text[], $7::int4[], $8::timestamptz[])
+			as t(user_id, realm_id, user_ip, user_proxy_ip, user_agent, request_path, request_status, visited_at);`
 
 	return re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		userIDs,
+		realmIDs,
 		userIPs,
 		userProxyIPs,
 		userAgents,

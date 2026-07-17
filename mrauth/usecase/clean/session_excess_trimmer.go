@@ -33,9 +33,9 @@ type (
 		Delete(ctx context.Context, keys []entity.SessionExcessPK) error
 	}
 
-	// OpenSessionFetcher - выборка идентификаторов открытых сессий пользователя в realm.
+	// OpenSessionFetcher - выборка открытых сессий пользователя в realm.
 	OpenSessionFetcher interface {
-		FetchOpenSessionIDs(ctx context.Context, userID uuid.UUID, realmID uint16) (sessionIDs []uint32, err error)
+		FetchOpenSessions(ctx context.Context, userID uuid.UUID, realmID uint16) (entity.OpenSessions, error)
 	}
 
 	// SessionLister - выборка упорядоченного списка сессий пользователя.
@@ -76,12 +76,12 @@ func NewSessionExcessTrimmer(
 // краш между обработкой и ack приводит лишь к идемпотентной переобработке, без потерь.
 //
 // Пользователи пачки обрабатываются ПОСЛЕДОВАТЕЛЬНО (без внутрибатчевого параллелизма): на каждого
-// приходится ~3-4 round-trip'а к БД (FetchOpenSessionIDs + FetchOrderedList + транзакция ревока),
+// приходится ~3-4 round-trip'а к БД (FetchOpenSessions + FetchOrderedList + транзакция ревока),
 // то есть до ~limit*4 запросов на пачку. Это осознанный trade-off ради простоты single-pod-воркера:
 // длительность ограничена durationLimit у ItemBatchPlayer, а крупный backlog разгребается за несколько
 // циклов. Если понадобится ускорить - батчить выборки по группе user_id (user_id = ANY(...)),
 // оставив транзакцию ревока пер-юзерной.
-// TODO: при росте backlog'а батчить read-сторону (FetchOpenSessionIDs/FetchOrderedList) по группе
+// TODO: при росте backlog'а батчить read-сторону (FetchOpenSessions/FetchOrderedList) по группе
 // user_id = ANY(...), сократив ~limit*4 round-trip'ов, транзакцию ревока оставить пер-юзерной.
 func (co *SessionExcessTrimmer) Execute(ctx context.Context, limit int) (count int, err error) {
 	if limit < 1 {
@@ -120,17 +120,17 @@ func (co *SessionExcessTrimmer) Execute(ctx context.Context, limit int) (count i
 // ревок/удаление по session_id не задевают другие realm. DeleteOrphaned удалит лишь строки без
 // живого refresh-токена - защита от гонки с переоткрытием сессии.
 func (co *SessionExcessTrimmer) trimUser(ctx context.Context, item entity.SessionExcessItem) error {
-	openSessionIDs, err := co.openFetcher.FetchOpenSessionIDs(ctx, item.UserID, item.RealmID)
+	openSessions, err := co.openFetcher.FetchOpenSessions(ctx, item.UserID, item.RealmID)
 	if err != nil {
 		return err
 	}
 
-	if len(openSessionIDs) == 0 {
+	if len(openSessions) == 0 {
 		return nil
 	}
 
 	// limit=0: триммеру нужны ВСЕ открытые сессии (дедуп по устройству и поиск лишних), без обрезки.
-	sessions, err := co.lister.FetchOrderedListByUserIDAndSessionIDs(ctx, item.UserID, openSessionIDs, 0)
+	sessions, err := co.lister.FetchOrderedListByUserIDAndSessionIDs(ctx, item.UserID, openSessions.IDs(), 0)
 	if err != nil {
 		return err
 	}

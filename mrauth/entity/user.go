@@ -38,20 +38,10 @@ type (
 		UpdatedAt time.Time
 	}
 
-	// UserActivityLog - информация об активности пользователя.
-	UserActivityLog struct {
-		RecordID      uint64
-		UserID        uuid.UUID
-		UserIP        mrtype.DetailedIP
-		UserAgent     string
-		RequestPath   string
-		RequestStatus uint32
-		VisitedAt     time.Time
-	}
-
-	// UserActivityStat - информация о последней активности пользователя.
+	// UserActivityStat - информация о последней активности пользователя в рамках realm'а.
 	UserActivityStat struct {
 		UserID        uuid.UUID
+		RealmID       uint16
 		LastLoginIP   netip.Addr
 		LastLoggedAt  time.Time
 		LastVisitedAt time.Time

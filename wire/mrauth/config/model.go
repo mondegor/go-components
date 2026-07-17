@@ -11,9 +11,22 @@ import (
 
 type (
 	// UserRealm - конфигурация realm (области аутентификации): токены, виды пользователей, подтверждение операций.
+	//
+	// ОГРАНИЧЕНИЕ НА '/' В ИМЕНАХ. Name и UserKind.Name склеиваются в группу пользователя вида
+	// "{Name}/{UserKind.Name}", а трассировщик активности разбирает её обратно, отрезая всё после
+	// ПОСЛЕДНЕГО '/' (обе операции - в mrauth/model/usergroup).
+	// Поэтому Name содержать '/' может (например "site/admin"), а UserKind.Name - нет.
+	// Если '/' попадёт в UserKind.Name, realm определится неверно, не найдётся в реестре, и активность
+	// пользователей этого вида пойдёт с сентинелом RealmID = 0: per-realm статистика потеряется
+	// (в лог уйдёт лишь одно сообщение в час), хотя сессии и журнал сохранятся.
+	// Ограничение проверяется один раз на старте хоста - ValidateRealms (fail-fast вместо тихой потери).
 	UserRealm struct {
-		ID               uint16           `yaml:"id"`   // числовой идентификатор realm (хранится в БД)
-		Name             string           `yaml:"name"` // имя realm (только для отображения и API)
+		ID uint16 `yaml:"id"` // числовой идентификатор realm (хранится в БД)
+
+		// Name - имя realm: ключ реестра mrauth.RealmRegistry и граница системы (HTTP, token scopes,
+		// отображение). Может содержать '/', см. ограничение выше.
+		Name string `yaml:"name"`
+
 		AuthToken        Token            `yaml:"auth_token"`
 		UserKinds        []UserKind       `yaml:"user_kinds"`
 		RegisterUserKind string           `yaml:"register_user_kind"`
@@ -30,7 +43,10 @@ type (
 
 	// UserKind - вид пользователя внутри realm: набор ролей и максимум одновременных сессий.
 	UserKind struct {
-		Name       string   `yaml:"name"`
+		// Name - имя вида пользователя. НЕ должно содержать '/':
+		// см. ограничение на '/' в описании UserRealm.
+		Name string `yaml:"name"`
+
 		Roles      []string `yaml:"roles"`
 		SessionMax uint16   `yaml:"session_max"`
 	}
@@ -112,6 +128,9 @@ type (
 	}
 
 	// TestUser - тестовый пользователь для отладки: при заданном ID подменяет реальную аутентификацию в своём realm.
+	// Realm и Kind склеиваются в группу тем же usergroup.Build, что и у настоящего пользователя,
+	// поэтому на них распространяется то же ограничение на '/', что описано у UserRealm:
+	// Kind не должен его содержать. ValidateRealms этот отладочный конфиг не покрывает.
 	TestUser struct {
 		ID       string
 		Realm    string

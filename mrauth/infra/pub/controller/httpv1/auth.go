@@ -359,31 +359,32 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 			realmName = "id:" + strconv.FormatUint(uint64(realm.RealmID), 10)
 		}
 
-		realms = append(
-			realms,
-			model.UserRealm{
-				Name:      realmName,
-				UserKind:  realm.Kind,
-				CreatedAt: realm.CreatedAt.Round(1 * time.Second).Format(time.RFC3339),
-				UpdatedAt: realm.UpdatedAt.Round(1 * time.Second).Format(time.RFC3339),
-			},
-		)
+		item := model.UserRealm{
+			Name:         realmName,
+			UserKind:     realm.Kind,
+			LastLocation: realm.LastLocation,
+			CreatedAt:    realm.CreatedAt.Round(1 * time.Second).Format(time.RFC3339),
+			UpdatedAt:    realm.UpdatedAt.Round(1 * time.Second).Format(time.RFC3339),
+		}
+
+		// нулевое время = входов в этот realm не было, поле опускается (иначе утёк бы год 0001)
+		if !realm.LastLoggedAt.IsZero() {
+			item.LastLoggedAt = realm.LastLoggedAt.Round(1 * time.Second).Format(time.RFC3339)
+		}
+
+		realms = append(realms, item)
 	}
 
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
 		model.UserInfoResponse{
-			Email:        info.User.Email,
-			Phone:        casttype.UintToPhone(info.User.Phone),
-			LangCode:     info.User.LangCode,
-			LastLoginIP:  mrtype.NewIP(info.Stat.LastLoginIP).String(),
-			LastLoggedAt: info.Stat.LastLoggedAt.Round(1 * time.Second).Format(time.RFC3339),
-			Auth2FAType:  info.Auth2FA.Type,
-			Realms:       realms,
-			Status:       info.User.Status,
-			CreatedAt:    info.User.CreatedAt.Round(1 * time.Second).Format(time.RFC3339),
-			UpdatedAt:    info.User.UpdatedAt.Round(1 * time.Second).Format(time.RFC3339),
+			Email:       info.User.Email,
+			Phone:       casttype.UintToPhone(info.User.Phone),
+			LangCode:    info.User.LangCode,
+			Auth2FAType: info.Auth2FA.Type,
+			Realms:      realms,
+			Status:      info.User.Status,
 		},
 	)
 }

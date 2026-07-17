@@ -121,8 +121,9 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertRoundTrip() {
 			ConfirmMethod: confirmmethod.Unspecified,
 			LogStatus:     logstatus.Blocked,
 			Reason:        logreason.TokenReuse,
-			ClientIP:      mrtype.DetailedIP{}, // IP отсутствует
-			CreatedAt:     eventAt,
+			// анонимный поток тоже имеет real IP (RemoteAddr), но приходит без прокси
+			ClientIP:  mrtype.NewIP(netip.MustParseAddr("198.51.100.9")),
+			CreatedAt: eventAt,
 		},
 	}
 
@@ -145,9 +146,28 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertRoundTrip() {
 	ts.Equal(int16(confirmmethod.Unspecified), got[1].ConfirmMethod)
 	ts.Equal(int16(logstatus.Blocked), got[1].LogStatus)
 	ts.Equal(int16(logreason.TokenReuse), got[1].Reason)
-	ts.False(got[1].ClientIP.IsValid())      // IP отсутствует -> NULL
+	ts.Equal(netip.MustParseAddr("198.51.100.9"), got[1].ClientIP)
 	ts.False(got[1].ClientProxyIP.IsValid()) // proxy отсутствует -> NULL
 	ts.WithinDuration(eventAt, got[1].CreatedAt, time.Millisecond)
+}
+
+// TestInsertRejectsUnsetClientIP - незаданный real IP отвергается ограничением NOT NULL,
+// а не пишется как NULL: client_ip берётся из RemoteAddr и известен для любого запроса, включая
+// анонимные потоки (pgx кодирует невалидный netip.Addr как NULL - без ограничения он утёк бы в БД).
+func (ts *SecureOperationLogPostgresTestSuite) TestInsertRejectsUnsetClientIP() {
+	rows := []entity.SecureOperationLog{
+		entity.NewSecureOperationLog(
+			uuid.New(),
+			mrtype.DetailedIP{}, // IP клиента не распознан
+			"confirm.authorize.user",
+			confirmmethod.Email,
+			logstatus.Opened,
+			logreason.Unspecified,
+		),
+	}
+
+	ts.Require().Error(ts.repo.Insert(ts.ctx, rows))
+	ts.Empty(ts.fetchAll())
 }
 
 // TestInsertIPv6StoredNatively - IPv6-адрес хранится нативным inet наравне с IPv4

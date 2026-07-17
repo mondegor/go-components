@@ -76,14 +76,3 @@ type (
 		Close(ctx context.Context, userID uuid.UUID, sessionIDs []uint32) error
 	}
 )
-
-type (
-	// AppResolver - определяет приложение и устройство по строке User-Agent.
-	// Вход недоверенный (контролируется клиентом) - его нельзя писать в логи без
-	// экранирования (CRLF/log-forging) и нельзя слепо подставлять во внешние запросы.
-	AppResolver func(userAgent string) (appName, deviceName string)
-
-	// LocationResolver - определяет местоположение по IP адресу.
-	// Вход недоверенный (контролируется клиентом), см. предупреждение к AppResolver.
-	LocationResolver func(ip string) string
-)

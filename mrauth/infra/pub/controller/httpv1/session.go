@@ -68,20 +68,25 @@ func (ht *Session) GetList(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	items := make([]model.UserSessionResponse, 0, len(list))
+
 	for _, item := range list {
-		items = append(
-			items,
-			model.UserSessionResponse{
-				SessionID:  fmt.Sprintf("%08x", item.SessionID),
-				AppName:    item.AppName,
-				DeviceName: item.DeviceName,
-				LastIP:     item.LastIP,
-				Location:   item.Location,
-				CreatedAt:  item.CreatedAt.Round(time.Second).Format(time.RFC3339),
-				LastSeenAt: item.UpdatedAt.Round(time.Second).Format(time.RFC3339),
-				IsCurrent:  item.IsCurrent,
-			},
-		)
+		session := model.UserSessionResponse{
+			SessionID:  fmt.Sprintf("%08x", item.SessionID),
+			AppName:    item.AppName,
+			DeviceName: item.DeviceName,
+			LastIP:     item.LastIP,
+			Location:   item.Location,
+			CreatedAt:  item.CreatedAt.Round(time.Second).Format(time.RFC3339),
+			LastSeenAt: item.UpdatedAt.Round(time.Second).Format(time.RFC3339),
+			IsCurrent:  item.IsCurrent,
+		}
+
+		// нулевое время = срок жизни сессии не определён, поле опускается (иначе утёк бы год 0001)
+		if !item.ExpiresAt.IsZero() {
+			session.ExpiresAt = item.ExpiresAt.Round(time.Second).Format(time.RFC3339)
+		}
+
+		items = append(items, session)
 	}
 
 	return ht.sender.Send(w, http.StatusOK, items)

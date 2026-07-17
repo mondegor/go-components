@@ -57,7 +57,8 @@ func (ts *SessionCleanupPostgresTestSuite) SetupTest() {
 func (ts *SessionCleanupPostgresTestSuite) seedSession(userID uuid.UUID, sessionID uint32) {
 	err := ts.pgt.ConnManager().Conn(ts.ctx).Exec(
 		ts.ctx,
-		`INSERT INTO sample_schema.sessions (user_id, session_id) VALUES ($1, $2);`,
+		// last_ip обязателен (NOT NULL); для очереди очистки его значение не важно
+		`INSERT INTO sample_schema.sessions (user_id, session_id, last_ip) VALUES ($1, $2, '127.0.0.1');`,
 		userID,
 		sessionID,
 	)
@@ -67,7 +68,8 @@ func (ts *SessionCleanupPostgresTestSuite) seedSession(userID uuid.UUID, session
 func (ts *SessionCleanupPostgresTestSuite) seedSessionAt(userID uuid.UUID, sessionID uint32, updatedAt time.Time) {
 	err := ts.pgt.ConnManager().Conn(ts.ctx).Exec(
 		ts.ctx,
-		`INSERT INTO sample_schema.sessions (user_id, session_id, updated_at) VALUES ($1, $2, $3);`,
+		// last_ip обязателен (NOT NULL); для очереди очистки его значение не важно
+		`INSERT INTO sample_schema.sessions (user_id, session_id, last_ip, updated_at) VALUES ($1, $2, '127.0.0.1', $3);`,
 		userID,
 		sessionID,
 		updatedAt,
