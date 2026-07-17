@@ -9,6 +9,7 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-webcore/mrserver"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/component/produce"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
@@ -54,6 +55,7 @@ func initUnitAuthController(
 	cookieConfig authcfg.RefreshCookie,
 	sessionSoftThreshold, sessionHardThreshold int8,
 	debugFunc func(value any) string,
+	locationResolver mrauth.LocationResolver,
 ) (mrserver.HttpController, error) {
 	realmRegistry := mapping.OptionUserRealmsToRealmRegistry(userRealms)
 
@@ -151,6 +153,7 @@ func initUnitAuthController(
 		storageAuth2fa,
 		storageUserActivityStat,
 		storageUserRealm,
+		locationResolver,
 	)
 
 	refreshTokenCookie, err := initRefreshTokenCookie(cookieConfig)

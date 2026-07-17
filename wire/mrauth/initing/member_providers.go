@@ -11,6 +11,7 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 
 	"github.com/mondegor/go-components/mrauth/bag/jwt/crypt"
+	"github.com/mondegor/go-components/mrauth/model/usergroup"
 	"github.com/mondegor/go-components/wire/mrauth"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 )
@@ -169,7 +170,7 @@ func createUserProviderByTokenType(
 			return mraccess.NewOneUserProvider(
 				mraccess.NewUser(
 					uuid.MustParse(testUser.ID),
-					testUser.Realm+"/"+testUser.Kind,
+					usergroup.Build(testUser.Realm, testUser.Kind),
 					"00000000", // тестовый пользователь без реальной сессии
 					testUser.LangCode,
 					userGroupRights,

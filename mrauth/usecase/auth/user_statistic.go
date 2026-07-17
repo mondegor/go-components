@@ -2,11 +2,13 @@ package auth
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"slices"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrlog"
 
 	"github.com/mondegor/go-components/mrauth/dto"
 )
@@ -18,6 +20,7 @@ type (
 		storageActivityStat userActivityStatUpdater
 		storageActivityLog  userActivityLogStorage
 		storageSession      sessionLastActivityUpdater
+		logger              mrlog.Logger
 		errorWrapper        errors.Wrapper
 	}
 
@@ -39,11 +42,13 @@ func NewUserStatistic(
 	storageActivityStat userActivityStatUpdater,
 	storageActivityLog userActivityLogStorage,
 	storageSession sessionLastActivityUpdater,
+	logger mrlog.Logger,
 ) *UserStatistic {
 	return &UserStatistic{
 		storageActivityStat: storageActivityStat,
 		storageActivityLog:  storageActivityLog,
 		storageSession:      storageSession,
+		logger:              logger,
 		errorWrapper:        errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
@@ -56,26 +61,40 @@ func (uc *UserStatistic) Execute(ctx context.Context, messages []dto.UserActivit
 	}
 
 	slices.SortFunc(messages, func(a, b dto.UserActivityLogMessage) int {
-		if cmp := bytes.Compare(a.UserID[:], b.UserID[:]); cmp != 0 {
-			return cmp
+		if c := bytes.Compare(a.UserID[:], b.UserID[:]); c != 0 {
+			return c
+		}
+
+		if c := cmp.Compare(a.RealmID, b.RealmID); c != 0 {
+			return c
 		}
 
 		return b.VisitedAt.Compare(a.VisitedAt) // сортировка по времени в обратном порядке
 	})
 
-	// после сортировки для каждого пользователя первым идёт самое позднее посещение,
-	// поэтому берётся первая запись из группы одинаковых UserID
+	// после сортировки для каждой пары (пользователь, realm) первым идёт самое позднее
+	// посещение, поэтому берётся первая запись из группы одинаковых (UserID, RealmID)
 	stat := make([]dto.UserActivityLastVisited, 0, len(messages))
 
 	for i := range messages {
-		if len(stat) > 0 && messages[i].UserID == stat[len(stat)-1].UserID {
+		// RealmID = 0 - realm не определён (см. dto.UserActivityLogMessage): строки статистики
+		// для него не существует, обновлять нечего; сессия и журнал обрабатываются как обычно
+		if messages[i].RealmID == 0 {
 			continue
+		}
+
+		if len(stat) > 0 {
+			last := stat[len(stat)-1]
+			if messages[i].UserID == last.UserID && messages[i].RealmID == last.RealmID {
+				continue
+			}
 		}
 
 		stat = append(
 			stat,
 			dto.UserActivityLastVisited{
 				UserID:        messages[i].UserID,
+				RealmID:       messages[i].RealmID,
 				LastVisitedAt: messages[i].VisitedAt,
 			},
 		)
@@ -88,7 +107,15 @@ func (uc *UserStatistic) Execute(ctx context.Context, messages []dto.UserActivit
 	}
 
 	if err := uc.storageActivityStat.UpdateLastVisited(ctx, stat); err != nil {
-		return uc.errorWrapper.Wrap(err)
+		if !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+			return uc.errorWrapper.Wrap(err)
+		}
+
+		// ни одна пара (user, realm) пакета не имеет строки статистики: для realm != 0 строка
+		// создаётся при входе в realm (OpenSession, где сбой её записи лишь логируется), поэтому
+		// total-miss - признак деградации, а не штатный случай. Сигналим в лог, но пакет
+		// не проваливаем: иначе он бесконечно ретраился бы, а keep-alive сессий уже обновлён
+		uc.logger.Warn(ctx, "UserStatistic: last-visited batch affected no rows", "pairs", len(stat))
 	}
 
 	if err := uc.storageActivityLog.Insert(ctx, messages); err != nil {
@@ -113,10 +140,6 @@ func (uc *UserStatistic) sessionsLastActivity(messages []dto.UserActivityLogMess
 			continue
 		}
 
-		if !msg.UserIP.Real.IsValid() {
-			continue // IP не распознан - пропускаем обновление этой записи
-		}
-
 		key := sessionKey{
 			userID:    msg.UserID,
 			sessionID: msg.SessionID,
@@ -127,8 +150,11 @@ func (uc *UserStatistic) sessionsLastActivity(messages []dto.UserActivityLogMess
 		}
 
 		latest[key] = dto.SessionLastActivity{
-			UserID:        msg.UserID,
-			SessionID:     msg.SessionID,
+			UserID:    msg.UserID,
+			SessionID: msg.SessionID,
+			// инвариант: real IP в сообщении всегда задан (источник RemoteAddr,
+			// см. produce.UserRequest.Emit), поэтому запись в sessions.last_ip (NOT NULL)
+			// безопасна и проверки IsValid не требует
 			LastIP:        msg.UserIP.Real,
 			LastVisitedAt: msg.VisitedAt,
 		}

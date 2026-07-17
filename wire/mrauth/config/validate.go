@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"slices"
+
+	"github.com/mondegor/go-components/mrauth/model/usergroup"
 )
 
 const (
@@ -51,7 +53,8 @@ func CorrectValuesAuth2FA(cfg Auth2FA) Auth2FA {
 }
 
 // ValidateRealms - проверяет конфигурацию realm'ов: уникальность id и имён, корректность типов токенов,
-// TTL jwt-токенов и принадлежность ролей известному набору.
+// TTL jwt-токенов, принадлежность ролей известному набору и допустимость имён видов пользователей
+// (без '/' - см. ограничение в описании UserRealm).
 func ValidateRealms(realms []UserRealm, allRoles []string) error {
 	uniqRealms := make(map[string]bool, len(realms))
 	uniqRealmIDs := make(map[uint16]bool, len(realms))
@@ -93,6 +96,12 @@ func validateRealm(realm UserRealm, allRoles []string) error {
 	hasRegisterUser := realm.RegisterUserKind == "none"
 
 	for _, kind := range realm.UserKinds {
+		// '/' в имени вида ломает разбор группы "{realm}/{kind}" и молча теряет per-realm
+		// статистику, поэтому отвергается на старте (см. ограничение в описании UserRealm)
+		if err := usergroup.ValidateKind(kind.Name); err != nil {
+			return fmt.Errorf("invalid user kind name for realm (kind='%s', realm='%s'): %w", kind.Name, realm.Name, err)
+		}
+
 		if uniqKinds[kind.Name] {
 			return fmt.Errorf("duplicate user kind name for realm (kind='%s', realm='%s')", kind.Name, realm.Name)
 		}

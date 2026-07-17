@@ -37,7 +37,7 @@ func NewSessionPostgres(
 // FetchOrderedListByUserIDAndSessionIDs - возвращает строки метаданных сессий пользователя по
 // заданным session_id, упорядоченные по последней активности (updated_at DESC, при равенстве -
 // больший session_id вперёд для детерминированности). Набор ограничивается переданными
-// идентификаторами, что согласует выборку с FetchOpenSessionIDs и убирает неограниченное чтение.
+// идентификаторами, что согласует выборку с FetchOpenSessions и убирает неограниченное чтение.
 func (re *SessionPostgres) FetchOrderedListByUserIDAndSessionIDs(
 	ctx context.Context,
 	userID uuid.UUID,

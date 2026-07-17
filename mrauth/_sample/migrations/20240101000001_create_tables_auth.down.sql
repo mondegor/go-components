@@ -1,7 +1,6 @@
 -- --------------------------------------------------------------------------------------------------
 
 DROP TABLE sample_schema.secure_operations_log;
--- DROP TABLE sample_schema.secure_operations_stat;
 DROP TABLE sample_schema.secure_operations;
 DROP TABLE sample_schema.sessions_excess_queue;
 DROP TABLE sample_schema.sessions_cleanup_queue;

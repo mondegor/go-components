@@ -62,6 +62,7 @@ func NewService(
 			client,
 			sessionsTableName,
 		),
+		logger,
 	)
 
 	return collect.NewMessageCollector[dto.UserActivityLogMessage](

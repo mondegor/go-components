@@ -44,23 +44,24 @@ type (
 
 	// UserInfoResponse - ответ со сводной информацией о текущем пользователе.
 	UserInfoResponse struct {
-		Email        string           `json:"email"`
-		Phone        string           `json:"phone,omitempty"`
-		LangCode     string           `json:"lang"`
-		LastLoginIP  string           `json:"last_login_ip"`
-		LastLoggedAt string           `json:"last_logged_at"`
-		Auth2FAType  auth2fatype.Enum `json:"auth_2fa_type"`
-		Realms       []UserRealm      `json:"realms"`
-		Status       userstatus.Enum  `json:"status"`
-		CreatedAt    string           `json:"created_at"`
-		UpdatedAt    string           `json:"updated_at"`
+		Email       string           `json:"email"`
+		Phone       string           `json:"phone,omitempty"`
+		LangCode    string           `json:"lang"`
+		Auth2FAType auth2fatype.Enum `json:"auth_2fa_type"`
+		Realms      []UserRealm      `json:"realms"`
+		Status      userstatus.Enum  `json:"status"`
 	}
 
-	// UserRealm - realm пользователя с его видом в ответе с информацией о пользователе.
+	// UserRealm - realm пользователя с его видом и статистикой последнего входа
+	// в ответе с информацией о пользователе. LastLoggedAt отсутствует, если пользователь
+	// ни разу не входил в этот realm; LastLocation - в этом же случае, а также
+	// когда местоположение не определено (IP входа не сохранён или не распознан).
 	UserRealm struct {
-		Name      string `json:"name"`
-		UserKind  string `json:"user_kind"`
-		CreatedAt string `json:"created_at"`
-		UpdatedAt string `json:"updated_at"`
+		Name         string `json:"name"`
+		UserKind     string `json:"user_kind"`
+		LastLocation string `json:"last_location,omitempty"`
+		LastLoggedAt string `json:"last_logged_at,omitempty"`
+		CreatedAt    string `json:"created_at"`
+		UpdatedAt    string `json:"updated_at"`
 	}
 )

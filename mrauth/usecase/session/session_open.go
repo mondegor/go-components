@@ -159,7 +159,9 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 			entity.Session{
 				UserID:    userScopes.UserID,
 				UserAgent: meta.UserAgent,
-				LastIP:    meta.ClientIP.Real,
+				// инвариант: real IP всегда задан (источник RemoteAddr), sessions.last_ip
+				// объявлен NOT NULL - нарушение инварианта проявится ошибкой вставки
+				LastIP: meta.ClientIP.Real,
 			},
 		)
 		if err != nil {
@@ -213,6 +215,7 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 	// сознательно игнорируется, чтобы не проваливать успешный логин.
 	userActivity := entity.UserActivityStat{
 		UserID:        userScopes.UserID,
+		RealmID:       realmID,
 		LastLoginIP:   meta.ClientIP.Real,
 		LastLoggedAt:  time.Now(),
 		LastVisitedAt: time.Now(),

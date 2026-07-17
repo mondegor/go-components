@@ -14,6 +14,7 @@ type (
 		Location   string
 		CreatedAt  time.Time // время создания сессии
 		UpdatedAt  time.Time // время последней активности сессии
+		ExpiresAt  time.Time // срок жизни сессии
 		IsCurrent  bool
 	}
 )

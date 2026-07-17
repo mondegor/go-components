@@ -42,6 +42,23 @@ func testRealmRegistry() mrauth.RealmRegistry {
 	})
 }
 
+// testSessionExpiresAt - общий срок жизни открытых сессий, собираемых testOpenSessions.
+func testSessionExpiresAt() time.Time {
+	return time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
+}
+
+// testOpenSessions - открытые сессии с указанными идентификаторами и общим сроком
+// жизни testSessionExpiresAt (в порядке перечисления).
+func testOpenSessions(sessionIDs ...uint32) entity.OpenSessions {
+	rows := make(entity.OpenSessions, 0, len(sessionIDs))
+
+	for _, sessionID := range sessionIDs {
+		rows = append(rows, entity.OpenSession{SessionID: sessionID, ExpiresAt: testSessionExpiresAt()})
+	}
+
+	return rows
+}
+
 //go:generate mockgen -source=session_open.go -destination=mock/session_open.go -package=mock
 //go:generate mockgen -source=session_continue.go -destination=mock/session_continue.go -package=mock
 //go:generate mockgen -source=session_close.go -destination=mock/session_close.go -package=mock
@@ -610,7 +627,7 @@ func (s *ListSuite) TestGetListFiltersAndMaps() {
 	}
 	open := []uint32{0x0000babc, 0x1f3bc817}
 
-	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, testRealmID).Return(open, nil)
+	s.opener.EXPECT().FetchOpenSessions(gomock.Any(), s.userID, testRealmID).Return(testOpenSessions(open...), nil)
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 0x1f3bc817, Realm: testRealm}, nil)
 	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, open, 4).Return(rows, nil)
 
@@ -621,8 +638,10 @@ func (s *ListSuite) TestGetListFiltersAndMaps() {
 	s.Equal(uint32(0x1f3bc817), got[0].SessionID)
 	s.True(got[0].IsCurrent) // session_id совпал с текущим
 	s.Equal("127.0.0.1", got[0].LastIP)
+	s.Empty(got[0].Location) // дефолтный резолвер не вычисляет местоположение -> поле пустое
 	s.Equal(createdAt, got[0].CreatedAt)
 	s.Equal(lastSeen, got[0].UpdatedAt)
+	s.Equal(testSessionExpiresAt(), got[0].ExpiresAt) // срок жизни = expires_at refresh токена
 
 	s.Equal(uint32(0x0000babc), got[1].SessionID)
 	s.False(got[1].IsCurrent)
@@ -658,7 +677,7 @@ func (s *ListSuite) TestGetListForeignRealm() {
 	// (99) принадлежит realm токена и в списке чужого realm не встречается
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 99, Realm: testRealm, Kind: "other"}, nil)
 	s.userRealm.EXPECT().FetchOne(gomock.Any(), s.userID, altRealmID).Return(entity.UserRealm{Kind: "k"}, nil)
-	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, altRealmID).Return(open, nil)
+	s.opener.EXPECT().FetchOpenSessions(gomock.Any(), s.userID, altRealmID).Return(testOpenSessions(open...), nil)
 	// лимит берётся по kind чужого realm ("k" -> 2), а не по kind токена
 	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, open, 2).Return(rows, nil)
 
@@ -673,7 +692,7 @@ func (s *ListSuite) TestGetListForeignRealm() {
 func (s *ListSuite) TestGetListForeignRealmEmpty() {
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
 	s.userRealm.EXPECT().FetchOne(gomock.Any(), s.userID, altRealmID).Return(entity.UserRealm{Kind: "k"}, nil)
-	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, altRealmID).Return([]uint32{}, nil)
+	s.opener.EXPECT().FetchOpenSessions(gomock.Any(), s.userID, altRealmID).Return(entity.OpenSessions{}, nil)
 	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, []uint32{}, gomock.Any()).Return(nil, nil)
 
 	got, err := s.uc.GetList(s.ctx, s.userID, "acc", altRealm)
@@ -703,7 +722,7 @@ func (s *ListSuite) TestGetListEmptyOpenSetFails() {
 	// пустой набор открытых сессий - нарушение инварианта (текущая сессия обязана там быть):
 	// Internal-ошибка, lister.FetchOrdered... НЕ вызывается.
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
-	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, testRealmID).Return([]uint32{}, nil)
+	s.opener.EXPECT().FetchOpenSessions(gomock.Any(), s.userID, testRealmID).Return(entity.OpenSessions{}, nil)
 
 	_, err := s.uc.GetList(s.ctx, s.userID, "acc", "")
 	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
@@ -713,7 +732,7 @@ func (s *ListSuite) TestGetListCurrentSessionNotOpenFails() {
 	// текущая сессия отсутствует среди открытых - нарушение инварианта: Internal-ошибка,
 	// lister.FetchOrdered... НЕ вызывается.
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 99, Realm: testRealm}, nil)
-	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, testRealmID).Return([]uint32{1, 2}, nil)
+	s.opener.EXPECT().FetchOpenSessions(gomock.Any(), s.userID, testRealmID).Return(testOpenSessions(1, 2), nil)
 
 	_, err := s.uc.GetList(s.ctx, s.userID, "acc", "")
 	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
@@ -745,7 +764,7 @@ func (s *ListSuite) TestGetListCurrentSessionOutsideLimitRefetched() {
 	}
 	current := []entity.Session{{UserID: s.userID, SessionID: 3, UserAgent: "UA3"}}
 
-	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, altRealmID).Return(open, nil)
+	s.opener.EXPECT().FetchOpenSessions(gomock.Any(), s.userID, altRealmID).Return(testOpenSessions(open...), nil)
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").
 		Return(dto.UserScopes{SessionID: 3, Realm: "r", Kind: "k"}, nil)
 	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, open, 2).Return(rows, nil)
@@ -760,6 +779,8 @@ func (s *ListSuite) TestGetListCurrentSessionOutsideLimitRefetched() {
 	// последняя строка заменена текущей сессией
 	s.Equal(uint32(3), got[1].SessionID)
 	s.True(got[1].IsCurrent)
+	// срок жизни догруженной текущей сессии тоже берётся из списка открытых
+	s.Equal(testSessionExpiresAt(), got[1].ExpiresAt)
 }
 
 func (s *ListSuite) TestGetListCurrentSessionRefetchEmptyFails() {
@@ -784,7 +805,7 @@ func (s *ListSuite) TestGetListCurrentSessionRefetchEmptyFails() {
 		{UserID: s.userID, SessionID: 2},
 	}
 
-	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, altRealmID).Return(open, nil)
+	s.opener.EXPECT().FetchOpenSessions(gomock.Any(), s.userID, altRealmID).Return(testOpenSessions(open...), nil)
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").
 		Return(dto.UserScopes{SessionID: 3, Realm: "r", Kind: "k"}, nil)
 	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, open, 2).Return(rows, nil)
@@ -804,13 +825,24 @@ func (s *ListSuite) TestGetListResolversEnrich() {
 		s.userRealm,
 		testRealmRegistry(),
 		func(ua string) (string, string) { return "app:" + ua, "dev:" + ua },
-		func(ip string) string { return "loc:" + ip },
+		// разные префиксы по режимам: проверяется, что LastIP запрашивается в режиме
+		// LocationOnlyIP, а Location - в LocationOrEmpty
+		func(ip netip.Addr, result mrauth.LocationMode) string {
+			switch result {
+			case mrauth.LocationOnlyIP:
+				return "ip:" + ip.String()
+			case mrauth.LocationOrEmpty:
+				return "loc:" + ip.String()
+			default:
+				return "unexpected mode"
+			}
+		},
 		nil,
 	)
 
 	rows := []entity.Session{{UserID: s.userID, SessionID: 1, UserAgent: "UA", LastIP: netip.MustParseAddr("127.0.0.1")}}
 
-	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, testRealmID).Return([]uint32{1}, nil)
+	s.opener.EXPECT().FetchOpenSessions(gomock.Any(), s.userID, testRealmID).Return(testOpenSessions(1), nil)
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
 	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, []uint32{1}, 4).Return(rows, nil)
 
@@ -819,6 +851,7 @@ func (s *ListSuite) TestGetListResolversEnrich() {
 	s.Require().Len(got, 1)
 	s.Equal("app:UA", got[0].AppName)
 	s.Equal("dev:UA", got[0].DeviceName)
+	s.Equal("ip:127.0.0.1", got[0].LastIP)
 	s.Equal("loc:127.0.0.1", got[0].Location)
 }
 
@@ -858,7 +891,7 @@ func (s *ListSuite) TestGetListPassesLimitAndPreservesOrder() {
 	}
 	open := []uint32{1, 2, 3}
 
-	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, altRealmID).Return(open, nil)
+	s.opener.EXPECT().FetchOpenSessions(gomock.Any(), s.userID, altRealmID).Return(testOpenSessions(open...), nil)
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").
 		Return(dto.UserScopes{SessionID: 3, Realm: "r", Kind: "k"}, nil)
 	// лимит realm "r"/kind "k" == 2 передаётся в репозиторий
@@ -874,14 +907,14 @@ func (s *ListSuite) TestGetListPassesLimitAndPreservesOrder() {
 func (s *ListSuite) TestGetListOpenFetcherError() {
 	// резолв токена проходит, но выборка открытых сессий падает -> lister не вызывается
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
-	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, testRealmID).Return(nil, errors.New("db down"))
+	s.opener.EXPECT().FetchOpenSessions(gomock.Any(), s.userID, testRealmID).Return(nil, errors.New("db down"))
 
 	_, err := s.uc.GetList(s.ctx, s.userID, "acc", "")
 	s.Require().Error(err)
 }
 
 func (s *ListSuite) TestGetListListerError() {
-	s.opener.EXPECT().FetchOpenSessionIDs(gomock.Any(), s.userID, testRealmID).Return([]uint32{1}, nil)
+	s.opener.EXPECT().FetchOpenSessions(gomock.Any(), s.userID, testRealmID).Return(testOpenSessions(1), nil)
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
 	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, []uint32{1}, 4).Return(nil, errors.New("db down"))
 

@@ -8,6 +8,7 @@ import (
 	"github.com/mondegor/go-core/mraccess"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/model/usergroup"
 	"github.com/mondegor/go-components/mrauth/repository"
 )
 
@@ -62,7 +63,7 @@ func (co *UserProvider) UserByToken(ctx context.Context, value string) (mraccess
 
 	return mraccess.NewUser(
 		userScopes.UserID,
-		userScopes.Realm+"/"+userScopes.Kind,
+		usergroup.Build(userScopes.Realm, userScopes.Kind),
 		strconv.FormatUint(uint64(userScopes.SessionID), 10),
 		userScopes.LangCode,
 		co.userGroupRights,

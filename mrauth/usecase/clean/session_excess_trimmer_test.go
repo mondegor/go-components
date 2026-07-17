@@ -17,6 +17,18 @@ import (
 
 const testRealmID uint16 = 1
 
+// testOpenSessions - открытые сессии с указанными идентификаторами; срок действия
+// refresh токена произвольный - триммер его игнорирует.
+func testOpenSessions(sessionIDs ...uint32) entity.OpenSessions {
+	rows := make(entity.OpenSessions, 0, len(sessionIDs))
+
+	for _, sessionID := range sessionIDs {
+		rows = append(rows, entity.OpenSession{SessionID: sessionID, ExpiresAt: time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)})
+	}
+
+	return rows
+}
+
 type excessTrimmerMocks struct {
 	uc          *clean.SessionExcessTrimmer
 	consumer    *mock.MockSessionExcessQueueConsumer
@@ -103,8 +115,8 @@ func TestSessionExcessTrimmer_Execute_RevokesDuplicatesAndOverLimit(t *testing.T
 	gomock.InOrder(
 		m.consumer.EXPECT().Fetch(gomock.Any(), 100).
 			Return([]entity.SessionExcessItem{{UserID: userID, RealmID: testRealmID, SessionMax: 2}}, nil),
-		m.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), userID, testRealmID).
-			Return([]uint32{1, 2, 3, 4}, nil),
+		m.openFetcher.EXPECT().FetchOpenSessions(gomock.Any(), userID, testRealmID).
+			Return(testOpenSessions(1, 2, 3, 4), nil),
 		m.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), userID, []uint32{1, 2, 3, 4}, 0).Return(sessions, nil),
 		m.closer.EXPECT().RevokeTokensBySessionIDs(gomock.Any(), userID, gomock.Any()).
 			DoAndReturn(func(_ context.Context, _ uuid.UUID, ids []uint32) error {
@@ -154,7 +166,7 @@ func TestSessionExcessTrimmer_Execute_EmptyUserAgentNotDeduped(t *testing.T) {
 	gomock.InOrder(
 		m.consumer.EXPECT().Fetch(gomock.Any(), 100).
 			Return([]entity.SessionExcessItem{{UserID: userID, RealmID: testRealmID, SessionMax: 1}}, nil),
-		m.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), userID, testRealmID).Return([]uint32{1, 2}, nil),
+		m.openFetcher.EXPECT().FetchOpenSessions(gomock.Any(), userID, testRealmID).Return(testOpenSessions(1, 2), nil),
 		m.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), userID, []uint32{1, 2}, 0).Return(sessions, nil),
 		m.closer.EXPECT().RevokeTokensBySessionIDs(gomock.Any(), userID, gomock.Any()).
 			DoAndReturn(func(_ context.Context, _ uuid.UUID, ids []uint32) error {
@@ -193,7 +205,7 @@ func TestSessionExcessTrimmer_Execute_NothingToRevokeStillAcks(t *testing.T) {
 	gomock.InOrder(
 		m.consumer.EXPECT().Fetch(gomock.Any(), 100).
 			Return([]entity.SessionExcessItem{{UserID: userID, RealmID: testRealmID, SessionMax: 4}}, nil),
-		m.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), userID, testRealmID).Return([]uint32{1, 2}, nil),
+		m.openFetcher.EXPECT().FetchOpenSessions(gomock.Any(), userID, testRealmID).Return(testOpenSessions(1, 2), nil),
 		m.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), userID, []uint32{1, 2}, 0).Return(sessions, nil),
 		m.consumer.EXPECT().Delete(gomock.Any(), []entity.SessionExcessPK{{UserID: userID, RealmID: testRealmID}}).Return(nil),
 	)
@@ -225,7 +237,7 @@ func TestSessionExcessTrimmer_Execute_DuplicatesUnderLimitNotRevoked(t *testing.
 	gomock.InOrder(
 		m.consumer.EXPECT().Fetch(gomock.Any(), 100).
 			Return([]entity.SessionExcessItem{{UserID: userID, RealmID: testRealmID, SessionMax: 4}}, nil),
-		m.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), userID, testRealmID).Return([]uint32{1, 2, 3}, nil),
+		m.openFetcher.EXPECT().FetchOpenSessions(gomock.Any(), userID, testRealmID).Return(testOpenSessions(1, 2, 3), nil),
 		m.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), userID, []uint32{1, 2, 3}, 0).Return(sessions, nil),
 		m.consumer.EXPECT().Delete(gomock.Any(), []entity.SessionExcessPK{{UserID: userID, RealmID: testRealmID}}).Return(nil),
 	)
@@ -263,7 +275,7 @@ func TestSessionExcessTrimmer_Execute_RevokesOnlyExcessNotAllDuplicates(t *testi
 	gomock.InOrder(
 		m.consumer.EXPECT().Fetch(gomock.Any(), 100).
 			Return([]entity.SessionExcessItem{{UserID: userID, RealmID: testRealmID, SessionMax: 4}}, nil),
-		m.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), userID, testRealmID).Return([]uint32{1, 2, 3, 4, 5, 6}, nil),
+		m.openFetcher.EXPECT().FetchOpenSessions(gomock.Any(), userID, testRealmID).Return(testOpenSessions(1, 2, 3, 4, 5, 6), nil),
 		m.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), userID, []uint32{1, 2, 3, 4, 5, 6}, 0).Return(sessions, nil),
 		m.closer.EXPECT().RevokeTokensBySessionIDs(gomock.Any(), userID, gomock.Any()).
 			DoAndReturn(func(_ context.Context, _ uuid.UUID, ids []uint32) error {
@@ -295,7 +307,7 @@ func TestSessionExcessTrimmer_Execute_NoOpenSessionsSkipped(t *testing.T) {
 	gomock.InOrder(
 		m.consumer.EXPECT().Fetch(gomock.Any(), 100).
 			Return([]entity.SessionExcessItem{{UserID: userID, RealmID: testRealmID, SessionMax: 4}}, nil),
-		m.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), userID, testRealmID).Return([]uint32{}, nil),
+		m.openFetcher.EXPECT().FetchOpenSessions(gomock.Any(), userID, testRealmID).Return(entity.OpenSessions{}, nil),
 		m.consumer.EXPECT().Delete(gomock.Any(), []entity.SessionExcessPK{{UserID: userID, RealmID: testRealmID}}).Return(nil),
 	)
 	// FetchOrderedListByUserIDAndSessionIDs не вызывается
@@ -323,7 +335,7 @@ func TestSessionExcessTrimmer_Execute_RevokeErrorSkipsAck(t *testing.T) {
 
 	m.consumer.EXPECT().Fetch(gomock.Any(), 100).
 		Return([]entity.SessionExcessItem{{UserID: userID, RealmID: testRealmID, SessionMax: 1}}, nil)
-	m.openFetcher.EXPECT().FetchOpenSessionIDs(gomock.Any(), userID, testRealmID).Return([]uint32{1, 2}, nil)
+	m.openFetcher.EXPECT().FetchOpenSessions(gomock.Any(), userID, testRealmID).Return(testOpenSessions(1, 2), nil)
 	m.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), userID, []uint32{1, 2}, 0).Return(sessions, nil)
 	m.closer.EXPECT().RevokeTokensBySessionIDs(gomock.Any(), userID, gomock.Any()).
 		Return(errors.New("revoke failed"))

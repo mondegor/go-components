@@ -119,17 +119,19 @@ func (re *AuthTokenPostgres) FetchOpenSessionCount(ctx context.Context, userID u
 	return count, nil
 }
 
-// FetchOpenSessionIDs - возвращает идентификаторы открытых сессий пользователя в указанном realm,
-// отсортированные по возрасту действующего refresh токена (created_at, по возрастанию):
-// первыми идут сессии, refresh токен которых дольше всех не обновлялся (наименее активные).
-// Открыта = есть действующий не истёкший refresh токен. Скоуп по realm согласован с
-// FetchOpenSessionCount: лимит сессий считается и обрезается в пределах одного realm.
-func (re *AuthTokenPostgres) FetchOpenSessionIDs(ctx context.Context, userID uuid.UUID, realmID uint16) (rows []uint32, err error) {
+// FetchOpenSessions - возвращает открытые сессии пользователя в указанном realm (идентификатор +
+// срок действия refresh токена), отсортированные по возрасту действующего refresh токена
+// (created_at, по возрастанию): первыми идут сессии, refresh токен которых дольше всех
+// не обновлялся (наименее активные). Открыта = есть действующий не истёкший refresh токен.
+// Скоуп по realm согласован с FetchOpenSessionCount: лимит сессий считается
+// и обрезается в пределах одного realm.
+func (re *AuthTokenPostgres) FetchOpenSessions(ctx context.Context, userID uuid.UUID, realmID uint16) (rows entity.OpenSessions, err error) {
 	// GROUP BY используется на всякий случай, так как на сессию приходится ровно один enabled refresh токен;
-	// MIN(created_at) устойчив к такому "на всякий случай" дубликату
+	// MIN(created_at)/MAX(expires_at) устойчивы к такому "на всякий случай" дубликату
 	sql := `
 		SELECT
-			session_id
+			session_id,
+			MAX(expires_at)
 		FROM
 			` + re.tableName + `
 		WHERE
@@ -151,16 +153,16 @@ func (re *AuthTokenPostgres) FetchOpenSessionIDs(ctx context.Context, userID uui
 
 	defer cursor.Close()
 
-	rows = make([]uint32, 0)
+	rows = make(entity.OpenSessions, 0)
 
 	for cursor.Next() {
-		var sessionID uint32
+		var row entity.OpenSession
 
-		if err = cursor.Scan(&sessionID); err != nil {
+		if err = cursor.Scan(&row.SessionID, &row.ExpiresAt); err != nil {
 			return nil, re.errorWrapper.Wrap(err)
 		}
 
-		rows = append(rows, sessionID)
+		rows = append(rows, row)
 	}
 
 	if err = cursor.Err(); err != nil {
