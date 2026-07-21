@@ -98,6 +98,10 @@ func (re *SecureOperationPostgres) fetchOne(ctx context.Context, token string, f
 		row.UserID = *userID
 	}
 
+	// системное время: домен всегда оперирует UTC независимо от зоны сессии БД
+	row.ResendsAt = row.ResendsAt.UTC()
+	row.ExpiresAt = row.ExpiresAt.UTC()
+
 	if err = secureoperation.WakeUp(&row, actions); err != nil {
 		return secureoperation.SecureOperation{}, re.errorWrapper.Wrap(err)
 	}

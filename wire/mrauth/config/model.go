@@ -68,11 +68,12 @@ type (
 		MinResendTime time.Duration `yaml:"min_resend_time"`
 	}
 
-	// Auth2FA - настройки второго фактора: аварийные (recovery) коды.
+	// Auth2FA - настройки второго фактора: TOTP-генератор и аварийные (recovery) коды.
 	Auth2FA struct {
-		RecoveryCount        uint8 `yaml:"recovery_count"`         // число выдаваемых аварийных кодов
-		RecoveryCodeLength   uint8 `yaml:"recovery_code_length"`   // длина одного аварийного кода
-		RecoveryLowThreshold uint8 `yaml:"recovery_low_threshold"` // остаток, при котором слать предупреждение
+		TOTPIssuer           string `yaml:"totp_issuer"`            // имя издателя TOTP (метка в приложении-аутентификаторе)
+		RecoveryCount        uint8  `yaml:"recovery_count"`         // число выдаваемых аварийных кодов
+		RecoveryCodeLength   uint8  `yaml:"recovery_code_length"`   // длина одного аварийного кода
+		RecoveryLowThreshold uint8  `yaml:"recovery_low_threshold"` // остаток, при котором слать предупреждение
 	}
 
 	// RefreshCookie - настройки cookie с refresh токеном (web-версия).
@@ -136,6 +137,7 @@ type (
 		Realm    string
 		Kind     string
 		LangCode string
+		TimeZone string
 	}
 
 	// TaskSchedule - настройки задач модуля Auth, запускаемых по расписанию.

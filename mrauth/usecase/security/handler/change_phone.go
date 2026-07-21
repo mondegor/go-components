@@ -2,14 +2,13 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
-	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
@@ -37,16 +36,15 @@ func NewChangePhone(
 		txManager:    txManager,
 		storage:      storage,
 		notifierAPI:  notifierAPI,
-		errorWrapper: errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper: errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
-// Execute - возвращает строковое значение настройки с указанным идентификатором.
+// Execute - применяет подтверждённую операцию смены телефона пользователя.
 func (uc *ChangePhone) Execute(ctx context.Context, userID uuid.UUID, payload []byte) error {
-	payloadDTO := dto.ChangePhoneOperation{}
-
-	if err := json.Unmarshal(payload, &payloadDTO); err != nil {
-		return errors.ErrInternalIncorrectInputData.WithError(err, "ChangePhone", "payload", payload)
+	payloadDTO, err := unit.ParseChangePhonePayload(payload)
+	if err != nil {
+		return err
 	}
 
 	return uc.txManager.Do(ctx, func(ctx context.Context) error {

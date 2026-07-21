@@ -45,7 +45,7 @@ func (o *SecureOperation) ConfirmAction(checkFunc func(action ConfirmAction) (ok
 	}
 
 	o.Status = operationstatus.Confirmed
-	o.ExpiresAt = time.Now().Add(action.Expiry).Round(1 * time.Second)
+	o.ExpiresAt = time.Now().UTC().Add(action.Expiry).Round(1 * time.Second)
 
 	return true, nil
 }

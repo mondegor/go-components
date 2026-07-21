@@ -66,6 +66,7 @@ func (co *UserProvider) UserByToken(ctx context.Context, value string) (mraccess
 		usergroup.Build(userScopes.Realm, userScopes.Kind),
 		strconv.FormatUint(uint64(userScopes.SessionID), 10),
 		userScopes.LangCode,
+		userScopes.TimeZone,
 		co.userGroupRights,
 	), nil
 }

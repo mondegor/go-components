@@ -23,11 +23,6 @@ post:
   x-auth-scopes:
     - any-users
 
-  #  parameters:
-  #    - $ref: "../_shared/components/parameters/Api.Request.Header.AcceptLanguage.yaml"
-  #    - $ref: "../_shared/components/parameters/Api.Request.Header.CorrelationID.yaml"
-  #    - $ref: "../_shared/components/parameters/Api.Request.Query.Language.yaml"
-
   responses:
     "200":
       $ref: "../components/responses/Auth.ResponseJson.WaitingConfirmOperation.yaml"

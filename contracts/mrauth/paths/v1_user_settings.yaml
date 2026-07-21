@@ -1,0 +1,39 @@
+post:
+  summary: Auth/R7. Метод изменения языка и часового пояса пользователя
+  description: |-
+    Метод предназначен для изменения языка (локали) и часового пояса текущего пользователя.
+    В ответе возвращаются настройки, которые были реально сохранены, чтобы клиент применил
+    их у себя: часовой пояс может отличаться от запрошенного, если его имя приложению
+    неизвестно и пояс был подобран по смещению.
+    Сохранённые язык и часовой пояс начинают применяться к ответам API только после
+    перевыпуска access-токена, так как фиксируются в нём на момент выпуска
+  operationId: applyUserSettings
+  tags:
+    - Auth
+  x-auth-scopes:
+    - any-users
+
+  requestBody:
+    required: true
+    content:
+      application/json;charset=UTF-8:
+        schema:
+          $ref: "../components/models/Auth.Request.Model.ApplyUserSettings.yaml"
+
+  responses:
+    "200":
+      description: Язык и часовой пояс пользователя обновлены
+      content:
+        application/json;charset=UTF-8:
+          schema:
+            $ref: "../components/models/Auth.Response.Model.UserSettings.yaml"
+    "400":
+      # Язык и часовой пояс должны быть указаны
+      # Язык не соответствует формату кода языка с необязательным кодом региона
+      # Имя часового пояса не соответствует формату IANA-имени
+      # Смещение часового пояса выходит за диапазон существующих поясов (-12:00..+14:00)
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
+    "401":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
+    "500":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

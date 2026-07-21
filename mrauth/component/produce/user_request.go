@@ -103,7 +103,7 @@ func (rs *UserRequest) Emit(r *http.Request, _ []byte, _ int, _ []byte, _ int, _
 		UserAgent:     r.UserAgent(),
 		RequestPath:   r.URL.Path,
 		RequestStatus: uint32(status),
-		VisitedAt:     time.Now(),
+		VisitedAt:     time.Now().UTC(),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), pushTimeout)

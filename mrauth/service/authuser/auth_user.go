@@ -148,6 +148,7 @@ func (s *Service) PrepareAuthorization(ctx context.Context, userID uuid.UUID, in
 		Realm:    in.Realm,
 		Kind:     userRealm.Kind,
 		LangCode: user.LangCode,
+		TimeZone: user.TimeZone,
 	}, notifyAuthSuccess, nil
 }
 
@@ -164,6 +165,7 @@ func (s *Service) registerNewUser(ctx context.Context, in dto.CreateUserOperatio
 					ID:       userID,
 					Email:    in.Email,
 					LangCode: in.LangCode,
+					TimeZone: in.TimeZone,
 					Status:   userstatus.Enabled,
 				},
 				RegisteredIP: in.RegisteredIP,

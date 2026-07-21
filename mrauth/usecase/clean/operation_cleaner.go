@@ -61,7 +61,7 @@ func (co *OperationCleaner) Execute(ctx context.Context, limit int) (count int, 
 		return 0, co.errorWrapper.Wrap(err)
 	}
 
-	oldLogCount, err := co.storageLog.DeleteBeforeDate(ctx, time.Now().Add(-co.logLifeTime), limit)
+	oldLogCount, err := co.storageLog.DeleteBeforeDate(ctx, time.Now().UTC().Add(-co.logLifeTime), limit)
 	if err != nil {
 		return 0, co.errorWrapper.Wrap(err)
 	}

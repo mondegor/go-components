@@ -1,7 +1,6 @@
 package unit
 
 import (
-	"encoding/json"
 	"errors"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -54,8 +53,8 @@ func (o *Disable2FA) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 		return secureoperation.SecureOperation{}, err
 	}
 
-	payload, err := json.Marshal(
-		dto.Disable2faOperation{
+	payload, err := BuildDisable2FAPayload(
+		dto.Disable2FAOperation{
 			Email: user2FA.Email,
 		},
 	)

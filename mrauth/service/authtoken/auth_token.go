@@ -90,6 +90,7 @@ func (sv *AuthToken) Create(ctx context.Context, userScopes dto.UserScopes) (tok
 	}
 
 	items := make([]entity.AuthToken, 0, 2)
+	now := time.Now().UTC() // общий момент отсчёта: сроки обоих токенов пары должны быть согласованы
 
 	items = append(
 		items,
@@ -100,7 +101,7 @@ func (sv *AuthToken) Create(ctx context.Context, userScopes dto.UserScopes) (tok
 			RealmID:   realmProps.ID,
 			SessionID: userScopes.SessionID,
 			Scopes:    tokenPair.Scopes,
-			ExpiresAt: time.Now().Add(tokenPair.Refresh.ExpiresIn).Round(1 * time.Second),
+			ExpiresAt: now.Add(tokenPair.Refresh.ExpiresIn).Round(1 * time.Second),
 		},
 	)
 
@@ -116,7 +117,7 @@ func (sv *AuthToken) Create(ctx context.Context, userScopes dto.UserScopes) (tok
 				RealmID:   realmProps.ID,
 				SessionID: userScopes.SessionID,
 				Scopes:    tokenPair.Scopes,
-				ExpiresAt: time.Now().Add(tokenPair.Access.ExpiresIn).Round(1 * time.Second),
+				ExpiresAt: now.Add(tokenPair.Access.ExpiresIn).Round(1 * time.Second),
 			},
 		)
 	}

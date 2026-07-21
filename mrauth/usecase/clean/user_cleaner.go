@@ -42,7 +42,7 @@ func (co *UserCleaner) Execute(ctx context.Context, limit int) (count int, err e
 		return 0, errors.ErrInternalIncorrectInputData.WithDetails("limit is zero or negative")
 	}
 
-	count, err = co.storageLog.DeleteBeforeDate(ctx, time.Now().Add(-co.logLifeTime), limit)
+	count, err = co.storageLog.DeleteBeforeDate(ctx, time.Now().UTC().Add(-co.logLifeTime), limit)
 	if err != nil {
 		return 0, co.errorWrapper.Wrap(err)
 	}

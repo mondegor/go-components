@@ -2,7 +2,6 @@ package security
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
@@ -108,13 +107,9 @@ func (uc *ApplyPassword) Execute(
 			return errors.New("operation is not confirmed")
 		}
 
-		var payload dto.ChangePasswordOperation
-		if err = json.Unmarshal(op.Payload, &payload); err != nil {
-			return uc.errorWrapper.Wrap(err)
-		}
-
-		if payload.NewPassword == "" {
-			return errors.New("operation has no staged password")
+		payload, err := unit.ParseChangePasswordPayload(op.Payload)
+		if err != nil {
+			return err
 		}
 
 		var hashedCodes []string

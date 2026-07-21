@@ -105,6 +105,9 @@ func (re *SettingPostgres) Fetch(ctx context.Context, lastUpdated time.Time) ([]
 			return nil, err
 		}
 
+		// системное время: домен всегда оперирует UTC независимо от зоны сессии БД
+		row.UpdatedAt = row.UpdatedAt.UTC()
+
 		rows = append(rows, row)
 	}
 

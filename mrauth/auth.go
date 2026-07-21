@@ -2,8 +2,11 @@ package mrauth
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/mondegor/go-core/mrlocale"
+	"golang.org/x/text/language"
 
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
@@ -45,6 +48,22 @@ type (
 	RealmRegistry interface {
 		IDByName(name string) (id uint16, ok bool)
 		NameByID(id uint16) (name string, ok bool)
+	}
+
+	// LanguageList - подбирает локализатор для наиболее близкого из поддерживаемых
+	// приложением языков. Используется для приведения языка пользователя к
+	// поддерживаемому при сохранении настроек.
+	LanguageList interface {
+		Localizer(langs ...language.Tag) *mrlocale.Localizer
+	}
+
+	// TimeZoneList - предоставляет доступ к предзагруженным часовым поясам приложения.
+	// Если имя пояса в списке не зарегистрировано, LocationByName возвращает пояс
+	// по умолчанию и ошибку, а NameByOffset подбирает пояс по его смещению относительно
+	// UTC и признаку летнего времени.
+	TimeZoneList interface {
+		LocationByName(value string) (*time.Location, error)
+		NameByOffset(offset time.Duration, isDST bool) (name string, ok bool)
 	}
 
 	// TokenGenerator - генератор случайных токенов заданной длины.

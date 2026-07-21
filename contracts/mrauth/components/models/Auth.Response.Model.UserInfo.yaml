@@ -2,6 +2,7 @@ type: object
 required:
   - email
   - lang
+  - tz
   - auth_2fa_type
   - realms
   - status
@@ -20,6 +21,14 @@ properties:
     type: string
     maxLength: 5
     example: "ru-RU"
+  tz:
+    description: >-
+      Часовой пояс пользователя (IANA-имя), сохранённый в его профиле.
+      Даты/время в ответах форматируются по поясу, зафиксированному в access-токене,
+      поэтому после смены настроек и до перевыпуска токена значения могут отличаться
+    type: string
+    maxLength: 64
+    example: "Europe/Moscow"
   auth_2fa_type:
     $ref: "../enums/Auth.Enum.UserAuth2fa.yaml"
   realms:

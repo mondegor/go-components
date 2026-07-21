@@ -173,6 +173,7 @@ func createUserProviderByTokenType(
 					usergroup.Build(testUser.Realm, testUser.Kind),
 					"00000000", // тестовый пользователь без реальной сессии
 					testUser.LangCode,
+					testUser.TimeZone,
 					userGroupRights,
 				),
 			)

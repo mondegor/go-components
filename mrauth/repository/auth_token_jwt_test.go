@@ -44,6 +44,7 @@ func TestAuthTokenJWT_FetchOneByAccessToken(t *testing.T) {
 		Realm:    "site/admin",
 		Kind:     "admin",
 		LangCode: "en",
+		TimeZone: "Europe/Moscow",
 	}
 	token := signedAccessToken(t, want)
 
@@ -60,6 +61,7 @@ func TestAuthTokenJWT_FetchOneByAccessToken(t *testing.T) {
 	assert.Equal(t, want.Realm, got.Realm)
 	assert.Equal(t, want.Kind, got.Kind)
 	assert.Equal(t, want.LangCode, got.LangCode)
+	assert.Equal(t, want.TimeZone, got.TimeZone)
 }
 
 func TestAuthTokenJWT_FetchOneByAccessToken_Invalid(t *testing.T) {

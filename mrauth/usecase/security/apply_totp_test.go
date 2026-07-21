@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/mrstorage"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
@@ -17,139 +17,168 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
+	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
+
+//go:generate mockgen -source=apply_totp.go -destination=mock/apply_totp.go -package=mock
+//go:generate mockgen -source=apply_operation.go -destination=mock/apply_operation.go -package=mock
+//go:generate mockgen -source=apply_recovery.go -destination=mock/apply_recovery.go -package=mock
+//go:generate mockgen -source=render_totp_qr.go -destination=mock/render_totp_qr.go -package=mock
+//go:generate mockgen -source=change_email.go -destination=mock/change_email.go -package=mock
+//go:generate mockgen -source=change_phone.go -destination=mock/change_phone.go -package=mock
+//go:generate mockgen -source=change_totp.go -destination=mock/change_totp.go -package=mock
+//go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
+//go:generate mockgen -destination=mock/mrnotifier.go -package=mock github.com/mondegor/go-components/mrnotifier NoteProducer
+//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth User2FAConfirmActionCreator,OperationHandler
 
 // testTotpSecret - валидный base32 TOTP-secret, используемый в тестах verify_totp.
 const testTotpSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
 
-type (
-	// fakeTx - реализует mrstorage.DBTxManager простым вызовом переданной job.
-	fakeTx struct{}
+// baseSuite - общие для пакета моки (транзакция, уведомления, журнал операций)
+// и накопленные записи журнала; встраивается наборами всех файлов пакета.
+type baseSuite struct {
+	suite.Suite
 
-	// fakeBinder - фиксирует переданную для сохранения запись Auth2FA.
-	fakeBinder struct {
-		saved entity.Auth2FA
-		err   error
-	}
-
-	// fakeOpVerifier - возвращает заранее заданную операцию и фиксирует токен удаления.
-	fakeOpVerifier struct {
-		op           secureoperation.SecureOperation
-		fetchErr     error
-		deleteErr    error
-		deletedToken string
-	}
-
-	// fakeNotifier - фиксирует факт отправки уведомления.
-	fakeNotifier struct {
-		sent bool
-		err  error
-	}
-)
-
-func (fakeTx) Do(ctx context.Context, job func(ctx context.Context) error, _ ...mrstorage.TxOption) error {
-	return job(ctx)
+	ctrl         *gomock.Controller
+	ctx          context.Context
+	txManager    *mock.MockDBTxManager
+	notifierAPI  *mock.MockNoteProducer
+	logOperation *mock.MockoperationLogger
+	logEntries   []entity.SecureOperationLog
+	notified     bool
 }
 
-func (f *fakeBinder) InsertOrUpdate(_ context.Context, row entity.Auth2FA) error {
-	if f.err != nil {
-		return f.err
-	}
+func (s *baseSuite) SetupTest() {
+	s.ctrl = gomock.NewController(s.T())
+	s.ctx = context.Background()
+	s.txManager = mock.NewMockDBTxManager(s.ctrl)
+	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
+	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
+	s.logEntries = nil
+	s.notified = false
 
-	f.saved = row
+	// транзакция выполняет переданное задание как есть
+	s.txManager.EXPECT().
+		Do(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, job func(ctx context.Context) error, _ ...mrstorage.TxOption) error {
+			return job(ctx)
+		}).
+		AnyTimes()
 
-	return nil
+	s.notifierAPI.EXPECT().
+		Send(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(context.Context, string, map[string]any) error {
+			s.notified = true
+
+			return nil
+		}).
+		AnyTimes()
+
+	s.logOperation.EXPECT().
+		Log(gomock.Any(), gomock.Any()).
+		Do(func(_ context.Context, entry entity.SecureOperationLog) {
+			s.logEntries = append(s.logEntries, entry)
+		}).
+		AnyTimes()
 }
 
-func (f *fakeOpVerifier) FetchOne(_ context.Context, _ string) (secureoperation.SecureOperation, error) {
-	return f.op, f.fetchErr
+func (s *baseSuite) SetupSubTest() {
+	s.SetupTest()
 }
 
-func (f *fakeOpVerifier) FetchOneForUpdate(_ context.Context, _ string) (secureoperation.SecureOperation, error) {
-	return f.op, f.fetchErr
+type ApplyTOTPSuite struct {
+	baseSuite
+
+	binder   *mock.Mockuser2faBinder
+	verifier *mock.MockoperationDeleter
+	saved    entity.Auth2FA
+	deleted  string
 }
 
-func (f *fakeOpVerifier) Delete(_ context.Context, token string) error {
-	if f.deleteErr != nil {
-		return f.deleteErr
-	}
-
-	f.deletedToken = token
-
-	return nil
-}
-
-func (f *fakeNotifier) Send(_ context.Context, _ string, _ map[string]any) error {
-	if f.err != nil {
-		return f.err
-	}
-
-	f.sent = true
-
-	return nil
-}
-
-func TestVerifyTOTPGenerator_ValidCode_BindsAndReturnsCodes(t *testing.T) {
+func TestApplyTOTPSuite(t *testing.T) {
 	t.Parallel()
 
-	userID := uuid.New()
-	secret := testTotpSecret
-	op := confirmedOp(userID, `{"email":"u@e","secret":"`+secret+`"}`)
-
-	binder := &fakeBinder{}
-	verifier := &fakeOpVerifier{op: op}
-	notifier := &fakeNotifier{}
-	gen := crypt.NewSecretGenerator(10)
-	auth := totp.NewAuthenticator("TestIssuer", 20)
-
-	logOperation := &fakeOperationLogger{}
-
-	uc := security.NewApplyTOTPGenerator(fakeTx{}, binder, verifier, gen, auth, notifier, logOperation, 10)
-
-	code, err := auth.GenerateCode(secret, time.Now())
-	require.NoError(t, err)
-
-	codes, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token", code)
-	require.NoError(t, err)
-	require.Len(t, codes, 10)
-	require.Equal(t, auth2fatype.TOTP, binder.saved.Type)
-	require.Equal(t, secret, binder.saved.Secret)
-	require.Len(t, binder.saved.RecoveryCodes, 10)
-	require.NotEqual(t, codes, binder.saved.RecoveryCodes) // хранятся хеши, возвращается plaintext
-	require.Equal(t, "op-token", verifier.deletedToken)
-	require.True(t, notifier.sent)
-	require.Len(t, logOperation.entries, 1)
-	assert.Equal(t, logstatus.Applied, logOperation.entries[0].LogStatus)
-	assert.Equal(t, unit.NameConfirmChangeTOTP, logOperation.entries[0].OperationName)
+	suite.Run(t, new(ApplyTOTPSuite))
 }
 
-func TestVerifyTOTPGenerator_InvalidCode_NoBind(t *testing.T) {
-	t.Parallel()
+func (s *ApplyTOTPSuite) SetupTest() {
+	s.baseSuite.SetupTest()
 
+	s.binder = mock.NewMockuser2faBinder(s.ctrl)
+	s.verifier = mock.NewMockoperationDeleter(s.ctrl)
+	s.saved = entity.Auth2FA{}
+	s.deleted = ""
+
+	s.binder.EXPECT().
+		InsertOrUpdate(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, row entity.Auth2FA) error {
+			s.saved = row
+
+			return nil
+		}).
+		AnyTimes()
+
+	s.verifier.EXPECT().
+		Delete(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, token string) error {
+			s.deleted = token
+
+			return nil
+		}).
+		AnyTimes()
+}
+
+func (s *ApplyTOTPSuite) TestValidCodeBindsAndReturnsCodes() {
 	userID := uuid.New()
 	op := confirmedOp(userID, `{"email":"u@e","secret":"`+testTotpSecret+`"}`)
 
-	binder := &fakeBinder{}
-	verifier := &fakeOpVerifier{op: op}
-	notifier := &fakeNotifier{}
-	gen := crypt.NewSecretGenerator(10)
+	s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
+
 	auth := totp.NewAuthenticator("TestIssuer", 20)
+	uc := security.NewApplyTOTPGenerator(
+		s.txManager, s.binder, s.verifier,
+		crypt.NewSecretGenerator(10), auth, s.notifierAPI, s.logOperation, 10,
+	)
 
-	logOperation := &fakeOperationLogger{}
+	code, err := auth.GenerateCode(testTotpSecret, time.Now())
+	s.Require().NoError(err)
 
-	uc := security.NewApplyTOTPGenerator(fakeTx{}, binder, verifier, gen, auth, notifier, logOperation, 10)
+	codes, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token", code)
+	s.Require().NoError(err)
+	s.Require().Len(codes, 10)
+	s.Equal(auth2fatype.TOTP, s.saved.Type)
+	s.Equal(testTotpSecret, s.saved.Secret)
+	s.Require().Len(s.saved.RecoveryCodes, 10)
+	s.NotEqual(codes, s.saved.RecoveryCodes) // хранятся хеши, возвращается plaintext
+	s.Equal("op-token", s.deleted)
+	s.True(s.notified)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
+	s.Equal(unit.NameConfirmChangeTOTP, s.logEntries[0].OperationName)
+}
 
-	codes, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token", "000000")
-	require.Error(t, err)
-	require.Nil(t, codes)
-	require.Equal(t, entity.Auth2FA{}, binder.saved)
-	require.Empty(t, verifier.deletedToken)
-	require.False(t, notifier.sent)
+func (s *ApplyTOTPSuite) TestInvalidCodeNoBind() {
+	userID := uuid.New()
+	op := confirmedOp(userID, `{"email":"u@e","secret":"`+testTotpSecret+`"}`)
+
+	s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
+
+	uc := security.NewApplyTOTPGenerator(
+		s.txManager, s.binder, s.verifier,
+		crypt.NewSecretGenerator(10), totp.NewAuthenticator("TestIssuer", 20),
+		s.notifierAPI, s.logOperation, 10,
+	)
+
+	codes, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token", "000000")
+	s.Require().Error(err)
+	s.Nil(codes)
+	s.Equal(entity.Auth2FA{}, s.saved)
+	s.Empty(s.deleted)
+	s.False(s.notified)
 	// неверный TOTP-код - это неудачное подтверждение, а не блокировка
-	require.Len(t, logOperation.entries, 1)
-	assert.Equal(t, logstatus.ConfirmFailed, logOperation.entries[0].LogStatus)
-	assert.Equal(t, logreason.WrongCode, logOperation.entries[0].Reason)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.ConfirmFailed, s.logEntries[0].LogStatus)
+	s.Equal(logreason.WrongCode, s.logEntries[0].Reason)
 }

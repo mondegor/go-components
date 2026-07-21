@@ -22,10 +22,11 @@ import (
 )
 
 const (
-	authSignupURL  = "/v1/signup"
-	authSigninURL  = "/v1/signin"
-	authSessionURL = "/v1/session"
-	authUserURL    = "/v1/user"
+	authSignupURL       = "/v1/signup"
+	authSigninURL       = "/v1/signin"
+	authSessionURL      = "/v1/session"
+	authUserURL         = "/v1/user"
+	authUserSettingsURL = "/v1/user/settings"
 )
 
 type (
@@ -40,6 +41,7 @@ type (
 		useCaseOpenSession     openSessionUseCase
 		useCaseContinueSession continueSessionUseCase
 		useCaseCloseSession    closeSessionUseCase
+		useCaseApplySettings   applySettingsUseCase
 		serviceUserInfo        userInfoService
 		realmRegistry          mrauth.RealmRegistry
 		operationResponse      confirmOperationResponse
@@ -55,7 +57,9 @@ type (
 	createUserUseCase interface {
 		Execute(
 			ctx context.Context,
-			realm, langCode, userEmail string,
+			realm, langCode string,
+			timeZone dto.TimeZoneInfo,
+			userEmail string,
 			registeredIP mrtype.DetailedIP,
 		) (secureoperation.SecureOperation, error)
 	}
@@ -80,6 +84,10 @@ type (
 		Execute(ctx context.Context, refreshToken string) error
 	}
 
+	applySettingsUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID, settings dto.UserSettings) (dto.UserSettingsApplied, error)
+	}
+
 	userInfoService interface {
 		Get(ctx context.Context, userID uuid.UUID) (dto.UserInfo, error)
 	}
@@ -101,6 +109,7 @@ func NewAuth(
 	useCaseOpenSession openSessionUseCase,
 	useCaseContinueSession continueSessionUseCase,
 	useCaseCloseSession closeSessionUseCase,
+	useCaseApplySettings applySettingsUseCase,
 	serviceUserInfo userInfoService,
 	realmRegistry mrauth.RealmRegistry,
 	operationResponse confirmOperationResponse,
@@ -128,6 +137,7 @@ func NewAuth(
 		useCaseOpenSession:     useCaseOpenSession,
 		useCaseContinueSession: useCaseContinueSession,
 		useCaseCloseSession:    useCaseCloseSession,
+		useCaseApplySettings:   useCaseApplySettings,
 		serviceUserInfo:        serviceUserInfo,
 		realmRegistry:          realmRegistry,
 		operationResponse:      operationResponse,
@@ -144,6 +154,7 @@ func (ht *Auth) Handlers() []mrserver.HttpHandler {
 		{Method: http.MethodPatch, URL: authSessionURL, Permission: mraccess.PermissionEveryone, Func: ht.ContinueSession},
 		{Method: http.MethodDelete, URL: authSessionURL, Permission: mraccess.PermissionAnyUser, Func: ht.CloseSession},
 		{Method: http.MethodGet, URL: authUserURL, Permission: mraccess.PermissionAnyUser, Func: ht.UserInfo},
+		{Method: http.MethodPost, URL: authUserSettingsURL, Permission: mraccess.PermissionAnyUser, Func: ht.ApplySettings},
 	}
 }
 
@@ -157,10 +168,16 @@ func (ht *Auth) Signup(w http.ResponseWriter, r *http.Request) error {
 
 	lz := ht.parser.Localizer(r)
 
+	timeZone := dto.TimeZoneInfo{
+		Name:   req.TimeZone,
+		Offset: time.Duration(req.TZOffset) * time.Second,
+		IsDST:  req.TZIsDST,
+	}
+
 	// занятость email раскрывается осознанно (ErrEmailAlreadyExists), как в check-login и Signin -
-	// это by design ради UX формы регистрации; перебор аккаунтов закрывается rate-limit'ом (отдельная задача).
+	// это by design ради UX формы регистрации; перебор аккаунтов закрывается rate-limit'ом.
 	// TODO: добавить rate-limit (частота регистраций/повторной отправки кода по identifier+IP)
-	op, err := ht.useCaseCreateUser.Execute(r.Context(), req.Realm, lz.Language(), req.UserEmail, ht.parser.DetailedIP(r))
+	op, err := ht.useCaseCreateUser.Execute(r.Context(), req.Realm, lz.Language(), timeZone, req.UserEmail, ht.parser.DetailedIP(r))
 	if err != nil {
 		if errors.Is(err, mrauth.ErrEmailAlreadyExists) {
 			return errors.WithCustomCode(err, "userEmail")
@@ -353,6 +370,8 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	realms := make([]model.UserRealm, 0, len(info.Realms))
+	loc := ht.parser.Location(r)
+
 	for _, realm := range info.Realms {
 		realmName, ok := ht.realmRegistry.NameByID(realm.RealmID)
 		if !ok {
@@ -363,13 +382,13 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 			Name:         realmName,
 			UserKind:     realm.Kind,
 			LastLocation: realm.LastLocation,
-			CreatedAt:    realm.CreatedAt.Round(1 * time.Second).Format(time.RFC3339),
-			UpdatedAt:    realm.UpdatedAt.Round(1 * time.Second).Format(time.RFC3339),
+			CreatedAt:    formatTimeIn(realm.CreatedAt, loc),
+			UpdatedAt:    formatTimeIn(realm.UpdatedAt, loc),
 		}
 
 		// нулевое время = входов в этот realm не было, поле опускается (иначе утёк бы год 0001)
 		if !realm.LastLoggedAt.IsZero() {
-			item.LastLoggedAt = realm.LastLoggedAt.Round(1 * time.Second).Format(time.RFC3339)
+			item.LastLoggedAt = formatTimeIn(realm.LastLoggedAt, loc)
 		}
 
 		realms = append(realms, item)
@@ -382,9 +401,47 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 			Email:       info.User.Email,
 			Phone:       casttype.UintToPhone(info.User.Phone),
 			LangCode:    info.User.LangCode,
+			TimeZone:    info.User.TimeZone,
 			Auth2FAType: info.Auth2FA.Type,
 			Realms:      realms,
 			Status:      info.User.Status,
+		},
+	)
+}
+
+// ApplySettings - сохраняет язык и часовой пояс текущего пользователя.
+// Здесь проверяется только формат языка (tag_lang) и имени пояса (tag_timezone);
+// подбор пояса, зарегистрированного в приложении, выполняет usecase, поэтому
+// в ответе возвращаются настройки, которые реально сохранены.
+func (ht *Auth) ApplySettings(w http.ResponseWriter, r *http.Request) error {
+	req := model.ApplySettingsRequest{}
+
+	if err := ht.parser.Validate(r, &req); err != nil {
+		return err
+	}
+
+	settings, err := ht.useCaseApplySettings.Execute(
+		r.Context(),
+		ht.parser.UserID(r),
+		dto.UserSettings{
+			LangCode: req.LangCode,
+			TimeZone: dto.TimeZoneInfo{
+				Name:   req.TimeZone,
+				Offset: time.Duration(req.TZOffset) * time.Second,
+				IsDST:  req.TZIsDST,
+			},
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	return ht.sender.Send(
+		w,
+		http.StatusOK,
+		model.ApplySettingsResponse{
+			LangCode: settings.LangCode,
+			TimeZone: settings.TimeZone,
 		},
 	)
 }

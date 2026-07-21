@@ -1,7 +1,6 @@
 package unit
 
 import (
-	"encoding/json"
 	"errors"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -55,7 +54,7 @@ func (o *RegenerateRecovery) Create(user2FA dto.User2FA) (secureoperation.Secure
 		return secureoperation.SecureOperation{}, err
 	}
 
-	payload, err := json.Marshal(
+	payload, err := BuildRegenerateRecoveryPayload(
 		dto.OperationWithUserEmail{
 			Email: user2FA.Email,
 		},

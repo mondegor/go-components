@@ -19,6 +19,7 @@ func validClaims() gojwt.MapClaims {
 		"sub":   uuid.New().String(),
 		"sid":   "523266583",
 		"lan":   "en",
+		"tz":    "Europe/Moscow",
 		"scope": "admin",
 		"exp":   gojwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
 	}
@@ -48,6 +49,7 @@ func TestParser_Parse_Valid(t *testing.T) {
 	assert.Equal(t, "site/admin", got.Realm)
 	assert.Equal(t, "admin", got.Kind)
 	assert.Equal(t, "en", got.LangCode)
+	assert.Equal(t, "Europe/Moscow", got.TimeZone)
 }
 
 func TestParser_Parse_SectionInvalid(t *testing.T) {
@@ -63,10 +65,12 @@ func TestParser_Parse_SectionInvalid(t *testing.T) {
 		{name: "sub absent", mutate: func(c gojwt.MapClaims) { delete(c, "sub") }},
 		{name: "sid absent", mutate: func(c gojwt.MapClaims) { delete(c, "sid") }},
 		{name: "lan absent", mutate: func(c gojwt.MapClaims) { delete(c, "lan") }},
+		{name: "tz absent", mutate: func(c gojwt.MapClaims) { delete(c, "tz") }},
 		{name: "scope absent", mutate: func(c gojwt.MapClaims) { delete(c, "scope") }},
 		{name: "aud empty", mutate: func(c gojwt.MapClaims) { c["aud"] = "" }},
 		{name: "sid empty", mutate: func(c gojwt.MapClaims) { c["sid"] = "" }},
 		{name: "lan empty", mutate: func(c gojwt.MapClaims) { c["lan"] = "" }},
+		{name: "tz empty", mutate: func(c gojwt.MapClaims) { c["tz"] = "" }},
 		{name: "scope empty", mutate: func(c gojwt.MapClaims) { c["scope"] = "" }},
 		{name: "sub not uuid", mutate: func(c gojwt.MapClaims) { c["sub"] = "not-a-uuid" }},
 		{name: "sid not numeric", mutate: func(c gojwt.MapClaims) { c["sid"] = "abc" }},

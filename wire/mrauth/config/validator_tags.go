@@ -4,6 +4,7 @@ import (
 	"github.com/mondegor/go-webcore/mrview"
 
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
+	"github.com/mondegor/go-components/mrauth/validate"
 )
 
 // TagEmail - возвращает тег валидации email.
@@ -30,6 +31,22 @@ func TagEmailPhone() mrview.Tag {
 			contactaddress.ValidateEmail,
 			contactaddress.ValidatePhoneWorld,
 		),
+	}
+}
+
+// TagLang - возвращает тег валидации формата языка (локали) пользователя.
+func TagLang() mrview.Tag {
+	return mrview.Tag{
+		Name:         "tag_lang",
+		ValidateFunc: validate.Lang,
+	}
+}
+
+// TagTimeZone - возвращает тег валидации формата IANA-имени часового пояса.
+func TagTimeZone() mrview.Tag {
+	return mrview.Tag{
+		Name:         "tag_timezone",
+		ValidateFunc: validate.TimeZone,
 	}
 }
 

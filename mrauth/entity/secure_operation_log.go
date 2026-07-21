@@ -42,6 +42,6 @@ func NewSecureOperationLog(
 		LogStatus:     status,
 		Reason:        reason,
 		ClientIP:      clientIP,
-		CreatedAt:     time.Now(),
+		CreatedAt:     time.Now().UTC(),
 	}
 }

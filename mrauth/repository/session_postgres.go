@@ -96,6 +96,10 @@ func (re *SessionPostgres) FetchOrderedListByUserIDAndSessionIDs(
 			return nil, re.errorWrapper.Wrap(err)
 		}
 
+		// системное время: домен всегда оперирует UTC независимо от зоны сессии БД
+		row.CreatedAt = row.CreatedAt.UTC()
+		row.UpdatedAt = row.UpdatedAt.UTC()
+
 		rows = append(rows, row)
 	}
 

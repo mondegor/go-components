@@ -1,71 +1,91 @@
 package httpv1_test
 
 import (
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
+	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/mock"
 )
 
-// bytesSenderStub - минимальный mrserver.ResponseSender для проверки SendBytes.
-type bytesSenderStub struct {
+//go:generate mockgen -destination=mock/mrserver.go -package=mock github.com/mondegor/go-webcore/mrserver ResponseSender
+
+type CheckSuite struct {
+	suite.Suite
+
+	ctrl   *gomock.Controller
+	sender *mock.MockResponseSender
 	status int
 	body   []byte
 }
 
-func (s *bytesSenderStub) Send(_ http.ResponseWriter, _ int, _ any) error {
-	return errors.New("Send must not be called")
-}
-
-func (s *bytesSenderStub) SendBytes(_ http.ResponseWriter, status int, body []byte) error {
-	s.status = status
-	s.body = body
-
-	return nil
-}
-
-func (s *bytesSenderStub) SendNoContent(_ http.ResponseWriter) error {
-	return errors.New("SendNoContent must not be called")
-}
-
-func TestCheck_GetJwks(t *testing.T) {
+func TestCheckSuite(t *testing.T) {
 	t.Parallel()
 
-	t.Run("success", func(t *testing.T) {
-		t.Parallel()
+	suite.Run(t, new(CheckSuite))
+}
 
+func (s *CheckSuite) SetupSubTest() {
+	s.SetupTest()
+}
+
+func (s *CheckSuite) SetupTest() {
+	s.ctrl = gomock.NewController(s.T())
+	s.sender = mock.NewMockResponseSender(s.ctrl)
+	s.status = 0
+	s.body = nil
+
+	// JWKS отдаётся только через SendBytes; вызов остальных методов - ошибка контроллера
+	s.sender.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	s.sender.EXPECT().SendNoContent(gomock.Any()).Times(0)
+}
+
+// expectSendBytes - принимает ответ, отданный контроллером через SendBytes.
+func (s *CheckSuite) expectSendBytes() {
+	s.sender.EXPECT().
+		SendBytes(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ http.ResponseWriter, status int, body []byte) error {
+			s.status = status
+			s.body = body
+
+			return nil
+		}).
+		AnyTimes()
+}
+
+func (s *CheckSuite) getJwks(jwks []byte) error {
+	controller := httpv1.NewCheck(nil, s.sender, nil, nil, jwks)
+
+	return controller.GetJwks(
+		httptest.NewRecorder(),
+		httptest.NewRequest(http.MethodGet, "/.well-known/jwks.json", nil),
+	)
+}
+
+func (s *CheckSuite) TestGetJwks() {
+	s.Run("success", func() {
 		want := []byte(`{"keys":[{"kty":"RSA","kid":"k1","alg":"RS256"}]}`)
-		sender := &bytesSenderStub{}
-		controller := httpv1.NewCheck(nil, sender, nil, nil, want)
 
-		err := controller.GetJwks(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/.well-known/jwks.json", nil))
+		s.expectSendBytes()
 
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, sender.status)
-		assert.JSONEq(t, string(want), string(sender.body))
+		s.Require().NoError(s.getJwks(want))
+		s.Equal(http.StatusOK, s.status)
+		s.JSONEq(string(want), string(s.body))
 	})
 
-	t.Run("session-only (nil body) - not found, no panic", func(t *testing.T) {
-		t.Parallel()
+	s.Run("session-only (nil body) - not found, no panic", func() {
+		s.expectSendBytes()
 
-		sender := &bytesSenderStub{}
-		controller := httpv1.NewCheck(nil, sender, nil, nil, nil)
-
-		err := controller.GetJwks(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/.well-known/jwks.json", nil))
-
-		require.Error(t, err)
-		assert.Nil(t, sender.body)
+		s.Require().Error(s.getJwks(nil))
+		s.Nil(s.body)
 	})
 }
 
-func TestCheck_Handlers_JwksRegistered(t *testing.T) {
-	t.Parallel()
-
+func (s *CheckSuite) TestHandlersJwksRegistered() {
 	controller := httpv1.NewCheck(nil, nil, nil, nil, nil)
 
 	var hasJwks bool
@@ -76,5 +96,5 @@ func TestCheck_Handlers_JwksRegistered(t *testing.T) {
 		}
 	}
 
-	assert.True(t, hasJwks)
+	s.True(hasJwks)
 }

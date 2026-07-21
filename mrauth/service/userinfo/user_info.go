@@ -61,7 +61,7 @@ func New(
 		storageUserStat:  storageUserStat,
 		storageUserRealm: storageUserRealm,
 		locationResolver: locationResolver,
-		errorWrapper:     errors.NewInfraStorageWrapper(),
+		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 	}
 }
 

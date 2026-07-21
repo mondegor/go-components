@@ -18,6 +18,7 @@ const (
 	sectionUserID    = "sub"
 	sectionSessionID = "sid"
 	sectionLangCode  = "lan"
+	sectionTimeZone  = "tz"
 	sectionScope     = "scope"
 	sectionIssuer    = "iss"
 	sectionIssuedAt  = "iat"
@@ -104,6 +105,11 @@ func (p *Parser) Parse(value string) (dto.UserScopes, error) {
 		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionLangCode)
 	}
 
+	timeZone, err := p.parseString(sectionTimeZone, claims)
+	if err != nil {
+		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionTimeZone)
+	}
+
 	scope, err := p.parseString(sectionScope, claims)
 	if err != nil {
 		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionScope)
@@ -115,6 +121,7 @@ func (p *Parser) Parse(value string) (dto.UserScopes, error) {
 		Realm:     realm,
 		Kind:      scope,
 		LangCode:  langCode,
+		TimeZone:  timeZone,
 	}, nil
 }
 

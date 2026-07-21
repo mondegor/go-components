@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -16,23 +16,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
+	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
-
-// fakeRecoveryUpdater - фиксирует переданный новый набор аварийных кодов.
-type fakeRecoveryUpdater struct {
-	saved []string
-	err   error
-}
-
-func (f *fakeRecoveryUpdater) UpdateRecoveryCodes(_ context.Context, _ uuid.UUID, hashed []string) error {
-	if f.err != nil {
-		return f.err
-	}
-
-	f.saved = hashed
-
-	return nil
-}
 
 func confirmedRegenerateOp(userID uuid.UUID) secureoperation.SecureOperation {
 	return secureoperation.SecureOperation{
@@ -44,51 +29,87 @@ func confirmedRegenerateOp(userID uuid.UUID) secureoperation.SecureOperation {
 	}
 }
 
-func TestApplyRecovery_Confirmed_ReplacesAndReturnsCodes(t *testing.T) {
-	t.Parallel()
+type ApplyRecoverySuite struct {
+	baseSuite
 
-	userID := uuid.New()
-
-	updater := &fakeRecoveryUpdater{}
-	verifier := &fakeOpVerifier{op: confirmedRegenerateOp(userID)}
-	notifier := &fakeNotifier{}
-	logOperation := &fakeOperationLogger{}
-
-	uc := security.NewApplyRecovery(fakeTx{}, updater, verifier, crypt.NewSecretGenerator(10), notifier, logOperation, 8)
-
-	codes, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token")
-	require.NoError(t, err)
-	require.Len(t, codes, 8)
-	require.Len(t, updater.saved, 8)
-	require.NotEqual(t, codes, updater.saved) // хранятся хеши, возвращается plaintext
-	require.Equal(t, "op-token", verifier.deletedToken)
-	require.True(t, notifier.sent)
-	require.Len(t, logOperation.entries, 1)
-	assert.Equal(t, logstatus.Applied, logOperation.entries[0].LogStatus)
-	assert.Equal(t, unit.NameConfirmRegenerateRecovery, logOperation.entries[0].OperationName)
+	updater  *mock.MockrecoveryCodesUpdater
+	verifier *mock.MockoperationDeleter
+	saved    []string
+	deleted  string
 }
 
-func TestApplyRecovery_WrongOperationName_NoUpdate(t *testing.T) {
+func TestApplyRecoverySuite(t *testing.T) {
 	t.Parallel()
 
+	suite.Run(t, new(ApplyRecoverySuite))
+}
+
+func (s *ApplyRecoverySuite) SetupTest() {
+	s.baseSuite.SetupTest()
+
+	s.updater = mock.NewMockrecoveryCodesUpdater(s.ctrl)
+	s.verifier = mock.NewMockoperationDeleter(s.ctrl)
+	s.saved = nil
+	s.deleted = ""
+
+	s.updater.EXPECT().
+		UpdateRecoveryCodes(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ uuid.UUID, hashed []string) error {
+			s.saved = hashed
+
+			return nil
+		}).
+		AnyTimes()
+
+	s.verifier.EXPECT().
+		Delete(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, token string) error {
+			s.deleted = token
+
+			return nil
+		}).
+		AnyTimes()
+}
+
+func (s *ApplyRecoverySuite) newUseCase() *security.ApplyRecovery {
+	return security.NewApplyRecovery(
+		s.txManager, s.updater, s.verifier,
+		crypt.NewSecretGenerator(10), s.notifierAPI, s.logOperation, 8,
+	)
+}
+
+func (s *ApplyRecoverySuite) TestConfirmedReplacesAndReturnsCodes() {
 	userID := uuid.New()
+
+	s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(confirmedRegenerateOp(userID), nil)
+
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	s.Require().NoError(err)
+	s.Require().Len(codes, 8)
+	s.Require().Len(s.saved, 8)
+	s.NotEqual(codes, s.saved) // хранятся хеши, возвращается plaintext
+	s.Equal("op-token", s.deleted)
+	s.True(s.notified)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
+	s.Equal(unit.NameConfirmRegenerateRecovery, s.logEntries[0].OperationName)
+}
+
+func (s *ApplyRecoverySuite) TestWrongOperationNameNoUpdate() {
+	userID := uuid.New()
+
 	// операция чужого типа (confirm.change.totp) не должна применяться как перевыпуск
-	op := confirmedOp(userID, `{"email":"u@e"}`)
+	s.verifier.EXPECT().
+		FetchOneForUpdate(gomock.Any(), gomock.Any()).
+		Return(confirmedOp(userID, `{"email":"u@e"}`), nil)
 
-	updater := &fakeRecoveryUpdater{}
-	verifier := &fakeOpVerifier{op: op}
-	notifier := &fakeNotifier{}
-	logOperation := &fakeOperationLogger{}
-
-	uc := security.NewApplyRecovery(fakeTx{}, updater, verifier, crypt.NewSecretGenerator(10), notifier, logOperation, 8)
-
-	codes, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token")
-	require.Error(t, err)
-	require.Nil(t, codes)
-	require.Nil(t, updater.saved)
-	require.Empty(t, verifier.deletedToken)
-	require.False(t, notifier.sent)
-	require.Len(t, logOperation.entries, 1)
-	assert.Equal(t, logstatus.Blocked, logOperation.entries[0].LogStatus)
-	assert.Equal(t, logreason.AccessForbidden, logOperation.entries[0].Reason)
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	s.Require().Error(err)
+	s.Nil(codes)
+	s.Nil(s.saved)
+	s.Empty(s.deleted)
+	s.False(s.notified)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+	s.Equal(logreason.AccessForbidden, s.logEntries[0].Reason)
 }

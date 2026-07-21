@@ -8,87 +8,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
-	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
+	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
-
-type (
-	fakeOperationLogger struct {
-		entries []entity.SecureOperationLog
-	}
-
-	fakeOpCreator struct {
-		inserted bool
-		err      error
-	}
-
-	fakeUser2FAFactory struct {
-		user dto.User2FA
-		err  error
-	}
-
-	fakeValueOpFactory struct {
-		op  secureoperation.SecureOperation
-		err error
-	}
-
-	fakeOpFactory struct {
-		op  secureoperation.SecureOperation
-		err error
-	}
-
-	fakeEmailChecker struct {
-		err error
-	}
-
-	fakePhoneChecker struct {
-		err error
-	}
-)
-
-func (f *fakeOperationLogger) Log(_ context.Context, entry entity.SecureOperationLog) {
-	f.entries = append(f.entries, entry)
-}
-
-func (f *fakeOpCreator) Insert(context.Context, secureoperation.SecureOperation) error {
-	if f.err != nil {
-		return f.err
-	}
-
-	f.inserted = true
-
-	return nil
-}
-
-func (f fakeUser2FAFactory) CreateByUserID(context.Context, uuid.UUID) (dto.User2FA, error) {
-	return f.user, f.err
-}
-
-func (f fakeUser2FAFactory) CreateByUserLogin(context.Context, contactaddress.ContactAddress) (dto.User2FA, error) {
-	return f.user, f.err
-}
-
-func (f fakeValueOpFactory) Create(dto.User2FA, string) (secureoperation.SecureOperation, error) {
-	return f.op, f.err
-}
-
-func (f fakeOpFactory) Create(dto.User2FA) (secureoperation.SecureOperation, error) {
-	return f.op, f.err
-}
-
-func (f fakeEmailChecker) CheckAvailabilityEmail(context.Context, contactaddress.ContactAddress) error {
-	return f.err
-}
-
-func (f fakePhoneChecker) CheckAvailabilityPhone(context.Context, contactaddress.ContactAddress) error {
-	return f.err
-}
 
 // openedEmailOp - sendable-операция Email, при Notify отправляющая код через notifier.
 func openedEmailOp(t *testing.T) secureoperation.SecureOperation {
@@ -130,295 +59,336 @@ func userWith2FA(method confirmmethod.Enum) dto.User2FA {
 	}
 }
 
-func TestChangeEmailProperty_NilUserID(t *testing.T) {
-	t.Parallel()
+type ChangeSecuritySuite struct {
+	baseSuite
 
-	uc := security.NewChangeEmailProperty(
-		fakeTx{}, &fakeOpCreator{}, fakeEmailChecker{}, &fakeNotifier{}, fakeUser2FAFactory{}, fakeValueOpFactory{},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{}, "new@example.com")
-	require.Error(t, err)
+	creator      *mock.MockoperationCreator
+	factory2FA   *mock.MockUser2FAConfirmActionCreator
+	valueFactory *mock.MockfactoryOperationValue2FA
+	opFactory    *mock.Mockuser2faOperationCreator
+	emailChecker *mock.MockuserEmailChecker
+	phoneChecker *mock.MockuserPhoneChecker
+	inserted     bool
 }
 
-func TestChangeEmailProperty_Success(t *testing.T) {
+func TestChangeSecuritySuite(t *testing.T) {
 	t.Parallel()
 
-	creator := &fakeOpCreator{}
-	notifier := &fakeNotifier{}
-	uc := security.NewChangeEmailProperty(
-		fakeTx{}, creator, fakeEmailChecker{}, notifier,
-		fakeUser2FAFactory{user: userWithEmail()}, fakeValueOpFactory{op: openedEmailOp(t)},
-		&fakeOperationLogger{},
-	)
-
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()}, "new@example.com")
-	require.NoError(t, err)
-	require.True(t, creator.inserted)
-	require.True(t, notifier.sent)
+	suite.Run(t, new(ChangeSecuritySuite))
 }
 
-func TestChangeEmailProperty_InvalidEmail(t *testing.T) {
-	t.Parallel()
+func (s *ChangeSecuritySuite) SetupTest() {
+	s.baseSuite.SetupTest()
 
-	uc := security.NewChangeEmailProperty(
-		fakeTx{}, &fakeOpCreator{}, fakeEmailChecker{}, &fakeNotifier{}, fakeUser2FAFactory{}, fakeValueOpFactory{},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()}, "bad")
-	require.Error(t, err)
+	s.creator = mock.NewMockoperationCreator(s.ctrl)
+	s.factory2FA = mock.NewMockUser2FAConfirmActionCreator(s.ctrl)
+	s.valueFactory = mock.NewMockfactoryOperationValue2FA(s.ctrl)
+	s.opFactory = mock.NewMockuser2faOperationCreator(s.ctrl)
+	s.emailChecker = mock.NewMockuserEmailChecker(s.ctrl)
+	s.phoneChecker = mock.NewMockuserPhoneChecker(s.ctrl)
+	s.inserted = false
 }
 
-func TestChangeEmailProperty_EmailUnavailable(t *testing.T) {
-	t.Parallel()
+// expectInsert - хранилище операций принимает вставку либо возвращает ошибку.
+func (s *ChangeSecuritySuite) expectInsert(err error) {
+	s.creator.EXPECT().
+		Insert(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(context.Context, secureoperation.SecureOperation) error {
+			if err != nil {
+				return err
+			}
 
-	uc := security.NewChangeEmailProperty(
-		fakeTx{}, &fakeOpCreator{}, fakeEmailChecker{err: errors.New("taken")}, &fakeNotifier{},
-		fakeUser2FAFactory{}, fakeValueOpFactory{op: openedEmailOp(t)},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()}, "new@example.com")
-	require.Error(t, err)
+			s.inserted = true
+
+			return nil
+		}).
+		AnyTimes()
 }
 
-func TestChangeEmailProperty_User2FAFactoryError(t *testing.T) {
-	t.Parallel()
-
-	uc := security.NewChangeEmailProperty(
-		fakeTx{}, &fakeOpCreator{}, fakeEmailChecker{}, &fakeNotifier{},
-		fakeUser2FAFactory{err: errors.New("no user")}, fakeValueOpFactory{op: openedEmailOp(t)},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()}, "new@example.com")
-	require.Error(t, err)
+func (s *ChangeSecuritySuite) expect2FA(user dto.User2FA, err error) {
+	s.factory2FA.EXPECT().CreateByUserID(gomock.Any(), gomock.Any()).Return(user, err).AnyTimes()
+	s.factory2FA.EXPECT().CreateByUserLogin(gomock.Any(), gomock.Any()).Return(user, err).AnyTimes()
 }
 
-func TestChangeEmailProperty_InsertError(t *testing.T) {
-	t.Parallel()
-
-	uc := security.NewChangeEmailProperty(
-		fakeTx{}, &fakeOpCreator{err: errors.New("insert failed")}, fakeEmailChecker{}, &fakeNotifier{},
-		fakeUser2FAFactory{user: userWithEmail()}, fakeValueOpFactory{op: openedEmailOp(t)},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()}, "new@example.com")
-	require.Error(t, err)
+func (s *ChangeSecuritySuite) expectValueFactory(op secureoperation.SecureOperation, err error) {
+	s.valueFactory.EXPECT().Create(gomock.Any(), gomock.Any()).Return(op, err).AnyTimes()
 }
 
-func TestChangePasswordProperty_NilUserID(t *testing.T) {
-	t.Parallel()
-
-	uc := security.NewChangePasswordProperty(
-		fakeTx{}, &fakeOpCreator{}, &fakeNotifier{}, fakeUser2FAFactory{}, fakeValueOpFactory{},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{}, "new-password")
-	require.Error(t, err)
+func (s *ChangeSecuritySuite) expectOpFactory(op secureoperation.SecureOperation, err error) {
+	s.opFactory.EXPECT().Create(gomock.Any()).Return(op, err).AnyTimes()
 }
 
-func TestChangePasswordProperty_Success(t *testing.T) {
-	t.Parallel()
-
-	creator := &fakeOpCreator{}
-	notifier := &fakeNotifier{}
-	uc := security.NewChangePasswordProperty(
-		fakeTx{}, creator, notifier, fakeUser2FAFactory{user: userWithEmail()}, fakeValueOpFactory{op: openedEmailOp(t)},
-		&fakeOperationLogger{},
-	)
-
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
-	require.NoError(t, err)
-	require.True(t, creator.inserted)
-	require.True(t, notifier.sent)
+func (s *ChangeSecuritySuite) expectEmailChecker(err error) {
+	s.emailChecker.EXPECT().CheckAvailabilityEmail(gomock.Any(), gomock.Any()).Return(err).AnyTimes()
 }
 
-func TestChangePasswordProperty_FactoryError(t *testing.T) {
-	t.Parallel()
-
-	uc := security.NewChangePasswordProperty(
-		fakeTx{}, &fakeOpCreator{}, &fakeNotifier{}, fakeUser2FAFactory{}, fakeValueOpFactory{err: errors.New("factory failed")},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
-	require.Error(t, err)
+func (s *ChangeSecuritySuite) expectPhoneChecker(err error) {
+	s.phoneChecker.EXPECT().CheckAvailabilityPhone(gomock.Any(), gomock.Any()).Return(err).AnyTimes()
 }
 
-// TestChangePasswordProperty_RejectedWhen2FAActive - активный 2FA любого типа нужно сначала
+func (s *ChangeSecuritySuite) newChangeEmail() *security.ChangeEmailProperty {
+	return security.NewChangeEmailProperty(
+		s.txManager, s.creator, s.emailChecker, s.notifierAPI,
+		s.factory2FA, s.valueFactory, s.logOperation,
+	)
+}
+
+func (s *ChangeSecuritySuite) newChangePassword() *security.ChangePasswordProperty {
+	return security.NewChangePasswordProperty(
+		s.txManager, s.creator, s.notifierAPI,
+		s.factory2FA, s.valueFactory, s.logOperation,
+	)
+}
+
+func (s *ChangeSecuritySuite) newChangePhone() *security.ChangePhoneProperty {
+	return security.NewChangePhoneProperty(
+		s.txManager, s.creator, s.phoneChecker, s.notifierAPI,
+		s.factory2FA, s.valueFactory, s.logOperation,
+	)
+}
+
+func (s *ChangeSecuritySuite) newChangeTOTP() *security.ChangeTOTPGeneratorProperty {
+	return security.NewChangeTOTPGeneratorProperty(
+		s.txManager, s.creator, s.notifierAPI,
+		s.factory2FA, s.opFactory, s.logOperation,
+	)
+}
+
+func (s *ChangeSecuritySuite) newDisable2FA() *security.Disable2FA {
+	return security.NewDisable2FA(
+		s.txManager, s.creator, s.notifierAPI,
+		s.factory2FA, s.opFactory, s.logOperation,
+	)
+}
+
+func (s *ChangeSecuritySuite) TestChangeEmailPropertyNilUserID() {
+	s.expectInsert(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
+	s.expectEmailChecker(nil)
+
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{}, "new@example.com")
+	s.Require().Error(err)
+}
+
+func (s *ChangeSecuritySuite) TestChangeEmailPropertySuccess() {
+	s.expectInsert(nil)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectValueFactory(openedEmailOp(s.T()), nil)
+	s.expectEmailChecker(nil)
+
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new@example.com")
+	s.Require().NoError(err)
+	s.True(s.inserted)
+	s.True(s.notified)
+}
+
+func (s *ChangeSecuritySuite) TestChangeEmailPropertyInvalidEmail() {
+	s.expectInsert(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
+	s.expectEmailChecker(nil)
+
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "bad")
+	s.Require().Error(err)
+}
+
+func (s *ChangeSecuritySuite) TestChangeEmailPropertyEmailUnavailable() {
+	s.expectInsert(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectValueFactory(openedEmailOp(s.T()), nil)
+	s.expectEmailChecker(errors.New("taken"))
+
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new@example.com")
+	s.Require().Error(err)
+}
+
+func (s *ChangeSecuritySuite) TestChangeEmailPropertyUser2FAFactoryError() {
+	s.expectInsert(nil)
+	s.expect2FA(dto.User2FA{}, errors.New("no user"))
+	s.expectValueFactory(openedEmailOp(s.T()), nil)
+	s.expectEmailChecker(nil)
+
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new@example.com")
+	s.Require().Error(err)
+}
+
+func (s *ChangeSecuritySuite) TestChangeEmailPropertyInsertError() {
+	s.expectInsert(errors.New("insert failed"))
+	s.expect2FA(userWithEmail(), nil)
+	s.expectValueFactory(openedEmailOp(s.T()), nil)
+	s.expectEmailChecker(nil)
+
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new@example.com")
+	s.Require().Error(err)
+}
+
+func (s *ChangeSecuritySuite) TestChangePasswordPropertyNilUserID() {
+	s.expectInsert(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
+
+	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{}, "new-password")
+	s.Require().Error(err)
+}
+
+func (s *ChangeSecuritySuite) TestChangePasswordPropertySuccess() {
+	s.expectInsert(nil)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectValueFactory(openedEmailOp(s.T()), nil)
+
+	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
+	s.Require().NoError(err)
+	s.True(s.inserted)
+	s.True(s.notified)
+}
+
+func (s *ChangeSecuritySuite) TestChangePasswordPropertyFactoryError() {
+	s.expectInsert(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectValueFactory(secureoperation.SecureOperation{}, errors.New("factory failed"))
+
+	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
+	s.Require().Error(err)
+}
+
+// TestChangePasswordPropertyRejectedWhen2FAActive - активный 2FA любого типа нужно сначала
 // отключить (disable), нельзя менять на месте.
-func TestChangePasswordProperty_RejectedWhen2FAActive(t *testing.T) {
-	t.Parallel()
-
+func (s *ChangeSecuritySuite) TestChangePasswordPropertyRejectedWhen2FAActive() {
 	for _, method := range []confirmmethod.Enum{confirmmethod.Password, confirmmethod.TOTP} {
-		t.Run(method.String(), func(t *testing.T) {
-			t.Parallel()
+		s.Run(method.String(), func() {
+			s.expectInsert(nil)
+			s.expect2FA(userWith2FA(method), nil)
+			s.expectValueFactory(openedEmailOp(s.T()), nil)
 
-			creator := &fakeOpCreator{}
-			uc := security.NewChangePasswordProperty(
-				fakeTx{}, creator, &fakeNotifier{},
-				fakeUser2FAFactory{user: userWith2FA(method)}, fakeValueOpFactory{op: openedEmailOp(t)},
-				&fakeOperationLogger{},
-			)
-			_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
-			require.ErrorIs(t, err, mrauth.Err2FAMustBeDisabledFirst)
-			require.False(t, creator.inserted)
+			_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
+			s.Require().ErrorIs(err, mrauth.Err2FAMustBeDisabledFirst)
+			s.False(s.inserted)
 		})
 	}
 }
 
-func TestChangePhoneProperty_NilUserID(t *testing.T) {
-	t.Parallel()
+func (s *ChangeSecuritySuite) TestChangePhonePropertyNilUserID() {
+	s.expectInsert(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
+	s.expectPhoneChecker(nil)
 
-	uc := security.NewChangePhoneProperty(
-		fakeTx{}, &fakeOpCreator{}, fakePhoneChecker{}, &fakeNotifier{}, fakeUser2FAFactory{}, fakeValueOpFactory{},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{}, "79991234567")
-	require.Error(t, err)
+	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{}, "79991234567")
+	s.Require().Error(err)
 }
 
-func TestChangePhoneProperty_Success(t *testing.T) {
-	t.Parallel()
+func (s *ChangeSecuritySuite) TestChangePhonePropertySuccess() {
+	s.expectInsert(nil)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectValueFactory(openedEmailOp(s.T()), nil)
+	s.expectPhoneChecker(nil)
 
-	creator := &fakeOpCreator{}
-	notifier := &fakeNotifier{}
-	uc := security.NewChangePhoneProperty(
-		fakeTx{}, creator, fakePhoneChecker{}, notifier,
-		fakeUser2FAFactory{user: userWithEmail()}, fakeValueOpFactory{op: openedEmailOp(t)},
-		&fakeOperationLogger{},
-	)
-
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()}, "79991234567")
-	require.NoError(t, err)
-	require.True(t, creator.inserted)
-	require.True(t, notifier.sent)
+	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "79991234567")
+	s.Require().NoError(err)
+	s.True(s.inserted)
+	s.True(s.notified)
 }
 
-func TestChangePhoneProperty_InvalidPhone(t *testing.T) {
-	t.Parallel()
+func (s *ChangeSecuritySuite) TestChangePhonePropertyInvalidPhone() {
+	s.expectInsert(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
+	s.expectPhoneChecker(nil)
 
-	uc := security.NewChangePhoneProperty(
-		fakeTx{}, &fakeOpCreator{}, fakePhoneChecker{}, &fakeNotifier{}, fakeUser2FAFactory{}, fakeValueOpFactory{},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()}, "bad")
-	require.Error(t, err)
+	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "bad")
+	s.Require().Error(err)
 }
 
-func TestChangePhoneProperty_PhoneUnavailable(t *testing.T) {
-	t.Parallel()
+func (s *ChangeSecuritySuite) TestChangePhonePropertyPhoneUnavailable() {
+	s.expectInsert(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectValueFactory(openedEmailOp(s.T()), nil)
+	s.expectPhoneChecker(errors.New("taken"))
 
-	uc := security.NewChangePhoneProperty(
-		fakeTx{}, &fakeOpCreator{}, fakePhoneChecker{err: errors.New("taken")}, &fakeNotifier{},
-		fakeUser2FAFactory{}, fakeValueOpFactory{op: openedEmailOp(t)},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()}, "79991234567")
-	require.Error(t, err)
+	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "79991234567")
+	s.Require().Error(err)
 }
 
-func TestChangeTOTPGeneratorProperty_NilUserID(t *testing.T) {
-	t.Parallel()
+func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyNilUserID() {
+	s.expectInsert(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectOpFactory(secureoperation.SecureOperation{}, nil)
 
-	uc := security.NewChangeTOTPGeneratorProperty(
-		fakeTx{}, &fakeOpCreator{}, &fakeNotifier{}, fakeUser2FAFactory{}, fakeOpFactory{},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{})
-	require.Error(t, err)
+	_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{})
+	s.Require().Error(err)
 }
 
-func TestChangeTOTPGeneratorProperty_Success(t *testing.T) {
-	t.Parallel()
+func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertySuccess() {
+	s.expectInsert(nil)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectOpFactory(openedEmailOp(s.T()), nil)
 
-	creator := &fakeOpCreator{}
-	notifier := &fakeNotifier{}
-	uc := security.NewChangeTOTPGeneratorProperty(
-		fakeTx{}, creator, notifier, fakeUser2FAFactory{user: userWithEmail()}, fakeOpFactory{op: openedEmailOp(t)},
-		&fakeOperationLogger{},
-	)
-
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()})
-	require.NoError(t, err)
-	require.True(t, creator.inserted)
-	require.True(t, notifier.sent)
+	_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+	s.Require().NoError(err)
+	s.True(s.inserted)
+	s.True(s.notified)
 }
 
-func TestChangeTOTPGeneratorProperty_FactoryError(t *testing.T) {
-	t.Parallel()
+func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyFactoryError() {
+	s.expectInsert(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectOpFactory(secureoperation.SecureOperation{}, errors.New("factory failed"))
 
-	uc := security.NewChangeTOTPGeneratorProperty(
-		fakeTx{}, &fakeOpCreator{}, &fakeNotifier{}, fakeUser2FAFactory{}, fakeOpFactory{err: errors.New("factory failed")},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()})
-	require.Error(t, err)
+	_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+	s.Require().Error(err)
 }
 
-func TestChangeTOTPGeneratorProperty_InsertError(t *testing.T) {
-	t.Parallel()
+func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyInsertError() {
+	s.expectInsert(errors.New("insert failed"))
+	s.expect2FA(userWithEmail(), nil)
+	s.expectOpFactory(openedEmailOp(s.T()), nil)
 
-	uc := security.NewChangeTOTPGeneratorProperty(
-		fakeTx{}, &fakeOpCreator{err: errors.New("insert failed")}, &fakeNotifier{},
-		fakeUser2FAFactory{user: userWithEmail()}, fakeOpFactory{op: openedEmailOp(t)},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()})
-	require.Error(t, err)
+	_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+	s.Require().Error(err)
 }
 
-// TestChangeTOTPGeneratorProperty_RejectedWhen2FAActive - активный 2FA любого типа нужно сначала
+// TestChangeTOTPGeneratorPropertyRejectedWhen2FAActive - активный 2FA любого типа нужно сначала
 // отключить (disable), нельзя менять на месте.
-func TestChangeTOTPGeneratorProperty_RejectedWhen2FAActive(t *testing.T) {
-	t.Parallel()
-
+func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyRejectedWhen2FAActive() {
 	for _, method := range []confirmmethod.Enum{confirmmethod.Password, confirmmethod.TOTP} {
-		t.Run(method.String(), func(t *testing.T) {
-			t.Parallel()
+		s.Run(method.String(), func() {
+			s.expectInsert(nil)
+			s.expect2FA(userWith2FA(method), nil)
+			s.expectOpFactory(openedEmailOp(s.T()), nil)
 
-			creator := &fakeOpCreator{}
-			uc := security.NewChangeTOTPGeneratorProperty(
-				fakeTx{}, creator, &fakeNotifier{},
-				fakeUser2FAFactory{user: userWith2FA(method)}, fakeOpFactory{op: openedEmailOp(t)},
-				&fakeOperationLogger{},
-			)
-			_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()})
-			require.ErrorIs(t, err, mrauth.Err2FAMustBeDisabledFirst)
-			require.False(t, creator.inserted)
+			_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+			s.Require().ErrorIs(err, mrauth.Err2FAMustBeDisabledFirst)
+			s.False(s.inserted)
 		})
 	}
 }
 
-func TestDisable2FA_NilUserID(t *testing.T) {
-	t.Parallel()
+func (s *ChangeSecuritySuite) TestDisable2FANilUserID() {
+	s.expectInsert(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectOpFactory(secureoperation.SecureOperation{}, nil)
 
-	uc := security.NewDisable2FA(fakeTx{}, &fakeOpCreator{}, &fakeNotifier{}, fakeUser2FAFactory{}, fakeOpFactory{}, &fakeOperationLogger{})
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{})
-	require.Error(t, err)
+	_, err := s.newDisable2FA().Execute(s.ctx, dto.ActorMeta{})
+	s.Require().Error(err)
 }
 
-func TestDisable2FA_Success(t *testing.T) {
-	t.Parallel()
+func (s *ChangeSecuritySuite) TestDisable2FASuccess() {
+	s.expectInsert(nil)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectOpFactory(openedEmailOp(s.T()), nil)
 
-	creator := &fakeOpCreator{}
-	notifier := &fakeNotifier{}
-	uc := security.NewDisable2FA(
-		fakeTx{}, creator, notifier, fakeUser2FAFactory{user: userWithEmail()}, fakeOpFactory{op: openedEmailOp(t)},
-		&fakeOperationLogger{},
-	)
-
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()})
-	require.NoError(t, err)
-	require.True(t, creator.inserted)
-	require.True(t, notifier.sent)
+	_, err := s.newDisable2FA().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+	s.Require().NoError(err)
+	s.True(s.inserted)
+	s.True(s.notified)
 }
 
-func TestDisable2FA_FactoryError(t *testing.T) {
-	t.Parallel()
+func (s *ChangeSecuritySuite) TestDisable2FAFactoryError() {
+	s.expectInsert(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectOpFactory(secureoperation.SecureOperation{}, errors.New("factory failed"))
 
-	uc := security.NewDisable2FA(
-		fakeTx{}, &fakeOpCreator{}, &fakeNotifier{}, fakeUser2FAFactory{}, fakeOpFactory{err: errors.New("factory failed")},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: uuid.New()})
-	require.Error(t, err)
+	_, err := s.newDisable2FA().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+	s.Require().Error(err)
 }

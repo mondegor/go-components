@@ -35,7 +35,7 @@ func initConfirmOperationUseCase(
 			auth2fa.NewVerifier(
 				storageAuth2fa,
 				crypt.NewSecretGenerator(recoveryCodeLength), // длина для генератора неважна: используется только сравнение
-				totp.NewAuthenticator("PrintShopApp", 64),
+				totp.NewAuthenticator(auth2faConfig.TOTPIssuer, 64),
 				// аварийный код имеет фиксированную длину recoveryCodeLength - сужаем окно для дешёвой отбраковки
 				auth2fa.WithRecoveryCodeLength(recoveryCodeLength, recoveryCodeLength),
 				auth2fa.WithRecoveryAlerter(

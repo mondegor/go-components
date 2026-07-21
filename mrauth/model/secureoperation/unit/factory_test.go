@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/mrtype"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
@@ -18,49 +18,44 @@ import (
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/mock"
 )
 
-type (
-	fakeTokenGen struct {
-		token string
-		err   error
-	}
+//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenGenerator,CodeGenerator
+//go:generate mockgen -source=change_totp.go -destination=mock/change_totp.go -package=mock
 
-	fakeCodeGen struct {
-		code string
-		hash string
-		err  error
-	}
+type FactorySuite struct {
+	suite.Suite
 
-	fakeSecretGen struct {
-		secret string
-		err    error
-	}
-)
-
-func (g fakeTokenGen) GenToken() (string, error) { return g.token, g.err }
-
-func (g fakeCodeGen) GenCode() (string, error) { return g.code, g.err }
-
-func (g fakeCodeGen) GenCodeWithHash() (string, string, error) {
-	if g.err != nil {
-		return "", "", g.err
-	}
-
-	return g.code, g.hash, nil
+	ctrl      *gomock.Controller
+	tokenGen  *mock.MockTokenGenerator
+	codeGen   *mock.MockCodeGenerator
+	secretGen *mock.MocktotpSecretGenerator
 }
 
-func (g fakeCodeGen) HashedSecret(string) (string, error) {
-	if g.err != nil {
-		return "", g.err
-	}
+func TestFactorySuite(t *testing.T) {
+	t.Parallel()
 
-	return g.hash, nil
+	suite.Run(t, new(FactorySuite))
 }
 
-func (g fakeCodeGen) CompareSecretAndHash(string, string) (bool, error) { return true, nil }
+func (s *FactorySuite) SetupSubTest() {
+	s.SetupTest()
+}
 
-func (g fakeSecretGen) GenerateSecret(string) (string, error) { return g.secret, g.err }
+func (s *FactorySuite) SetupTest() {
+	s.ctrl = gomock.NewController(s.T())
+	s.tokenGen = mock.NewMockTokenGenerator(s.ctrl)
+	s.codeGen = mock.NewMockCodeGenerator(s.ctrl)
+	s.secretGen = mock.NewMocktotpSecretGenerator(s.ctrl)
+}
+
+// expectGenerators - разрешает фабрике сколько угодно раз получать токен операции и код
+// подтверждения: конкретное их число зависит от набора действий и здесь не проверяется.
+func (s *FactorySuite) expectGenerators() {
+	s.tokenGen.EXPECT().GenToken().Return("tok", nil).AnyTimes()
+	s.codeGen.EXPECT().GenCodeWithHash().Return("123456", "hashed-code", nil).AnyTimes()
+}
 
 // userWith2FA - пользователь с активным вторым фактором (TOTP).
 func userWith2FA() dto.User2FA {
@@ -76,268 +71,266 @@ func userWithout2FA() dto.User2FA {
 	return dto.User2FA{ID: uuid.New(), Email: "user@example.com"}
 }
 
-func TestChangeEmail_Create(t *testing.T) {
-	t.Parallel()
+func (s *FactorySuite) TestChangeEmailCreate() {
+	s.Run("without 2fa - single action", func() {
+		s.expectGenerators()
 
-	t.Run("without 2fa - single action", func(t *testing.T) {
-		t.Parallel()
-
-		f := unit.NewChangeEmail(fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+		f := unit.NewChangeEmail(s.tokenGen, s.codeGen)
 
 		op, err := f.Create(userWithout2FA(), "new@example.com")
-		require.NoError(t, err)
-		assert.Equal(t, unit.NameConfirmChangeEmail, op.Name)
-		require.Len(t, op.Actions(), 1)
+		s.Require().NoError(err)
+		s.Equal(unit.NameConfirmChangeEmail, op.Name)
+		s.Require().Len(op.Actions(), 1)
 
 		var p dto.ChangeEmailOperation
-		require.NoError(t, json.Unmarshal(op.Payload, &p))
-		assert.Equal(t, "new@example.com", p.NewEmail)
-		assert.Equal(t, "user@example.com", p.Email)
+		s.Require().NoError(json.Unmarshal(op.Payload, &p))
+		s.Equal("new@example.com", p.NewEmail)
+		s.Equal("user@example.com", p.Email)
 	})
 
-	t.Run("with 2fa - appends second action", func(t *testing.T) {
-		t.Parallel()
+	s.Run("with 2fa - appends second action", func() {
+		s.expectGenerators()
 
-		f := unit.NewChangeEmail(fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+		f := unit.NewChangeEmail(s.tokenGen, s.codeGen)
 
 		op, err := f.Create(userWith2FA(), "new@example.com")
-		require.NoError(t, err)
-		require.Len(t, op.Actions(), 2)
+		s.Require().NoError(err)
+		s.Require().Len(op.Actions(), 2)
 	})
 
-	t.Run("token generator error", func(t *testing.T) {
-		t.Parallel()
-
+	s.Run("token generator error", func() {
 		wantErr := errors.New("token failed")
-		f := unit.NewChangeEmail(fakeTokenGen{err: wantErr}, fakeCodeGen{code: "123456"})
+		s.tokenGen.EXPECT().GenToken().Return("", wantErr).AnyTimes()
+		s.codeGen.EXPECT().GenCodeWithHash().Return("123456", "hashed-code", nil).AnyTimes()
+
+		f := unit.NewChangeEmail(s.tokenGen, s.codeGen)
 
 		_, err := f.Create(userWithout2FA(), "new@example.com")
-		require.ErrorIs(t, err, wantErr)
+		s.Require().ErrorIs(err, wantErr)
 	})
 }
 
-func TestChangePassword_Create(t *testing.T) {
-	t.Parallel()
+func (s *FactorySuite) TestChangePasswordCreate() {
+	s.expectGenerators()
+	s.codeGen.EXPECT().HashedSecret("new-password").Return("hashed-pw", nil).AnyTimes()
 
-	f := unit.NewChangePassword(fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456", hash: "hashed-pw"})
+	f := unit.NewChangePassword(s.tokenGen, s.codeGen)
 
 	op, err := f.Create(userWithout2FA(), "new-password")
-	require.NoError(t, err)
-	assert.Equal(t, unit.NameConfirmChangePassword, op.Name)
+	s.Require().NoError(err)
+	s.Equal(unit.NameConfirmChangePassword, op.Name)
 
 	var p dto.ChangePasswordOperation
-	require.NoError(t, json.Unmarshal(op.Payload, &p))
-	assert.Equal(t, "hashed-pw", p.NewPassword) // хранится хеш, не открытый пароль
-	assert.Equal(t, "user@example.com", p.Email)
+	s.Require().NoError(json.Unmarshal(op.Payload, &p))
+	s.Equal("hashed-pw", p.NewPassword) // хранится хеш, не открытый пароль
+	s.Equal("user@example.com", p.Email)
 
 	op2fa, err := f.Create(userWith2FA(), "new-password")
-	require.NoError(t, err)
-	require.Len(t, op2fa.Actions(), 2)
+	s.Require().NoError(err)
+	s.Require().Len(op2fa.Actions(), 2)
 }
 
-func TestChangePhone_Create(t *testing.T) {
-	t.Parallel()
+func (s *FactorySuite) TestChangePhoneCreate() {
+	s.expectGenerators()
 
-	f := unit.NewChangePhone(fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+	f := unit.NewChangePhone(s.tokenGen, s.codeGen)
 
 	op, err := f.Create(userWithout2FA(), "79991234567")
-	require.NoError(t, err)
-	assert.Equal(t, unit.NameConfirmChangePhone, op.Name)
+	s.Require().NoError(err)
+	s.Equal(unit.NameConfirmChangePhone, op.Name)
 
 	var p dto.ChangePhoneOperation
-	require.NoError(t, json.Unmarshal(op.Payload, &p))
-	assert.Equal(t, uint64(79991234567), p.NewPhone)
-	assert.Equal(t, "user@example.com", p.Email)
+	s.Require().NoError(json.Unmarshal(op.Payload, &p))
+	s.Equal(uint64(79991234567), p.NewPhone)
+	s.Equal("user@example.com", p.Email)
 
 	op2fa, err := f.Create(userWith2FA(), "79991234567")
-	require.NoError(t, err)
-	require.Len(t, op2fa.Actions(), 2)
+	s.Require().NoError(err)
+	s.Require().Len(op2fa.Actions(), 2)
 }
 
-func TestChangePhone_Create_InvalidPhone(t *testing.T) {
-	t.Parallel()
+func (s *FactorySuite) TestChangePhoneCreateInvalidPhone() {
+	s.expectGenerators()
 
-	f := unit.NewChangePhone(fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+	f := unit.NewChangePhone(s.tokenGen, s.codeGen)
 
-	_, err := f.Create(userWithout2FA(), "not-a-number")
-	require.Error(t, err)
+	// "0000000000" проходит tag_phone на границе ввода, поэтому негодным его признаёт фабрика,
+	// и признаёт именно пользовательской ошибкой, а не внутренней
+	for _, phone := range []string{"not-a-number", "0000000000", "0"} {
+		_, err := f.Create(userWithout2FA(), phone)
+		s.Require().ErrorIs(err, contactaddress.ErrPhoneIsInvalid, "phone: %s", phone)
+	}
 }
 
-func TestChangeTOTP_Create(t *testing.T) {
-	t.Parallel()
+func (s *FactorySuite) TestChangeTOTPCreate() {
+	s.expectGenerators()
+	s.secretGen.EXPECT().GenerateSecret(gomock.Any()).Return("TOTPSECRET", nil).AnyTimes()
 
-	f := unit.NewChangeTOTP(
-		fakeTokenGen{token: "tok"},
-		fakeCodeGen{code: "123456"},
-		fakeSecretGen{secret: "TOTPSECRET"},
-	)
+	f := unit.NewChangeTOTP(s.tokenGen, s.codeGen, s.secretGen)
 
 	op, err := f.Create(userWithout2FA())
-	require.NoError(t, err)
-	assert.Equal(t, unit.NameConfirmChangeTOTP, op.Name)
+	s.Require().NoError(err)
+	s.Equal(unit.NameConfirmChangeTOTP, op.Name)
 
-	var p dto.ChangeTotpOperation
-	require.NoError(t, json.Unmarshal(op.Payload, &p))
-	assert.Equal(t, "TOTPSECRET", p.Secret)
-	assert.Equal(t, "user@example.com", p.Email)
+	var p dto.ChangeTOTPOperation
+	s.Require().NoError(json.Unmarshal(op.Payload, &p))
+	s.Equal("TOTPSECRET", p.Secret)
+	s.Equal("user@example.com", p.Email)
 
 	op2fa, err := f.Create(userWith2FA())
-	require.NoError(t, err)
-	require.Len(t, op2fa.Actions(), 2)
+	s.Require().NoError(err)
+	s.Require().Len(op2fa.Actions(), 2)
 }
 
-func TestCreateUser_Create(t *testing.T) {
-	t.Parallel()
+func (s *FactorySuite) TestCreateUserCreate() {
+	registeredIP := mrtype.NewIP(netip.MustParseAddr("203.0.113.7"))
 
-	t.Run("new user - single email action, nil user id", func(t *testing.T) {
-		t.Parallel()
+	s.Run("new user - single email action, nil user id", func() {
+		s.expectGenerators()
 
-		f := unit.NewCreateUser("shop", "customer", fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+		f := unit.NewCreateUser("shop", "customer", s.tokenGen, s.codeGen)
 
 		// для нового email usecase передаёт пустой User2FA
-		op, err := f.Create(dto.User2FA{}, "en", contactaddress.NewEmail("user@example.com"), mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
-		require.NoError(t, err)
-		assert.Equal(t, unit.NameConfirmCreateUser, op.Name)
-		assert.Equal(t, uuid.Nil, op.UserID)
-		require.Len(t, op.Actions(), 1)
+		op, err := f.Create(dto.User2FA{}, "en", "Europe/Moscow", contactaddress.NewEmail("user@example.com"), registeredIP)
+		s.Require().NoError(err)
+		s.Equal(unit.NameConfirmCreateUser, op.Name)
+		s.Equal(uuid.Nil, op.UserID)
+		s.Require().Len(op.Actions(), 1)
 
 		var p dto.CreateUserOperation
-		require.NoError(t, json.Unmarshal(op.Payload, &p))
-		assert.Equal(t, "shop", p.Realm)
-		assert.Equal(t, "customer", p.UserKind)
-		assert.Equal(t, "en", p.LangCode)
-		assert.Equal(t, "user@example.com", p.Email)
-		assert.Equal(t, mrtype.NewIP(netip.MustParseAddr("203.0.113.7")), p.RegisteredIP)
+		s.Require().NoError(json.Unmarshal(op.Payload, &p))
+		s.Equal("shop", p.Realm)
+		s.Equal("customer", p.UserKind)
+		s.Equal("en", p.LangCode)
+		s.Equal("Europe/Moscow", p.TimeZone)
+		s.Equal("user@example.com", p.Email)
+		s.Equal(registeredIP, p.RegisteredIP)
 	})
 
-	t.Run("existing user with 2fa - appends second action and binds user id", func(t *testing.T) {
-		t.Parallel()
+	s.Run("existing user with 2fa - appends second action and binds user id", func() {
+		s.expectGenerators()
 
-		f := unit.NewCreateUser("shop", "customer", fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+		f := unit.NewCreateUser("shop", "customer", s.tokenGen, s.codeGen)
 
 		user2FA := userWith2FA()
 
-		op, err := f.Create(user2FA, "en", contactaddress.NewEmail("user@example.com"), mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
-		require.NoError(t, err)
-		require.Len(t, op.Actions(), 2)
-		assert.Equal(t, user2FA.ID, op.UserID)
+		op, err := f.Create(user2FA, "en", "Europe/Moscow", contactaddress.NewEmail("user@example.com"), registeredIP)
+		s.Require().NoError(err)
+		s.Require().Len(op.Actions(), 2)
+		s.Equal(user2FA.ID, op.UserID)
 	})
 
-	t.Run("existing user without 2fa - single email action", func(t *testing.T) {
-		t.Parallel()
+	s.Run("existing user without 2fa - single email action", func() {
+		s.expectGenerators()
 
-		f := unit.NewCreateUser("shop", "customer", fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+		f := unit.NewCreateUser("shop", "customer", s.tokenGen, s.codeGen)
 
 		user2FA := userWithout2FA()
 
-		op, err := f.Create(user2FA, "en", contactaddress.NewEmail("user@example.com"), mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
-		require.NoError(t, err)
-		require.Len(t, op.Actions(), 1)
-		assert.Equal(t, user2FA.ID, op.UserID)
+		op, err := f.Create(user2FA, "en", "Europe/Moscow", contactaddress.NewEmail("user@example.com"), registeredIP)
+		s.Require().NoError(err)
+		s.Require().Len(op.Actions(), 1)
+		s.Equal(user2FA.ID, op.UserID)
 	})
 }
 
-func TestDisable2FA_Create(t *testing.T) {
-	t.Parallel()
+func (s *FactorySuite) TestDisable2FACreate() {
+	s.Run("with active 2fa", func() {
+		s.expectGenerators()
 
-	t.Run("with active 2fa", func(t *testing.T) {
-		t.Parallel()
-
-		f := unit.NewDisable2FA(fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+		f := unit.NewDisable2FA(s.tokenGen, s.codeGen)
 
 		op, err := f.Create(userWith2FA())
-		require.NoError(t, err)
-		assert.Equal(t, unit.NameConfirmDisable2FA, op.Name)
-		require.Len(t, op.Actions(), 2)
+		s.Require().NoError(err)
+		s.Equal(unit.NameConfirmDisable2FA, op.Name)
+		s.Require().Len(op.Actions(), 2)
 
-		var p dto.Disable2faOperation
-		require.NoError(t, json.Unmarshal(op.Payload, &p))
-		assert.Equal(t, "user@example.com", p.Email)
+		var p dto.Disable2FAOperation
+		s.Require().NoError(json.Unmarshal(op.Payload, &p))
+		s.Equal("user@example.com", p.Email)
 	})
 
-	t.Run("already disabled fails", func(t *testing.T) {
-		t.Parallel()
+	s.Run("already disabled fails", func() {
+		s.expectGenerators()
 
-		f := unit.NewDisable2FA(fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+		f := unit.NewDisable2FA(s.tokenGen, s.codeGen)
 
 		_, err := f.Create(userWithout2FA())
-		require.ErrorContains(t, err, "2fa already disabled")
+		s.Require().ErrorContains(err, "2fa already disabled")
 	})
 }
 
-func TestRegenerateRecovery_Create(t *testing.T) {
-	t.Parallel()
+func (s *FactorySuite) TestRegenerateRecoveryCreate() {
+	s.Run("with active 2fa", func() {
+		s.expectGenerators()
 
-	t.Run("with active 2fa", func(t *testing.T) {
-		t.Parallel()
-
-		f := unit.NewRegenerateRecovery(fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+		f := unit.NewRegenerateRecovery(s.tokenGen, s.codeGen)
 
 		op, err := f.Create(userWith2FA())
-		require.NoError(t, err)
-		assert.Equal(t, unit.NameConfirmRegenerateRecovery, op.Name)
-		require.Len(t, op.Actions(), 2) // email + текущий 2FA
+		s.Require().NoError(err)
+		s.Equal(unit.NameConfirmRegenerateRecovery, op.Name)
+		s.Require().Len(op.Actions(), 2) // email + текущий 2FA
 
 		var p dto.OperationWithUserEmail
-		require.NoError(t, json.Unmarshal(op.Payload, &p))
-		assert.Equal(t, "user@example.com", p.Email)
+		s.Require().NoError(json.Unmarshal(op.Payload, &p))
+		s.Equal("user@example.com", p.Email)
 	})
 
-	t.Run("without 2fa fails", func(t *testing.T) {
-		t.Parallel()
+	s.Run("without 2fa fails", func() {
+		s.expectGenerators()
 
-		f := unit.NewRegenerateRecovery(fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+		f := unit.NewRegenerateRecovery(s.tokenGen, s.codeGen)
 
 		_, err := f.Create(userWithout2FA())
-		require.ErrorContains(t, err, "2fa is not enabled")
+		s.Require().ErrorContains(err, "2fa is not enabled")
 	})
 }
 
-func TestAuthorizeUser_Create(t *testing.T) {
-	t.Parallel()
+func (s *FactorySuite) TestAuthorizeUserCreate() {
+	s.expectGenerators()
 
-	f := unit.NewAuthorizeUser(fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+	f := unit.NewAuthorizeUser(s.tokenGen, s.codeGen)
 
 	op, err := f.Create(userWithout2FA(), "shop", "en", contactaddress.NewEmail("login@example.com"))
-	require.NoError(t, err)
-	assert.Equal(t, unit.NameAuthorizeUser, op.Name)
+	s.Require().NoError(err)
+	s.Equal(unit.NameAuthorizeUser, op.Name)
 
 	var p dto.AuthorizeUserOperation
-	require.NoError(t, json.Unmarshal(op.Payload, &p))
-	assert.Equal(t, "shop", p.Realm)
-	assert.Equal(t, "en", p.LangCode)
+	s.Require().NoError(json.Unmarshal(op.Payload, &p))
+	s.Equal("shop", p.Realm)
+	s.Equal("en", p.LangCode)
 }
 
-func TestAuthorizeUser_Create_PhoneConvertedToEmail(t *testing.T) {
-	t.Parallel()
+func (s *FactorySuite) TestAuthorizeUserCreatePhoneConvertedToEmail() {
+	s.expectGenerators()
 
 	// confirmPhoneByEmail по умолчанию true: телефонный логин подтверждается по email.
-	f := unit.NewAuthorizeUser(fakeTokenGen{token: "tok"}, fakeCodeGen{code: "123456"})
+	f := unit.NewAuthorizeUser(s.tokenGen, s.codeGen)
 
 	op, err := f.Create(userWith2FA(), "shop", "en", contactaddress.NewPhone("79991234567"))
-	require.NoError(t, err)
-	require.Len(t, op.Actions(), 2)
+	s.Require().NoError(err)
+	s.Require().Len(op.Actions(), 2)
 
-	action, ok := op.FirstAction()
-	require.True(t, ok)
-	assert.Equal(t, confirmmethod.Email, action.Method)
+	firstAction, ok := op.FirstAction()
+	s.Require().True(ok)
+	s.Equal(confirmmethod.Email, firstAction.Method)
 }
 
-func TestAuthorizeUser_Create_PhoneLoginWithOptions(t *testing.T) {
-	t.Parallel()
+func (s *FactorySuite) TestAuthorizeUserCreatePhoneLoginWithOptions() {
+	s.expectGenerators()
 
 	f := unit.NewAuthorizeUser(
-		fakeTokenGen{token: "tok"},
-		fakeCodeGen{code: "123456"},
+		s.tokenGen,
+		s.codeGen,
 		unit.WithAuthorizeUserConfirmByEmailOpts(action.WithMaxAttempts(5)),
 		unit.WithAuthorizeUserConfirmByPhoneOpts(action.WithMaxAttempts(5)),
 		unit.WithAuthorizeUserConfirmPhoneByEmail(false),
 	)
 
 	op, err := f.Create(userWithout2FA(), "shop", "en", contactaddress.NewPhone("79991234567"))
-	require.NoError(t, err)
+	s.Require().NoError(err)
 
-	action, ok := op.FirstAction()
-	require.True(t, ok)
-	assert.Equal(t, confirmmethod.Phone, action.Method)
+	firstAction, ok := op.FirstAction()
+	s.Require().True(ok)
+	s.Equal(confirmmethod.Phone, firstAction.Method)
 }

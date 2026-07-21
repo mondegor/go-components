@@ -1,8 +1,6 @@
 package unit
 
 import (
-	"encoding/json"
-
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
@@ -62,8 +60,8 @@ func (o *ChangeTOTP) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 		return secureoperation.SecureOperation{}, err
 	}
 
-	payload, err := json.Marshal( //nolint:gosec // G117: TOTP-secret намеренно сериализуется в payload операции для последующей привязки.
-		dto.ChangeTotpOperation{
+	payload, err := BuildChangeTOTPPayload(
+		dto.ChangeTOTPOperation{
 			Email:  user2FA.Email,
 			Secret: secret,
 		},

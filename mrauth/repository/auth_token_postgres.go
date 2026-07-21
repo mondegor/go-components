@@ -162,6 +162,9 @@ func (re *AuthTokenPostgres) FetchOpenSessions(ctx context.Context, userID uuid.
 			return nil, re.errorWrapper.Wrap(err)
 		}
 
+		// системное время: домен всегда оперирует UTC независимо от зоны сессии БД
+		row.ExpiresAt = row.ExpiresAt.UTC()
+
 		rows = append(rows, row)
 	}
 
@@ -270,7 +273,7 @@ func (re *AuthTokenPostgres) RevokeRefresh(ctx context.Context, refreshToken str
 		authtokentype.Refresh,
 		authtokenstatus.Enabled,
 		authtokenstatus.Revoked,
-		time.Now().Add(grace),
+		time.Now().UTC().Add(grace),
 	).Scan(
 		&userID,
 		&sessionID,
@@ -404,6 +407,9 @@ func (re *AuthTokenPostgres) fetchActiveToken(
 	if err != nil {
 		return entity.AuthToken{}, re.errorWrapper.Wrap(err)
 	}
+
+	// системное время: домен всегда оперирует UTC независимо от зоны сессии БД
+	row.ExpiresAt = row.ExpiresAt.UTC()
 
 	// запрос не фильтрует по expires_at, поэтому действующий токен мог уже истечь;
 	// в норме такого быть не должно, проверка защищает от выдачи просроченного токена

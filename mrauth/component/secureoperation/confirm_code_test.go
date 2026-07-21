@@ -6,84 +6,63 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
+	"github.com/mondegor/go-components/mrauth/component/secureoperation/mock"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	secureoperation_model "github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
-type (
-	fakeTokenGen struct {
-		token string
-		err   error
-	}
+//go:generate mockgen -source=confirm_code.go -destination=mock/confirm_code.go -package=mock
+//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenGenerator,CodeGenerator
 
-	fakeCodeGen struct {
-		code string
-		err  error
-	}
+// ConfirmCodeSuite - общий набор для тестов ConfirmCode; методы объявлены также
+// в confirm_code_sendable_test.go (проверка подтверждения по контактному адресу).
+type ConfirmCodeSuite struct {
+	suite.Suite
 
-	fakeVerifier struct {
-		ok           bool
-		consume      func(ctx context.Context) error
-		err          error
-		calledMethod confirmmethod.Enum
-		calledUserID uuid.UUID
-	}
-)
-
-func (g *fakeTokenGen) GenToken() (string, error) {
-	return g.token, g.err
+	ctrl     *gomock.Controller
+	ctx      context.Context
+	tokenGen *mock.MockTokenGenerator
+	codeGen  *mock.MockCodeGenerator
+	verifier *mock.Mockauth2faVerifier
+	svc      *secureoperation.ConfirmCode
 }
 
-func (g *fakeTokenGen) GenTokenLen(_ int) (string, error) {
-	return g.token, g.err
+func TestConfirmCodeSuite(t *testing.T) {
+	t.Parallel()
+
+	suite.Run(t, new(ConfirmCodeSuite))
 }
 
-func (g *fakeCodeGen) GenCode() (string, error) {
-	return g.code, g.err
+func (s *ConfirmCodeSuite) SetupTest() {
+	s.ctrl = gomock.NewController(s.T())
+	s.ctx = context.Background()
+	s.tokenGen = mock.NewMockTokenGenerator(s.ctrl)
+	s.codeGen = mock.NewMockCodeGenerator(s.ctrl)
+	s.verifier = mock.NewMockauth2faVerifier(s.ctrl)
+	s.svc = secureoperation.NewConfirmCode(s.tokenGen, s.codeGen, s.verifier)
 }
 
-func (g *fakeCodeGen) GenCodeWithHash() (string, string, error) {
-	if g.err != nil {
-		return "", "", g.err
-	}
-
-	return g.code, g.code, nil
-}
-
-func (g *fakeCodeGen) GenCodeLen(_ int) (string, error) {
-	return g.code, g.err
-}
-
-func (g *fakeCodeGen) HashedSecret(code string) (string, error) {
-	return code, nil
-}
-
-// CompareSecretAndHash - в тестах хеш равен исходному коду, поэтому сверяем напрямую.
-func (g *fakeCodeGen) CompareSecretAndHash(secret, hashedSecret string) (bool, error) {
-	return secret == hashedSecret, nil
-}
-
-func (v *fakeVerifier) Verify(
-	_ context.Context,
-	userID uuid.UUID,
-	method confirmmethod.Enum,
-	_ string,
-) (bool, func(ctx context.Context) error, error) {
-	v.calledMethod = method
-	v.calledUserID = userID
-
-	return v.ok, v.consume, v.err
+// expectGenerators - настраивает генераторы токена и кода следующего действия.
+// Хеш кода в тестах равен самому коду, поэтому сравнение сводится к равенству строк.
+func (s *ConfirmCodeSuite) expectGenerators(token, code string) {
+	s.tokenGen.EXPECT().GenToken().Return(token, nil).AnyTimes()
+	s.codeGen.EXPECT().GenCodeWithHash().Return(code, code, nil).AnyTimes()
+	s.codeGen.EXPECT().
+		CompareSecretAndHash(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(secret, hashedSecret string) (bool, error) {
+			return secret == hashedSecret, nil
+		}).
+		AnyTimes()
 }
 
 // newOpWithSingleTOTPAction - создаёт операцию в статусе Opened с одним
 // действием method=TOTP для указанного пользователя.
-func newOpWithSingleTOTPAction(t *testing.T, userID uuid.UUID) secureoperation_model.SecureOperation {
-	t.Helper()
-
+func (s *ConfirmCodeSuite) newOpWithSingleTOTPAction(userID uuid.UUID) secureoperation_model.SecureOperation {
 	op, err := secureoperation_model.NewOperation(
 		"token",
 		"name1",
@@ -97,35 +76,25 @@ func newOpWithSingleTOTPAction(t *testing.T, userID uuid.UUID) secureoperation_m
 		},
 		nil,
 	)
-	require.NoError(t, err)
+	s.Require().NoError(err)
 
 	return op
 }
 
-func TestConfirmCode_TOTPVerifiedNoConsume(t *testing.T) {
-	t.Parallel()
-
+func (s *ConfirmCodeSuite) TestTOTPVerifiedNoConsume() {
 	userID := uuid.New()
-	verifier := &fakeVerifier{ok: true, consume: nil}
-	confirmCode := secureoperation.NewConfirmCode(
-		&fakeTokenGen{token: "tok"},
-		&fakeCodeGen{code: "code"},
-		verifier,
-	)
 
-	op := newOpWithSingleTOTPAction(t, userID)
+	s.verifier.EXPECT().
+		Verify(gomock.Any(), userID, confirmmethod.TOTP, "123456").
+		Return(true, nil, nil)
 
-	out, commitConfirmed, err := confirmCode.Prepare(context.Background(), op, "123456")
-	require.NoError(t, err)
-	require.True(t, out.Is(operationstatus.Confirmed))
-	require.Nil(t, commitConfirmed)
-	require.Equal(t, confirmmethod.TOTP, verifier.calledMethod)
-	require.Equal(t, userID, verifier.calledUserID)
+	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(userID), "123456")
+	s.Require().NoError(err)
+	s.True(out.Is(operationstatus.Confirmed))
+	s.Nil(commitConfirmed)
 }
 
-func TestConfirmCode_TOTPVerifiedWithConsume(t *testing.T) {
-	t.Parallel()
-
+func (s *ConfirmCodeSuite) TestTOTPVerifiedWithConsume() {
 	called := false
 	consume := func(_ context.Context) error {
 		called = true
@@ -133,57 +102,39 @@ func TestConfirmCode_TOTPVerifiedWithConsume(t *testing.T) {
 		return nil
 	}
 
-	verifier := &fakeVerifier{ok: true, consume: consume}
-	confirmCode := secureoperation.NewConfirmCode(
-		&fakeTokenGen{token: "tok"},
-		&fakeCodeGen{code: "code"},
-		verifier,
-	)
+	s.verifier.EXPECT().
+		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, gomock.Any()).
+		Return(true, consume, nil)
 
-	op := newOpWithSingleTOTPAction(t, uuid.New())
+	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "recovery")
+	s.Require().NoError(err)
+	s.True(out.Is(operationstatus.Confirmed))
+	s.Require().NotNil(commitConfirmed)
 
-	out, commitConfirmed, err := confirmCode.Prepare(context.Background(), op, "recovery")
-	require.NoError(t, err)
-	require.True(t, out.Is(operationstatus.Confirmed))
-	require.NotNil(t, commitConfirmed)
-
-	require.NoError(t, commitConfirmed(context.Background()))
-	require.True(t, called)
+	s.Require().NoError(commitConfirmed(s.ctx))
+	s.True(called)
 }
 
-func TestConfirmCode_TOTPVerifierRejects(t *testing.T) {
-	t.Parallel()
+func (s *ConfirmCodeSuite) TestTOTPVerifierRejects() {
+	s.verifier.EXPECT().
+		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, gomock.Any()).
+		Return(false, nil, nil)
 
-	verifier := &fakeVerifier{ok: false}
-	confirmCode := secureoperation.NewConfirmCode(
-		&fakeTokenGen{token: "tok"},
-		&fakeCodeGen{code: "code"},
-		verifier,
-	)
-
-	op := newOpWithSingleTOTPAction(t, uuid.New())
-
-	out, commitConfirmed, err := confirmCode.Prepare(context.Background(), op, "bad")
-	require.ErrorIs(t, err, secureoperation_model.ErrConfirmCodeIsIncorrect)
-	require.False(t, out.Is(operationstatus.Confirmed))
-	require.Nil(t, commitConfirmed)
+	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "bad")
+	s.Require().ErrorIs(err, secureoperation_model.ErrConfirmCodeIsIncorrect)
+	s.False(out.Is(operationstatus.Confirmed))
+	s.Nil(commitConfirmed)
 }
 
-func TestConfirmCode_TOTPVerifierError(t *testing.T) {
-	t.Parallel()
-
+func (s *ConfirmCodeSuite) TestTOTPVerifierError() {
 	wantErr := secureoperation_model.ErrOperationAlreadyExpired
-	verifier := &fakeVerifier{err: wantErr}
-	confirmCode := secureoperation.NewConfirmCode(
-		&fakeTokenGen{token: "tok"},
-		&fakeCodeGen{code: "code"},
-		verifier,
-	)
 
-	op := newOpWithSingleTOTPAction(t, uuid.New())
+	s.verifier.EXPECT().
+		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, gomock.Any()).
+		Return(false, nil, wantErr)
 
-	out, commitConfirmed, err := confirmCode.Prepare(context.Background(), op, "any")
-	require.ErrorIs(t, err, wantErr)
-	require.False(t, out.Is(operationstatus.Confirmed))
-	require.Nil(t, commitConfirmed)
+	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "any")
+	s.Require().ErrorIs(err, wantErr)
+	s.False(out.Is(operationstatus.Confirmed))
+	s.Nil(commitConfirmed)
 }

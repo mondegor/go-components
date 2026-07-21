@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
@@ -68,6 +67,7 @@ func (ht *Session) GetList(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	items := make([]model.UserSessionResponse, 0, len(list))
+	loc := ht.parser.Location(r)
 
 	for _, item := range list {
 		session := model.UserSessionResponse{
@@ -76,14 +76,14 @@ func (ht *Session) GetList(w http.ResponseWriter, r *http.Request) error {
 			DeviceName: item.DeviceName,
 			LastIP:     item.LastIP,
 			Location:   item.Location,
-			CreatedAt:  item.CreatedAt.Round(time.Second).Format(time.RFC3339),
-			LastSeenAt: item.UpdatedAt.Round(time.Second).Format(time.RFC3339),
+			CreatedAt:  formatTimeIn(item.CreatedAt, loc),
+			LastSeenAt: formatTimeIn(item.UpdatedAt, loc),
 			IsCurrent:  item.IsCurrent,
 		}
 
 		// нулевое время = срок жизни сессии не определён, поле опускается (иначе утёк бы год 0001)
 		if !item.ExpiresAt.IsZero() {
-			session.ExpiresAt = item.ExpiresAt.Round(time.Second).Format(time.RFC3339)
+			session.ExpiresAt = formatTimeIn(item.ExpiresAt, loc)
 		}
 
 		items = append(items, session)

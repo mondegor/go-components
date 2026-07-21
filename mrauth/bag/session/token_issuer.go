@@ -46,6 +46,10 @@ func NewTokenIssuer(
 // CreateTokenPair - выпускает пару токенов (сессионный access + refresh) для области действия пользователя.
 // TODO: вместо dto.UserScopes можно передавать явно все параметры.
 func (uc *TokenIssuer) CreateTokenPair(userScopes dto.UserScopes) (token dto.AuthTokenPair, err error) {
+	if err = userScopes.Validate(); err != nil {
+		return dto.AuthTokenPair{}, err
+	}
+
 	accessToken, err := uc.createAccessToken()
 	if err != nil {
 		return dto.AuthTokenPair{}, err
@@ -64,6 +68,7 @@ func (uc *TokenIssuer) CreateTokenPair(userScopes dto.UserScopes) (token dto.Aut
 			Realm:    userScopes.Realm,
 			UserKind: userScopes.Kind,
 			LangCode: userScopes.LangCode,
+			TimeZone: userScopes.TimeZone,
 		},
 	}, nil
 }

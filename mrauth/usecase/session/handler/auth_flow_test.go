@@ -46,8 +46,16 @@ func okScopes() dto.UserScopes {
 	return dto.UserScopes{UserID: uuid.New(), Realm: "site/admin", Kind: "admin", LangCode: "en"}
 }
 
+// confirmedOp - операция с минимально корректным payload'ом для указанного типа операции:
+// хелперы разбора проверяют инварианты, поэтому пустой payload здесь уже не подходит.
 func confirmedOp(name string, userID uuid.UUID) secureoperation.SecureOperation {
-	return confirmedOpWith(name, userID, []byte("{}"))
+	payload := []byte(`{"realm":"site/admin","lang_code":"en"}`)
+
+	if name == unit.NameConfirmCreateUser {
+		payload = []byte(`{"realm":"site/admin","lang_code":"en","timezone":"Europe/Moscow","email":"user@example.com"}`)
+	}
+
+	return confirmedOpWith(name, userID, payload)
 }
 
 func confirmedOpWith(name string, userID uuid.UUID, payload []byte) secureoperation.SecureOperation {
@@ -133,7 +141,7 @@ func (s *AuthFlowSuite) TestResolveUserErrorStops() {
 func (s *AuthFlowSuite) TestCreateUserMapsPayloadToAuthorize() {
 	newUserID := uuid.New()
 	scopes := okScopes()
-	createIn := dto.CreateUserOperation{Realm: "site/admin", UserKind: "admin", LangCode: "en", Email: "u@e.co"}
+	createIn := dto.CreateUserOperation{Realm: "site/admin", UserKind: "admin", LangCode: "en", TimeZone: "Europe/Moscow", Email: "u@e.co"}
 	authIn := dto.AuthorizeUserOperation{Realm: "site/admin", LangCode: "en"}
 
 	gomock.InOrder(
@@ -155,6 +163,23 @@ func (s *AuthFlowSuite) TestCreateUserInvalidPayload() {
 // некорректный payload операции авторизации - ошибка распаковки, PrepareAuthorization не вызывается.
 func (s *AuthFlowSuite) TestAuthorizeInvalidPayload() {
 	_, _, err := s.uc.Execute(s.ctx, confirmedOpWith(unit.NameAuthorizeUser, uuid.New(), []byte("{")))
+	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
+}
+
+// payload операции создания синтаксически корректен, но нарушает инвариант (нет email):
+// разбор отклоняет его на чтении, сервис не вызывается.
+func (s *AuthFlowSuite) TestCreateUserPayloadBrokenInvariant() {
+	op := confirmedOpWith(unit.NameConfirmCreateUser, uuid.Nil, []byte(`{"realm":"site/admin","lang_code":"en"}`))
+
+	_, _, err := s.uc.Execute(s.ctx, op)
+	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
+}
+
+// payload операции авторизации синтаксически корректен, но нарушает инвариант (нет realm).
+func (s *AuthFlowSuite) TestAuthorizePayloadBrokenInvariant() {
+	op := confirmedOpWith(unit.NameAuthorizeUser, uuid.New(), []byte(`{"lang_code":"en"}`))
+
+	_, _, err := s.uc.Execute(s.ctx, op)
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 

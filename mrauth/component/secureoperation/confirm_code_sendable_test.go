@@ -1,14 +1,10 @@
 package secureoperation_test
 
 import (
-	"context"
-	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 
-	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	secureoperation_model "github.com/mondegor/go-components/mrauth/model/secureoperation"
@@ -26,66 +22,49 @@ func emailConfirmAction(code string) secureoperation_model.ConfirmAction {
 	}
 }
 
-func TestConfirmCode_EmailCorrectCodeConfirms(t *testing.T) {
-	t.Parallel()
+// newOpWithActions - создаёт операцию в статусе Opened с указанными действиями.
+func (s *ConfirmCodeSuite) newOpWithActions(actions ...secureoperation_model.ConfirmAction) secureoperation_model.SecureOperation {
+	op, err := secureoperation_model.NewOperation("token", "name1", uuid.New(), actions, nil)
+	s.Require().NoError(err)
 
-	op, err := secureoperation_model.NewOperation(
-		"token",
-		"name1",
-		uuid.New(),
-		[]secureoperation_model.ConfirmAction{emailConfirmAction("secret1")},
-		nil,
-	)
-	require.NoError(t, err)
-
-	confirmCode := secureoperation.NewConfirmCode(&fakeTokenGen{token: "tok"}, &fakeCodeGen{code: "code"}, &fakeVerifier{})
-
-	out, commit, err := confirmCode.Prepare(context.Background(), op, "secret1")
-	require.NoError(t, err)
-	require.True(t, out.Is(operationstatus.Confirmed))
-	require.Nil(t, commit)
+	return op
 }
 
-func TestConfirmCode_EmailWrongCodeRejected(t *testing.T) {
-	t.Parallel()
+func (s *ConfirmCodeSuite) TestEmailCorrectCodeConfirms() {
+	s.expectGenerators("tok", "code")
 
-	op, err := secureoperation_model.NewOperation(
-		"token",
-		"name1",
-		uuid.New(),
-		[]secureoperation_model.ConfirmAction{emailConfirmAction("secret1")},
-		nil,
-	)
-	require.NoError(t, err)
+	op := s.newOpWithActions(emailConfirmAction("secret1"))
 
-	confirmCode := secureoperation.NewConfirmCode(&fakeTokenGen{token: "tok"}, &fakeCodeGen{code: "code"}, &fakeVerifier{})
-
-	out, commit, err := confirmCode.Prepare(context.Background(), op, "wrong")
-	require.ErrorIs(t, err, secureoperation_model.ErrConfirmCodeIsIncorrect)
-	require.False(t, out.Is(operationstatus.Confirmed))
-	require.Nil(t, commit)
+	out, commit, err := s.svc.Prepare(s.ctx, op, "secret1")
+	s.Require().NoError(err)
+	s.True(out.Is(operationstatus.Confirmed))
+	s.Nil(commit)
 }
 
-func TestConfirmCode_FirstOfTwoActionsGeneratesNextCode(t *testing.T) {
-	t.Parallel()
+func (s *ConfirmCodeSuite) TestEmailWrongCodeRejected() {
+	s.expectGenerators("tok", "code")
 
-	op, err := secureoperation_model.NewOperation(
-		"token",
-		"name1",
-		uuid.New(),
-		[]secureoperation_model.ConfirmAction{emailConfirmAction("secret1"), emailConfirmAction("secret2")},
-		nil,
-	)
-	require.NoError(t, err)
+	op := s.newOpWithActions(emailConfirmAction("secret1"))
 
-	confirmCode := secureoperation.NewConfirmCode(&fakeTokenGen{token: "new-token"}, &fakeCodeGen{code: "new-code"}, &fakeVerifier{})
+	out, commit, err := s.svc.Prepare(s.ctx, op, "wrong")
+	s.Require().ErrorIs(err, secureoperation_model.ErrConfirmCodeIsIncorrect)
+	s.False(out.Is(operationstatus.Confirmed))
+	s.Nil(commit)
+}
 
-	out, _, err := confirmCode.Prepare(context.Background(), op, "secret1")
-	require.NoError(t, err)
-	require.False(t, out.Is(operationstatus.Confirmed))
-	require.Equal(t, "new-token", out.Token)
+func (s *ConfirmCodeSuite) TestFirstOfTwoActionsGeneratesNextCode() {
+	// значения генераторов выбраны так, чтобы было видно: код следующего действия
+	// и токен операции берутся именно из них
+	s.expectGenerators("new-token", "new-code")
+
+	op := s.newOpWithActions(emailConfirmAction("secret1"), emailConfirmAction("secret2"))
+
+	out, _, err := s.svc.Prepare(s.ctx, op, "secret1")
+	s.Require().NoError(err)
+	s.False(out.Is(operationstatus.Confirmed))
+	s.Equal("new-token", out.Token)
 
 	action, ok := out.FirstAction()
-	require.True(t, ok)
-	require.Equal(t, "new-code", action.ConfirmCode)
+	s.Require().True(ok)
+	s.Equal("new-code", action.ConfirmCode)
 }

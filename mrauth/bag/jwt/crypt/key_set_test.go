@@ -63,6 +63,7 @@ func validClaims() gojwt.MapClaims {
 		"sub":   uuid.New().String(),
 		"sid":   "523266583",
 		"lan":   "en",
+		"tz":    "Europe/Moscow",
 		"scope": "admin",
 		"exp":   gojwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
 	}

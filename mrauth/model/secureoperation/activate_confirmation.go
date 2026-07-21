@@ -22,12 +22,12 @@ func (o *SecureOperation) ActivateConfirmation(token string) (err error) {
 
 	if action.Sendable() {
 		o.RemainingResends = action.MaxResends
-		o.ResendsAt = time.Now().Add(action.MinResendTime).Round(1 * time.Second)
+		o.ResendsAt = time.Now().UTC().Add(action.MinResendTime).Round(1 * time.Second)
 	}
 
 	o.Token = token
 	o.RemainingAttempts = action.MaxAttempts
-	o.ExpiresAt = time.Now().Add(action.Expiry).Round(1 * time.Second)
+	o.ExpiresAt = time.Now().UTC().Add(action.Expiry).Round(1 * time.Second)
 
 	return nil
 }

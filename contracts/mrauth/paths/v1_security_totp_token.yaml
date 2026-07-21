@@ -14,9 +14,6 @@ get:
     - any-users
 
   parameters:
-    # - $ref: "../_shared/components/parameters/Api.Request.Header.AcceptLanguage.yaml"
-    # - $ref: "../_shared/components/parameters/Api.Request.Header.CorrelationID.yaml"
-    # - $ref: "../_shared/components/parameters/Api.Request.Query.Language.yaml"
     - $ref: "../components/parameters/Auth.Security.Request.Path.Token.yaml"
 
   responses:

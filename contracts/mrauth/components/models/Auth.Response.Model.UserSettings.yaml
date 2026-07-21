@@ -1,0 +1,20 @@
+type: object
+required:
+  - lang
+  - tz
+properties:
+  lang:
+    description: Язык (локаль) пользователя, который был сохранён
+    type: string
+    minLength: 2
+    maxLength: 5
+    example: "ru-RU"
+  tz:
+    description: |-
+      Часовой пояс пользователя (IANA-имя), который был сохранён.
+      Может отличаться от запрошенного, если его имя приложению неизвестно
+      и пояс был подобран по смещению; клиент применяет именно это значение
+    type: string
+    minLength: 3
+    maxLength: 64
+    example: "Europe/Moscow"
