@@ -37,6 +37,7 @@ type (
 		factory2FA       user2faActionCreator
 		locker           mrlock.Locker
 		logOperation     operationLogger
+		timeZoneResolver timeZoneResolver
 		errorWrapper     errors.Wrapper
 		realm2operation  map[string]createUserOperation
 	}
@@ -54,6 +55,7 @@ type (
 		Create(
 			user2FA dto.User2FA,
 			langCode string,
+			timeZone string,
 			address contactaddress.ContactAddress,
 			registeredIP mrtype.DetailedIP,
 		) (secureoperation.SecureOperation, error)
@@ -61,6 +63,11 @@ type (
 
 	user2faActionCreator interface {
 		CreateByUserLogin(ctx context.Context, userLogin contactaddress.ContactAddress) (dto.User2FA, error)
+	}
+
+	// timeZoneResolver - подбирает пояс, зарегистрированный в приложении.
+	timeZoneResolver interface {
+		Resolve(in dto.TimeZoneInfo) (name string)
 	}
 
 	// operationLogger - best-effort продюсер записей журнала защищённых операций.
@@ -78,6 +85,7 @@ func NewCreateUser(
 	factory2FA user2faActionCreator,
 	locker mrlock.Locker,
 	logOperation operationLogger,
+	timeZoneResolver timeZoneResolver,
 	allowedRealms []CreateUserRealm,
 ) *CreateUser {
 	realm2operation := make(map[string]createUserOperation, len(allowedRealms))
@@ -93,6 +101,7 @@ func NewCreateUser(
 		factory2FA:       factory2FA,
 		locker:           locker,
 		logOperation:     logOperation,
+		timeZoneResolver: timeZoneResolver,
 		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
 		realm2operation:  realm2operation,
 	}
@@ -100,15 +109,24 @@ func NewCreateUser(
 
 // Execute - инициирует создание пользователя: открывает защищённую операцию подтверждения по коду
 // и отправляет код на email. registeredIP фиксируется в payload операции как IP регистрации.
+//
+// Часовой пояс подбирается сразу и попадает в payload операции уже разрешённым IANA-именем:
+// присланная клиентом пара (смещение, признак летнего времени) описывает его состояние
+// на момент заявки, поэтому в payload кладётся результат подбора, а не сама пара -
+// иначе к моменту подтверждения email она могла бы описывать уже другое состояние.
 func (co *CreateUser) Execute(
 	ctx context.Context,
-	realm, langCode, userEmail string,
+	realm, langCode string,
+	timeZone dto.TimeZoneInfo,
+	userEmail string,
 	registeredIP mrtype.DetailedIP,
 ) (op secureoperation.SecureOperation, err error) {
 	opCreator, ok := co.realm2operation[realm]
 	if !ok {
 		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("realm is unknown")
 	}
+
+	resolvedTimeZone := co.timeZoneResolver.Resolve(timeZone)
 
 	parsedLogin, err := contactaddress.ParseEmail(userEmail)
 	if err != nil {
@@ -161,7 +179,7 @@ func (co *CreateUser) Execute(
 		}
 	}
 
-	op, err = opCreator.Create(user2FA, langCode, parsedLogin, registeredIP)
+	op, err = opCreator.Create(user2FA, langCode, resolvedTimeZone, parsedLogin, registeredIP)
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}

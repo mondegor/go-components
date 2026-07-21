@@ -9,6 +9,7 @@ CREATE TABLE sample_schema.users (
     user_email character varying(64) NOT NULL,
     user_phone int8 DEFAULT NULL,
     lang_code character varying(5) NOT NULL,
+    user_timezone character varying(64) NOT NULL, -- IANA-имя часового пояса пользователя
     registered_ip inet NOT NULL, -- remote addr на момент создания аккаунта (write-once)
     registered_proxy_ip inet NULL, -- proxy addr на момент создания аккаунта (для информации)
     user_status int2 NOT NULL, -- 1=DRAFT, 2=ENABLED, 3=DISABLED, 4=BLOCKED
@@ -22,8 +23,8 @@ CREATE UNIQUE INDEX uk_users_user_phone ON sample_schema.users (user_phone) WHER
 
 -- --------------------------------------------------------------------------------------------------
 
-INSERT INTO sample_schema.users (user_id, user_email, user_phone, lang_code, registered_ip, registered_proxy_ip, user_status, created_at, updated_at, deleted_at)
-VALUES  ('5ad9475b-25e5-4014-9331-567a61c51f24', 'user@example.com', 9876543210, 'ru-RU', '203.0.113.7', NULL, 2/*ENABLED*/, '2024-12-09 04:39:08.482000 +03:00', '2024-12-09 04:39:08.482000 +03:00', NULL);
+INSERT INTO sample_schema.users (user_id, user_email, user_phone, lang_code, user_timezone, registered_ip, registered_proxy_ip, user_status, created_at, updated_at, deleted_at)
+VALUES  ('5ad9475b-25e5-4014-9331-567a61c51f24', 'user@example.com', 9876543210, 'ru-RU', 'Europe/Moscow', '203.0.113.7', NULL, 2/*ENABLED*/, '2024-12-09 04:39:08.482000 +03:00', '2024-12-09 04:39:08.482000 +03:00', NULL);
 
 -- --------------------------------------------------------------------------------------------------
 

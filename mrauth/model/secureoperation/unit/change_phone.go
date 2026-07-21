@@ -1,7 +1,6 @@
 package unit
 
 import (
-	"encoding/json"
 	"strconv"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -40,8 +39,9 @@ func NewChangePhone(
 
 // Create - создаёт операцию смены телефона для указанного пользователя.
 func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone string) (secureoperation.SecureOperation, error) {
+	// 0 отсеивается здесь, потому что строка вида "0000000000" будет валидна и вернёт 0
 	parsedNewPhone, err := strconv.ParseUint(newPhone, 10, 64)
-	if err != nil {
+	if err != nil || parsedNewPhone == 0 {
 		return secureoperation.SecureOperation{}, contactaddress.ErrPhoneIsInvalid
 	}
 
@@ -55,7 +55,7 @@ func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone string) (secureoperat
 		return secureoperation.SecureOperation{}, err
 	}
 
-	payload, err := json.Marshal(
+	payload, err := BuildChangePhonePayload(
 		dto.ChangePhoneOperation{
 			NewPhone: parsedNewPhone,
 			Email:    user2FA.Email,

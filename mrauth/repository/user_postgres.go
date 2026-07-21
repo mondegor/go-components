@@ -81,6 +81,7 @@ func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldV
 			user_email,
 			user_phone,
 			lang_code,
+			user_timezone,
 			user_status,
 			created_at,
 			updated_at
@@ -101,6 +102,7 @@ func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldV
 		&row.Email,
 		&userPhone,
 		&row.LangCode,
+		&row.TimeZone,
 		&row.Status,
 		&row.CreatedAt,
 		&row.UpdatedAt,
@@ -114,6 +116,10 @@ func (re *UserPostgres) fetchOneBy(ctx context.Context, fieldName string, fieldV
 		row.Phone = *userPhone
 	}
 
+	// системное время: домен всегда оперирует UTC независимо от зоны сессии БД
+	row.CreatedAt = row.CreatedAt.UTC()
+	row.UpdatedAt = row.UpdatedAt.UTC()
+
 	return row, nil
 }
 
@@ -126,12 +132,13 @@ func (re *UserPostgres) Insert(ctx context.Context, row entity.ExtendedUser) err
 				user_email,
 				user_phone,
 				lang_code,
+				user_timezone,
 				registered_ip,
 				registered_proxy_ip,
 				user_status
 			)
 		VALUES
-			($1, $2, $3, $4, $5, $6, $7);`
+			($1, $2, $3, $4, $5, $6, $7, $8);`
 
 	var userPhone *uint64
 
@@ -147,6 +154,7 @@ func (re *UserPostgres) Insert(ctx context.Context, row entity.ExtendedUser) err
 		row.Email,
 		userPhone,
 		row.LangCode,
+		row.TimeZone,
 		row.RegisteredIP.Real,
 		row.RegisteredIP.Proxy,
 		row.Status,
@@ -166,4 +174,23 @@ func (re *UserPostgres) UpdateEmail(ctx context.Context, userID uuid.UUID, value
 // UpdatePhone - обновляет телефон пользователя.
 func (re *UserPostgres) UpdatePhone(ctx context.Context, userID uuid.UUID, value uint64) error {
 	return re.repoPhone.Update(ctx, userID, value)
+}
+
+// UpdateSettings - обновляет язык (локаль) и часовой пояс пользователя.
+func (re *UserPostgres) UpdateSettings(ctx context.Context, row entity.UserSettings) error {
+	sql := `
+		UPDATE
+			` + re.tableName + `
+		SET
+			lang_code = $2,
+			user_timezone = $3,
+			updated_at = NOW()
+		WHERE
+			user_id = $1 AND deleted_at IS NULL;`
+
+	if err := re.client.Conn(ctx).ExecRow(ctx, sql, row.UserID, row.LangCode, row.TimeZone); err != nil {
+		return re.errorWrapper.Wrap(err)
+	}
+
+	return nil
 }

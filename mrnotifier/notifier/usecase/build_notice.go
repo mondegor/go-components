@@ -119,12 +119,12 @@ func (uc *BuildNotice) getSendAfter(notice entity.Note) (time.Time, error) {
 	if v := notice.Data[mrnotifier.ConfigDelayTime]; v != "" {
 		// если указано числовое значение, то это продолжительность в секундах
 		if delayPeriod, err := strconv.ParseInt(v, 10, 64); err == nil {
-			return time.Now().Add(time.Duration(delayPeriod) * time.Second), nil
+			return time.Now().UTC().Add(time.Duration(delayPeriod) * time.Second), nil
 		}
 
 		// если это число + unit, то это продолжительность
 		if delayPeriod, err := time.ParseDuration(v); err == nil {
-			return time.Now().Add(delayPeriod), nil
+			return time.Now().UTC().Add(delayPeriod), nil
 		}
 
 		// если это время в формате RFC3339
@@ -139,7 +139,8 @@ func (uc *BuildNotice) getSendAfter(notice entity.Note) (time.Time, error) {
 		}
 
 		if time.Until(delayTime) > 0 {
-			return delayTime, nil
+			// смещение из записи RFC3339 сбрасывается: в домене время всегда хранится в UTC
+			return delayTime.UTC(), nil
 		}
 	}
 

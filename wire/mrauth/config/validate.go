@@ -2,7 +2,10 @@ package config
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
+
+	"golang.org/x/text/language"
 
 	"github.com/mondegor/go-components/mrauth/model/usergroup"
 )
@@ -16,6 +19,9 @@ const (
 
 	// minHMACSecretHS512 - минимальная длина HMAC-секрета для HS512 (512 бит, RFC 7518 §3.2).
 	minHMACSecretHS512 = 64
+
+	// defaultTOTPIssuer - имя издателя TOTP по умолчанию (метка в приложении-аутентификаторе).
+	defaultTOTPIssuer = "Auth"
 
 	// defaultRecoveryCount - число выдаваемых аварийных кодов по умолчанию.
 	defaultRecoveryCount = 10
@@ -35,8 +41,25 @@ const (
 	maxSessionThreshold int8 = 16
 )
 
+// regexpStorableLang - формат языка, пригодного для хранения в колонке lang_code:
+// двухбуквенный код языка и необязательный двухбуквенный код региона.
+//
+// Пригодность обеспечивается структурно: длиннее 5 символов такая запись быть не может,
+// что и есть ширина колонки (см. _sample/migrations, users.lang_code varchar(5)).
+// Связь неявная - при изменении ширины колонки регулярку нужно править вручную.
+//
+// Намеренно строже, чем validate.Lang: тот проверяет форму записи на границе ввода и
+// принимает неканоничные варианты ("ru_RU", "en-us", "rus"), т.к. их приводит к единому виду
+// резолвер. Здесь же проверяется уже канонический результат разбора, который пойдёт в колонку,
+// поэтому послабления недопустимы.
+var regexpStorableLang = regexp.MustCompile(`^[a-z]{2}(-[A-Z]{2})?$`)
+
 // CorrectValuesAuth2FA - подставляет значения по умолчанию в незаданные поля настроек 2FA.
 func CorrectValuesAuth2FA(cfg Auth2FA) Auth2FA {
+	if cfg.TOTPIssuer == "" {
+		cfg.TOTPIssuer = defaultTOTPIssuer
+	}
+
 	if cfg.RecoveryCount < 1 {
 		cfg.RecoveryCount = defaultRecoveryCount
 	}
@@ -211,6 +234,45 @@ func ValidateSessionThresholds(soft, hard int8) error {
 
 	if hard < soft {
 		return fmt.Errorf("session hard threshold must be >= soft (got soft=%d hard=%d)", soft, hard)
+	}
+
+	return nil
+}
+
+// ValidateLanguages - проверяет, что языки приложения пригодны для хранения:
+// каноническая запись каждого языка должна соответствовать формату колонки lang_code.
+//
+// Язык пользователя сохраняется не в том виде, в котором его прислал клиент,
+// а в том, в котором его отдаёт локализатор приложения, поэтому ограничение
+// колонки удерживается только здесь: язык со скриптовым сабтегом ("zh-Hans"),
+// трёхбуквенным кодом ("fil") или регионом-числом ("es-419") в колонку
+// не помещается и уронил бы запись уже в рантайме.
+//
+// Проверяется каноническая запись, а не исходная строка: mrlocale.NewBundle
+// принимает и форму с подчёркиванием ("en_US"), которая после разбора
+// становится "en-US" и хранению не мешает.
+//
+// Пустой список и дубликаты здесь намеренно не проверяются - это делает
+// mrlocale.NewBundle, которому список передаётся следом. Неразбираемое имя,
+// напротив, отвергается здесь, чтобы дать понятную ошибку до передачи в bundle.
+//
+// Это host-only reference-валидация уровня composition-root: предполагается, что её вызывает
+// host-приложение из своего init-пути (внутри библиотеки она намеренно не вызывается). Конкретный
+// проект может использовать её как есть либо написать собственную.
+func ValidateLanguages(langs []string) error {
+	for _, lang := range langs {
+		tag, err := language.Parse(lang)
+		if err != nil {
+			return fmt.Errorf("error parsing language (name='%s'): %w", lang, err)
+		}
+
+		if code := tag.String(); !regexpStorableLang.MatchString(code) {
+			return fmt.Errorf(
+				"language '%s' is not storable as '%s': expected 2-letter code with optional 2-letter region (e.g. ru, ru-RU)",
+				lang,
+				code,
+			)
+		}
 	}
 
 	return nil

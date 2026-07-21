@@ -6,19 +6,43 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
+	"github.com/mondegor/go-components/mrauth/component/secureoperation/mock"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	secureoperation_model "github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
+type ResendCodeSuite struct {
+	suite.Suite
+
+	ctrl     *gomock.Controller
+	tokenGen *mock.MockTokenGenerator
+	codeGen  *mock.MockCodeGenerator
+	svc      *secureoperation.ResendCode
+}
+
+func TestResendCodeSuite(t *testing.T) {
+	t.Parallel()
+
+	suite.Run(t, new(ResendCodeSuite))
+}
+
+func (s *ResendCodeSuite) SetupTest() {
+	s.ctrl = gomock.NewController(s.T())
+	s.tokenGen = mock.NewMockTokenGenerator(s.ctrl)
+	s.codeGen = mock.NewMockCodeGenerator(s.ctrl)
+	s.svc = secureoperation.NewResendCode(s.tokenGen, s.codeGen)
+
+	s.codeGen.EXPECT().GenCodeWithHash().Return("123456", "123456", nil).AnyTimes()
+}
+
 // openedEmailOp - создаёт sendable-операцию (Email) в статусе Opened, готовую к
 // повторной отправке кода (есть оставшиеся попытки, ResendsAt в прошлом).
-func openedEmailOp(t *testing.T) secureoperation_model.SecureOperation {
-	t.Helper()
-
+func (s *ResendCodeSuite) openedEmailOp() secureoperation_model.SecureOperation {
 	op := secureoperation_model.SecureOperation{
 		Token:             "token",
 		Name:              "name1",
@@ -29,7 +53,7 @@ func openedEmailOp(t *testing.T) secureoperation_model.SecureOperation {
 		Status:            operationstatus.Opened,
 		ExpiresAt:         time.Now().Add(10 * time.Minute),
 	}
-	require.NoError(t, secureoperation_model.WakeUp(&op, []secureoperation_model.ConfirmAction{
+	s.Require().NoError(secureoperation_model.WakeUp(&op, []secureoperation_model.ConfirmAction{
 		{
 			Method:        confirmmethod.Email,
 			MaxAttempts:   3,
@@ -43,38 +67,28 @@ func openedEmailOp(t *testing.T) secureoperation_model.SecureOperation {
 	return op
 }
 
-func TestResendCode_Prepare_Success(t *testing.T) {
-	t.Parallel()
+func (s *ResendCodeSuite) TestPrepareSuccess() {
+	s.tokenGen.EXPECT().GenToken().Return("new-token", nil)
 
-	resend := secureoperation.NewResendCode(
-		&fakeTokenGen{token: "new-token"},
-		&fakeCodeGen{code: "123456"},
-	)
-
-	out, err := resend.Prepare(openedEmailOp(t))
-	require.NoError(t, err)
-	require.Equal(t, "new-token", out.Token)
+	out, err := s.svc.Prepare(s.openedEmailOp())
+	s.Require().NoError(err)
+	s.Equal("new-token", out.Token)
 
 	action, ok := out.FirstAction()
-	require.True(t, ok)
-	require.Equal(t, "123456", action.ConfirmCode)
+	s.Require().True(ok)
+	s.Equal("123456", action.ConfirmCode)
 }
 
-func TestResendCode_Prepare_TokenGeneratorError(t *testing.T) {
-	t.Parallel()
-
+func (s *ResendCodeSuite) TestPrepareTokenGeneratorError() {
 	wantErr := errors.New("token generation failed")
-	resend := secureoperation.NewResendCode(
-		&fakeTokenGen{err: wantErr},
-		&fakeCodeGen{code: "123456"},
-	)
+	s.tokenGen.EXPECT().GenToken().Return("", wantErr)
 
-	_, err := resend.Prepare(openedEmailOp(t))
-	require.ErrorIs(t, err, wantErr)
+	_, err := s.svc.Prepare(s.openedEmailOp())
+	s.Require().ErrorIs(err, wantErr)
 }
 
-func TestResendCode_Prepare_NotOpenedFails(t *testing.T) {
-	t.Parallel()
+func (s *ResendCodeSuite) TestPrepareNotOpenedFails() {
+	s.tokenGen.EXPECT().GenToken().Return("new-token", nil).AnyTimes()
 
 	confirmed := secureoperation_model.SecureOperation{
 		Token:     "token",
@@ -83,13 +97,8 @@ func TestResendCode_Prepare_NotOpenedFails(t *testing.T) {
 		Status:    operationstatus.Confirmed,
 		ExpiresAt: time.Now().Add(10 * time.Minute),
 	}
-	require.NoError(t, secureoperation_model.WakeUp(&confirmed, nil))
+	s.Require().NoError(secureoperation_model.WakeUp(&confirmed, nil))
 
-	resend := secureoperation.NewResendCode(
-		&fakeTokenGen{token: "new-token"},
-		&fakeCodeGen{code: "123456"},
-	)
-
-	_, err := resend.Prepare(confirmed)
-	require.ErrorIs(t, err, secureoperation_model.ErrOperationAlreadyConfirmed)
+	_, err := s.svc.Prepare(confirmed)
+	s.Require().ErrorIs(err, secureoperation_model.ErrOperationAlreadyConfirmed)
 }

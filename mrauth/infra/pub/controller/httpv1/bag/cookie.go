@@ -46,7 +46,7 @@ func (c *RefreshTokenCookie) SetValue(w http.ResponseWriter, refreshToken string
 		Value:    refreshToken,
 		Path:     c.path,
 		Domain:   c.domain,
-		Expires:  time.Now().Add(c.expiry),
+		Expires:  time.Now().UTC().Add(c.expiry),
 		MaxAge:   int(c.expiry.Seconds()),
 		Secure:   c.secure,
 		HttpOnly: true,

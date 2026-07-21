@@ -213,12 +213,13 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 	// бы удержание транзакции. К этому моменту commit уже прошёл - сессия открыта
 	// и токены выданы, поэтому потерю одного обновления телеметрии при транзиентном сбое БД
 	// сознательно игнорируется, чтобы не проваливать успешный логин.
+	now := time.Now().UTC()
 	userActivity := entity.UserActivityStat{
 		UserID:        userScopes.UserID,
 		RealmID:       realmID,
 		LastLoginIP:   meta.ClientIP.Real,
-		LastLoggedAt:  time.Now(),
-		LastVisitedAt: time.Now(),
+		LastLoggedAt:  now,
+		LastVisitedAt: now,
 	}
 
 	if err = uc.storageUserActivity.InsertOrUpdate(ctx, userActivity); err != nil {

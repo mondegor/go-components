@@ -71,6 +71,7 @@ func TestTokenIssuer_CreateTokenPair(t *testing.T) {
 				Realm:     "site/admin",
 				Kind:      "admin",
 				LangCode:  "en",
+				TimeZone:  "Europe/Moscow",
 			}
 
 			got, err := issuer.CreateTokenPair(userScopes)
@@ -85,6 +86,7 @@ func TestTokenIssuer_CreateTokenPair(t *testing.T) {
 			assert.Equal(t, userScopes.Realm, got.Scopes.Realm)
 			assert.Equal(t, userScopes.Kind, got.Scopes.UserKind)
 			assert.Equal(t, userScopes.LangCode, got.Scopes.LangCode)
+			assert.Equal(t, userScopes.TimeZone, got.Scopes.TimeZone)
 
 			// round-trip: access токен должен распаковываться тем же ключом (тот же алгоритм)
 			verifyKey, err := crypt.NewHMACKey("", tt.signingMethod, []byte(secret))
@@ -99,6 +101,7 @@ func TestTokenIssuer_CreateTokenPair(t *testing.T) {
 			assert.Equal(t, userScopes.SessionID, parsed.SessionID)
 			assert.Equal(t, userScopes.Realm, parsed.Realm)
 			assert.Equal(t, userScopes.Kind, parsed.Kind)
+			assert.Equal(t, userScopes.TimeZone, parsed.TimeZone)
 
 			// в выпущенном токене должны присутствовать claim'ы iss/iat/jti
 			rawClaims := gojwt.MapClaims{}
@@ -123,6 +126,66 @@ func TestTokenIssuer_CreateTokenPair_GeneratorError(t *testing.T) {
 
 	issuer := jwt.NewTokenIssuer(gen, accessExpiry, refreshExpiry, issuerName, signingKey)
 
-	_, err = issuer.CreateTokenPair(dto.UserScopes{UserID: uuid.New()})
+	_, err = issuer.CreateTokenPair(validUserScopes())
 	require.Error(t, err)
+}
+
+func TestTokenIssuer_CreateTokenPair_InvalidScopes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		userScopes func() dto.UserScopes
+		wantErr    string
+	}{
+		{
+			name: "empty langCode",
+			userScopes: func() dto.UserScopes {
+				scopes := validUserScopes()
+				scopes.LangCode = ""
+
+				return scopes
+			},
+			wantErr: "langCode is empty",
+		},
+		{
+			name: "empty timeZone",
+			userScopes: func() dto.UserScopes {
+				scopes := validUserScopes()
+				scopes.TimeZone = ""
+
+				return scopes
+			},
+			wantErr: "timeZone is empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			gen := mock.NewMockTokenGenerator(ctrl) // токен не генерируется: область действия отвергается раньше
+
+			signingKey, err := crypt.NewHMACKey("", "HS512", []byte(secret))
+			require.NoError(t, err)
+
+			issuer := jwt.NewTokenIssuer(gen, accessExpiry, refreshExpiry, issuerName, signingKey)
+
+			_, err = issuer.CreateTokenPair(tt.userScopes())
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+// validUserScopes - область действия, пригодная для выпуска токена.
+func validUserScopes() dto.UserScopes {
+	return dto.UserScopes{
+		UserID:    uuid.New(),
+		SessionID: 0x1f3bc817,
+		Realm:     "site/admin",
+		Kind:      "admin",
+		LangCode:  "en",
+		TimeZone:  "Europe/Moscow",
+	}
 }

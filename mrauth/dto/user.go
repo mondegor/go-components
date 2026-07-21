@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"fmt"
 	"net/netip"
 	"time"
 
@@ -11,11 +12,32 @@ import (
 )
 
 type (
-	// User - информация о группе и языке пользователя.
+	// User - информация о группе, языке и часовом поясе пользователя.
 	User struct {
 		ID       uuid.UUID
 		Group    string
 		LangCode string
+		TimeZone string
+	}
+
+	// UserSettings - запрошенные пользователем настройки: язык и часовой пояс.
+	UserSettings struct {
+		LangCode string
+		TimeZone TimeZoneInfo
+	}
+
+	// TimeZoneInfo - запрошенный пользователем часовой пояс. Смещение относительно UTC
+	// и признак летнего времени нужны для подбора пояса, если его имя приложению неизвестно.
+	TimeZoneInfo struct {
+		Name   string
+		Offset time.Duration
+		IsDST  bool
+	}
+
+	// UserSettingsApplied - настройки пользователя, которые реально сохранены.
+	UserSettingsApplied struct {
+		LangCode string
+		TimeZone string
 	}
 
 	// UserScopes - область действия пользователя.
@@ -28,6 +50,7 @@ type (
 		Realm     string    `json:"realm"` // domain + '/' + user_group
 		Kind      string    `json:"kind"`
 		LangCode  string    `json:"lang"`
+		TimeZone  string    `json:"tz"`
 		// Email    string
 		// Phone    uint64
 	}
@@ -82,3 +105,19 @@ type (
 		VisitedAt     time.Time         `json:"visited_at"`
 	}
 )
+
+// Validate - проверяет, что область действия пригодна для выпуска токена: язык и часовой
+// пояс должны быть заданы. Оба попадают в токен и оттуда в профиль запроса, а пустую секцию
+// парсер jwt считает невалидной, поэтому иначе был бы выпущен токен, не проходящий
+// собственную же проверку.
+func (s UserScopes) Validate() error {
+	if s.LangCode == "" {
+		return fmt.Errorf("userScopes: langCode is empty (userId='%s')", s.UserID)
+	}
+
+	if s.TimeZone == "" {
+		return fmt.Errorf("userScopes: timeZone is empty (userId='%s')", s.UserID)
+	}
+
+	return nil
+}

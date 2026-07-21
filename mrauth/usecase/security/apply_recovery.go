@@ -2,7 +2,6 @@ package security
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
@@ -110,13 +109,9 @@ func (uc *ApplyRecovery) Execute(
 			return errors.New("operation is not confirmed")
 		}
 
-		var payload dto.OperationWithUserEmail
-		if err = json.Unmarshal(op.Payload, &payload); err != nil {
-			return uc.errorWrapper.Wrap(err)
-		}
-
-		if payload.Email == "" {
-			return errors.New("operation has no staged email")
+		payload, err := unit.ParseRegenerateRecoveryPayload(op.Payload)
+		if err != nil {
+			return err
 		}
 
 		var hashedCodes []string

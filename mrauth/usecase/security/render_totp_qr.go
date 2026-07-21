@@ -3,7 +3,6 @@ package security
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"image"
 	"image/png"
 	"io"
@@ -12,7 +11,6 @@ import (
 	"github.com/mondegor/go-core/errors"
 	modelmedia "github.com/mondegor/go-core/mrmodel/media"
 
-	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
@@ -81,14 +79,9 @@ func (uc *RenderTOTPGeneratorQR) Execute(ctx context.Context, userID uuid.UUID, 
 		return modelmedia.Image{}, errors.New("operation is not confirmed")
 	}
 
-	var payload dto.ChangeTotpOperation
-
-	if err = json.Unmarshal(op.Payload, &payload); err != nil {
-		return modelmedia.Image{}, uc.errorWrapper.Wrap(err)
-	}
-
-	if payload.Secret == "" {
-		return modelmedia.Image{}, errors.New("operation has no staged secret")
+	payload, err := unit.ParseChangeTOTPPayload(op.Payload)
+	if err != nil {
+		return modelmedia.Image{}, err
 	}
 
 	img, err := uc.totpRenderer.QRImage(payload.Email, payload.Secret, totpQRSize, totpQRSize)

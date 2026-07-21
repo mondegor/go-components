@@ -19,12 +19,15 @@ import (
 	"github.com/mondegor/go-components/mrauth/service/authtoken"
 	"github.com/mondegor/go-components/mrauth/service/authuser"
 	"github.com/mondegor/go-components/mrauth/service/check"
+	servicelang "github.com/mondegor/go-components/mrauth/service/lang"
 	sessionsrv "github.com/mondegor/go-components/mrauth/service/session"
+	servicetimezone "github.com/mondegor/go-components/mrauth/service/timezone"
 	"github.com/mondegor/go-components/mrauth/service/userinfo"
 	usecaseauth "github.com/mondegor/go-components/mrauth/usecase/auth"
 	"github.com/mondegor/go-components/mrauth/usecase/operation"
 	"github.com/mondegor/go-components/mrauth/usecase/session"
 	"github.com/mondegor/go-components/mrauth/usecase/session/handler"
+	usecaseuser "github.com/mondegor/go-components/mrauth/usecase/user"
 	"github.com/mondegor/go-components/mrauth/validate"
 	"github.com/mondegor/go-components/mrnotifier"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
@@ -56,6 +59,8 @@ func initUnitAuthController(
 	sessionSoftThreshold, sessionHardThreshold int8,
 	debugFunc func(value any) string,
 	locationResolver mrauth.LocationResolver,
+	languages mrauth.LanguageList,
+	timeZones mrauth.TimeZoneList,
 ) (mrserver.HttpController, error) {
 	realmRegistry := mapping.OptionUserRealmsToRealmRegistry(userRealms)
 
@@ -80,6 +85,9 @@ func initUnitAuthController(
 		),
 	)
 
+	langResolver := servicelang.New(languages)
+	timeZoneResolver := servicetimezone.New(timeZones)
+
 	useCaseCreateUser := usecaseauth.NewCreateUser(
 		dbConnManager,
 		checkUserService,
@@ -88,6 +96,7 @@ func initUnitAuthController(
 		factory2FA,
 		locker,
 		operationLogger,
+		timeZoneResolver,
 		mapping.OptionUserRealmsToConfirmCreateUserRealms(userRealms),
 	)
 
@@ -147,6 +156,12 @@ func initUnitAuthController(
 		serviceAuthToken,
 	)
 
+	useCaseApplySettings := usecaseuser.NewApplySettings(
+		storageUser,
+		langResolver,
+		timeZoneResolver,
+	)
+
 	serviceUserInfo := userinfo.New(
 		dbConnManager,
 		storageUser,
@@ -171,6 +186,7 @@ func initUnitAuthController(
 		useCaseOpenSession,
 		useCaseContinueSession,
 		useCaseCloseSession,
+		useCaseApplySettings,
 		serviceUserInfo,
 		realmRegistry,
 		bag.NewOperationResponse(debugFunc),

@@ -1,8 +1,6 @@
 package unit
 
 import (
-	"encoding/json"
-
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
@@ -54,7 +52,7 @@ func (o *ChangePassword) Create(user2FA dto.User2FA, newPassword string) (secure
 		return secureoperation.SecureOperation{}, err
 	}
 
-	payload, err := json.Marshal(
+	payload, err := BuildChangePasswordPayload(
 		dto.ChangePasswordOperation{
 			NewPassword: hashedNewPassword,
 			Email:       user2FA.Email,

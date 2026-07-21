@@ -13,6 +13,8 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/mrtype"
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -20,132 +22,41 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
-	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/auth"
+	"github.com/mondegor/go-components/mrauth/usecase/auth/mock"
 )
 
-type (
-	fakeTx struct{}
+//go:generate mockgen -source=create_session.go -destination=mock/create_session.go -package=mock
+//go:generate mockgen -source=create_user.go -destination=mock/create_user.go -package=mock
+//go:generate mockgen -source=user_statistic.go -destination=mock/user_statistic.go -package=mock
+//go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
+//go:generate mockgen -destination=mock/mrlock.go -package=mock github.com/mondegor/go-core/mrlock Locker
+//go:generate mockgen -destination=mock/mrnotifier.go -package=mock github.com/mondegor/go-components/mrnotifier NoteProducer
+//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth User2FAConfirmActionCreator
 
-	fakeNotifier struct {
-		sent bool
-		err  error
-	}
-
-	fakeOpCreator struct {
-		inserted bool
-		err      error
-	}
-
-	fakeUserChecker struct {
-		err error
-	}
-
-	fakeUser2FAFactory struct {
-		user dto.User2FA
-		err  error
-	}
-
-	fakeSessionOpFactory struct {
-		op  secureoperation.SecureOperation
-		err error
-	}
-
-	fakeUserOpFactory struct {
-		op              secureoperation.SecureOperation
-		err             error
-		gotUser2FA      dto.User2FA
-		gotRegisteredIP mrtype.DetailedIP
-	}
-
-	fakeLocker struct {
-		err error
-	}
-
-	fakeOperationLogger struct {
-		entries []entity.SecureOperationLog
-	}
-)
-
-func (f *fakeOperationLogger) Log(_ context.Context, entry entity.SecureOperationLog) {
-	f.entries = append(f.entries, entry)
+// testIP - IP регистрации, используемый во всех тестах создания пользователя.
+func testIP() mrtype.DetailedIP {
+	return mrtype.NewIP(netip.MustParseAddr("203.0.113.7"))
 }
 
-func (fakeTx) Do(ctx context.Context, job func(ctx context.Context) error, _ ...mrstorage.TxOption) error {
-	return job(ctx)
+// testTZ - непустой запрос часового пояса; резолвер возвращает его имя как есть.
+func testTZ() dto.TimeZoneInfo {
+	return dto.TimeZoneInfo{Name: "Europe/Moscow"}
 }
 
-func (f *fakeNotifier) Send(context.Context, string, map[string]any) error {
-	if f.err != nil {
-		return f.err
-	}
-
-	f.sent = true
-
-	return nil
+// expectPassThroughTx - транзакция выполняет переданное задание как есть.
+func expectPassThroughTx(txManager *mock.MockDBTxManager) {
+	txManager.EXPECT().
+		Do(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, job func(ctx context.Context) error, _ ...mrstorage.TxOption) error {
+			return job(ctx)
+		}).
+		AnyTimes()
 }
 
-func (f *fakeOpCreator) Insert(context.Context, secureoperation.SecureOperation) error {
-	if f.err != nil {
-		return f.err
-	}
-
-	f.inserted = true
-
-	return nil
-}
-
-func (f fakeUserChecker) CheckAvailabilityRealm(context.Context, string, contactaddress.ContactAddress) error {
-	return f.err
-}
-
-func (f fakeUser2FAFactory) CreateByUserID(context.Context, uuid.UUID) (dto.User2FA, error) {
-	return f.user, f.err
-}
-
-func (f fakeUser2FAFactory) CreateByUserLogin(context.Context, contactaddress.ContactAddress) (dto.User2FA, error) {
-	return f.user, f.err
-}
-
-func (f fakeSessionOpFactory) Name() string {
-	return unit.NameAuthorizeUser
-}
-
-func (f fakeSessionOpFactory) Create(dto.User2FA, string, string, contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
-	return f.op, f.err
-}
-
-func (f *fakeUserOpFactory) Name() string {
-	return unit.NameConfirmCreateUser
-}
-
-func (f *fakeUserOpFactory) Create(
-	user2FA dto.User2FA,
-	_ string,
-	_ contactaddress.ContactAddress,
-	registeredIP mrtype.DetailedIP,
-) (secureoperation.SecureOperation, error) {
-	f.gotUser2FA = user2FA
-	f.gotRegisteredIP = registeredIP
-
-	return f.op, f.err
-}
-
-func (f *fakeLocker) Lock(context.Context, string) (func(), error) {
-	return func() {}, f.err
-}
-
-func (f *fakeLocker) LockWithExpiry(context.Context, string, time.Duration) (func(), error) {
-	if f.err != nil {
-		return nil, f.err
-	}
-
-	return func() {}, nil
-}
-
-func openedEmailOp(t *testing.T) secureoperation.SecureOperation {
+func newOpenedEmailOp(t *testing.T) secureoperation.SecureOperation {
 	t.Helper()
 
 	op, err := secureoperation.NewOperation(
@@ -171,247 +82,366 @@ func openedEmailOp(t *testing.T) secureoperation.SecureOperation {
 	return op
 }
 
-func newCreateSession(
-	checker fakeUserChecker,
-	creator *fakeOpCreator,
-	notifier *fakeNotifier,
-	opFactory fakeSessionOpFactory,
-	logOperation *fakeOperationLogger,
-) *auth.CreateSession {
+type CreateSessionSuite struct {
+	suite.Suite
+
+	ctrl         *gomock.Controller
+	ctx          context.Context
+	txManager    *mock.MockDBTxManager
+	checker      *mock.MockuserLoginChecker
+	creator      *mock.MockoperationCreator
+	notifierAPI  *mock.MockNoteProducer
+	factory2FA   *mock.MockUser2FAConfirmActionCreator
+	opFactory    *mock.MockcreateSessionOperation
+	logOperation *mock.MockoperationLogger
+	logEntries   []entity.SecureOperationLog
+}
+
+func TestCreateSessionSuite(t *testing.T) {
+	t.Parallel()
+
+	suite.Run(t, new(CreateSessionSuite))
+}
+
+func (s *CreateSessionSuite) SetupTest() {
+	s.ctrl = gomock.NewController(s.T())
+	s.ctx = context.Background()
+	s.txManager = mock.NewMockDBTxManager(s.ctrl)
+	s.checker = mock.NewMockuserLoginChecker(s.ctrl)
+	s.creator = mock.NewMockoperationCreator(s.ctrl)
+	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
+	s.factory2FA = mock.NewMockUser2FAConfirmActionCreator(s.ctrl)
+	s.opFactory = mock.NewMockcreateSessionOperation(s.ctrl)
+	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
+	s.logEntries = nil
+
+	expectPassThroughTx(s.txManager)
+
+	s.opFactory.EXPECT().Name().Return(unit.NameAuthorizeUser).AnyTimes()
+	s.factory2FA.EXPECT().CreateByUserLogin(gomock.Any(), gomock.Any()).Return(dto.User2FA{}, nil).AnyTimes()
+	s.factory2FA.EXPECT().CreateByUserID(gomock.Any(), gomock.Any()).Return(dto.User2FA{}, nil).AnyTimes()
+	s.logOperation.EXPECT().
+		Log(gomock.Any(), gomock.Any()).
+		Do(func(_ context.Context, entry entity.SecureOperationLog) {
+			s.logEntries = append(s.logEntries, entry)
+		}).
+		AnyTimes()
+}
+
+func (s *CreateSessionSuite) newUseCase() *auth.CreateSession {
 	return auth.NewCreateSession(
-		fakeTx{},
-		checker,
-		creator,
-		notifier,
-		fakeUser2FAFactory{},
-		logOperation,
-		[]auth.CreateSessionRealm{{Name: "shop", Operation: opFactory}},
+		s.txManager,
+		s.checker,
+		s.creator,
+		s.notifierAPI,
+		s.factory2FA,
+		s.logOperation,
+		[]auth.CreateSessionRealm{{Name: "shop", Operation: s.opFactory}},
 	)
 }
 
-func TestCreateSession_EmptyLogin(t *testing.T) {
-	t.Parallel()
-
-	uc := newCreateSession(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, fakeSessionOpFactory{}, &fakeOperationLogger{})
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{}, "shop", "en", "")
-	require.Error(t, err)
+// expectCheckLogin - результат проверки доступности логина в realm.
+func (s *CreateSessionSuite) expectCheckLogin(err error) {
+	s.checker.EXPECT().CheckAvailabilityRealm(gomock.Any(), gomock.Any(), gomock.Any()).Return(err).AnyTimes()
 }
 
-func TestCreateSession_UnknownRealm(t *testing.T) {
-	t.Parallel()
-
-	uc := newCreateSession(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, fakeSessionOpFactory{}, &fakeOperationLogger{})
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{}, "unknown", "en", "user@example.com")
-	require.Error(t, err)
+func (s *CreateSessionSuite) TestEmptyLogin() {
+	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", "")
+	s.Require().Error(err)
 }
 
-func TestCreateSession_LoginDoesNotExist(t *testing.T) {
-	t.Parallel()
+func (s *CreateSessionSuite) TestUnknownRealm() {
+	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "unknown", "en", "user@example.com")
+	s.Require().Error(err)
+}
 
+func (s *CreateSessionSuite) TestLoginDoesNotExist() {
 	// nil от CheckAvailabilityRealm означает, что логин свободен - значит входить некому.
-	logOperation := &fakeOperationLogger{}
-	uc := newCreateSession(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, fakeSessionOpFactory{op: openedEmailOp(t)}, logOperation)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{}, "shop", "en", "user@example.com")
-	require.ErrorIs(t, err, mrauth.ErrLoginNotExists)
-	require.Len(t, logOperation.entries, 1)
-	require.Equal(t, logstatus.Blocked, logOperation.entries[0].LogStatus)
-	require.Equal(t, logreason.LoginNotExists, logOperation.entries[0].Reason)
-	require.Equal(t, unit.NameAuthorizeUser, logOperation.entries[0].OperationName)
+	s.expectCheckLogin(nil)
+	s.opFactory.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(newOpenedEmailOp(s.T()), nil).
+		AnyTimes()
+
+	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", "user@example.com")
+	s.Require().ErrorIs(err, mrauth.ErrLoginNotExists)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+	s.Equal(logreason.LoginNotExists, s.logEntries[0].Reason)
+	s.Equal(unit.NameAuthorizeUser, s.logEntries[0].OperationName)
 }
 
-func TestCreateSession_Success(t *testing.T) {
-	t.Parallel()
+func (s *CreateSessionSuite) TestSuccess() {
+	op := newOpenedEmailOp(s.T())
 
-	creator := &fakeOpCreator{}
-	notifier := &fakeNotifier{}
-	logOperation := &fakeOperationLogger{}
-	op := openedEmailOp(t)
-	uc := newCreateSession(fakeUserChecker{err: mrauth.ErrEmailAlreadyExists}, creator, notifier, fakeSessionOpFactory{op: op}, logOperation)
+	s.expectCheckLogin(mrauth.ErrEmailAlreadyExists)
+	s.opFactory.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(op, nil).
+		AnyTimes()
+	s.creator.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{}, "shop", "en", "user@example.com")
-	require.NoError(t, err)
-	require.True(t, creator.inserted)
-	require.True(t, notifier.sent)
-	require.Len(t, logOperation.entries, 1)
-	require.Equal(t, logstatus.Opened, logOperation.entries[0].LogStatus)
-	require.Equal(t, logreason.Unspecified, logOperation.entries[0].Reason)
+	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", "user@example.com")
+	s.Require().NoError(err)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Opened, s.logEntries[0].LogStatus)
+	s.Equal(logreason.Unspecified, s.logEntries[0].Reason)
 	// вход инициирует существующий пользователь: он и попадает в журнал
-	require.Equal(t, op.UserID, logOperation.entries[0].VisitorID)
+	s.Equal(op.UserID, s.logEntries[0].VisitorID)
 }
 
-func TestCreateSession_CheckerError(t *testing.T) {
+func (s *CreateSessionSuite) TestCheckerError() {
+	s.expectCheckLogin(errors.New("boom"))
+	s.opFactory.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(newOpenedEmailOp(s.T()), nil).
+		AnyTimes()
+
+	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", "user@example.com")
+	s.Require().Error(err)
+}
+
+type CreateUserSuite struct {
+	suite.Suite
+
+	ctrl         *gomock.Controller
+	ctx          context.Context
+	txManager    *mock.MockDBTxManager
+	checker      *mock.MockuserLoginChecker
+	creator      *mock.MockoperationCreator
+	notifierAPI  *mock.MockNoteProducer
+	factory2FA   *mock.Mockuser2faActionCreator
+	locker       *mock.MockLocker
+	opFactory    *mock.MockcreateUserOperation
+	tzResolver   *mock.MocktimeZoneResolver
+	logOperation *mock.MockoperationLogger
+	logEntries   []entity.SecureOperationLog
+
+	// аргументы, доехавшие до фабрики операции создания пользователя
+	gotUser2FA      dto.User2FA
+	gotTimeZone     string
+	gotRegisteredIP mrtype.DetailedIP
+}
+
+func TestCreateUserSuite(t *testing.T) {
 	t.Parallel()
 
-	uc := newCreateSession(
-		fakeUserChecker{err: errors.New("boom")},
-		&fakeOpCreator{},
-		&fakeNotifier{},
-		fakeSessionOpFactory{op: openedEmailOp(t)},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), dto.ActorMeta{}, "shop", "en", "user@example.com")
-	require.Error(t, err)
+	suite.Run(t, new(CreateUserSuite))
 }
 
-func newCreateUser(
-	checker fakeUserChecker,
-	creator *fakeOpCreator,
-	notifier *fakeNotifier,
-	factory fakeUser2FAFactory,
-	locker *fakeLocker,
-	opFactory *fakeUserOpFactory,
-	logOperation *fakeOperationLogger,
-) *auth.CreateUser {
+func (s *CreateUserSuite) SetupTest() {
+	s.ctrl = gomock.NewController(s.T())
+	s.ctx = context.Background()
+	s.txManager = mock.NewMockDBTxManager(s.ctrl)
+	s.checker = mock.NewMockuserLoginChecker(s.ctrl)
+	s.creator = mock.NewMockoperationCreator(s.ctrl)
+	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
+	s.factory2FA = mock.NewMockuser2faActionCreator(s.ctrl)
+	s.locker = mock.NewMockLocker(s.ctrl)
+	s.opFactory = mock.NewMockcreateUserOperation(s.ctrl)
+	s.tzResolver = mock.NewMocktimeZoneResolver(s.ctrl)
+	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
+	s.logEntries = nil
+	s.gotUser2FA = dto.User2FA{}
+	s.gotTimeZone = ""
+	s.gotRegisteredIP = mrtype.DetailedIP{}
+
+	expectPassThroughTx(s.txManager)
+
+	s.opFactory.EXPECT().Name().Return(unit.NameConfirmCreateUser).AnyTimes()
+	s.logOperation.EXPECT().
+		Log(gomock.Any(), gomock.Any()).
+		Do(func(_ context.Context, entry entity.SecureOperationLog) {
+			s.logEntries = append(s.logEntries, entry)
+		}).
+		AnyTimes()
+
+	// резолвер возвращает запрошенное имя пояса, а при его отсутствии - UTC;
+	// подбор по смещению проверяется отдельно в тестах самого резолвера
+	s.tzResolver.EXPECT().
+		Resolve(gomock.Any()).
+		DoAndReturn(func(in dto.TimeZoneInfo) string {
+			if in.Name == "" {
+				return "UTC"
+			}
+
+			return in.Name
+		}).
+		AnyTimes()
+}
+
+// expectHappyDeps - дефолтные ответы блокировки, проверки логина и фабрики 2FA.
+// Вызывается каждым тестом явно: gomock выбирает первое подходящее ожидание, поэтому
+// заданный в SetupTest дефолт перекрыть уже нельзя.
+func (s *CreateUserSuite) expectHappyDeps() {
+	s.expectLock(nil)
+	s.expectCheckLogin(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+}
+
+func (s *CreateUserSuite) newUseCase() *auth.CreateUser {
 	return auth.NewCreateUser(
-		fakeTx{},
-		checker,
-		creator,
-		notifier,
-		factory,
-		locker,
-		logOperation,
-		[]auth.CreateUserRealm{{Name: "shop", Operation: opFactory}},
+		s.txManager,
+		s.checker,
+		s.creator,
+		s.notifierAPI,
+		s.factory2FA,
+		s.locker,
+		s.logOperation,
+		s.tzResolver,
+		[]auth.CreateUserRealm{{Name: "shop", Operation: s.opFactory}},
 	)
 }
 
-func TestCreateUser_UnknownRealm(t *testing.T) {
-	t.Parallel()
-
-	uc := newCreateUser(
-		fakeUserChecker{},
-		&fakeOpCreator{},
-		&fakeNotifier{},
-		fakeUser2FAFactory{},
-		&fakeLocker{},
-		&fakeUserOpFactory{},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), "unknown", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
-	require.Error(t, err)
+func (s *CreateUserSuite) expectCheckLogin(err error) {
+	s.checker.EXPECT().CheckAvailabilityRealm(gomock.Any(), gomock.Any(), gomock.Any()).Return(err).AnyTimes()
 }
 
-func TestCreateUser_InvalidEmail(t *testing.T) {
-	t.Parallel()
-
-	uc := newCreateUser(
-		fakeUserChecker{},
-		&fakeOpCreator{},
-		&fakeNotifier{},
-		fakeUser2FAFactory{},
-		&fakeLocker{},
-		&fakeUserOpFactory{},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), "shop", "en", "bad", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
-	require.Error(t, err)
+func (s *CreateUserSuite) expect2FA(user dto.User2FA, err error) {
+	s.factory2FA.EXPECT().CreateByUserLogin(gomock.Any(), gomock.Any()).Return(user, err).AnyTimes()
 }
 
-func TestCreateUser_LockNotObtained(t *testing.T) {
-	t.Parallel()
+func (s *CreateUserSuite) expectLock(err error) {
+	if err != nil {
+		s.locker.EXPECT().Lock(gomock.Any(), gomock.Any()).Return(nil, err).AnyTimes()
+		s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, err).AnyTimes()
 
-	logOperation := &fakeOperationLogger{}
-	uc := newCreateUser(
-		fakeUserChecker{},
-		&fakeOpCreator{},
-		&fakeNotifier{},
-		fakeUser2FAFactory{},
-		&fakeLocker{err: mrlock.ErrLockKeyNotObtained},
-		&fakeUserOpFactory{},
-		logOperation,
-	)
-	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
-	require.ErrorIs(t, err, mrauth.ErrSignupAlreadyInProgressTryLater)
-	require.Len(t, logOperation.entries, 1)
-	require.Equal(t, logstatus.Blocked, logOperation.entries[0].LogStatus)
-	require.Equal(t, logreason.Throttled, logOperation.entries[0].Reason)
-	require.Equal(t, unit.NameConfirmCreateUser, logOperation.entries[0].OperationName)
+		return
+	}
+
+	unlock := func() {}
+	s.locker.EXPECT().Lock(gomock.Any(), gomock.Any()).Return(unlock, nil).AnyTimes()
+	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(unlock, nil).AnyTimes()
 }
 
-func TestCreateUser_Success(t *testing.T) {
-	t.Parallel()
+// expectCreateOperation - фабрика операции запоминает доехавшие до неё аргументы.
+func (s *CreateUserSuite) expectCreateOperation(op secureoperation.SecureOperation, err error) {
+	s.opFactory.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			user2FA dto.User2FA,
+			_ string,
+			timeZone string,
+			_ any,
+			registeredIP mrtype.DetailedIP,
+		) (secureoperation.SecureOperation, error) {
+			s.gotUser2FA = user2FA
+			s.gotTimeZone = timeZone
+			s.gotRegisteredIP = registeredIP
 
-	creator := &fakeOpCreator{}
-	notifier := &fakeNotifier{}
-	opFactory := &fakeUserOpFactory{op: openedEmailOp(t)}
-	logOperation := &fakeOperationLogger{}
-	uc := newCreateUser(fakeUserChecker{}, creator, notifier, fakeUser2FAFactory{}, &fakeLocker{}, opFactory, logOperation)
-
-	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
-	require.NoError(t, err)
-	require.True(t, creator.inserted)
-	require.True(t, notifier.sent)
-	require.Equal(t, mrtype.NewIP(netip.MustParseAddr("203.0.113.7")), opFactory.gotRegisteredIP, "IP регистрации доезжает до фабрики операции")
-	require.Len(t, logOperation.entries, 1)
-	require.Equal(t, logstatus.Opened, logOperation.entries[0].LogStatus)
+			return op, err
+		}).
+		AnyTimes()
 }
 
-func TestCreateUser_CheckerError(t *testing.T) {
-	t.Parallel()
+func (s *CreateUserSuite) TestUnknownRealm() {
+	s.expectHappyDeps()
 
-	uc := newCreateUser(
-		fakeUserChecker{err: errors.New("boom")},
-		&fakeOpCreator{},
-		&fakeNotifier{},
-		fakeUser2FAFactory{},
-		&fakeLocker{},
-		&fakeUserOpFactory{op: openedEmailOp(t)},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
-	require.Error(t, err)
+	_, err := s.newUseCase().Execute(s.ctx, "unknown", "en", testTZ(), "user@example.com", testIP())
+	s.Require().Error(err)
 }
 
-func TestCreateUser_2FAFactoryError(t *testing.T) {
-	t.Parallel()
+func (s *CreateUserSuite) TestInvalidEmail() {
+	s.expectHappyDeps()
 
-	factory := fakeUser2FAFactory{err: errors.New("2fa boom")}
-	uc := newCreateUser(
-		fakeUserChecker{},
-		&fakeOpCreator{},
-		&fakeNotifier{},
-		factory,
-		&fakeLocker{},
-		&fakeUserOpFactory{op: openedEmailOp(t)},
-		&fakeOperationLogger{},
-	)
-	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
-	require.Error(t, err)
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "bad", testIP())
+	s.Require().Error(err)
 }
 
-// TestCreateUser_NewEmailEmpty2FAForwarded - логин не принадлежит существующему пользователю:
-// фабрика 2FA возвращает ErrEventStorageNoRecordFound, usecase продолжает выполнение с пустым User2FA.
-func TestCreateUser_NewEmailEmpty2FAForwarded(t *testing.T) {
-	t.Parallel()
+func (s *CreateUserSuite) TestLockNotObtained() {
+	s.expectLock(mrlock.ErrLockKeyNotObtained)
+	s.expectCheckLogin(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 
-	factory := fakeUser2FAFactory{err: sysmesserrors.ErrEventStorageNoRecordFound}
-	opFactory := &fakeUserOpFactory{op: openedEmailOp(t)}
-	uc := newCreateUser(fakeUserChecker{}, &fakeOpCreator{}, &fakeNotifier{}, factory, &fakeLocker{}, opFactory, &fakeOperationLogger{})
-
-	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
-	require.NoError(t, err)
-	require.Equal(t, dto.User2FA{}, opFactory.gotUser2FA)
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
+	s.Require().ErrorIs(err, mrauth.ErrSignupAlreadyInProgressTryLater)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+	s.Equal(logreason.Throttled, s.logEntries[0].Reason)
+	s.Equal(unit.NameConfirmCreateUser, s.logEntries[0].OperationName)
 }
 
-func TestCreateUser_ExistingUser2FAForwarded(t *testing.T) {
-	t.Parallel()
+func (s *CreateUserSuite) TestSuccess() {
+	s.expectHappyDeps()
+	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
+	s.creator.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
+	s.Require().NoError(err)
+	s.Equal(testIP(), s.gotRegisteredIP, "IP регистрации доезжает до фабрики операции")
+	s.Equal("Europe/Moscow", s.gotTimeZone, "в payload операции попадает уже подобранный пояс")
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Opened, s.logEntries[0].LogStatus)
+}
+
+// TestTimeZoneResolvedOnEntry - пояс подбирается до записи payload'а, поэтому
+// незаполненный запрос доезжает до фабрики операции уже как UTC, а не как пустая строка.
+func (s *CreateUserSuite) TestTimeZoneResolvedOnEntry() {
+	s.expectHappyDeps()
+	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
+	s.creator.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", dto.TimeZoneInfo{}, "user@example.com", testIP())
+	s.Require().NoError(err)
+	s.Equal("UTC", s.gotTimeZone)
+}
+
+func (s *CreateUserSuite) TestCheckerError() {
+	s.expectCheckLogin(errors.New("boom"))
+	s.expectLock(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
+
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
+	s.Require().Error(err)
+}
+
+func (s *CreateUserSuite) Test2FAFactoryError() {
+	s.expect2FA(dto.User2FA{}, errors.New("2fa boom"))
+	s.expectLock(nil)
+	s.expectCheckLogin(nil)
+	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
+
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
+	s.Require().Error(err)
+}
+
+// TestNewEmailEmpty2FAForwarded - логин не принадлежит существующему пользователю:
+// фабрика 2FA возвращает ErrEventStorageNoRecordFound, usecase продолжает выполнение
+// с пустым User2FA.
+func (s *CreateUserSuite) TestNewEmailEmpty2FAForwarded() {
+	s.expectLock(nil)
+	s.expectCheckLogin(nil)
+	s.expect2FA(dto.User2FA{}, sysmesserrors.ErrEventStorageNoRecordFound)
+	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
+	s.creator.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
+	s.Require().NoError(err)
+	s.Equal(dto.User2FA{}, s.gotUser2FA)
+}
+
+func (s *CreateUserSuite) TestExistingUser2FAForwarded() {
+	s.expectLock(nil)
+	s.expectCheckLogin(nil)
 
 	user2FA := dto.User2FA{
 		ID:        uuid.New(),
 		Email:     "user@example.com",
 		Action2FA: secureoperation.ConfirmAction{Method: confirmmethod.TOTP},
 	}
-	opFactory := &fakeUserOpFactory{op: openedEmailOp(t)}
-	uc := newCreateUser(
-		fakeUserChecker{},
-		&fakeOpCreator{},
-		&fakeNotifier{},
-		fakeUser2FAFactory{user: user2FA},
-		&fakeLocker{},
-		opFactory,
-		&fakeOperationLogger{},
-	)
 
-	_, err := uc.Execute(context.Background(), "shop", "en", "user@example.com", mrtype.NewIP(netip.MustParseAddr("203.0.113.7")))
-	require.NoError(t, err)
-	require.Equal(t, user2FA, opFactory.gotUser2FA)
+	s.expect2FA(user2FA, nil)
+	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
+	s.creator.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
+	s.Require().NoError(err)
+	s.Equal(user2FA, s.gotUser2FA)
 }

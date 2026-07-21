@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -14,103 +14,105 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
+	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
 
-type fakeHandler struct {
-	executed bool
-	err      error
+type ApplyOperationSuite struct {
+	baseSuite
+
+	storage *mock.MockoperationDeleter
+	handler *mock.MockOperationHandler
+	deleted string
 }
 
-func (f *fakeHandler) Execute(context.Context, uuid.UUID, []byte) error {
-	if f.err != nil {
-		return f.err
-	}
-
-	f.executed = true
-
-	return nil
-}
-
-func TestApplyOperation_NilUserID(t *testing.T) {
+func TestApplyOperationSuite(t *testing.T) {
 	t.Parallel()
 
-	uc := security.NewApplyOperation(fakeTx{}, &fakeOpVerifier{}, &fakeOperationLogger{}, nil)
-
-	require.Error(t, uc.Execute(context.Background(), dto.ActorMeta{}, "op-token"))
+	suite.Run(t, new(ApplyOperationSuite))
 }
 
-func TestApplyOperation_Success(t *testing.T) {
-	t.Parallel()
+func (s *ApplyOperationSuite) SetupTest() {
+	s.baseSuite.SetupTest()
 
+	s.storage = mock.NewMockoperationDeleter(s.ctrl)
+	s.handler = mock.NewMockOperationHandler(s.ctrl)
+	s.deleted = ""
+
+	s.storage.EXPECT().
+		Delete(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, token string) error {
+			s.deleted = token
+
+			return nil
+		}).
+		AnyTimes()
+}
+
+func (s *ApplyOperationSuite) newUseCase(handlers map[string]mrauth.OperationHandler) *security.ApplyOperation {
+	return security.NewApplyOperation(s.txManager, s.storage, s.logOperation, handlers)
+}
+
+func (s *ApplyOperationSuite) TestNilUserID() {
+	s.Require().Error(s.newUseCase(nil).Execute(s.ctx, dto.ActorMeta{}, "op-token"))
+}
+
+func (s *ApplyOperationSuite) TestSuccess() {
 	userID := uuid.New()
 	op := confirmedOp(userID, "{}")
-	storage := &fakeOpVerifier{op: op}
-	handler := &fakeHandler{}
-	logOperation := &fakeOperationLogger{}
-	uc := security.NewApplyOperation(
-		fakeTx{},
-		storage,
-		logOperation,
-		map[string]mrauth.OperationHandler{"confirm.change.totp": handler},
-	)
 
-	require.NoError(t, uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token"))
-	require.True(t, handler.executed)
-	require.Equal(t, "op-token", storage.deletedToken)
-	require.Len(t, logOperation.entries, 1)
-	assert.Equal(t, logstatus.Applied, logOperation.entries[0].LogStatus)
-	assert.Equal(t, logreason.Unspecified, logOperation.entries[0].Reason)
-	assert.Equal(t, op.Name, logOperation.entries[0].OperationName)
-	assert.Equal(t, userID, logOperation.entries[0].VisitorID)
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
+	s.handler.EXPECT().Execute(gomock.Any(), userID, gomock.Any()).Return(nil)
+
+	uc := s.newUseCase(map[string]mrauth.OperationHandler{"confirm.change.totp": s.handler})
+
+	s.Require().NoError(uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token"))
+	s.Equal("op-token", s.deleted)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
+	s.Equal(logreason.Unspecified, s.logEntries[0].Reason)
+	s.Equal(op.Name, s.logEntries[0].OperationName)
+	s.Equal(userID, s.logEntries[0].VisitorID)
 }
 
-func TestApplyOperation_WrongUser(t *testing.T) {
-	t.Parallel()
-
+func (s *ApplyOperationSuite) TestWrongUser() {
 	stranger := uuid.New()
-	storage := &fakeOpVerifier{op: confirmedOp(uuid.New(), "{}")}
-	logOperation := &fakeOperationLogger{}
-	uc := security.NewApplyOperation(fakeTx{}, storage, logOperation, nil)
 
-	require.Error(t, uc.Execute(context.Background(), dto.ActorMeta{VisitorID: stranger}, "op-token"))
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(confirmedOp(uuid.New(), "{}"), nil)
+
+	s.Require().Error(s.newUseCase(nil).Execute(s.ctx, dto.ActorMeta{VisitorID: stranger}, "op-token"))
 
 	// в журнал попадает обратившийся, а не владелец операции
-	require.Len(t, logOperation.entries, 1)
-	assert.Equal(t, logstatus.Blocked, logOperation.entries[0].LogStatus)
-	assert.Equal(t, logreason.AccessForbidden, logOperation.entries[0].Reason)
-	assert.Equal(t, stranger, logOperation.entries[0].VisitorID)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+	s.Equal(logreason.AccessForbidden, s.logEntries[0].Reason)
+	s.Equal(stranger, s.logEntries[0].VisitorID)
 }
 
-func TestApplyOperation_NotConfirmed(t *testing.T) {
-	t.Parallel()
-
+func (s *ApplyOperationSuite) TestNotConfirmed() {
 	userID := uuid.New()
 	op := confirmedOp(userID, "{}")
 	op.Status = operationstatus.Opened
-	logOperation := &fakeOperationLogger{}
-	uc := security.NewApplyOperation(
-		fakeTx{},
-		&fakeOpVerifier{op: op},
-		logOperation,
-		map[string]mrauth.OperationHandler{"confirm.change.totp": &fakeHandler{}},
-	)
 
-	require.Error(t, uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token"))
-	require.Len(t, logOperation.entries, 1)
-	assert.Equal(t, logstatus.Blocked, logOperation.entries[0].LogStatus)
-	assert.Equal(t, logreason.NotConfirmed, logOperation.entries[0].Reason)
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
+	s.handler.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	uc := s.newUseCase(map[string]mrauth.OperationHandler{"confirm.change.totp": s.handler})
+
+	s.Require().Error(uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token"))
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+	s.Equal(logreason.NotConfirmed, s.logEntries[0].Reason)
 }
 
-func TestApplyOperation_UnknownName(t *testing.T) {
-	t.Parallel()
-
+func (s *ApplyOperationSuite) TestUnknownName() {
 	userID := uuid.New()
-	storage := &fakeOpVerifier{op: confirmedOp(userID, "{}")}
-	logOperation := &fakeOperationLogger{}
-	uc := security.NewApplyOperation(fakeTx{}, storage, logOperation, map[string]mrauth.OperationHandler{})
 
-	require.Error(t, uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token"))
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(confirmedOp(userID, "{}"), nil)
+
+	uc := s.newUseCase(map[string]mrauth.OperationHandler{})
+
+	s.Require().Error(uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token"))
 
 	// незарегистрированный обработчик - ошибка конфигурации, а не событие безопасности
-	assert.Empty(t, logOperation.entries)
+	s.Empty(s.logEntries)
 }

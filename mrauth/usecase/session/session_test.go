@@ -66,16 +66,6 @@ func testOpenSessions(sessionIDs ...uint32) entity.OpenSessions {
 //go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
 //go:generate mockgen -destination=mock/mrevent.go -package=mock github.com/mondegor/go-core/mrevent Emitter
 
-// fakeOperationLogger - записывающий фейк журнала защищённых операций (интерфейс operationLogger
-// не покрыт mockgen, т.к. объявлен в logOperation.go).
-type fakeOperationLogger struct {
-	entries []entity.SecureOperationLog
-}
-
-func (f *fakeOperationLogger) Log(_ context.Context, entry entity.SecureOperationLog) {
-	f.entries = append(f.entries, entry)
-}
-
 func okScopes() dto.UserScopes {
 	return dto.UserScopes{UserID: uuid.New(), Realm: "site/admin", Kind: "admin", LangCode: "en"}
 }
@@ -106,7 +96,8 @@ type OpenSessionSuite struct {
 	authFlow     *mock.MockauthFlowHandler
 	creator      *mock.MocktokenCreator
 	storageOp    *mock.MockoperationConsumer
-	logOperation *fakeOperationLogger
+	logOperation *mock.MockoperationLogger
+	logEntries   []entity.SecureOperationLog
 	uc           *session.OpenSession
 	notifyCount  int
 }
@@ -157,7 +148,14 @@ func (s *OpenSessionSuite) SetupTest() {
 	s.authFlow = mock.NewMockauthFlowHandler(s.ctrl)
 	s.creator = mock.NewMocktokenCreator(s.ctrl)
 	s.storageOp = mock.NewMockoperationConsumer(s.ctrl)
-	s.logOperation = &fakeOperationLogger{}
+	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
+	s.logEntries = nil
+	s.logOperation.EXPECT().
+		Log(gomock.Any(), gomock.Any()).
+		Do(func(_ context.Context, entry entity.SecureOperationLog) {
+			s.logEntries = append(s.logEntries, entry)
+		}).
+		AnyTimes()
 	s.notifyCount = 0
 	s.buildUC(4) // soft=4, hard=8
 }
@@ -205,8 +203,8 @@ func (s *OpenSessionSuite) TestCreateUserHappy() {
 	s.Require().NoError(err)
 	s.Equal(okPair(), got)
 	s.Equal(1, s.notifyCount, "login-alert должен уйти ровно один раз после commit'а")
-	s.Require().Len(s.logOperation.entries, 1)
-	s.Equal(logstatus.SessionOpened, s.logOperation.entries[0].LogStatus)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.SessionOpened, s.logEntries[0].LogStatus)
 }
 
 func (s *OpenSessionSuite) TestAuthorizeUserHappy() {
@@ -242,9 +240,9 @@ func (s *OpenSessionSuite) TestHardThresholdRejects() {
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
 	s.Require().ErrorIs(err, mrauth.ErrSessionLimitExceededTryLater)
 	s.Zero(s.notifyCount, "на отказе hard-гейта login-alert не шлётся")
-	s.Require().Len(s.logOperation.entries, 1)
-	s.Equal(logstatus.Blocked, s.logOperation.entries[0].LogStatus)
-	s.Equal(logreason.SessionLimit, s.logOperation.entries[0].Reason)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+	s.Equal(logreason.SessionLimit, s.logEntries[0].Reason)
 }
 
 // сбой постановки в очередь best-effort: не должен валить успешный вход.
@@ -452,7 +450,8 @@ type ContinueSessionSuite struct {
 	storage      *mock.MockauthTokenStorage
 	recreator    *mock.MocktokenRecreator
 	emitter      *mock.MockEmitter
-	logOperation *fakeOperationLogger
+	logOperation *mock.MockoperationLogger
+	logEntries   []entity.SecureOperationLog
 	uc           *session.ContinueSession
 }
 
@@ -468,7 +467,14 @@ func (s *ContinueSessionSuite) SetupTest() {
 	s.storage = mock.NewMockauthTokenStorage(s.ctrl)
 	s.recreator = mock.NewMocktokenRecreator(s.ctrl)
 	s.emitter = mock.NewMockEmitter(s.ctrl)
-	s.logOperation = &fakeOperationLogger{}
+	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
+	s.logEntries = nil
+	s.logOperation.EXPECT().
+		Log(gomock.Any(), gomock.Any()).
+		Do(func(_ context.Context, entry entity.SecureOperationLog) {
+			s.logEntries = append(s.logEntries, entry)
+		}).
+		AnyTimes()
 	s.uc = session.NewContinueSession(s.storage, s.recreator, s.emitter, s.logOperation, mrlog.NopLogger())
 }
 
@@ -494,10 +500,10 @@ func (s *ContinueSessionSuite) TestReuseRevokesSession() {
 
 	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "rt")
 	s.Require().ErrorIs(err, mrauth.ErrTokenNotFoundOrExpired)
-	s.Require().Len(s.logOperation.entries, 1)
-	s.Equal(logstatus.Blocked, s.logOperation.entries[0].LogStatus)
-	s.Equal(logreason.TokenReuse, s.logOperation.entries[0].Reason)
-	s.Equal(userID, s.logOperation.entries[0].VisitorID)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+	s.Equal(logreason.TokenReuse, s.logEntries[0].Reason)
+	s.Equal(userID, s.logEntries[0].VisitorID)
 }
 
 func (s *ContinueSessionSuite) TestNoRecordFound() {

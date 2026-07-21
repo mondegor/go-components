@@ -1,28 +1,20 @@
 package security_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/bag/totp"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
+	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
 
-type fakeFetcher struct {
-	op  secureoperation.SecureOperation
-	err error
-}
-
-// FetchOne - возвращает заранее заданную операцию (других методов записи у фейка нет).
-func (f *fakeFetcher) FetchOne(_ context.Context, _ string) (secureoperation.SecureOperation, error) {
-	return f.op, f.err
-}
-
+// confirmedOp - подтверждённая операция смены TOTP с указанным payload'ом.
 func confirmedOp(userID uuid.UUID, payload string) secureoperation.SecureOperation {
 	return secureoperation.SecureOperation{
 		Token:   "op-token",
@@ -33,16 +25,34 @@ func confirmedOp(userID uuid.UUID, payload string) secureoperation.SecureOperati
 	}
 }
 
-func TestApplyTOTPGenerator_RendersQR(t *testing.T) {
+type RenderTOTPQRSuite struct {
+	baseSuite
+
+	fetcher *mock.MockoperationFetcher
+}
+
+func TestRenderTOTPQRSuite(t *testing.T) {
 	t.Parallel()
 
+	suite.Run(t, new(RenderTOTPQRSuite))
+}
+
+func (s *RenderTOTPQRSuite) SetupTest() {
+	s.baseSuite.SetupTest()
+
+	s.fetcher = mock.NewMockoperationFetcher(s.ctrl)
+}
+
+func (s *RenderTOTPQRSuite) TestRendersQR() {
 	userID := uuid.New()
-	secret := testTotpSecret
-	fetcher := &fakeFetcher{op: confirmedOp(userID, `{"email":"u@e","secret":"`+secret+`"}`)}
 
-	uc := security.NewRenderTOTPGeneratorQR(fetcher, totp.NewAuthenticator("TestIssuer", 64))
+	s.fetcher.EXPECT().
+		FetchOne(gomock.Any(), "op-token").
+		Return(confirmedOp(userID, `{"email":"u@e","secret":"`+testTotpSecret+`"}`), nil)
 
-	img, err := uc.Execute(context.Background(), userID, "op-token")
-	require.NoError(t, err)
-	require.Equal(t, "image/png", img.ContentType)
+	uc := security.NewRenderTOTPGeneratorQR(s.fetcher, totp.NewAuthenticator("TestIssuer", 64))
+
+	img, err := uc.Execute(s.ctx, userID, "op-token")
+	s.Require().NoError(err)
+	s.Equal("image/png", img.ContentType)
 }

@@ -62,3 +62,37 @@ func TestValidateSessionThresholds(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateLanguages - язык, каноническая запись которого не помещается в колонку
+// lang_code, отвергается при загрузке конфигурации, а не при первой записи в БД.
+func TestValidateLanguages(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		langs   []string
+		wantErr bool
+	}{
+		{name: "empty list is not rejected here", langs: nil, wantErr: false},
+		{name: "language with region", langs: []string{"ru-RU", "en-US"}, wantErr: false},
+		{name: "language without region", langs: []string{"ru", "en"}, wantErr: false},
+		{name: "underscore form is canonicalized", langs: []string{"en_US"}, wantErr: false},
+		{name: "script subtag is rejected", langs: []string{"ru-RU", "zh-Hans"}, wantErr: true},
+		{name: "three-letter code is rejected", langs: []string{"fil"}, wantErr: true},
+		{name: "numeric region is rejected", langs: []string{"es-419"}, wantErr: true},
+		{name: "malformed name is rejected", langs: []string{"not-a-language-tag!!!"}, wantErr: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := config.ValidateLanguages(tc.langs)
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
@@ -41,14 +40,14 @@ func (uc *AuthFlow) Execute(
 	ctx context.Context,
 	op secureoperation.SecureOperation,
 ) (scopes dto.UserScopes, notifyAuthSuccess func(context.Context), err error) {
-	authIn := dto.AuthorizeUserOperation{}
+	var authIn dto.AuthorizeUserOperation
 
 	switch op.Name {
 	case unit.NameConfirmCreateUser:
-		createIn := dto.CreateUserOperation{}
+		var createIn dto.CreateUserOperation
 
-		if err = json.Unmarshal(op.Payload, &createIn); err != nil {
-			return dto.UserScopes{}, nil, errors.ErrInternalIncorrectInputData.WithError(err, "AuthFlow", "operation_name", op.Name, "user_id", op.UserID)
+		if createIn, err = unit.ParseCreateUserPayload(op.Payload); err != nil {
+			return dto.UserScopes{}, nil, err
 		}
 
 		op.UserID, err = uc.service.ResolveUser(ctx, op.UserID, createIn)
@@ -61,8 +60,8 @@ func (uc *AuthFlow) Execute(
 			LangCode: createIn.LangCode,
 		}
 	case unit.NameAuthorizeUser:
-		if err = json.Unmarshal(op.Payload, &authIn); err != nil {
-			return dto.UserScopes{}, nil, errors.ErrInternalIncorrectInputData.WithError(err, "AuthFlow", "payload", op.Payload)
+		if authIn, err = unit.ParseAuthorizeUserPayload(op.Payload); err != nil {
+			return dto.UserScopes{}, nil, err
 		}
 	default:
 		return dto.UserScopes{}, nil, errors.ErrInternalIncorrectInputData.WithDetails("operation name is incorrect", "name", op.Name)

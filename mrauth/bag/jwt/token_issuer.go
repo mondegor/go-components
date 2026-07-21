@@ -62,6 +62,10 @@ func NewTokenIssuer(
 // CreateTokenPair - выпускает пару токенов (подписанный JWT access + refresh) для области действия пользователя.
 // TODO: вместо dto.UserScopes можно передавать явно все параметры.
 func (uc *TokenIssuer) CreateTokenPair(userScopes dto.UserScopes) (token dto.AuthTokenPair, err error) {
+	if err = userScopes.Validate(); err != nil {
+		return dto.AuthTokenPair{}, err
+	}
+
 	accessToken, err := uc.createAccessToken(&userScopes)
 	if err != nil {
 		return dto.AuthTokenPair{}, err
@@ -80,12 +84,13 @@ func (uc *TokenIssuer) CreateTokenPair(userScopes dto.UserScopes) (token dto.Aut
 			Realm:    userScopes.Realm,
 			UserKind: userScopes.Kind,
 			LangCode: userScopes.LangCode,
+			TimeZone: userScopes.TimeZone,
 		},
 	}, nil
 }
 
 func (uc *TokenIssuer) createAccessToken(userScopes *dto.UserScopes) (dto.AccessToken, error) {
-	now := time.Now()
+	now := time.Now().UTC()
 
 	token := jwt.NewWithClaims(
 		uc.signingKey.Method(),
@@ -94,6 +99,7 @@ func (uc *TokenIssuer) createAccessToken(userScopes *dto.UserScopes) (dto.Access
 			sectionUserID:    userScopes.UserID.String(),
 			sectionSessionID: strconv.FormatUint(uint64(userScopes.SessionID), 10),
 			sectionLangCode:  userScopes.LangCode,
+			sectionTimeZone:  userScopes.TimeZone,
 			sectionScope:     userScopes.Kind,
 			sectionIssuer:    uc.issuer,
 			sectionIssuedAt:  jwt.NewNumericDate(now),

@@ -1,8 +1,6 @@
 package unit
 
 import (
-	"encoding/json"
-
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"
@@ -84,7 +82,7 @@ func (o *AuthorizeUser) Create(user2FA dto.User2FA, realm, langCode string, user
 		actions = append(actions, user2FA.Action2FA)
 	}
 
-	payload, err := json.Marshal(
+	payload, err := BuildAuthorizeUserPayload(
 		dto.AuthorizeUserOperation{
 			Realm:    realm,
 			LangCode: langCode, // TODO: only for !o.confirmPhoneByEmail or if new environment

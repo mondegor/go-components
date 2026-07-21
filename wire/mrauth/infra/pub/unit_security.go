@@ -45,7 +45,7 @@ func initSecurityController(
 		mapping.OptionUserRealmsToRealmRegistry(userRealms),
 	)
 
-	totpAuthenticator := totp.NewAuthenticator("PrintShopApp", 64) // TODO: сделать настройку
+	totpAuthenticator := totp.NewAuthenticator(auth2faConfig.TOTPIssuer, 64)
 
 	factoryConfirm2FA := service.NewFactoryConfirm2FA(
 		storageUser,

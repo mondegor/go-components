@@ -71,7 +71,7 @@ func WakeUp(op *SecureOperation, actions []ConfirmAction) error {
 		return err
 	}
 
-	if time.Now().After(op.ExpiresAt) {
+	if time.Now().UTC().After(op.ExpiresAt) {
 		return ErrOperationAlreadyExpired
 	}
 

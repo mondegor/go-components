@@ -76,6 +76,10 @@ func (re *UserActivityStatPostgres) Fetch(ctx context.Context, userID uuid.UUID)
 			return nil, re.errorWrapper.Wrap(err)
 		}
 
+		// системное время: домен всегда оперирует UTC независимо от зоны сессии БД
+		row.LastLoggedAt = row.LastLoggedAt.UTC()
+		row.LastVisitedAt = row.LastVisitedAt.UTC()
+
 		rows = append(rows, row)
 	}
 

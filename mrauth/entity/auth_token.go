@@ -25,5 +25,6 @@ type (
 		Realm    string `json:"realm"` // domain + '/' + user_group
 		UserKind string `json:"kind"`
 		LangCode string `json:"lang"`
+		TimeZone string `json:"tz"`
 	}
 )

@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
@@ -17,6 +18,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
+	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
 
 func confirmedPasswordOp(userID uuid.UUID, payload string) secureoperation.SecureOperation {
@@ -29,74 +31,125 @@ func confirmedPasswordOp(userID uuid.UUID, payload string) secureoperation.Secur
 	}
 }
 
-func TestApplyPassword_Confirmed_BindsAndReturnsCodes(t *testing.T) {
-	t.Parallel()
+type ApplyPasswordSuite struct {
+	baseSuite
 
-	userID := uuid.New()
-	op := confirmedPasswordOp(userID, `{"new_password":"hashed-pwd","email":"u@e"}`)
-
-	binder := &fakeBinder{}
-	verifier := &fakeOpVerifier{op: op}
-	notifier := &fakeNotifier{}
-	logOperation := &fakeOperationLogger{}
-
-	uc := security.NewApplyPassword(fakeTx{}, binder, verifier, crypt.NewSecretGenerator(10), notifier, logOperation, 8)
-
-	codes, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token")
-	require.NoError(t, err)
-	require.Len(t, codes, 8)
-	require.Equal(t, auth2fatype.Password, binder.saved.Type)
-	require.Equal(t, "hashed-pwd", binder.saved.Secret) // секрет уже захеширован при создании операции
-	require.Len(t, binder.saved.RecoveryCodes, 8)
-	require.NotEqual(t, codes, binder.saved.RecoveryCodes) // хранятся хеши, возвращается plaintext
-	require.Equal(t, "op-token", verifier.deletedToken)
-	require.True(t, notifier.sent)
-	require.Len(t, logOperation.entries, 1)
-	assert.Equal(t, logstatus.Applied, logOperation.entries[0].LogStatus)
-	assert.Equal(t, unit.NameConfirmChangePassword, logOperation.entries[0].OperationName)
+	binder   *mock.Mockuser2faBinder
+	verifier *mock.MockoperationDeleter
+	saved    entity.Auth2FA
+	deleted  string
 }
 
-func TestApplyPassword_ReissuesNewCodesEachTime(t *testing.T) {
+func TestApplyPasswordSuite(t *testing.T) {
 	t.Parallel()
 
+	suite.Run(t, new(ApplyPasswordSuite))
+}
+
+func (s *ApplyPasswordSuite) SetupTest() {
+	s.baseSuite.SetupTest()
+
+	s.binder = mock.NewMockuser2faBinder(s.ctrl)
+	s.verifier = mock.NewMockoperationDeleter(s.ctrl)
+	s.saved = entity.Auth2FA{}
+	s.deleted = ""
+
+	s.binder.EXPECT().
+		InsertOrUpdate(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, row entity.Auth2FA) error {
+			s.saved = row
+
+			return nil
+		}).
+		AnyTimes()
+
+	s.verifier.EXPECT().
+		Delete(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, token string) error {
+			s.deleted = token
+
+			return nil
+		}).
+		AnyTimes()
+}
+
+func (s *ApplyPasswordSuite) newUseCase() *security.ApplyPassword {
+	return security.NewApplyPassword(
+		s.txManager, s.binder, s.verifier,
+		crypt.NewSecretGenerator(10), s.notifierAPI, s.logOperation, 8,
+	)
+}
+
+func (s *ApplyPasswordSuite) TestConfirmedBindsAndReturnsCodes() {
+	userID := uuid.New()
+
+	s.verifier.EXPECT().
+		FetchOneForUpdate(gomock.Any(), gomock.Any()).
+		Return(confirmedPasswordOp(userID, `{"new_password":"hashed-pwd","email":"u@e"}`), nil)
+
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	s.Require().NoError(err)
+	s.Require().Len(codes, 8)
+	s.Equal(auth2fatype.Password, s.saved.Type)
+	s.Equal("hashed-pwd", s.saved.Secret) // секрет уже захеширован при создании операции
+	s.Require().Len(s.saved.RecoveryCodes, 8)
+	s.NotEqual(codes, s.saved.RecoveryCodes) // хранятся хеши, возвращается plaintext
+	s.Equal("op-token", s.deleted)
+	s.True(s.notified)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
+	s.Equal(unit.NameConfirmChangePassword, s.logEntries[0].OperationName)
+}
+
+func (s *ApplyPasswordSuite) TestReissuesNewCodesEachTime() {
 	userID := uuid.New()
 	payload := `{"new_password":"hashed-pwd","email":"u@e"}`
-	gen := crypt.NewSecretGenerator(10)
 
-	uc := security.NewApplyPassword(
-		fakeTx{}, &fakeBinder{}, &fakeOpVerifier{op: confirmedPasswordOp(userID, payload)}, gen, &fakeNotifier{},
-		&fakeOperationLogger{}, 8,
-	)
+	s.verifier.EXPECT().
+		FetchOneForUpdate(gomock.Any(), gomock.Any()).
+		Return(confirmedPasswordOp(userID, payload), nil).
+		Times(2)
 
-	first, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token")
-	require.NoError(t, err)
+	uc := s.newUseCase()
 
-	second, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token")
-	require.NoError(t, err)
+	first, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	s.Require().NoError(err)
 
-	require.NotEqual(t, first, second) // каждая смена пароля выдаёт новый набор кодов
+	second, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	s.Require().NoError(err)
+
+	s.NotEqual(first, second) // каждая смена пароля выдаёт новый набор кодов
 }
 
-func TestApplyPassword_WrongOperationName_NoBind(t *testing.T) {
-	t.Parallel()
-
+// TestPayloadWithoutPasswordNoBind - payload без пароля отклоняется разбором на чтении:
+// пароль не привязывается, коды не выдаются.
+func (s *ApplyPasswordSuite) TestPayloadWithoutPasswordNoBind() {
 	userID := uuid.New()
+
+	s.verifier.EXPECT().
+		FetchOneForUpdate(gomock.Any(), gomock.Any()).
+		Return(confirmedPasswordOp(userID, `{"email":"u@e"}`), nil)
+
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	s.Require().Error(err)
+	s.Nil(codes)
+	s.Empty(s.saved.Secret, "пароль не должен привязываться")
+}
+
+func (s *ApplyPasswordSuite) TestWrongOperationNameNoBind() {
+	userID := uuid.New()
+
 	// операция чужого типа (confirm.change.totp) не должна применяться как смена пароля
-	op := confirmedOp(userID, `{"new_password":"hashed-pwd","email":"u@e"}`)
+	s.verifier.EXPECT().
+		FetchOneForUpdate(gomock.Any(), gomock.Any()).
+		Return(confirmedOp(userID, `{"new_password":"hashed-pwd","email":"u@e"}`), nil)
 
-	binder := &fakeBinder{}
-	verifier := &fakeOpVerifier{op: op}
-	notifier := &fakeNotifier{}
-	logOperation := &fakeOperationLogger{}
-
-	uc := security.NewApplyPassword(fakeTx{}, binder, verifier, crypt.NewSecretGenerator(10), notifier, logOperation, 8)
-
-	codes, err := uc.Execute(context.Background(), dto.ActorMeta{VisitorID: userID}, "op-token")
-	require.Error(t, err)
-	require.Nil(t, codes)
-	require.Empty(t, verifier.deletedToken)
-	require.False(t, notifier.sent)
-	require.Len(t, logOperation.entries, 1)
-	assert.Equal(t, logstatus.Blocked, logOperation.entries[0].LogStatus)
-	assert.Equal(t, logreason.AccessForbidden, logOperation.entries[0].Reason)
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	s.Require().Error(err)
+	s.Nil(codes)
+	s.Empty(s.deleted)
+	s.False(s.notified)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+	s.Equal(logreason.AccessForbidden, s.logEntries[0].Reason)
 }

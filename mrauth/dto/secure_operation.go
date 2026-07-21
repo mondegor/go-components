@@ -18,6 +18,7 @@ type (
 		Realm        string            `json:"realm"`
 		UserKind     string            `json:"user_kind"`
 		LangCode     string            `json:"lang_code"`
+		TimeZone     string            `json:"timezone"`
 		Email        string            `json:"email"`
 		RegisteredIP mrtype.DetailedIP `json:"registered_ip"`
 	}
@@ -33,15 +34,15 @@ type (
 		Email string `json:"email"`
 	}
 
-	// ChangeTotpOperation - payload операции смены TOTP: email уведомления и
+	// ChangeTOTPOperation - payload операции смены TOTP: email уведомления и
 	// сгенерированный (ещё не привязанный) TOTP-secret.
-	ChangeTotpOperation struct {
+	ChangeTOTPOperation struct {
 		Email  string `json:"email"`
 		Secret string `json:"secret,omitempty"`
 	}
 
-	// Disable2faOperation - payload операции отключения 2FA.
-	Disable2faOperation OperationWithUserEmail
+	// Disable2FAOperation - payload операции отключения 2FA.
+	Disable2FAOperation OperationWithUserEmail
 
 	// ChangeEmailOperation - payload операции смены email.
 	ChangeEmailOperation struct {

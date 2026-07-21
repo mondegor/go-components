@@ -53,7 +53,7 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 		// записалось бы как 0001-01-01 и было бы снесено первым же проходом прунинга
 		createdAt := row.CreatedAt
 		if createdAt.IsZero() {
-			createdAt = time.Now()
+			createdAt = time.Now().UTC()
 		}
 
 		ids = append(ids, row.VisitorID)

@@ -1,8 +1,6 @@
 package unit
 
 import (
-	"encoding/json"
-
 	"github.com/mondegor/go-core/mrtype"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -56,6 +54,7 @@ func (o *CreateUser) Name() string {
 func (o *CreateUser) Create(
 	user2FA dto.User2FA,
 	langCode string,
+	timeZone string,
 	userEmail contactaddress.ContactAddress,
 	registeredIP mrtype.DetailedIP,
 ) (secureoperation.SecureOperation, error) {
@@ -69,11 +68,12 @@ func (o *CreateUser) Create(
 		return secureoperation.SecureOperation{}, err
 	}
 
-	payload, err := json.Marshal(
+	payload, err := BuildCreateUserPayload(
 		dto.CreateUserOperation{
 			Realm:        o.realm,
 			UserKind:     o.userKind,
 			LangCode:     langCode,
+			TimeZone:     timeZone,
 			Email:        userEmail.Value(),
 			RegisteredIP: registeredIP,
 		},
