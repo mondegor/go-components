@@ -565,8 +565,10 @@ func (s *CloseSessionSuite) TestSuccess() {
 	s.Require().NoError(s.uc.Execute(s.ctx, "rt"))
 }
 
-func (s *CloseSessionSuite) TestNoRecordFound() {
-	s.closer.EXPECT().Close(gomock.Any(), "rt").Return(errors.ErrEventStorageNoRecordFound)
+// отзывать нечего (токен неизвестен либо сессия уже отозвана): хранилище сообщает
+// о незатронутых строках - именно этот sentinel и отдаёт RevokeSessionByRefreshToken.
+func (s *CloseSessionSuite) TestRecordsNotAffected() {
+	s.closer.EXPECT().Close(gomock.Any(), "rt").Return(errors.ErrEventStorageRecordsNotAffected)
 
 	err := s.uc.Execute(s.ctx, "rt")
 	s.Require().ErrorIs(err, mrauth.ErrTokenInvalid)

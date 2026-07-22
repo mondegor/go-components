@@ -426,6 +426,8 @@ func (re *AuthTokenPostgres) fetchActiveToken(
 
 // RevokeSessionByRefreshToken - отзывает все действующие токены сессии,
 // которой принадлежит указанный refresh токен (logout).
+// Если отзывать нечего (токен не найден либо сессия уже отозвана),
+// возвращает errors.ErrEventStorageRecordsNotAffected.
 func (re *AuthTokenPostgres) RevokeSessionByRefreshToken(ctx context.Context, refreshToken string) error {
 	sql := `
         UPDATE
@@ -443,7 +445,7 @@ func (re *AuthTokenPostgres) RevokeSessionByRefreshToken(ctx context.Context, re
         WHERE
             t.user_id = s.user_id AND t.session_id = s.session_id AND t.token_status = $3;`
 
-	_, err := re.client.Conn(ctx).ExecAffected(
+	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		refreshToken,

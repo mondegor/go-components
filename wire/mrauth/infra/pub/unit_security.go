@@ -8,6 +8,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
 	"github.com/mondegor/go-components/mrauth/component/produce"
+	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
@@ -25,6 +26,7 @@ import (
 
 func initSecurityController(
 	dbConnManager mrstorage.DBConnManager,
+	operationOpener *secureoperation.Opener,
 	storageUser *repository.UserPostgres,
 	storageCheckUser *repository.CheckUserPostgres,
 	storageUserRealm *repository.UserRealmPostgres,
@@ -63,10 +65,8 @@ func initSecurityController(
 	)
 
 	useCaseChangeEmailProperty := security.NewChangeEmailProperty(
-		dbConnManager,
-		storageSecureOperation,
+		operationOpener,
 		checkUserService,
-		notifierAPI,
 		factoryConfirm2FA,
 		unit.NewChangeEmail(
 			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
@@ -74,14 +74,11 @@ func initSecurityController(
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
 		),
-		operationLogger,
 	)
 
 	useCaseChangePhoneProperty := security.NewChangePhoneProperty(
-		dbConnManager,
-		storageSecureOperation,
+		operationOpener,
 		checkUserService,
-		notifierAPI,
 		factoryConfirm2FA,
 		unit.NewChangePhone(
 			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
@@ -89,13 +86,10 @@ func initSecurityController(
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
 		),
-		operationLogger,
 	)
 
 	useCaseChangePasswordProperty := security.NewChangePasswordProperty(
-		dbConnManager,
-		storageSecureOperation,
-		notifierAPI,
+		operationOpener,
 		factoryConfirm2FA,
 		unit.NewChangePassword(
 			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
@@ -103,13 +97,10 @@ func initSecurityController(
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
 		),
-		operationLogger,
 	)
 
 	useCaseChangeTOTPProperty := security.NewChangeTOTPGeneratorProperty(
-		dbConnManager,
-		storageSecureOperation,
-		notifierAPI,
+		operationOpener,
 		factoryConfirm2FA,
 		unit.NewChangeTOTP(
 			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
@@ -118,13 +109,10 @@ func initSecurityController(
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
 		),
-		operationLogger,
 	)
 
 	useCaseDisable2FA := security.NewDisable2FA(
-		dbConnManager,
-		storageSecureOperation,
-		notifierAPI,
+		operationOpener,
 		factoryConfirm2FA,
 		unit.NewDisable2FA(
 			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
@@ -132,7 +120,6 @@ func initSecurityController(
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
 		),
-		operationLogger,
 	)
 
 	useCaseApplyOperation := security.NewApplyOperation(
@@ -185,9 +172,7 @@ func initSecurityController(
 	)
 
 	useCaseRegenerateRecovery := security.NewRegenerateRecoveryProperty(
-		dbConnManager,
-		storageSecureOperation,
-		notifierAPI,
+		operationOpener,
 		factoryConfirm2FA,
 		unit.NewRegenerateRecovery(
 			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
@@ -195,7 +180,6 @@ func initSecurityController(
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
 		),
-		operationLogger,
 	)
 
 	useCaseApplyRecovery := security.NewApplyRecovery(

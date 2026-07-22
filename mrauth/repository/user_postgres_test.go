@@ -25,9 +25,9 @@ type UserPostgresTestSuite struct {
 	repo *repository.UserPostgres
 }
 
+// ВНИМАНИЕ: t.Parallel() здесь не ставится - каждый suite поднимает свой контейнер
+// Postgres, одновременный запуск нескольких suite'ов исчерпывает память Docker.
 func TestUserPostgresTestSuite(t *testing.T) {
-	t.Parallel()
-
 	suite.Run(t, new(UserPostgresTestSuite))
 }
 

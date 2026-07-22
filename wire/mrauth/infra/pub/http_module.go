@@ -12,6 +12,7 @@ import (
 
 	module "github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/component/produce"
+	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/validate"
 	"github.com/mondegor/go-components/mrnotifier"
@@ -75,6 +76,14 @@ func InitHttpModule(
 
 	operationLogger := produce.NewSecureOperationLogger(secureOperationLogProducer, logger)
 
+	// единая точка открытия защищённых операций всех типов (гасит прежние операции того же типа)
+	operationOpener := secureoperation.NewOpener(
+		dbConnManager,
+		storageSecureOperation,
+		notifierAPI,
+		operationLogger,
+	)
+
 	useCaseConfirmOperation := initConfirmOperationUseCase(
 		dbConnManager,
 		storageSecureOperation,
@@ -95,6 +104,7 @@ func InitHttpModule(
 						logger,
 						eventEmitter,
 						dbConnManager,
+						operationOpener,
 						storageUser,
 						storageCheckUser,
 						storageUserRealm,
@@ -153,6 +163,7 @@ func InitHttpModule(
 				Create: func() (mrserver.HttpController, error) {
 					return initSecurityController(
 						dbConnManager,
+						operationOpener,
 						storageUser,
 						storageCheckUser,
 						storageUserRealm,

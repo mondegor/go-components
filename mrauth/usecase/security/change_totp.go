@@ -5,27 +5,19 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
-	"github.com/mondegor/go-core/mrstorage"
-	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/enum/logreason"
-	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
 	// ChangeTOTPGeneratorProperty - создаёт операцию смены TOTP-генератора пользователя
 	// и отправляет код её подтверждения.
 	ChangeTOTPGeneratorProperty struct {
-		txManager                   mrstorage.DBTxManager
-		storageOperation            operationCreator
-		notifierAPI                 mrnotifier.NoteProducer
+		opener                      operationOpener
 		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
 		factoryOperationTOTP        user2faOperationCreator
-		logOperation                operationLogger
 		errorWrapper                errors.Wrapper
 	}
 
@@ -36,20 +28,14 @@ type (
 
 // NewChangeTOTPGeneratorProperty - создаёт объект ChangeTOTPGeneratorProperty.
 func NewChangeTOTPGeneratorProperty(
-	txManager mrstorage.DBTxManager,
-	storageOperation operationCreator,
-	notifierAPI mrnotifier.NoteProducer,
+	opener operationOpener,
 	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
 	factoryOperationTOTP user2faOperationCreator,
-	logOperation operationLogger,
 ) *ChangeTOTPGeneratorProperty {
 	return &ChangeTOTPGeneratorProperty{
-		txManager:                   txManager,
-		storageOperation:            storageOperation,
-		notifierAPI:                 notifierAPI,
+		opener:                      opener,
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
 		factoryOperationTOTP:        factoryOperationTOTP,
-		logOperation:                logOperation,
 		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
@@ -76,35 +62,9 @@ func (uc *ChangeTOTPGeneratorProperty) Execute(ctx context.Context, actor dto.Ac
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
-	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
-		if err = uc.storageOperation.Insert(ctx, op); err != nil {
-			return uc.errorWrapper.Wrap(err)
-		}
-
-		return op.NotifyByEmail(
-			func(address, confirmCode string) error {
-				return uc.notifierAPI.Send(
-					ctx,
-					"confirm.change.totp",
-					conv.Group{
-						"to":          address,
-						"confirmCode": confirmCode,
-					},
-				)
-			},
-		)
-	})
-	if err != nil {
+	if err = uc.opener.Open(ctx, actor, op, "confirm.change.totp", nil); err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
-
-	// операция смены TOTP создана: фиксируем инициацию в журнале (запись вне транзакции)
-	uc.logOperation.Log(
-		ctx,
-		actor.NewOperationLog(
-			op.Name, op.FirstActionMethod(), logstatus.Opened, logreason.Unspecified,
-		),
-	)
 
 	return op, nil
 }

@@ -25,9 +25,9 @@ type Auth2FAPostgresTestSuite struct {
 	tableName string
 }
 
+// ВНИМАНИЕ: t.Parallel() здесь не ставится - каждый suite поднимает свой контейнер
+// Postgres, одновременный запуск нескольких suite'ов исчерпывает память Docker.
 func TestAuth2FAPostgresTestSuite(t *testing.T) {
-	t.Parallel()
-
 	suite.Run(t, new(Auth2FAPostgresTestSuite))
 }
 
@@ -104,6 +104,33 @@ func (ts *Auth2FAPostgresTestSuite) TestRecoveryCodesRoundTrip() {
 	got, err = repo.FetchOne(ts.ctx, userID)
 	ts.Require().NoError(err)
 	ts.Equal([]string{"hash2", "hash3"}, got.RecoveryCodes)
+}
+
+func (ts *Auth2FAPostgresTestSuite) TestDelete() {
+	userID := ts.seedUser()
+	repo := repository.NewAuth2FAPostgres(ts.pgt.ConnManager(), ts.tableName)
+
+	err := repo.InsertOrUpdate(ts.ctx, entity.Auth2FA{
+		UserID:        userID,
+		Type:          auth2fatype.TOTP,
+		Secret:        "SECRET",
+		RecoveryCodes: []string{"hash1"},
+	})
+	ts.Require().NoError(err)
+
+	ts.Require().NoError(repo.Delete(ts.ctx, userID))
+
+	_, err = repo.FetchOne(ts.ctx, userID)
+	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
+
+	// повторное удаление сообщает об отсутствии записи: на этом построена
+	// идемпотентность обработчика отключения 2FA
+	err = repo.Delete(ts.ctx, userID)
+	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
+
+	// удаление по неизвестному пользователю ведёт себя так же
+	err = repo.Delete(ts.ctx, uuid.New())
+	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
 }
 
 func (ts *Auth2FAPostgresTestSuite) TestUpdateTOTPStepMonotonic() {

@@ -13,7 +13,8 @@ const (
 	nameLocal = "Local"
 )
 
-var regexpTimeZone = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+_-]*(/[A-Za-z0-9+_.-]+){0,2}$`)
+// regexpTimeZone - формат IANA-имени часового пояса.
+var regexpTimeZone = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+_-]*(/[A-Za-z0-9+_-]+){0,2}$`)
 
 // TimeZone - сообщает о соответствии указанного значения формату
 // IANA-имени часового пояса (напр. Europe/Moscow, UTC, America/Argentina/Salta).

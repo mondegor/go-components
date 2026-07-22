@@ -37,7 +37,8 @@ func (uc *CloseSession) Execute(ctx context.Context, refreshToken string) error 
 	}
 
 	if err := uc.tokenCloser.Close(ctx, refreshToken); err != nil {
-		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+		// отзывать нечего - токен не найден либо сессия уже отозвана
+		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
 			return mrauth.ErrTokenInvalid
 		}
 

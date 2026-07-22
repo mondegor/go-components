@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrlock"
-	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/mrtype"
 	"github.com/mondegor/go-core/util/conv"
 
@@ -19,7 +18,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 const (
@@ -30,10 +28,8 @@ const (
 type (
 	// CreateUser - usecase создания пользователя с подтверждением через защищённую операцию.
 	CreateUser struct {
-		txManager        mrstorage.DBTxManager
+		opener           operationOpener
 		userChecker      userLoginChecker
-		storageOperation operationCreator
-		notifierAPI      mrnotifier.NoteProducer
 		factory2FA       user2faActionCreator
 		locker           mrlock.Locker
 		logOperation     operationLogger
@@ -78,10 +74,8 @@ type (
 
 // NewCreateUser - создаёт объект CreateUser.
 func NewCreateUser(
-	txManager mrstorage.DBTxManager,
+	opener operationOpener,
 	userChecker userLoginChecker,
-	storageOperation operationCreator,
-	notifierAPI mrnotifier.NoteProducer,
 	factory2FA user2faActionCreator,
 	locker mrlock.Locker,
 	logOperation operationLogger,
@@ -94,10 +88,8 @@ func NewCreateUser(
 	}
 
 	return &CreateUser{
-		txManager:        txManager,
+		opener:           opener,
 		userChecker:      userChecker,
-		storageOperation: storageOperation,
-		notifierAPI:      notifierAPI,
 		factory2FA:       factory2FA,
 		locker:           locker,
 		logOperation:     logOperation,
@@ -184,41 +176,18 @@ func (co *CreateUser) Execute(
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
-	err = co.txManager.Do(ctx, func(ctx context.Context) error {
-		if err = co.storageOperation.Insert(ctx, op); err != nil {
-			return co.errorWrapper.Wrap(err)
-		}
-
-		return op.NotifyByEmail(
-			func(address, confirmCode string) error {
-				return co.notifierAPI.Send(
-					ctx,
-					"confirm.user.activation",
-					conv.Group{
-						"lang":        langCode,
-						"to":          address, // parsedLogin.Value()
-						"confirmCode": confirmCode,
-					},
-				)
-			},
-		)
-	})
+	// поток регистрации анонимный, форензику несёт IP; если же email принадлежит
+	// существующему пользователю, владелец операции известен и Open зафиксирует в журнале его
+	err = co.opener.Open(
+		ctx,
+		dto.ActorMeta{ClientIP: registeredIP},
+		op,
+		"confirm.user.activation",
+		conv.Group{"lang": langCode},
+	)
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
-
-	// операция создана: фиксируем инициацию регистрации в журнале (запись вне транзакции)
-	co.logOperation.Log(
-		ctx,
-		entity.NewSecureOperationLog(
-			uuid.Nil,
-			registeredIP,
-			op.Name,
-			op.FirstActionMethod(),
-			logstatus.Opened,
-			logreason.Unspecified,
-		),
-	)
 
 	return op, nil
 }

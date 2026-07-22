@@ -34,9 +34,9 @@ type SessionCleanupPostgresTestSuite struct {
 	pgt *infra.PostgresTester
 }
 
+// ВНИМАНИЕ: t.Parallel() здесь не ставится - каждый suite поднимает свой контейнер
+// Postgres, одновременный запуск нескольких suite'ов исчерпывает память Docker.
 func TestSessionCleanupPostgresTestSuite(t *testing.T) {
-	t.Parallel()
-
 	suite.Run(t, new(SessionCleanupPostgresTestSuite))
 }
 
