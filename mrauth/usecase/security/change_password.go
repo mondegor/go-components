@@ -5,47 +5,33 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
-	"github.com/mondegor/go-core/mrstorage"
-	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/enum/logreason"
-	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
 	// ChangePasswordProperty - создаёт операцию смены пароля пользователя и отправляет
 	// код её подтверждения.
 	ChangePasswordProperty struct {
-		txManager                   mrstorage.DBTxManager
-		storageOperation            operationCreator
-		notifierAPI                 mrnotifier.NoteProducer
+		opener                      operationOpener
 		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
 		factoryOperationPassword    factoryOperationValue2FA
-		logOperation                operationLogger
 		errorWrapper                errors.Wrapper
 	}
 )
 
 // NewChangePasswordProperty - создаёт объект ChangePasswordProperty.
 func NewChangePasswordProperty(
-	txManager mrstorage.DBTxManager,
-	storageOperation operationCreator,
-	notifierAPI mrnotifier.NoteProducer,
+	opener operationOpener,
 	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
 	factoryOperationPassword factoryOperationValue2FA,
-	logOperation operationLogger,
 ) *ChangePasswordProperty {
 	return &ChangePasswordProperty{
-		txManager:                   txManager,
-		storageOperation:            storageOperation,
-		notifierAPI:                 notifierAPI,
+		opener:                      opener,
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
 		factoryOperationPassword:    factoryOperationPassword,
-		logOperation:                logOperation,
 		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
@@ -76,35 +62,9 @@ func (uc *ChangePasswordProperty) Execute(
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
-	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
-		if err = uc.storageOperation.Insert(ctx, op); err != nil {
-			return uc.errorWrapper.Wrap(err)
-		}
-
-		return op.NotifyByEmail(
-			func(address, confirmCode string) error {
-				return uc.notifierAPI.Send(
-					ctx,
-					"confirm.change.password",
-					conv.Group{
-						"to":          address,
-						"confirmCode": confirmCode,
-					},
-				)
-			},
-		)
-	})
-	if err != nil {
+	if err = uc.opener.Open(ctx, actor, op, "confirm.change.password", nil); err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
-
-	// операция смены пароля создана: фиксируем инициацию в журнале (запись вне транзакции)
-	uc.logOperation.Log(
-		ctx,
-		actor.NewOperationLog(
-			op.Name, op.FirstActionMethod(), logstatus.Opened, logreason.Unspecified,
-		),
-	)
 
 	return op, nil
 }

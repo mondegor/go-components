@@ -11,6 +11,7 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/component/produce"
+	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
@@ -38,6 +39,7 @@ func initUnitAuthController(
 	logger mrlog.Logger,
 	eventEmitter mrevent.Emitter,
 	dbConnManager mrstorage.DBConnManager,
+	operationOpener *secureoperation.Opener,
 	storageUser *repository.UserPostgres,
 	storageCheckUser *repository.CheckUserPostgres,
 	storageUserRealm *repository.UserRealmPostgres,
@@ -89,10 +91,8 @@ func initUnitAuthController(
 	timeZoneResolver := servicetimezone.New(timeZones)
 
 	useCaseCreateUser := usecaseauth.NewCreateUser(
-		dbConnManager,
+		operationOpener,
 		checkUserService,
-		storageSecureOperation,
-		notifierAPI,
 		factory2FA,
 		locker,
 		operationLogger,
@@ -101,10 +101,8 @@ func initUnitAuthController(
 	)
 
 	useCaseConfirmAuthUser := usecaseauth.NewCreateSession(
-		dbConnManager,
+		operationOpener,
 		checkUserService,
-		storageSecureOperation,
-		notifierAPI,
 		factory2FA,
 		operationLogger,
 		mapping.OptionUserRealmsToConfirmCreateSessionRealms(userRealms),

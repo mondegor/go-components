@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mondegor/go-core/util/conv"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -62,13 +63,14 @@ func userWith2FA(method confirmmethod.Enum) dto.User2FA {
 type ChangeSecuritySuite struct {
 	baseSuite
 
-	creator      *mock.MockoperationCreator
+	opener       *mock.MockoperationOpener
 	factory2FA   *mock.MockUser2FAConfirmActionCreator
 	valueFactory *mock.MockfactoryOperationValue2FA
 	opFactory    *mock.Mockuser2faOperationCreator
 	emailChecker *mock.MockuserEmailChecker
 	phoneChecker *mock.MockuserPhoneChecker
-	inserted     bool
+	opened       bool
+	openedNote   string
 }
 
 func TestChangeSecuritySuite(t *testing.T) {
@@ -80,25 +82,28 @@ func TestChangeSecuritySuite(t *testing.T) {
 func (s *ChangeSecuritySuite) SetupTest() {
 	s.baseSuite.SetupTest()
 
-	s.creator = mock.NewMockoperationCreator(s.ctrl)
+	s.opener = mock.NewMockoperationOpener(s.ctrl)
 	s.factory2FA = mock.NewMockUser2FAConfirmActionCreator(s.ctrl)
 	s.valueFactory = mock.NewMockfactoryOperationValue2FA(s.ctrl)
 	s.opFactory = mock.NewMockuser2faOperationCreator(s.ctrl)
 	s.emailChecker = mock.NewMockuserEmailChecker(s.ctrl)
 	s.phoneChecker = mock.NewMockuserPhoneChecker(s.ctrl)
-	s.inserted = false
+	s.opened = false
+	s.openedNote = ""
 }
 
-// expectInsert - хранилище операций принимает вставку либо возвращает ошибку.
-func (s *ChangeSecuritySuite) expectInsert(err error) {
-	s.creator.EXPECT().
-		Insert(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(context.Context, secureoperation.SecureOperation) error {
+// expectOpen - открытие операции проходит успешно либо возвращает ошибку; попутно
+// запоминается имя шаблона уведомления, которое usecase передал компоненту.
+func (s *ChangeSecuritySuite) expectOpen(err error) {
+	s.opener.EXPECT().
+		Open(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ dto.ActorMeta, _ secureoperation.SecureOperation, noteName string, _ conv.Group) error {
 			if err != nil {
 				return err
 			}
 
-			s.inserted = true
+			s.opened = true
+			s.openedNote = noteName
 
 			return nil
 		}).
@@ -127,42 +132,27 @@ func (s *ChangeSecuritySuite) expectPhoneChecker(err error) {
 }
 
 func (s *ChangeSecuritySuite) newChangeEmail() *security.ChangeEmailProperty {
-	return security.NewChangeEmailProperty(
-		s.txManager, s.creator, s.emailChecker, s.notifierAPI,
-		s.factory2FA, s.valueFactory, s.logOperation,
-	)
+	return security.NewChangeEmailProperty(s.opener, s.emailChecker, s.factory2FA, s.valueFactory)
 }
 
 func (s *ChangeSecuritySuite) newChangePassword() *security.ChangePasswordProperty {
-	return security.NewChangePasswordProperty(
-		s.txManager, s.creator, s.notifierAPI,
-		s.factory2FA, s.valueFactory, s.logOperation,
-	)
+	return security.NewChangePasswordProperty(s.opener, s.factory2FA, s.valueFactory)
 }
 
 func (s *ChangeSecuritySuite) newChangePhone() *security.ChangePhoneProperty {
-	return security.NewChangePhoneProperty(
-		s.txManager, s.creator, s.phoneChecker, s.notifierAPI,
-		s.factory2FA, s.valueFactory, s.logOperation,
-	)
+	return security.NewChangePhoneProperty(s.opener, s.phoneChecker, s.factory2FA, s.valueFactory)
 }
 
 func (s *ChangeSecuritySuite) newChangeTOTP() *security.ChangeTOTPGeneratorProperty {
-	return security.NewChangeTOTPGeneratorProperty(
-		s.txManager, s.creator, s.notifierAPI,
-		s.factory2FA, s.opFactory, s.logOperation,
-	)
+	return security.NewChangeTOTPGeneratorProperty(s.opener, s.factory2FA, s.opFactory)
 }
 
 func (s *ChangeSecuritySuite) newDisable2FA() *security.Disable2FA {
-	return security.NewDisable2FA(
-		s.txManager, s.creator, s.notifierAPI,
-		s.factory2FA, s.opFactory, s.logOperation,
-	)
+	return security.NewDisable2FA(s.opener, s.factory2FA, s.opFactory)
 }
 
 func (s *ChangeSecuritySuite) TestChangeEmailPropertyNilUserID() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
 	s.expectEmailChecker(nil)
@@ -172,19 +162,19 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertyNilUserID() {
 }
 
 func (s *ChangeSecuritySuite) TestChangeEmailPropertySuccess() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(userWithEmail(), nil)
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(nil)
 
 	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new@example.com")
 	s.Require().NoError(err)
-	s.True(s.inserted)
-	s.True(s.notified)
+	s.True(s.opened)
+	s.Equal("confirm.change.email", s.openedNote)
 }
 
 func (s *ChangeSecuritySuite) TestChangeEmailPropertyInvalidEmail() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
 	s.expectEmailChecker(nil)
@@ -194,7 +184,7 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertyInvalidEmail() {
 }
 
 func (s *ChangeSecuritySuite) TestChangeEmailPropertyEmailUnavailable() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(errors.New("taken"))
@@ -204,7 +194,7 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertyEmailUnavailable() {
 }
 
 func (s *ChangeSecuritySuite) TestChangeEmailPropertyUser2FAFactoryError() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(dto.User2FA{}, errors.New("no user"))
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(nil)
@@ -213,8 +203,8 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertyUser2FAFactoryError() {
 	s.Require().Error(err)
 }
 
-func (s *ChangeSecuritySuite) TestChangeEmailPropertyInsertError() {
-	s.expectInsert(errors.New("insert failed"))
+func (s *ChangeSecuritySuite) TestChangeEmailPropertyOpenError() {
+	s.expectOpen(errors.New("open failed"))
 	s.expect2FA(userWithEmail(), nil)
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(nil)
@@ -224,7 +214,7 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertyInsertError() {
 }
 
 func (s *ChangeSecuritySuite) TestChangePasswordPropertyNilUserID() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
 
@@ -233,18 +223,18 @@ func (s *ChangeSecuritySuite) TestChangePasswordPropertyNilUserID() {
 }
 
 func (s *ChangeSecuritySuite) TestChangePasswordPropertySuccess() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(userWithEmail(), nil)
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 
 	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
 	s.Require().NoError(err)
-	s.True(s.inserted)
-	s.True(s.notified)
+	s.True(s.opened)
+	s.Equal("confirm.change.password", s.openedNote)
 }
 
 func (s *ChangeSecuritySuite) TestChangePasswordPropertyFactoryError() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectValueFactory(secureoperation.SecureOperation{}, errors.New("factory failed"))
 
@@ -257,19 +247,19 @@ func (s *ChangeSecuritySuite) TestChangePasswordPropertyFactoryError() {
 func (s *ChangeSecuritySuite) TestChangePasswordPropertyRejectedWhen2FAActive() {
 	for _, method := range []confirmmethod.Enum{confirmmethod.Password, confirmmethod.TOTP} {
 		s.Run(method.String(), func() {
-			s.expectInsert(nil)
+			s.expectOpen(nil)
 			s.expect2FA(userWith2FA(method), nil)
 			s.expectValueFactory(openedEmailOp(s.T()), nil)
 
 			_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
 			s.Require().ErrorIs(err, mrauth.Err2FAMustBeDisabledFirst)
-			s.False(s.inserted)
+			s.False(s.opened)
 		})
 	}
 }
 
 func (s *ChangeSecuritySuite) TestChangePhonePropertyNilUserID() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
 	s.expectPhoneChecker(nil)
@@ -279,19 +269,19 @@ func (s *ChangeSecuritySuite) TestChangePhonePropertyNilUserID() {
 }
 
 func (s *ChangeSecuritySuite) TestChangePhonePropertySuccess() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(userWithEmail(), nil)
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectPhoneChecker(nil)
 
 	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "79991234567")
 	s.Require().NoError(err)
-	s.True(s.inserted)
-	s.True(s.notified)
+	s.True(s.opened)
+	s.Equal("confirm.change.phone", s.openedNote)
 }
 
 func (s *ChangeSecuritySuite) TestChangePhonePropertyInvalidPhone() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
 	s.expectPhoneChecker(nil)
@@ -301,7 +291,7 @@ func (s *ChangeSecuritySuite) TestChangePhonePropertyInvalidPhone() {
 }
 
 func (s *ChangeSecuritySuite) TestChangePhonePropertyPhoneUnavailable() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectPhoneChecker(errors.New("taken"))
@@ -311,7 +301,7 @@ func (s *ChangeSecuritySuite) TestChangePhonePropertyPhoneUnavailable() {
 }
 
 func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyNilUserID() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectOpFactory(secureoperation.SecureOperation{}, nil)
 
@@ -320,18 +310,18 @@ func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyNilUserID() {
 }
 
 func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertySuccess() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(userWithEmail(), nil)
 	s.expectOpFactory(openedEmailOp(s.T()), nil)
 
 	_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
 	s.Require().NoError(err)
-	s.True(s.inserted)
-	s.True(s.notified)
+	s.True(s.opened)
+	s.Equal("confirm.change.totp", s.openedNote)
 }
 
 func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyFactoryError() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectOpFactory(secureoperation.SecureOperation{}, errors.New("factory failed"))
 
@@ -339,8 +329,8 @@ func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyFactoryError() {
 	s.Require().Error(err)
 }
 
-func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyInsertError() {
-	s.expectInsert(errors.New("insert failed"))
+func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyOpenError() {
+	s.expectOpen(errors.New("open failed"))
 	s.expect2FA(userWithEmail(), nil)
 	s.expectOpFactory(openedEmailOp(s.T()), nil)
 
@@ -353,19 +343,19 @@ func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyInsertError() {
 func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyRejectedWhen2FAActive() {
 	for _, method := range []confirmmethod.Enum{confirmmethod.Password, confirmmethod.TOTP} {
 		s.Run(method.String(), func() {
-			s.expectInsert(nil)
+			s.expectOpen(nil)
 			s.expect2FA(userWith2FA(method), nil)
 			s.expectOpFactory(openedEmailOp(s.T()), nil)
 
 			_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
 			s.Require().ErrorIs(err, mrauth.Err2FAMustBeDisabledFirst)
-			s.False(s.inserted)
+			s.False(s.opened)
 		})
 	}
 }
 
 func (s *ChangeSecuritySuite) TestDisable2FANilUserID() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectOpFactory(secureoperation.SecureOperation{}, nil)
 
@@ -374,18 +364,18 @@ func (s *ChangeSecuritySuite) TestDisable2FANilUserID() {
 }
 
 func (s *ChangeSecuritySuite) TestDisable2FASuccess() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(userWithEmail(), nil)
 	s.expectOpFactory(openedEmailOp(s.T()), nil)
 
 	_, err := s.newDisable2FA().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
 	s.Require().NoError(err)
-	s.True(s.inserted)
-	s.True(s.notified)
+	s.True(s.opened)
+	s.Equal("confirm.disable.2fa", s.openedNote)
 }
 
 func (s *ChangeSecuritySuite) TestDisable2FAFactoryError() {
-	s.expectInsert(nil)
+	s.expectOpen(nil)
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectOpFactory(secureoperation.SecureOperation{}, errors.New("factory failed"))
 

@@ -5,34 +5,35 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
-	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/enum/logreason"
-	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
 	// ChangeEmailProperty - создаёт операцию смены email пользователя (с проверкой
 	// доступности адреса) и отправляет код её подтверждения.
 	ChangeEmailProperty struct {
-		txManager                   mrstorage.DBTxManager
-		storageOperation            operationCreator
+		opener                      operationOpener
 		emailChecker                userEmailChecker
-		notifierAPI                 mrnotifier.NoteProducer
 		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
 		factoryOperationEmail       factoryOperationValue2FA
-		logOperation                operationLogger
 		errorWrapper                errors.Wrapper
 	}
 
-	operationCreator interface {
-		Insert(ctx context.Context, row secureoperation.SecureOperation) error
+	// operationOpener - открывает созданную операцию: гасит прежние операции того же
+	// типа, сохраняет новую, отправляет код подтверждения и пишет журнал.
+	operationOpener interface {
+		Open(
+			ctx context.Context,
+			actor dto.ActorMeta,
+			op secureoperation.SecureOperation,
+			noteName string,
+			noteProps conv.Group,
+		) error
 	}
 
 	userEmailChecker interface {
@@ -46,22 +47,16 @@ type (
 
 // NewChangeEmailProperty - создаёт объект ChangeEmailProperty.
 func NewChangeEmailProperty(
-	txManager mrstorage.DBTxManager,
-	storageOperation operationCreator,
+	opener operationOpener,
 	emailChecker userEmailChecker,
-	notifierAPI mrnotifier.NoteProducer,
 	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
 	factoryOperationEmail factoryOperationValue2FA,
-	logOperation operationLogger,
 ) *ChangeEmailProperty {
 	return &ChangeEmailProperty{
-		txManager:                   txManager,
-		storageOperation:            storageOperation,
+		opener:                      opener,
 		emailChecker:                emailChecker,
-		notifierAPI:                 notifierAPI,
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
 		factoryOperationEmail:       factoryOperationEmail,
-		logOperation:                logOperation,
 		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
 	}
 }
@@ -96,35 +91,9 @@ func (uc *ChangeEmailProperty) Execute(
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 
-	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
-		if err = uc.storageOperation.Insert(ctx, op); err != nil {
-			return uc.errorWrapper.Wrap(err)
-		}
-
-		return op.NotifyByEmail(
-			func(address, confirmCode string) error {
-				return uc.notifierAPI.Send(
-					ctx,
-					"confirm.change.email",
-					conv.Group{
-						"to":          address,
-						"confirmCode": confirmCode,
-					},
-				)
-			},
-		)
-	})
-	if err != nil {
+	if err = uc.opener.Open(ctx, actor, op, "confirm.change.email", nil); err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
-
-	// операция смены email создана: фиксируем инициацию в журнале (запись вне транзакции)
-	uc.logOperation.Log(
-		ctx,
-		actor.NewOperationLog(
-			op.Name, op.FirstActionMethod(), logstatus.Opened, logreason.Unspecified,
-		),
-	)
 
 	return op, nil
 }

@@ -21,10 +21,11 @@ const (
 	NotConfirmed                  // операция не подтверждена
 	LoginNotExists                // логин не существует
 	SessionLimit                  // превышен лимит сессий
+	Superseded                    // операция вытеснена новой операцией того же типа
 )
 
 const (
-	enumLast = uint8(SessionLimit)
+	enumLast = uint8(Superseded)
 	enumName = "LogReason"
 )
 
@@ -47,6 +48,7 @@ var (
 		NotConfirmed:      "NOT_CONFIRMED",
 		LoginNotExists:    "LOGIN_NOT_EXISTS",
 		SessionLimit:      "SESSION_LIMIT",
+		Superseded:        "SUPERSEDED",
 	}
 
 	enumValues = map[string]Enum{
@@ -61,6 +63,7 @@ var (
 		"NOT_CONFIRMED":      NotConfirmed,
 		"LOGIN_NOT_EXISTS":   LoginNotExists,
 		"SESSION_LIMIT":      SessionLimit,
+		"SUPERSEDED":         Superseded,
 	}
 )
 

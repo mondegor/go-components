@@ -21,7 +21,7 @@ func TestValidateTimeZone(t *testing.T) {
 		{name: "without slash", value: "UTC", want: true},
 		{name: "with digits and sign", value: "Etc/GMT+5", want: true},
 		{name: "with underscore", value: "America/New_York", want: true},
-		{name: "with dot", value: "America/Port-au-Prince", want: true},
+		{name: "with hyphen", value: "America/Port-au-Prince", want: true},
 
 		// пояс процесса зависит от настроек хоста, поэтому клиенту не разрешён
 		{name: "process timezone", value: "Local", want: false},
@@ -31,7 +31,11 @@ func TestValidateTimeZone(t *testing.T) {
 		{name: "too many parts", value: "a/b/c/d", want: false},
 		{name: "leading digit", value: "1Europe/Moscow", want: false},
 		{name: "with space", value: "Europe/Moscow ", want: false},
-		{name: "path traversal", value: "../../etc/passwd", want: false},
+		{name: "leading dot", value: "../../etc/passwd", want: false},
+		{name: "dot segment", value: "Etc/..", want: false},
+		{name: "path traversal", value: "UTC/../..", want: false},
+		{name: "single dot segment", value: "Europe/.", want: false},
+		{name: "dot inside segment", value: "Europe/Mos.cow", want: false},
 	}
 
 	for _, tt := range tests {

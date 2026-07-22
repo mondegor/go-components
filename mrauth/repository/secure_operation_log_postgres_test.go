@@ -41,9 +41,9 @@ type SecureOperationLogPostgresTestSuite struct {
 	repo *repository.SecureOperationLogPostgres
 }
 
+// ВНИМАНИЕ: t.Parallel() здесь не ставится - каждый suite поднимает свой контейнер
+// Postgres, одновременный запуск нескольких suite'ов исчерпывает память Docker.
 func TestSecureOperationLogPostgresTestSuite(t *testing.T) {
-	t.Parallel()
-
 	suite.Run(t, new(SecureOperationLogPostgresTestSuite))
 }
 

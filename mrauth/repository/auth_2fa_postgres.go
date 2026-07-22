@@ -158,7 +158,8 @@ func (re *Auth2FAPostgres) UpdateRecoveryCodes(ctx context.Context, userID uuid.
 	return nil
 }
 
-// Delete - удаляет данные 2FA пользователя.
+// Delete - удаляет данные 2FA пользователя. Если 2FA уже отключена,
+// возвращает errors.ErrEventStorageNoRecordFound.
 func (re *Auth2FAPostgres) Delete(ctx context.Context, userID uuid.UUID) error {
 	sql := `
 		DELETE FROM
@@ -166,12 +167,7 @@ func (re *Auth2FAPostgres) Delete(ctx context.Context, userID uuid.UUID) error {
 		WHERE
 			user_id = $1;`
 
-	_, err := re.client.Conn(ctx).ExecAffected(
-		ctx,
-		sql,
-		userID,
-	)
-	if err != nil {
+	if err := re.client.Conn(ctx).ExecRow(ctx, sql, userID); err != nil {
 		return re.errorWrapper.Wrap(err)
 	}
 

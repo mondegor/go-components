@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/mondegor/go-core/errors"
-	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -14,17 +13,14 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
 	// CreateSession - инициирует создание сессии пользователя: подбирает операцию по
 	// realm, создаёт её и отправляет код подтверждения по логину пользователя.
 	CreateSession struct {
-		txManager                   mrstorage.DBTxManager
+		opener                      operationOpener
 		userChecker                 userLoginChecker
-		storageOperation            operationCreator
-		notifierAPI                 mrnotifier.NoteProducer
 		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
 		logOperation                operationLogger
 		errorWrapper                errors.Wrapper
@@ -37,8 +33,16 @@ type (
 		Operation createSessionOperation
 	}
 
-	operationCreator interface {
-		Insert(ctx context.Context, row secureoperation.SecureOperation) error
+	// operationOpener - открывает созданную операцию: гасит прежние операции того же
+	// типа, сохраняет новую, отправляет код подтверждения и пишет журнал.
+	operationOpener interface {
+		Open(
+			ctx context.Context,
+			actor dto.ActorMeta,
+			op secureoperation.SecureOperation,
+			noteName string,
+			noteProps conv.Group,
+		) error
 	}
 
 	userLoginChecker interface {
@@ -55,10 +59,8 @@ type (
 
 // NewCreateSession - создаёт объект CreateSession.
 func NewCreateSession(
-	txManager mrstorage.DBTxManager,
+	opener operationOpener,
 	userChecker userLoginChecker,
-	storageOperation operationCreator,
-	notifierAPI mrnotifier.NoteProducer,
 	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
 	logOperation operationLogger,
 	allowedRealms []CreateSessionRealm,
@@ -69,10 +71,8 @@ func NewCreateSession(
 	}
 
 	return &CreateSession{
-		txManager:                   txManager,
+		opener:                      opener,
 		userChecker:                 userChecker,
-		storageOperation:            storageOperation,
-		notifierAPI:                 notifierAPI,
 		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
 		logOperation:                logOperation,
@@ -129,40 +129,12 @@ func (co *CreateSession) Execute(
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
-	err = co.txManager.Do(ctx, func(ctx context.Context) error {
-		if err = co.storageOperation.Insert(ctx, op); err != nil {
-			return co.errorWrapper.Wrap(err)
-		}
-
-		return op.NotifyByEmail(
-			func(address, confirmCode string) error {
-				return co.notifierAPI.Send(
-					ctx,
-					"confirm.create.session.by.email",
-					conv.Group{
-						"lang":        langCode,
-						"to":          address,
-						"confirmCode": confirmCode,
-					},
-				)
-			},
-		)
-	})
+	// владельцем операции входа является существующий пользователь, поэтому Open фиксирует
+	// в журнале его, а не анонимного посетителя (в actor приходит uuid.Nil)
+	err = co.opener.Open(ctx, actor, op, "confirm.create.session.by.email", conv.Group{"lang": langCode})
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
-
-	// вход выполняется существующим пользователем, поэтому он и фиксируется как посетитель
-	// (поток входа анонимный, в actor приходит uuid.Nil)
-	actor = actor.WithVisitor(op.UserID)
-
-	// операция создана: фиксируем инициацию входа в журнале (запись вне транзакции)
-	co.logOperation.Log(
-		ctx,
-		actor.NewOperationLog(
-			op.Name, op.FirstActionMethod(), logstatus.Opened, logreason.Unspecified,
-		),
-	)
 
 	return op, nil
 }

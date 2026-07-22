@@ -246,6 +246,54 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
   `nil, nil` (`nilnil`). Don't return `nil` after a non-nil error check (`nilerr`).
 - Forbidden imports: `crypto/md5`, `crypto/sha1` (`revive imports-blocklist`, `gosec`).
 
+### Storage sentinels: pick the `mrpostgres` call that produces the error you guard on
+
+A caller that branches on `errors.Is(err, errors.ErrEventStorage…)` is only correct if the
+repository method underneath can actually emit that sentinel. `go-core/mrpostgres` decides
+this purely by **which `DBConn` method you call**:
+
+| Call | 0 rows affected / found → |
+|---|---|
+| `QueryRow(...).Scan(...)` | `ErrEventStorageNoRecordFound` |
+| `ExecRow(...)` | `ErrEventStorageNoRecordFound` (and `ErrInternalStorageQueryFailed` if **>1** row) |
+| `Exec(...)` | `ErrEventStorageRecordsNotAffected` |
+| `ExecAffected(...)` | **nothing** — returns `(count, nil)` |
+
+Rules:
+
+- Writing a repo method whose absent row is meaningful to the caller (idempotency guard,
+  404/"invalid token" mapping)? Use `ExecRow` when the statement touches **exactly one**
+  row — `ExecAffected` silently returns `nil` and the caller's guard becomes dead code.
+- Statement touches **many** rows (revoke every token of a session, bulk update)? `ExecRow`
+  is wrong — it fails on >1 row. Use plain `Exec`: it already reports "nothing matched" as
+  `ErrEventStorageRecordsNotAffected`, so the caller gets its guard for free and the method
+  stays a one-liner. Reach for `ExecAffected` **only when the caller genuinely uses the
+  number** (batch-full signalling, "there is more" pagination) — a count that only ever gets
+  compared to zero means you wanted `Exec`.
+- Don't hand a count to a caller that just turns it back into a boolean, and don't emit one
+  journal/log record per affected row when the records would be identical — one record for
+  the event, not N copies of it.
+- `ExecAffected` with a discarded count (`_, err :=`) is correct **only** for genuinely
+  idempotent/bulk operations (ack-deletes, enqueue, expired-row cleanup). State the
+  idempotency in the doc comment so the choice is not read as an oversight.
+- Document the sentinel in the method's doc comment when callers depend on it
+  (`// … Если записи нет, возвращает errors.ErrEventStorageNoRecordFound.`).
+- **The sentinel survives the repo's `errorWrapper`, but not as the same error.**
+  `NewInfraStorageWrapper` only *returns as-is* what matches `ErrEventStorageNoRecordFound`;
+  `ErrEventStorageRecordsNotAffected` has no `Kind()`, so it gets wrapped into
+  `ErrInternalStorageQueryFailed` — `errors.Is` still finds it through the `Unwrap` chain,
+  but `err == errors.ErrEventStorageRecordsNotAffected` and any switch on the error's own
+  kind/code will not. Guard with `errors.Is`, never `==`. Service-layer wrappers above it
+  (`NewServiceOperationFailedWrapper`) are then identity for `kind.Internal` errors passed
+  without attrs, so the sentinel reaches the usecase intact through repo → service → usecase.
+- Wrap once, at the boundary that returns to the caller. Wrapping inside a
+  `txManager.Do` closure *and* again on the closure's result is redundant — the outer
+  wrapper already covers both, and the inner one only obscures where the error came from.
+- **Gomock stubs cannot validate this.** A unit test whose mock returns a sentinel the real
+  repository never produces will pass over dead code. Any branch keyed on a storage
+  sentinel needs an **integration test on the repository** pinning that contract — and
+  verify it by reverting the repo change and watching the test fail.
+
 ## Control flow (wsl_v5 / whitespace / nlreturn / revive)
 
 - Blank line before `return`/`break`/`continue` (`nlreturn`); no leading/trailing blank
@@ -323,6 +371,16 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
   interface parameter structurally — the unexported type name is never written in the test.
 - `t.Parallel()` at the top of every test and subtest (`tparallel`). Test helpers call
   `t.Helper()` (`thelper`).
+- **Exception: integration suites on `PostgresTester` never call `t.Parallel()`.**
+  `infra.NewPostgresTester` starts a *fresh* container per suite, so N parallel suites in
+  one package means N live Postgres instances — enough of them and the containers stop
+  coming up (`wait until ready … context deadline exceeded`), which reads exactly like a
+  broken migration. Drop `t.Parallel()` and say why in a comment above the entry point, so
+  nobody re-adds it to match the unit tests next door. `paralleltest` is not enabled, so
+  nothing forces the call back in. Two corollaries: `-p 1` does **not** help (it bounds
+  package parallelism, not top-level tests inside one package), and a suite that fails in a
+  full-package run but passes alone (`go test -run TestXxxSuite ./pkg/`) is resource
+  contention, not a regression — check that before hunting for a bug.
 - Table-driven with a local `type testCase struct`, named cases, `t.Run(tt.name, …)`:
   ```go
   func TestX_Method(t *testing.T) {

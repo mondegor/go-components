@@ -16,45 +16,46 @@ import (
 	dto "github.com/mondegor/go-components/mrauth/dto"
 	contactaddress "github.com/mondegor/go-components/mrauth/model/contactaddress"
 	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
+	conv "github.com/mondegor/go-core/util/conv"
 	gomock "go.uber.org/mock/gomock"
 )
 
-// MockoperationCreator is a mock of operationCreator interface.
-type MockoperationCreator struct {
+// MockoperationOpener is a mock of operationOpener interface.
+type MockoperationOpener struct {
 	ctrl     *gomock.Controller
-	recorder *MockoperationCreatorMockRecorder
+	recorder *MockoperationOpenerMockRecorder
 	isgomock struct{}
 }
 
-// MockoperationCreatorMockRecorder is the mock recorder for MockoperationCreator.
-type MockoperationCreatorMockRecorder struct {
-	mock *MockoperationCreator
+// MockoperationOpenerMockRecorder is the mock recorder for MockoperationOpener.
+type MockoperationOpenerMockRecorder struct {
+	mock *MockoperationOpener
 }
 
-// NewMockoperationCreator creates a new mock instance.
-func NewMockoperationCreator(ctrl *gomock.Controller) *MockoperationCreator {
-	mock := &MockoperationCreator{ctrl: ctrl}
-	mock.recorder = &MockoperationCreatorMockRecorder{mock}
+// NewMockoperationOpener creates a new mock instance.
+func NewMockoperationOpener(ctrl *gomock.Controller) *MockoperationOpener {
+	mock := &MockoperationOpener{ctrl: ctrl}
+	mock.recorder = &MockoperationOpenerMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockoperationCreator) EXPECT() *MockoperationCreatorMockRecorder {
+func (m *MockoperationOpener) EXPECT() *MockoperationOpenerMockRecorder {
 	return m.recorder
 }
 
-// Insert mocks base method.
-func (m *MockoperationCreator) Insert(ctx context.Context, row secureoperation.SecureOperation) error {
+// Open mocks base method.
+func (m *MockoperationOpener) Open(ctx context.Context, actor dto.ActorMeta, op secureoperation.SecureOperation, noteName string, noteProps conv.Group) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Insert", ctx, row)
+	ret := m.ctrl.Call(m, "Open", ctx, actor, op, noteName, noteProps)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Insert indicates an expected call of Insert.
-func (mr *MockoperationCreatorMockRecorder) Insert(ctx, row any) *gomock.Call {
+// Open indicates an expected call of Open.
+func (mr *MockoperationOpenerMockRecorder) Open(ctx, actor, op, noteName, noteProps any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MockoperationCreator)(nil).Insert), ctx, row)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Open", reflect.TypeOf((*MockoperationOpener)(nil).Open), ctx, actor, op, noteName, noteProps)
 }
 
 // MockuserLoginChecker is a mock of userLoginChecker interface.

@@ -12,6 +12,7 @@ import (
 	"github.com/mondegor/go-core/mrlock"
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/mrtype"
+	"github.com/mondegor/go-core/util/conv"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -89,12 +90,12 @@ type CreateSessionSuite struct {
 	ctx          context.Context
 	txManager    *mock.MockDBTxManager
 	checker      *mock.MockuserLoginChecker
-	creator      *mock.MockoperationCreator
-	notifierAPI  *mock.MockNoteProducer
+	opener       *mock.MockoperationOpener
 	factory2FA   *mock.MockUser2FAConfirmActionCreator
 	opFactory    *mock.MockcreateSessionOperation
 	logOperation *mock.MockoperationLogger
 	logEntries   []entity.SecureOperationLog
+	openedNote   string
 }
 
 func TestCreateSessionSuite(t *testing.T) {
@@ -108,12 +109,12 @@ func (s *CreateSessionSuite) SetupTest() {
 	s.ctx = context.Background()
 	s.txManager = mock.NewMockDBTxManager(s.ctrl)
 	s.checker = mock.NewMockuserLoginChecker(s.ctrl)
-	s.creator = mock.NewMockoperationCreator(s.ctrl)
-	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
+	s.opener = mock.NewMockoperationOpener(s.ctrl)
 	s.factory2FA = mock.NewMockUser2FAConfirmActionCreator(s.ctrl)
 	s.opFactory = mock.NewMockcreateSessionOperation(s.ctrl)
 	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
 	s.logEntries = nil
+	s.openedNote = ""
 
 	expectPassThroughTx(s.txManager)
 
@@ -130,14 +131,24 @@ func (s *CreateSessionSuite) SetupTest() {
 
 func (s *CreateSessionSuite) newUseCase() *auth.CreateSession {
 	return auth.NewCreateSession(
-		s.txManager,
+		s.opener,
 		s.checker,
-		s.creator,
-		s.notifierAPI,
 		s.factory2FA,
 		s.logOperation,
 		[]auth.CreateSessionRealm{{Name: "shop", Operation: s.opFactory}},
 	)
+}
+
+// expectOpen - компонент открытия операции отрабатывает успешно; запоминается имя
+// шаблона уведомления, которое usecase ему передал.
+func (s *CreateSessionSuite) expectOpen() {
+	s.opener.EXPECT().
+		Open(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ dto.ActorMeta, _ secureoperation.SecureOperation, noteName string, _ conv.Group) error {
+			s.openedNote = noteName
+
+			return nil
+		})
 }
 
 // expectCheckLogin - результат проверки доступности логина в realm.
@@ -179,16 +190,14 @@ func (s *CreateSessionSuite) TestSuccess() {
 		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(op, nil).
 		AnyTimes()
-	s.creator.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
-	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.expectOpen()
 
 	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", "user@example.com")
 	s.Require().NoError(err)
-	s.Require().Len(s.logEntries, 1)
-	s.Equal(logstatus.Opened, s.logEntries[0].LogStatus)
-	s.Equal(logreason.Unspecified, s.logEntries[0].Reason)
-	// вход инициирует существующий пользователь: он и попадает в журнал
-	s.Equal(op.UserID, s.logEntries[0].VisitorID)
+	s.Equal("confirm.create.session.by.email", s.openedNote)
+	// запись об открытии операции (и о вытеснении прежних) пишет компонент Opener,
+	// поэтому здесь журнал остаётся пустым - проверка в его собственном тесте
+	s.Empty(s.logEntries)
 }
 
 func (s *CreateSessionSuite) TestCheckerError() {
@@ -209,14 +218,17 @@ type CreateUserSuite struct {
 	ctx          context.Context
 	txManager    *mock.MockDBTxManager
 	checker      *mock.MockuserLoginChecker
-	creator      *mock.MockoperationCreator
-	notifierAPI  *mock.MockNoteProducer
+	opener       *mock.MockoperationOpener
 	factory2FA   *mock.Mockuser2faActionCreator
 	locker       *mock.MockLocker
 	opFactory    *mock.MockcreateUserOperation
 	tzResolver   *mock.MocktimeZoneResolver
 	logOperation *mock.MockoperationLogger
 	logEntries   []entity.SecureOperationLog
+
+	// аргументы, доехавшие до компонента открытия операции
+	openedNote  string
+	openedActor dto.ActorMeta
 
 	// аргументы, доехавшие до фабрики операции создания пользователя
 	gotUser2FA      dto.User2FA
@@ -235,14 +247,15 @@ func (s *CreateUserSuite) SetupTest() {
 	s.ctx = context.Background()
 	s.txManager = mock.NewMockDBTxManager(s.ctrl)
 	s.checker = mock.NewMockuserLoginChecker(s.ctrl)
-	s.creator = mock.NewMockoperationCreator(s.ctrl)
-	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
+	s.opener = mock.NewMockoperationOpener(s.ctrl)
 	s.factory2FA = mock.NewMockuser2faActionCreator(s.ctrl)
 	s.locker = mock.NewMockLocker(s.ctrl)
 	s.opFactory = mock.NewMockcreateUserOperation(s.ctrl)
 	s.tzResolver = mock.NewMocktimeZoneResolver(s.ctrl)
 	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
 	s.logEntries = nil
+	s.openedNote = ""
+	s.openedActor = dto.ActorMeta{}
 	s.gotUser2FA = dto.User2FA{}
 	s.gotTimeZone = ""
 	s.gotRegisteredIP = mrtype.DetailedIP{}
@@ -282,16 +295,27 @@ func (s *CreateUserSuite) expectHappyDeps() {
 
 func (s *CreateUserSuite) newUseCase() *auth.CreateUser {
 	return auth.NewCreateUser(
-		s.txManager,
+		s.opener,
 		s.checker,
-		s.creator,
-		s.notifierAPI,
 		s.factory2FA,
 		s.locker,
 		s.logOperation,
 		s.tzResolver,
 		[]auth.CreateUserRealm{{Name: "shop", Operation: s.opFactory}},
 	)
+}
+
+// expectOpen - компонент открытия операции отрабатывает успешно; запоминаются имя шаблона
+// уведомления и метаданные посетителя, которые usecase ему передал.
+func (s *CreateUserSuite) expectOpen() {
+	s.opener.EXPECT().
+		Open(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, actor dto.ActorMeta, _ secureoperation.SecureOperation, noteName string, _ conv.Group) error {
+			s.openedNote = noteName
+			s.openedActor = actor
+
+			return nil
+		})
 }
 
 func (s *CreateUserSuite) expectCheckLogin(err error) {
@@ -366,15 +390,18 @@ func (s *CreateUserSuite) TestLockNotObtained() {
 func (s *CreateUserSuite) TestSuccess() {
 	s.expectHappyDeps()
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
-	s.creator.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
-	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.expectOpen()
 
 	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
 	s.Require().NoError(err)
 	s.Equal(testIP(), s.gotRegisteredIP, "IP регистрации доезжает до фабрики операции")
 	s.Equal("Europe/Moscow", s.gotTimeZone, "в payload операции попадает уже подобранный пояс")
-	s.Require().Len(s.logEntries, 1)
-	s.Equal(logstatus.Opened, s.logEntries[0].LogStatus)
+	s.Equal("confirm.user.activation", s.openedNote)
+	// поток регистрации анонимный: форензику несёт IP, а не идентификатор посетителя
+	s.Equal(testIP(), s.openedActor.ClientIP)
+	s.Equal(uuid.Nil, s.openedActor.VisitorID)
+	// запись об открытии операции пишет компонент Opener - проверка в его собственном тесте
+	s.Empty(s.logEntries)
 }
 
 // TestTimeZoneResolvedOnEntry - пояс подбирается до записи payload'а, поэтому
@@ -382,8 +409,7 @@ func (s *CreateUserSuite) TestSuccess() {
 func (s *CreateUserSuite) TestTimeZoneResolvedOnEntry() {
 	s.expectHappyDeps()
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
-	s.creator.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
-	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.expectOpen()
 
 	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", dto.TimeZoneInfo{}, "user@example.com", testIP())
 	s.Require().NoError(err)
@@ -418,8 +444,7 @@ func (s *CreateUserSuite) TestNewEmailEmpty2FAForwarded() {
 	s.expectCheckLogin(nil)
 	s.expect2FA(dto.User2FA{}, sysmesserrors.ErrEventStorageNoRecordFound)
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
-	s.creator.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
-	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.expectOpen()
 
 	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
 	s.Require().NoError(err)
@@ -438,8 +463,7 @@ func (s *CreateUserSuite) TestExistingUser2FAForwarded() {
 
 	s.expect2FA(user2FA, nil)
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
-	s.creator.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
-	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.expectOpen()
 
 	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
 	s.Require().NoError(err)

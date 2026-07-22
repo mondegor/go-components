@@ -219,7 +219,25 @@ func (re *SecureOperationPostgres) UpdateFailedAttempt(ctx context.Context, toke
 	return attempts, nil
 }
 
-// Delete - удаляет защищённую операцию по её токену.
+// DeleteByUserIDAndName - удаляет незавершённые операции указанного типа указанного
+// пользователя (вытеснение при открытии новой операции). Если вытеснять было нечего,
+// возвращает errors.ErrEventStorageRecordsNotAffected.
+func (re *SecureOperationPostgres) DeleteByUserIDAndName(ctx context.Context, userID uuid.UUID, name string) error {
+	sql := `
+        DELETE FROM
+            ` + re.tableName + `
+        WHERE
+            user_id = $1 AND operation_name = $2;`
+
+	if err := re.client.Conn(ctx).Exec(ctx, sql, userID, name); err != nil {
+		return re.errorWrapper.Wrap(err)
+	}
+
+	return nil
+}
+
+// Delete - удаляет защищённую операцию по её токену. Если операции уже нет
+// (её потребил конкурентный запрос), возвращает errors.ErrEventStorageNoRecordFound.
 func (re *SecureOperationPostgres) Delete(ctx context.Context, token string) error {
 	sql := `
         DELETE FROM
