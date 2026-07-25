@@ -49,6 +49,15 @@ func (ts *AuthTokenPostgresTestSuite) SetupTest() {
 
 // seedSession - сохраняет пару токенов одной сессии и возвращает их значения.
 func (ts *AuthTokenPostgresTestSuite) seedSession(userID uuid.UUID, sessionID uint32) (accessToken, refreshToken string) {
+	return ts.seedSessionWithScopes(userID, sessionID, entity.AuthTokenScopes{})
+}
+
+// seedSessionWithScopes - сохраняет пару токенов одной сессии с указанной областью действия.
+func (ts *AuthTokenPostgresTestSuite) seedSessionWithScopes(
+	userID uuid.UUID,
+	sessionID uint32,
+	scopes entity.AuthTokenScopes,
+) (accessToken, refreshToken string) {
 	accessToken = "access-" + uuid.NewString()
 	refreshToken = "refresh-" + uuid.NewString()
 	expiresAt := time.Now().UTC().Add(time.Hour)
@@ -60,6 +69,7 @@ func (ts *AuthTokenPostgresTestSuite) seedSession(userID uuid.UUID, sessionID ui
 			UserID:    userID,
 			RealmID:   1,
 			SessionID: sessionID,
+			Scopes:    scopes,
 			ExpiresAt: expiresAt,
 		},
 		{
@@ -68,12 +78,67 @@ func (ts *AuthTokenPostgresTestSuite) seedSession(userID uuid.UUID, sessionID ui
 			UserID:    userID,
 			RealmID:   1,
 			SessionID: sessionID,
+			Scopes:    scopes,
 			ExpiresAt: expiresAt,
 		},
 	})
 	ts.Require().NoError(err)
 
 	return accessToken, refreshToken
+}
+
+// TestUpdateScopesSettings - новые язык и пояс попадают во все действующие refresh токены
+// пользователя (во всех его сессиях), оставляя нетронутыми realm и вид пользователя,
+// а область действия выданных access токенов сохраняется прежней: до их истечения
+// ответы формируются по зафиксированным в них значениям.
+func (ts *AuthTokenPostgresTestSuite) TestUpdateScopesSettings() {
+	userID := uuid.New()
+	scopes := entity.AuthTokenScopes{Realm: "app/users", UserKind: "regular", LangCode: "ru-RU", TimeZone: "Europe/Moscow"}
+
+	ts.seedSessionWithScopes(userID, 1, scopes)
+	ts.seedSessionWithScopes(userID, 2, scopes)
+
+	// чужие токены обновляться не должны
+	otherUserID := uuid.New()
+	ts.seedSessionWithScopes(otherUserID, 1, scopes)
+
+	ts.Require().NoError(ts.repo.UpdateScopesSettings(ts.ctx, userID, "en-US", "Asia/Tokyo"))
+
+	for _, sessionID := range []uint32{1, 2} {
+		access, refresh, err := ts.repo.FetchLastEnabledPairBySessionID(ts.ctx, userID, sessionID)
+		ts.Require().NoError(err)
+
+		ts.Equal(
+			entity.AuthTokenScopes{Realm: "app/users", UserKind: "regular", LangCode: "en-US", TimeZone: "Asia/Tokyo"},
+			refresh.Scopes,
+		)
+		ts.Equal(scopes, access.Scopes)
+	}
+
+	_, refresh, err := ts.repo.FetchLastEnabledPairBySessionID(ts.ctx, otherUserID, 1)
+	ts.Require().NoError(err)
+	ts.Equal(scopes, refresh.Scopes)
+}
+
+// TestUpdateScopesSettingsWithoutSessions - пользователь без открытых сессий не считается
+// ошибкой: настройки сохраняются, применять их просто некуда.
+func (ts *AuthTokenPostgresTestSuite) TestUpdateScopesSettingsWithoutSessions() {
+	ts.Require().NoError(ts.repo.UpdateScopesSettings(ts.ctx, uuid.New(), "en-US", "Asia/Tokyo"))
+}
+
+// TestUpdateScopesSettingsSkipsRevoked - отозванные токены не обновляются:
+// закрытая сессия не должна ожить с новыми настройками.
+func (ts *AuthTokenPostgresTestSuite) TestUpdateScopesSettingsSkipsRevoked() {
+	userID := uuid.New()
+	scopes := entity.AuthTokenScopes{Realm: "app/users", UserKind: "regular", LangCode: "ru-RU", TimeZone: "Europe/Moscow"}
+
+	_, refreshToken := ts.seedSessionWithScopes(userID, 1, scopes)
+	ts.Require().NoError(ts.repo.RevokeSessionByRefreshToken(ts.ctx, refreshToken))
+
+	ts.Require().NoError(ts.repo.UpdateScopesSettings(ts.ctx, userID, "en-US", "Asia/Tokyo"))
+
+	_, _, err := ts.repo.FetchLastEnabledPairBySessionID(ts.ctx, userID, 1)
+	ts.Require().ErrorIs(err, errors.ErrEventStorageNoRecordFound)
 }
 
 func (ts *AuthTokenPostgresTestSuite) TestRevokeSessionByRefreshToken() {

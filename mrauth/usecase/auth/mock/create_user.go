@@ -113,44 +113,6 @@ func (mr *Mockuser2faActionCreatorMockRecorder) CreateByUserLogin(ctx, userLogin
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateByUserLogin", reflect.TypeOf((*Mockuser2faActionCreator)(nil).CreateByUserLogin), ctx, userLogin)
 }
 
-// MocktimeZoneResolver is a mock of timeZoneResolver interface.
-type MocktimeZoneResolver struct {
-	ctrl     *gomock.Controller
-	recorder *MocktimeZoneResolverMockRecorder
-	isgomock struct{}
-}
-
-// MocktimeZoneResolverMockRecorder is the mock recorder for MocktimeZoneResolver.
-type MocktimeZoneResolverMockRecorder struct {
-	mock *MocktimeZoneResolver
-}
-
-// NewMocktimeZoneResolver creates a new mock instance.
-func NewMocktimeZoneResolver(ctrl *gomock.Controller) *MocktimeZoneResolver {
-	mock := &MocktimeZoneResolver{ctrl: ctrl}
-	mock.recorder = &MocktimeZoneResolverMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MocktimeZoneResolver) EXPECT() *MocktimeZoneResolverMockRecorder {
-	return m.recorder
-}
-
-// Resolve mocks base method.
-func (m *MocktimeZoneResolver) Resolve(in dto.TimeZoneInfo) string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Resolve", in)
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// Resolve indicates an expected call of Resolve.
-func (mr *MocktimeZoneResolverMockRecorder) Resolve(in any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Resolve", reflect.TypeOf((*MocktimeZoneResolver)(nil).Resolve), in)
-}
-
 // MockoperationLogger is a mock of operationLogger interface.
 type MockoperationLogger struct {
 	ctrl     *gomock.Controller

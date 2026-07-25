@@ -5,14 +5,13 @@ go 1.25.8
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/mondegor/go-core v0.15.4-0.20260719222213-a0cb03fe448c
+	github.com/mondegor/go-core v0.15.4-0.20260725021551-a77235809c5b
 	github.com/mondegor/go-storage v0.17.2-0.20260705222830-c29b13b1bbb8
-	github.com/mondegor/go-webcore v0.29.3-0.20260719222655-2d647450265d
+	github.com/mondegor/go-webcore v0.29.3-0.20260723200925-c4c3e5982343
 	github.com/pquerna/otp v1.5.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.6.0
-	golang.org/x/crypto v0.53.0
-	golang.org/x/text v0.38.0
+	golang.org/x/crypto v0.54.0
 )
 
 require (
@@ -88,14 +87,16 @@ require (
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/exp v0.0.0-20260611194520-c48552f49976 // indirect
+	golang.org/x/exp v0.0.0-20260718201538-764159d718ef // indirect
 	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 	gopkg.in/ini.v1 v1.67.3 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-// replace github.com/mondegor/go-core => ../go-core
+replace github.com/mondegor/go-core => ../go-core
+
 // replace github.com/mondegor/go-webcore => ../go-webcore
 // replace github.com/mondegor/go-storage => ../go-storage

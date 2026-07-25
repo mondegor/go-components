@@ -41,7 +41,7 @@ type (
 		useCaseOpenSession     openSessionUseCase
 		useCaseContinueSession continueSessionUseCase
 		useCaseCloseSession    closeSessionUseCase
-		useCaseApplySettings   applySettingsUseCase
+		useCaseChangeSettings  changeSettingsUseCase
 		serviceUserInfo        userInfoService
 		realmRegistry          mrauth.RealmRegistry
 		operationResponse      confirmOperationResponse
@@ -57,8 +57,7 @@ type (
 	createUserUseCase interface {
 		Execute(
 			ctx context.Context,
-			realm, langCode string,
-			timeZone dto.TimeZoneInfo,
+			realm, langCode, timeZone string,
 			userEmail string,
 			registeredIP mrtype.DetailedIP,
 		) (secureoperation.SecureOperation, error)
@@ -84,8 +83,8 @@ type (
 		Execute(ctx context.Context, refreshToken string) error
 	}
 
-	applySettingsUseCase interface {
-		Execute(ctx context.Context, userID uuid.UUID, settings dto.UserSettings) (dto.UserSettingsApplied, error)
+	changeSettingsUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID, langCode, timeZone string) error
 	}
 
 	userInfoService interface {
@@ -109,7 +108,7 @@ func NewAuth(
 	useCaseOpenSession openSessionUseCase,
 	useCaseContinueSession continueSessionUseCase,
 	useCaseCloseSession closeSessionUseCase,
-	useCaseApplySettings applySettingsUseCase,
+	useCaseChangeSettings changeSettingsUseCase,
 	serviceUserInfo userInfoService,
 	realmRegistry mrauth.RealmRegistry,
 	operationResponse confirmOperationResponse,
@@ -137,7 +136,7 @@ func NewAuth(
 		useCaseOpenSession:     useCaseOpenSession,
 		useCaseContinueSession: useCaseContinueSession,
 		useCaseCloseSession:    useCaseCloseSession,
-		useCaseApplySettings:   useCaseApplySettings,
+		useCaseChangeSettings:  useCaseChangeSettings,
 		serviceUserInfo:        serviceUserInfo,
 		realmRegistry:          realmRegistry,
 		operationResponse:      operationResponse,
@@ -154,11 +153,15 @@ func (ht *Auth) Handlers() []mrserver.HttpHandler {
 		{Method: http.MethodPatch, URL: authSessionURL, Permission: mraccess.PermissionEveryone, Func: ht.ContinueSession},
 		{Method: http.MethodDelete, URL: authSessionURL, Permission: mraccess.PermissionAnyUser, Func: ht.CloseSession},
 		{Method: http.MethodGet, URL: authUserURL, Permission: mraccess.PermissionAnyUser, Func: ht.UserInfo},
-		{Method: http.MethodPost, URL: authUserSettingsURL, Permission: mraccess.PermissionAnyUser, Func: ht.ApplySettings},
+		{Method: http.MethodPost, URL: authUserSettingsURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangeSettings},
 	}
 }
 
 // Signup - принимает запрос на регистрацию пользователя и инициирует подтверждение операции по коду.
+//
+// Язык и часовой пояс в теле не передаются: они подбираются по самому запросу и фиксируются
+// в payload операции, поэтому аккаунт создаётся с настройками того клиента, с которого шла
+// регистрация, даже если код подтвердят позже и из другого окружения.
 func (ht *Auth) Signup(w http.ResponseWriter, r *http.Request) error {
 	req := model.CreateUserRequest{}
 
@@ -168,16 +171,17 @@ func (ht *Auth) Signup(w http.ResponseWriter, r *http.Request) error {
 
 	lz := ht.parser.Localizer(r)
 
-	timeZone := dto.TimeZoneInfo{
-		Name:   req.TimeZone,
-		Offset: time.Duration(req.TZOffset) * time.Second,
-		IsDST:  req.TZIsDST,
-	}
-
 	// занятость email раскрывается осознанно (ErrEmailAlreadyExists), как в check-login и Signin -
 	// это by design ради UX формы регистрации; перебор аккаунтов закрывается rate-limit'ом.
 	// TODO: добавить rate-limit (частота регистраций/повторной отправки кода по identifier+IP)
-	op, err := ht.useCaseCreateUser.Execute(r.Context(), req.Realm, lz.Language(), timeZone, req.UserEmail, ht.parser.DetailedIP(r))
+	op, err := ht.useCaseCreateUser.Execute(
+		r.Context(),
+		req.Realm,
+		lz.Language(),
+		ht.parser.Location(r).String(),
+		req.UserEmail,
+		ht.parser.DetailedIP(r),
+	)
 	if err != nil {
 		if errors.Is(err, mrauth.ErrEmailAlreadyExists) {
 			return errors.WithCustomCode(err, "userEmail")
@@ -398,39 +402,61 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 		w,
 		http.StatusOK,
 		model.UserInfoResponse{
-			Email:       info.User.Email,
-			Phone:       casttype.UintToPhone(info.User.Phone),
-			LangCode:    info.User.LangCode,
-			TimeZone:    info.User.TimeZone,
-			Auth2FAType: info.Auth2FA.Type,
-			Realms:      realms,
-			Status:      info.User.Status,
+			Email:           info.User.Email,
+			Phone:           casttype.UintToPhone(info.User.Phone),
+			LangCode:        info.User.LangCode,
+			TimeZone:        info.User.TimeZone,
+			Auth2FAType:     info.Auth2FA.Type,
+			Realms:          realms,
+			Status:          info.User.Status,
+			SettingsPending: isSettingsPending(info.User, ht.parser.LangCode(r), ht.parser.TimeZoneName(r)),
 		},
 	)
 }
 
-// ApplySettings - сохраняет язык и часовой пояс текущего пользователя.
-// Здесь проверяется только формат языка (tag_lang) и имени пояса (tag_timezone);
-// подбор пояса, зарегистрированного в приложении, выполняет usecase, поэтому
-// в ответе возвращаются настройки, которые реально сохранены.
-func (ht *Auth) ApplySettings(w http.ResponseWriter, r *http.Request) error {
-	req := model.ApplySettingsRequest{}
+// ChangeSettings - сохраняет язык и часовой пояс текущего пользователя.
+//
+// Сохраняются всегда обе настройки, но незаполненное поле означает режим "авто":
+// настройка подбирается заново по самому запросу - ровно так же, как при регистрации,
+// и результат - всегда из списков, зарегистрированных приложением.
+// Поэтому клиент присылает только те настройки, которые пользователь задал явно.
+//
+// Подбор идёт по запросу без внутренних заголовков, иначе он выродился бы в повтор настроек
+// из предъявленного access-токена: в "авто" пользователь просит определить настройку по его
+// текущему окружению, а не вернуть ту, что уже сохранена.
+//
+// В ответе возвращаются оба сохранённых значения, чтобы клиент применил у себя и то,
+// которое подобрано, а не прислано.
+func (ht *Auth) ChangeSettings(w http.ResponseWriter, r *http.Request) error {
+	req := model.ChangeSettingsRequest{}
 
 	if err := ht.parser.Validate(r, &req); err != nil {
 		return err
 	}
 
-	settings, err := ht.useCaseApplySettings.Execute(
+	if req.LangCode == "" || req.TimeZone == "" {
+		rc := *r
+
+		// делается копия заголовков запроса когда есть что подбирать и срезаются
+		// в ней внутренние заголовки, чтобы они не мешали подбору языка и таймзоны
+		rc.Header = r.Header.Clone()
+		rc.Header.Del(mrserver.HeaderKeyInternalLangCode)
+		rc.Header.Del(mrserver.HeaderKeyInternalTimeZone)
+
+		if req.LangCode == "" {
+			req.LangCode = ht.parser.Localizer(&rc).Language()
+		}
+
+		if req.TimeZone == "" {
+			req.TimeZone = ht.parser.Location(&rc).String()
+		}
+	}
+
+	err := ht.useCaseChangeSettings.Execute(
 		r.Context(),
 		ht.parser.UserID(r),
-		dto.UserSettings{
-			LangCode: req.LangCode,
-			TimeZone: dto.TimeZoneInfo{
-				Name:   req.TimeZone,
-				Offset: time.Duration(req.TZOffset) * time.Second,
-				IsDST:  req.TZIsDST,
-			},
-		},
+		req.LangCode,
+		req.TimeZone,
 	)
 	if err != nil {
 		return err
@@ -439,9 +465,6 @@ func (ht *Auth) ApplySettings(w http.ResponseWriter, r *http.Request) error {
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
-		model.ApplySettingsResponse{
-			LangCode: settings.LangCode,
-			TimeZone: settings.TimeZone,
-		},
+		model.ChangeSettingsResponse(req),
 	)
 }

@@ -18,6 +18,7 @@ type (
 		request.ParserClientIP
 		request.ParserUser
 		request.ParserLocale
+		request.ParserTimeZone
 	}
 
 	// Parser - реализация RequestParser на основе парсеров go-webcore.
@@ -30,6 +31,7 @@ type (
 		*parser.ClientIP
 		*parser.User
 		*parser.Locale
+		*parser.TimeZone
 	}
 )
 
@@ -43,6 +45,7 @@ func NewParser(
 	p6 *parser.ClientIP,
 	p7 *parser.User,
 	p8 *parser.Locale,
+	p9 *parser.TimeZone,
 ) *Parser {
 	return &Parser{
 		Int64:     p1,
@@ -53,5 +56,6 @@ func NewParser(
 		ClientIP:  p6,
 		User:      p7,
 		Locale:    p8,
+		TimeZone:  p9,
 	}
 }

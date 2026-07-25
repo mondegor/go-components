@@ -19,8 +19,8 @@ func TestValidateLang(t *testing.T) {
 		{name: "language and region", value: "ru-RU", want: true},
 		{name: "language only", value: "en", want: true},
 
-		// запись неканонична, но резолвер приводит её к поддерживаемому языку сам,
-		// поэтому на границе ввода такие значения не отвергаются
+		// проверяется только форма записи, поэтому неканоничные варианты проходят;
+		// отсеет их принадлежность списку языков приложения (см. config.TagLang)
 		{name: "region in lower case", value: "ru-ru", want: true},
 		{name: "language in upper case", value: "RU-RU", want: true},
 		{name: "underscore instead of hyphen", value: "ru_RU", want: true},

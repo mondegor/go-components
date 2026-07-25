@@ -9,6 +9,13 @@ post:
     3. Пользователь указывает полученный код и подтверждает регистрацию своего аккаунта;
     4. Создаётся аккаунт пользователя;
     5. Пользователь получает доступ к своему аккаунту;
+
+    Язык и часовой пояс в теле запроса не передаются: они определяются по самому запросу
+    (query-параметры `lang`/`tz`, затем заголовки `Accept-Language`/`X-Accept-Time-Zone`,
+    затем значения приложения по умолчанию) и фиксируются на этом шаге, поэтому аккаунт
+    создаётся с теми же настройками, с какими шла регистрация, даже если подтверждение кода
+    придёт позже и из другого окружения. Изменить их потом можно через
+    `POST /v1/user/settings`.
   operationId: createUser
   tags:
     - Auth
@@ -16,6 +23,12 @@ post:
     - guests-only
 
   security: []
+
+  parameters:
+    - $ref: "../_shared/components/parameters/Api.Request.Header.AcceptLanguage.yaml"
+    - $ref: "../_shared/components/parameters/Api.Request.Header.AcceptTimeZone.yaml"
+    - $ref: "../_shared/components/parameters/Api.Request.Query.Language.yaml"
+    - $ref: "../_shared/components/parameters/Api.Request.Query.TimeZone.yaml"
 
   requestBody:
     required: true

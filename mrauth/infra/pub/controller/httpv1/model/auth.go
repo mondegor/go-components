@@ -7,15 +7,9 @@ import (
 
 type (
 	// CreateUserRequest - запрос на создание нового пользователя.
-	// Часовой пояс необязателен: если его имя не указано или приложению неизвестно,
-	// пояс подбирается по смещению (tz_offset) и признаку летнего времени (tz_dst);
-	// UTC сохраняется, только если подобрать пояс не удалось.
 	CreateUserRequest struct {
 		Realm     string `json:"realm" validate:"required,max=32,tag_realm"`
 		UserEmail string `json:"user_email" validate:"required,min=7,max=64,tag_email"`
-		TimeZone  string `json:"tz,omitempty" validate:"omitempty,min=3,max=64,tag_timezone"`
-		TZOffset  int32  `json:"tz_offset,omitempty" validate:"gte=-43200,lte=50400"` // в секундах
-		TZIsDST   bool   `json:"tz_dst,omitempty"`
 	}
 
 	// AuthorizeUserRequest - запрос на авторизацию пользователя в системе.
@@ -40,23 +34,19 @@ type (
 		RefreshToken string `json:"refresh_token" validate:"required,min=64,max=128"`
 	}
 
-	// ApplySettingsRequest - запрос на изменение языка и часового пояса пользователя.
-	// Смещение пояса и признак летнего времени нужны для подбора встроенного пояса,
-	// если имя указанного пояса приложению неизвестно.
-	// Смещение не помечено как required, т.к. 0 - легальное значение (UTC),
-	// а диапазон соответствует существующим поясам: -12:00..+14:00.
-	ApplySettingsRequest struct {
-		LangCode string `json:"lang" validate:"required,min=2,max=5,tag_lang"`
-		TimeZone string `json:"tz" validate:"required,min=3,max=64,tag_timezone"`
-		TZOffset int32  `json:"tz_offset" validate:"gte=-43200,lte=50400"` // в секундах
-		TZIsDST  bool   `json:"tz_dst"`
+	// ChangeSettingsRequest - запрос на изменение языка и часового пояса пользователя.
+	// Оба поля необязательны, но незаполненное означает режим "авто":
+	// настройка подбирается по самому запросу (см. Auth.ChangeSettings). Поэтому клиент
+	// присылает только те настройки, которые пользователь задал явно.
+	ChangeSettingsRequest struct {
+		LangCode string `json:"lang,omitempty" validate:"omitempty,max=5,tag_lang"`
+		TimeZone string `json:"tz,omitempty" validate:"omitempty,max=64,tag_tz"`
 	}
 
-	// ApplySettingsResponse - настройки пользователя, которые реально сохранены.
-	// Часовой пояс может отличаться от запрошенного, если его имя приложению
-	// неизвестно и пояс был подобран по смещению, поэтому клиент применяет у себя
-	// именно эти значения.
-	ApplySettingsResponse struct {
+	// ChangeSettingsResponse - настройки пользователя, которые реально сохранены.
+	// Для поля, оставленного пустым, здесь возвращается подобранное значение,
+	// поэтому клиент применяет у себя именно эти.
+	ChangeSettingsResponse struct {
 		LangCode string `json:"lang"`
 		TimeZone string `json:"tz"`
 	}
@@ -70,14 +60,18 @@ type (
 	}
 
 	// UserInfoResponse - ответ со сводной информацией о текущем пользователе.
+	// LangCode и TimeZone читаются из профиля, а тексты и даты формируются по языку и поясу,
+	// зафиксированным в предъявленном access-токене, поэтому SettingsPending сообщает,
+	// что сохранённые настройки в этот токен ещё не попали.
 	UserInfoResponse struct {
-		Email       string           `json:"email"`
-		Phone       string           `json:"phone,omitempty"`
-		LangCode    string           `json:"lang"`
-		TimeZone    string           `json:"tz"`
-		Auth2FAType auth2fatype.Enum `json:"auth_2fa_type"`
-		Realms      []UserRealm      `json:"realms"`
-		Status      userstatus.Enum  `json:"status"`
+		Email           string           `json:"email"`
+		Phone           string           `json:"phone,omitempty"`
+		LangCode        string           `json:"lang"`
+		TimeZone        string           `json:"tz"`
+		Auth2FAType     auth2fatype.Enum `json:"auth_2fa_type"`
+		Realms          []UserRealm      `json:"realms"`
+		Status          userstatus.Enum  `json:"status"`
+		SettingsPending bool             `json:"settings_pending,omitempty"`
 	}
 
 	// UserRealm - realm пользователя с его видом и статистикой последнего входа

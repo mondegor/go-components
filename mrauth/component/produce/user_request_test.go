@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/mrlog"
@@ -75,8 +74,6 @@ func (s *UserRequestSuite) SetupTest() {
 
 	s.parserIP.EXPECT().RealIP(gomock.Any()).Return(netip.Addr{}).AnyTimes()
 	s.parserIP.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{}).AnyTimes()
-	// продюсер запросов поясом не пользуется
-	s.parserUser.EXPECT().Location(gomock.Any()).Return(time.UTC).AnyTimes()
 }
 
 // expectUser - фиксирует пользователя и его группу формата "{realm}/{kind}".

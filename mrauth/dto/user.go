@@ -20,26 +20,6 @@ type (
 		TimeZone string
 	}
 
-	// UserSettings - запрошенные пользователем настройки: язык и часовой пояс.
-	UserSettings struct {
-		LangCode string
-		TimeZone TimeZoneInfo
-	}
-
-	// TimeZoneInfo - запрошенный пользователем часовой пояс. Смещение относительно UTC
-	// и признак летнего времени нужны для подбора пояса, если его имя приложению неизвестно.
-	TimeZoneInfo struct {
-		Name   string
-		Offset time.Duration
-		IsDST  bool
-	}
-
-	// UserSettingsApplied - настройки пользователя, которые реально сохранены.
-	UserSettingsApplied struct {
-		LangCode string
-		TimeZone string
-	}
-
 	// UserScopes - область действия пользователя.
 	// Теги json синхронизированы с entity.AuthTokenScopes, т.к. структура
 	// читается из jsonb-колонки token_scopes; UserID/SessionID хранятся в

@@ -5,7 +5,8 @@ import (
 	"regexp"
 	"slices"
 
-	"golang.org/x/text/language"
+	localecfg "github.com/mondegor/go-core/mrlocale/config"
+	timezonecfg "github.com/mondegor/go-core/util/timezone/config"
 
 	"github.com/mondegor/go-components/mrauth/model/usergroup"
 )
@@ -39,6 +40,14 @@ const (
 	// maxSessionThreshold - потолок soft/hard отклонения от лимита сессий
 	// (зеркалит клампинг domain-слоя correctThresholds).
 	maxSessionThreshold int8 = 16
+
+	// maxStorableTimeZone - предельная длина IANA-имени, пригодного для хранения в колонке
+	// user_timezone, равная её ширине (см. _sample/migrations, users.user_timezone varchar(64)).
+	// Связь неявная - при изменении ширины колонки константу нужно править вручную.
+	//
+	// Реальные IANA-имена вдвое короче, поэтому это структурный предохранитель на случай
+	// имени-самоделки, а не ограничение выбора: существующий пояс в этот предел укладывается.
+	maxStorableTimeZone = 64
 )
 
 // regexpStorableLang - формат языка, пригодного для хранения в колонке lang_code:
@@ -48,10 +57,10 @@ const (
 // что и есть ширина колонки (см. _sample/migrations, users.lang_code varchar(5)).
 // Связь неявная - при изменении ширины колонки регулярку нужно править вручную.
 //
-// Намеренно строже, чем validate.Lang: тот проверяет форму записи на границе ввода и
-// принимает неканоничные варианты ("ru_RU", "en-us", "rus"), т.к. их приводит к единому виду
-// резолвер. Здесь же проверяется уже канонический результат разбора, который пойдёт в колонку,
-// поэтому послабления недопустимы.
+// Намеренно строже, чем validate.Lang: тот проверяет лишь форму записи на границе ввода
+// и принимает неканоничные варианты ("ru_RU", "en-us", "rus"). Сюда же код доходит уже
+// каноничным (это удерживает mrlocale/config.ValidateLanguages), и пойдёт он прямо
+// в колонку, поэтому послабления недопустимы.
 var regexpStorableLang = regexp.MustCompile(`^[a-z]{2}(-[A-Z]{2})?$`)
 
 // CorrectValuesAuth2FA - подставляет значения по умолчанию в незаданные поля настроек 2FA.
@@ -239,38 +248,61 @@ func ValidateSessionThresholds(soft, hard int8) error {
 	return nil
 }
 
-// ValidateLanguages - проверяет, что языки приложения пригодны для хранения:
-// каноническая запись каждого языка должна соответствовать формату колонки lang_code.
+// ValidateStorableLanguages - проверяет, что языки приложения пригодны для хранения
+// в профиле пользователя: сверх общих требований к списку (см. mrlocale/config.ValidateLanguages,
+// она вызывается здесь же) каждый язык должен укладываться в формат колонки lang_code.
 //
-// Язык пользователя сохраняется не в том виде, в котором его прислал клиент,
-// а в том, в котором его отдаёт локализатор приложения, поэтому ограничение
-// колонки удерживается только здесь: язык со скриптовым сабтегом ("zh-Hans"),
-// трёхбуквенным кодом ("fil") или регионом-числом ("es-419") в колонку
-// не помещается и уронил бы запись уже в рантайме.
-//
-// Проверяется каноническая запись, а не исходная строка: mrlocale.NewBundle
-// принимает и форму с подчёркиванием ("en_US"), которая после разбора
-// становится "en-US" и хранению не мешает.
-//
-// Пустой список и дубликаты здесь намеренно не проверяются - это делает
-// mrlocale.NewBundle, которому список передаётся следом. Неразбираемое имя,
-// напротив, отвергается здесь, чтобы дать понятную ошибку до передачи в bundle.
+// В профиль попадает язык из этого же списка (на границе ввода принимается только он,
+// см. TagLang), поэтому ограничение колонки удерживается целиком здесь: язык со скриптовым
+// сабтегом ("zh-Hans"), трёхбуквенным кодом ("fil") или регионом-числом ("es-419") в колонку
+// не помещается и уронил бы запись уже в рантайме. Для самого mrlocale это законные языки,
+// поэтому отвергнуть их может только тот, кто знает про колонку.
 //
 // Это host-only reference-валидация уровня composition-root: предполагается, что её вызывает
 // host-приложение из своего init-пути (внутри библиотеки она намеренно не вызывается). Конкретный
 // проект может использовать её как есть либо написать собственную.
-func ValidateLanguages(langs []string) error {
-	for _, lang := range langs {
-		tag, err := language.Parse(lang)
-		if err != nil {
-			return fmt.Errorf("error parsing language (name='%s'): %w", lang, err)
-		}
+func ValidateStorableLanguages(langs []string) error {
+	if err := localecfg.ValidateLanguages(langs); err != nil {
+		return err
+	}
 
-		if code := tag.String(); !regexpStorableLang.MatchString(code) {
+	// после проверки выше запись каждого языка каноническая,
+	// поэтому в колонку пойдёт ровно эта строка
+	for _, lang := range langs {
+		if !regexpStorableLang.MatchString(lang) {
 			return fmt.Errorf(
-				"language '%s' is not storable as '%s': expected 2-letter code with optional 2-letter region (e.g. ru, ru-RU)",
+				"language '%s' is not storable: expected 2-letter code with optional 2-letter region (e.g. ru, ru-RU)",
 				lang,
-				code,
+			)
+		}
+	}
+
+	return nil
+}
+
+// ValidateStorableTimeZones - проверяет, что часовые пояса приложения пригодны для хранения
+// в профиле пользователя: сверх общих требований к списку (см. util/timezone/config.ValidateTimeZones,
+// она вызывается здесь же) каждое имя должно укладываться в ширину колонки user_timezone.
+//
+// Парная к ValidateStorableLanguages и нужна по той же причине: в профиль попадает пояс
+// из этого же списка (на границе ввода принимается только он, см. TagTimeZone). Для самого
+// timezone.LocationList длина имени безразлична, поэтому упереться в колонку может только тот,
+// кто про неё знает.
+//
+// Это host-only reference-валидация уровня composition-root: предполагается, что её вызывает
+// host-приложение из своего init-пути (внутри библиотеки она намеренно не вызывается). Конкретный
+// проект может использовать её как есть либо написать собственную.
+func ValidateStorableTimeZones(zones []string) error {
+	if err := timezonecfg.ValidateTimeZones(zones); err != nil {
+		return err
+	}
+
+	for _, zone := range zones {
+		if len(zone) > maxStorableTimeZone {
+			return fmt.Errorf(
+				"timezone '%s' is not storable: expected at most %d characters",
+				zone,
+				maxStorableTimeZone,
 			)
 		}
 	}
