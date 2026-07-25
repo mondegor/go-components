@@ -28,14 +28,13 @@ const (
 type (
 	// CreateUser - usecase создания пользователя с подтверждением через защищённую операцию.
 	CreateUser struct {
-		opener           operationOpener
-		userChecker      userLoginChecker
-		factory2FA       user2faActionCreator
-		locker           mrlock.Locker
-		logOperation     operationLogger
-		timeZoneResolver timeZoneResolver
-		errorWrapper     errors.Wrapper
-		realm2operation  map[string]createUserOperation
+		opener          operationOpener
+		userChecker     userLoginChecker
+		factory2FA      user2faActionCreator
+		locker          mrlock.Locker
+		logOperation    operationLogger
+		errorWrapper    errors.Wrapper
+		realm2operation map[string]createUserOperation
 	}
 
 	// CreateUserRealm - сопоставление realm с операцией создания пользователя для него.
@@ -61,11 +60,6 @@ type (
 		CreateByUserLogin(ctx context.Context, userLogin contactaddress.ContactAddress) (dto.User2FA, error)
 	}
 
-	// timeZoneResolver - подбирает пояс, зарегистрированный в приложении.
-	timeZoneResolver interface {
-		Resolve(in dto.TimeZoneInfo) (name string)
-	}
-
 	// operationLogger - best-effort продюсер записей журнала защищённых операций.
 	operationLogger interface {
 		Log(ctx context.Context, entry entity.SecureOperationLog)
@@ -79,7 +73,6 @@ func NewCreateUser(
 	factory2FA user2faActionCreator,
 	locker mrlock.Locker,
 	logOperation operationLogger,
-	timeZoneResolver timeZoneResolver,
 	allowedRealms []CreateUserRealm,
 ) *CreateUser {
 	realm2operation := make(map[string]createUserOperation, len(allowedRealms))
@@ -88,28 +81,26 @@ func NewCreateUser(
 	}
 
 	return &CreateUser{
-		opener:           opener,
-		userChecker:      userChecker,
-		factory2FA:       factory2FA,
-		locker:           locker,
-		logOperation:     logOperation,
-		timeZoneResolver: timeZoneResolver,
-		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
-		realm2operation:  realm2operation,
+		opener:          opener,
+		userChecker:     userChecker,
+		factory2FA:      factory2FA,
+		locker:          locker,
+		logOperation:    logOperation,
+		errorWrapper:    errors.NewServiceRecordNotFoundWrapper(),
+		realm2operation: realm2operation,
 	}
 }
 
 // Execute - инициирует создание пользователя: открывает защищённую операцию подтверждения по коду
 // и отправляет код на email. registeredIP фиксируется в payload операции как IP регистрации.
 //
-// Часовой пояс подбирается сразу и попадает в payload операции уже разрешённым IANA-именем:
-// присланная клиентом пара (смещение, признак летнего времени) описывает его состояние
-// на момент заявки, поэтому в payload кладётся результат подбора, а не сама пара -
-// иначе к моменту подтверждения email она могла бы описывать уже другое состояние.
+// Язык и часовой пояс приходят уже определёнными по запросу и кладутся
+// в payload операции как есть: это значения из списков, зарегистрированных приложением, поэтому
+// подбирать здесь нечего. В payload они фиксируются на момент заявки, чтобы к моменту
+// подтверждения email профиль создавался с теми же настройками, с какими шла регистрация.
 func (co *CreateUser) Execute(
 	ctx context.Context,
-	realm, langCode string,
-	timeZone dto.TimeZoneInfo,
+	realm, langCode, timeZone string,
 	userEmail string,
 	registeredIP mrtype.DetailedIP,
 ) (op secureoperation.SecureOperation, err error) {
@@ -117,8 +108,6 @@ func (co *CreateUser) Execute(
 	if !ok {
 		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("realm is unknown")
 	}
-
-	resolvedTimeZone := co.timeZoneResolver.Resolve(timeZone)
 
 	parsedLogin, err := contactaddress.ParseEmail(userEmail)
 	if err != nil {
@@ -171,7 +160,7 @@ func (co *CreateUser) Execute(
 		}
 	}
 
-	op, err = opCreator.Create(user2FA, langCode, resolvedTimeZone, parsedLogin, registeredIP)
+	op, err = opCreator.Create(user2FA, langCode, timeZone, parsedLogin, registeredIP)
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}

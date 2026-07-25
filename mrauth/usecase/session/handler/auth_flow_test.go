@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/netip"
 	"testing"
 
 	"github.com/google/uuid"
 	sysmesserrors "github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrtype"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
@@ -43,22 +45,54 @@ func (s *AuthFlowSuite) SetupTest() {
 }
 
 func okScopes() dto.UserScopes {
-	return dto.UserScopes{UserID: uuid.New(), Realm: "site/admin", Kind: "admin", LangCode: "en"}
+	return dto.UserScopes{
+		UserID:    uuid.New(),
+		SessionID: 0x1f3bc817,
+		Realm:     "site/admin",
+		Kind:      "admin",
+		LangCode:  "en",
+		TimeZone:  "Europe/Moscow",
+	}
 }
 
-// confirmedOp - операция с минимально корректным payload'ом для указанного типа операции:
+// okCreateIn - payload операции создания пользователя со всеми заполненными полями.
+// Заполнены именно все: этот payload доезжает до сервиса как есть, поэтому поле,
+// оставленное нулевым, никем бы здесь не удерживалось.
+func okCreateIn() dto.CreateUserOperation {
+	return dto.CreateUserOperation{
+		Realm:        "site/admin",
+		UserKind:     "admin",
+		LangCode:     "en",
+		TimeZone:     "Europe/Moscow",
+		Email:        "user@example.com",
+		RegisteredIP: mrtype.NewIP(netip.MustParseAddr("203.0.113.7")),
+	}
+}
+
+// okAuthorizeIn - payload операции авторизации со всеми заполненными полями.
+func okAuthorizeIn() dto.AuthorizeUserOperation {
+	return dto.AuthorizeUserOperation{Realm: "site/admin", LangCode: "en"}
+}
+
+// confirmedOp - операция с корректным payload'ом для указанного типа операции:
 // хелперы разбора проверяют инварианты, поэтому пустой payload здесь уже не подходит.
-func confirmedOp(name string, userID uuid.UUID) secureoperation.SecureOperation {
-	payload := []byte(`{"realm":"site/admin","lang_code":"en"}`)
+//
+// Payload собирается из самого DTO, а не из строкового литерала: иначе имена json-тегов
+// дублировались бы в тесте, и переименование тега его бы не уронило - payload просто
+// разобрался бы в нули.
+func (s *AuthFlowSuite) confirmedOp(name string, userID uuid.UUID) secureoperation.SecureOperation {
+	s.T().Helper()
 
 	if name == unit.NameConfirmCreateUser {
-		payload = []byte(`{"realm":"site/admin","lang_code":"en","timezone":"Europe/Moscow","email":"user@example.com"}`)
+		return s.confirmedOpWith(name, userID, s.mustMarshal(okCreateIn()))
 	}
 
-	return confirmedOpWith(name, userID, payload)
+	return s.confirmedOpWith(name, userID, s.mustMarshal(okAuthorizeIn()))
 }
 
-func confirmedOpWith(name string, userID uuid.UUID, payload []byte) secureoperation.SecureOperation {
+func (s *AuthFlowSuite) confirmedOpWith(name string, userID uuid.UUID, payload []byte) secureoperation.SecureOperation {
+	s.T().Helper()
+
 	return secureoperation.SecureOperation{
 		Name:    name,
 		UserID:  userID,
@@ -85,7 +119,7 @@ func (s *AuthFlowSuite) TestCreateUserThenAuthorize() {
 		s.service.EXPECT().PrepareAuthorization(gomock.Any(), newUserID, gomock.Any()).Return(scopes, nil, nil),
 	)
 
-	got, _, err := s.uc.Execute(s.ctx, confirmedOp(unit.NameConfirmCreateUser, uuid.Nil))
+	got, _, err := s.uc.Execute(s.ctx, s.confirmedOp(unit.NameConfirmCreateUser, uuid.Nil))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
@@ -102,7 +136,7 @@ func (s *AuthFlowSuite) TestExistingUserResolvedThenAuthorize() {
 		s.service.EXPECT().PrepareAuthorization(gomock.Any(), existingUserID, gomock.Any()).Return(scopes, nil, nil),
 	)
 
-	got, _, err := s.uc.Execute(s.ctx, confirmedOp(unit.NameConfirmCreateUser, existingUserID))
+	got, _, err := s.uc.Execute(s.ctx, s.confirmedOp(unit.NameConfirmCreateUser, existingUserID))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
@@ -119,7 +153,7 @@ func (s *AuthFlowSuite) TestAuthorizeOnly() {
 
 	s.service.EXPECT().PrepareAuthorization(gomock.Any(), userID, gomock.Any()).Return(scopes, notify, nil)
 
-	got, gotNotify, err := s.uc.Execute(s.ctx, confirmedOp(unit.NameAuthorizeUser, userID))
+	got, gotNotify, err := s.uc.Execute(s.ctx, s.confirmedOp(unit.NameAuthorizeUser, userID))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 
@@ -132,44 +166,48 @@ func (s *AuthFlowSuite) TestAuthorizeOnly() {
 func (s *AuthFlowSuite) TestResolveUserErrorStops() {
 	s.service.EXPECT().ResolveUser(gomock.Any(), uuid.Nil, gomock.Any()).Return(uuid.Nil, errors.New("resolve failed"))
 
-	_, _, err := s.uc.Execute(s.ctx, confirmedOp(unit.NameConfirmCreateUser, uuid.Nil))
+	_, _, err := s.uc.Execute(s.ctx, s.confirmedOp(unit.NameConfirmCreateUser, uuid.Nil))
 	s.Require().Error(err)
 }
 
 // вариант 1: payload операции создания корректно распаковывается в createIn и
 // проецируется в authIn = {Realm, LangCode} для подготовки к авторизации.
+//
+// createIn заполнен целиком и сверяется точным значением, а не gomock.Any(): это
+// единственное место, где удерживается, что до сервиса доезжает весь payload -
+// включая поля, которые сам обработчик не читает (UserKind, TimeZone, RegisteredIP).
 func (s *AuthFlowSuite) TestCreateUserMapsPayloadToAuthorize() {
 	newUserID := uuid.New()
 	scopes := okScopes()
-	createIn := dto.CreateUserOperation{Realm: "site/admin", UserKind: "admin", LangCode: "en", TimeZone: "Europe/Moscow", Email: "u@e.co"}
-	authIn := dto.AuthorizeUserOperation{Realm: "site/admin", LangCode: "en"}
+	createIn := okCreateIn()
+	authIn := dto.AuthorizeUserOperation{Realm: createIn.Realm, LangCode: createIn.LangCode}
 
 	gomock.InOrder(
 		s.service.EXPECT().ResolveUser(gomock.Any(), uuid.Nil, createIn).Return(newUserID, nil),
 		s.service.EXPECT().PrepareAuthorization(gomock.Any(), newUserID, authIn).Return(scopes, nil, nil),
 	)
 
-	got, _, err := s.uc.Execute(s.ctx, confirmedOpWith(unit.NameConfirmCreateUser, uuid.Nil, s.mustMarshal(createIn)))
+	got, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(unit.NameConfirmCreateUser, uuid.Nil, s.mustMarshal(createIn)))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
 
 // некорректный payload операции создания - ошибка распаковки, сервис не вызывается.
 func (s *AuthFlowSuite) TestCreateUserInvalidPayload() {
-	_, _, err := s.uc.Execute(s.ctx, confirmedOpWith(unit.NameConfirmCreateUser, uuid.Nil, []byte("{")))
+	_, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(unit.NameConfirmCreateUser, uuid.Nil, []byte("{")))
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 
 // некорректный payload операции авторизации - ошибка распаковки, PrepareAuthorization не вызывается.
 func (s *AuthFlowSuite) TestAuthorizeInvalidPayload() {
-	_, _, err := s.uc.Execute(s.ctx, confirmedOpWith(unit.NameAuthorizeUser, uuid.New(), []byte("{")))
+	_, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(unit.NameAuthorizeUser, uuid.New(), []byte("{")))
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 
 // payload операции создания синтаксически корректен, но нарушает инвариант (нет email):
 // разбор отклоняет его на чтении, сервис не вызывается.
 func (s *AuthFlowSuite) TestCreateUserPayloadBrokenInvariant() {
-	op := confirmedOpWith(unit.NameConfirmCreateUser, uuid.Nil, []byte(`{"realm":"site/admin","lang_code":"en"}`))
+	op := s.confirmedOpWith(unit.NameConfirmCreateUser, uuid.Nil, []byte(`{"realm":"site/admin","lang":"en"}`))
 
 	_, _, err := s.uc.Execute(s.ctx, op)
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
@@ -177,7 +215,7 @@ func (s *AuthFlowSuite) TestCreateUserPayloadBrokenInvariant() {
 
 // payload операции авторизации синтаксически корректен, но нарушает инвариант (нет realm).
 func (s *AuthFlowSuite) TestAuthorizePayloadBrokenInvariant() {
-	op := confirmedOpWith(unit.NameAuthorizeUser, uuid.New(), []byte(`{"lang_code":"en"}`))
+	op := s.confirmedOpWith(unit.NameAuthorizeUser, uuid.New(), []byte(`{"lang":"en"}`))
 
 	_, _, err := s.uc.Execute(s.ctx, op)
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
@@ -187,11 +225,11 @@ func (s *AuthFlowSuite) TestAuthorizePayloadBrokenInvariant() {
 func (s *AuthFlowSuite) TestAuthorizeMapsPayload() {
 	userID := uuid.New()
 	scopes := okScopes()
-	payload := []byte(`{"realm":"site/admin","lang_code":"en"}`)
+	authIn := okAuthorizeIn()
 
-	s.service.EXPECT().PrepareAuthorization(gomock.Any(), userID, dto.AuthorizeUserOperation{Realm: "site/admin", LangCode: "en"}).Return(scopes, nil, nil)
+	s.service.EXPECT().PrepareAuthorization(gomock.Any(), userID, authIn).Return(scopes, nil, nil)
 
-	got, _, err := s.uc.Execute(s.ctx, confirmedOpWith(unit.NameAuthorizeUser, userID, payload))
+	got, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(unit.NameAuthorizeUser, userID, s.mustMarshal(authIn)))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
@@ -199,11 +237,11 @@ func (s *AuthFlowSuite) TestAuthorizeMapsPayload() {
 // ветка авторизации с op.UserID == Nil: PrepareAuthorization вызывается с Nil и распакованным authIn.
 func (s *AuthFlowSuite) TestAuthorizeWithNilUserID() {
 	scopes := okScopes()
-	payload := []byte(`{"realm":"site/admin","lang_code":"en"}`)
+	authIn := okAuthorizeIn()
 
-	s.service.EXPECT().PrepareAuthorization(gomock.Any(), uuid.Nil, dto.AuthorizeUserOperation{Realm: "site/admin", LangCode: "en"}).Return(scopes, nil, nil)
+	s.service.EXPECT().PrepareAuthorization(gomock.Any(), uuid.Nil, authIn).Return(scopes, nil, nil)
 
-	got, _, err := s.uc.Execute(s.ctx, confirmedOpWith(unit.NameAuthorizeUser, uuid.Nil, payload))
+	got, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(unit.NameAuthorizeUser, uuid.Nil, s.mustMarshal(authIn)))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
@@ -214,6 +252,6 @@ func (s *AuthFlowSuite) TestPrepareAuthorizationErrorPropagates() {
 
 	s.service.EXPECT().PrepareAuthorization(gomock.Any(), gomock.Any(), gomock.Any()).Return(dto.UserScopes{}, nil, wantErr)
 
-	_, _, err := s.uc.Execute(s.ctx, confirmedOp(unit.NameAuthorizeUser, uuid.New()))
+	_, _, err := s.uc.Execute(s.ctx, s.confirmedOp(unit.NameAuthorizeUser, uuid.New()))
 	s.Require().ErrorIs(err, wantErr)
 }

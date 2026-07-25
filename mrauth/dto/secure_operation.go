@@ -16,17 +16,17 @@ type (
 	// CreateUserOperation - payload операции создания пользователя.
 	CreateUserOperation struct {
 		Realm        string            `json:"realm"`
-		UserKind     string            `json:"user_kind"`
-		LangCode     string            `json:"lang_code"`
-		TimeZone     string            `json:"timezone"`
+		UserKind     string            `json:"kind"`
+		LangCode     string            `json:"lang"`
+		TimeZone     string            `json:"tz"`
 		Email        string            `json:"email"`
-		RegisteredIP mrtype.DetailedIP `json:"registered_ip"`
+		RegisteredIP mrtype.DetailedIP `json:"reg_ip"`
 	}
 
 	// AuthorizeUserOperation - payload операции авторизации пользователя.
 	AuthorizeUserOperation struct {
 		Realm    string `json:"realm"`
-		LangCode string `json:"lang_code"`
+		LangCode string `json:"lang"`
 	}
 
 	// OperationWithUserEmail - общий payload операции, содержащий email для уведомления.

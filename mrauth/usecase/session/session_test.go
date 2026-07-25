@@ -67,7 +67,14 @@ func testOpenSessions(sessionIDs ...uint32) entity.OpenSessions {
 //go:generate mockgen -destination=mock/mrevent.go -package=mock github.com/mondegor/go-core/mrevent Emitter
 
 func okScopes() dto.UserScopes {
-	return dto.UserScopes{UserID: uuid.New(), Realm: "site/admin", Kind: "admin", LangCode: "en"}
+	return dto.UserScopes{
+		UserID:    uuid.New(),
+		SessionID: 0x1f3bc817,
+		Realm:     "site/admin",
+		Kind:      "admin",
+		LangCode:  "en",
+		TimeZone:  "Europe/Moscow",
+	}
 }
 
 func okPair() dto.AuthTokenPair {

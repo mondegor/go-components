@@ -13,7 +13,6 @@ import (
 	http "net/http"
 	netip "net/netip"
 	reflect "reflect"
-	time "time"
 
 	uuid "github.com/google/uuid"
 	mrtype "github.com/mondegor/go-core/mrtype"
@@ -44,18 +43,18 @@ func (m *MockParserUser) EXPECT() *MockParserUserMockRecorder {
 	return m.recorder
 }
 
-// Location mocks base method.
-func (m *MockParserUser) Location(r *http.Request) *time.Location {
+// LangCode mocks base method.
+func (m *MockParserUser) LangCode(r *http.Request) string {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Location", r)
-	ret0, _ := ret[0].(*time.Location)
+	ret := m.ctrl.Call(m, "LangCode", r)
+	ret0, _ := ret[0].(string)
 	return ret0
 }
 
-// Location indicates an expected call of Location.
-func (mr *MockParserUserMockRecorder) Location(r any) *gomock.Call {
+// LangCode indicates an expected call of LangCode.
+func (mr *MockParserUserMockRecorder) LangCode(r any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Location", reflect.TypeOf((*MockParserUser)(nil).Location), r)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LangCode", reflect.TypeOf((*MockParserUser)(nil).LangCode), r)
 }
 
 // SessionID mocks base method.
@@ -70,6 +69,20 @@ func (m *MockParserUser) SessionID(r *http.Request) string {
 func (mr *MockParserUserMockRecorder) SessionID(r any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SessionID", reflect.TypeOf((*MockParserUser)(nil).SessionID), r)
+}
+
+// TimeZoneName mocks base method.
+func (m *MockParserUser) TimeZoneName(r *http.Request) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TimeZoneName", r)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// TimeZoneName indicates an expected call of TimeZoneName.
+func (mr *MockParserUserMockRecorder) TimeZoneName(r any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TimeZoneName", reflect.TypeOf((*MockParserUser)(nil).TimeZoneName), r)
 }
 
 // UserAndGroup mocks base method.

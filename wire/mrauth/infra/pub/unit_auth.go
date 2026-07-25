@@ -20,9 +20,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/service/authtoken"
 	"github.com/mondegor/go-components/mrauth/service/authuser"
 	"github.com/mondegor/go-components/mrauth/service/check"
-	servicelang "github.com/mondegor/go-components/mrauth/service/lang"
 	sessionsrv "github.com/mondegor/go-components/mrauth/service/session"
-	servicetimezone "github.com/mondegor/go-components/mrauth/service/timezone"
 	"github.com/mondegor/go-components/mrauth/service/userinfo"
 	usecaseauth "github.com/mondegor/go-components/mrauth/usecase/auth"
 	"github.com/mondegor/go-components/mrauth/usecase/operation"
@@ -61,8 +59,6 @@ func initUnitAuthController(
 	sessionSoftThreshold, sessionHardThreshold int8,
 	debugFunc func(value any) string,
 	locationResolver mrauth.LocationResolver,
-	languages mrauth.LanguageList,
-	timeZones mrauth.TimeZoneList,
 ) (mrserver.HttpController, error) {
 	realmRegistry := mapping.OptionUserRealmsToRealmRegistry(userRealms)
 
@@ -87,16 +83,12 @@ func initUnitAuthController(
 		),
 	)
 
-	langResolver := servicelang.New(languages)
-	timeZoneResolver := servicetimezone.New(timeZones)
-
 	useCaseCreateUser := usecaseauth.NewCreateUser(
 		operationOpener,
 		checkUserService,
 		factory2FA,
 		locker,
 		operationLogger,
-		timeZoneResolver,
 		mapping.OptionUserRealmsToConfirmCreateUserRealms(userRealms),
 	)
 
@@ -154,10 +146,10 @@ func initUnitAuthController(
 		serviceAuthToken,
 	)
 
-	useCaseApplySettings := usecaseuser.NewApplySettings(
+	useCaseChangeSettings := usecaseuser.NewChangeSettings(
+		dbConnManager,
 		storageUser,
-		langResolver,
-		timeZoneResolver,
+		storageAuthToken,
 	)
 
 	serviceUserInfo := userinfo.New(
@@ -184,7 +176,7 @@ func initUnitAuthController(
 		useCaseOpenSession,
 		useCaseContinueSession,
 		useCaseCloseSession,
-		useCaseApplySettings,
+		useCaseChangeSettings,
 		serviceUserInfo,
 		realmRegistry,
 		bag.NewOperationResponse(debugFunc),

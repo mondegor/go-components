@@ -2,23 +2,38 @@ post:
   summary: Auth/R7. Метод изменения языка и часового пояса пользователя
   description: |-
     Метод предназначен для изменения языка (локали) и часового пояса текущего пользователя.
-    В ответе возвращаются настройки, которые были реально сохранены, чтобы клиент применил
-    их у себя: часовой пояс может отличаться от запрошенного, если его имя приложению
-    неизвестно и пояс был подобран по смещению.
-    Сохранённые язык и часовой пояс начинают применяться к ответам API только после
-    перевыпуска access-токена, так как фиксируются в нём на момент выпуска
-  operationId: applyUserSettings
+    Сохраняются всегда обе настройки, но оба поля тела необязательны, и незаполненное поле
+    означает **режим «авто»**: настройка определяется по самому запросу — так же, как при
+    регистрации (`POST /v1/signup`). Поэтому присылать нужно только те настройки,
+    которые пользователь задал явно.
+    Приоритет источников в режиме «авто»: query-параметр (`lang`/`tz`), затем заголовок клиента
+    (`Accept-Language`/`X-Accept-Time-Zone`), затем значение приложения по умолчанию.
+    Уже сохранённые настройки пользователя в подборе **не участвуют**: в режиме «авто» клиент
+    просит определить настройку по своему текущему окружению, а не вернуть ту, что уже задана.
+    В ответе возвращаются оба сохранённых значения, чтобы клиент применил у себя и подобранное.
+    Указанные явно значения проверяются строго: принимаются только язык и часовой пояс,
+    поддерживаемые приложением; подбор ближайшего здесь не выполняется.
+    Сохранённые язык и часовой пояс попадают в access-токен только после ближайшего
+    продления сессии (`PATCH /v1/session`), так как фиксируются в токене на момент выпуска;
+    до этого `GET /v1/user` отдаёт признак `settings_pending: true`
+  operationId: changeUserSettings
   tags:
     - Auth
   x-auth-scopes:
     - any-users
+
+  parameters:
+    - $ref: "../_shared/components/parameters/Api.Request.Header.AcceptLanguage.yaml"
+    - $ref: "../_shared/components/parameters/Api.Request.Header.AcceptTimeZone.yaml"
+    - $ref: "../_shared/components/parameters/Api.Request.Query.Language.yaml"
+    - $ref: "../_shared/components/parameters/Api.Request.Query.TimeZone.yaml"
 
   requestBody:
     required: true
     content:
       application/json;charset=UTF-8:
         schema:
-          $ref: "../components/models/Auth.Request.Model.ApplyUserSettings.yaml"
+          $ref: "../components/models/Auth.Request.Model.ChangeUserSettings.yaml"
 
   responses:
     "200":
@@ -28,10 +43,10 @@ post:
           schema:
             $ref: "../components/models/Auth.Response.Model.UserSettings.yaml"
     "400":
-      # Язык и часовой пояс должны быть указаны
       # Язык не соответствует формату кода языка с необязательным кодом региона
+      # Язык не поддерживается приложением
       # Имя часового пояса не соответствует формату IANA-имени
-      # Смещение часового пояса выходит за диапазон существующих поясов (-12:00..+14:00)
+      # Часовой пояс не предоставляется приложением
       $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
     "401":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"

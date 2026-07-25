@@ -77,6 +77,7 @@ func userScopes() dto.UserScopes {
 		Realm:     testRealm,
 		Kind:      "admin",
 		LangCode:  "en",
+		TimeZone:  "Europe/Moscow",
 	}
 }
 
@@ -85,7 +86,14 @@ func tokenPair(us dto.UserScopes, hasSignature bool) dto.AuthTokenPair {
 		Access:  dto.AccessToken{Token: "access", ExpiresIn: time.Minute, HasSignature: hasSignature},
 		Refresh: dto.RefreshToken{Token: "refresh", ExpiresIn: time.Hour},
 		UserID:  us.UserID,
-		Scopes:  entity.AuthTokenScopes{Realm: us.Realm, UserKind: us.Kind, LangCode: us.LangCode},
+		// поля выводятся из самой фикстуры, чтобы ожидаемая область действия
+		// не разъезжалась с ней при добавлении нового поля
+		Scopes: entity.AuthTokenScopes{
+			Realm:    us.Realm,
+			UserKind: us.Kind,
+			LangCode: us.LangCode,
+			TimeZone: us.TimeZone,
+		},
 	}
 }
 

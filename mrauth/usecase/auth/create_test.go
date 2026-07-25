@@ -42,9 +42,9 @@ func testIP() mrtype.DetailedIP {
 	return mrtype.NewIP(netip.MustParseAddr("203.0.113.7"))
 }
 
-// testTZ - непустой запрос часового пояса; резолвер возвращает его имя как есть.
-func testTZ() dto.TimeZoneInfo {
-	return dto.TimeZoneInfo{Name: "Europe/Moscow"}
+// testTZ - часовой пояс, определённый по запросу; usecase кладёт его в payload как есть.
+func testTZ() string {
+	return "Europe/Moscow"
 }
 
 // expectPassThroughTx - транзакция выполняет переданное задание как есть.
@@ -222,7 +222,6 @@ type CreateUserSuite struct {
 	factory2FA   *mock.Mockuser2faActionCreator
 	locker       *mock.MockLocker
 	opFactory    *mock.MockcreateUserOperation
-	tzResolver   *mock.MocktimeZoneResolver
 	logOperation *mock.MockoperationLogger
 	logEntries   []entity.SecureOperationLog
 
@@ -232,6 +231,7 @@ type CreateUserSuite struct {
 
 	// аргументы, доехавшие до фабрики операции создания пользователя
 	gotUser2FA      dto.User2FA
+	gotLangCode     string
 	gotTimeZone     string
 	gotRegisteredIP mrtype.DetailedIP
 }
@@ -251,12 +251,12 @@ func (s *CreateUserSuite) SetupTest() {
 	s.factory2FA = mock.NewMockuser2faActionCreator(s.ctrl)
 	s.locker = mock.NewMockLocker(s.ctrl)
 	s.opFactory = mock.NewMockcreateUserOperation(s.ctrl)
-	s.tzResolver = mock.NewMocktimeZoneResolver(s.ctrl)
 	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
 	s.logEntries = nil
 	s.openedNote = ""
 	s.openedActor = dto.ActorMeta{}
 	s.gotUser2FA = dto.User2FA{}
+	s.gotLangCode = ""
 	s.gotTimeZone = ""
 	s.gotRegisteredIP = mrtype.DetailedIP{}
 
@@ -267,19 +267,6 @@ func (s *CreateUserSuite) SetupTest() {
 		Log(gomock.Any(), gomock.Any()).
 		Do(func(_ context.Context, entry entity.SecureOperationLog) {
 			s.logEntries = append(s.logEntries, entry)
-		}).
-		AnyTimes()
-
-	// резолвер возвращает запрошенное имя пояса, а при его отсутствии - UTC;
-	// подбор по смещению проверяется отдельно в тестах самого резолвера
-	s.tzResolver.EXPECT().
-		Resolve(gomock.Any()).
-		DoAndReturn(func(in dto.TimeZoneInfo) string {
-			if in.Name == "" {
-				return "UTC"
-			}
-
-			return in.Name
 		}).
 		AnyTimes()
 }
@@ -300,7 +287,6 @@ func (s *CreateUserSuite) newUseCase() *auth.CreateUser {
 		s.factory2FA,
 		s.locker,
 		s.logOperation,
-		s.tzResolver,
 		[]auth.CreateUserRealm{{Name: "shop", Operation: s.opFactory}},
 	)
 }
@@ -345,12 +331,13 @@ func (s *CreateUserSuite) expectCreateOperation(op secureoperation.SecureOperati
 		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(
 			user2FA dto.User2FA,
-			_ string,
+			langCode string,
 			timeZone string,
 			_ any,
 			registeredIP mrtype.DetailedIP,
 		) (secureoperation.SecureOperation, error) {
 			s.gotUser2FA = user2FA
+			s.gotLangCode = langCode
 			s.gotTimeZone = timeZone
 			s.gotRegisteredIP = registeredIP
 
@@ -395,7 +382,6 @@ func (s *CreateUserSuite) TestSuccess() {
 	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
 	s.Require().NoError(err)
 	s.Equal(testIP(), s.gotRegisteredIP, "IP регистрации доезжает до фабрики операции")
-	s.Equal("Europe/Moscow", s.gotTimeZone, "в payload операции попадает уже подобранный пояс")
 	s.Equal("confirm.user.activation", s.openedNote)
 	// поток регистрации анонимный: форензику несёт IP, а не идентификатор посетителя
 	s.Equal(testIP(), s.openedActor.ClientIP)
@@ -404,16 +390,17 @@ func (s *CreateUserSuite) TestSuccess() {
 	s.Empty(s.logEntries)
 }
 
-// TestTimeZoneResolvedOnEntry - пояс подбирается до записи payload'а, поэтому
-// незаполненный запрос доезжает до фабрики операции уже как UTC, а не как пустая строка.
-func (s *CreateUserSuite) TestTimeZoneResolvedOnEntry() {
+// TestSettingsForwardedAsIs - язык и пояс приходят уже определёнными по запросу, поэтому
+// в payload операции они попадают без изменений: подбирать их usecase не должен.
+func (s *CreateUserSuite) TestSettingsForwardedAsIs() {
 	s.expectHappyDeps()
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 	s.expectOpen()
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", dto.TimeZoneInfo{}, "user@example.com", testIP())
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en-US", "Asia/Tokyo", "user@example.com", testIP())
 	s.Require().NoError(err)
-	s.Equal("UTC", s.gotTimeZone)
+	s.Equal("en-US", s.gotLangCode)
+	s.Equal("Asia/Tokyo", s.gotTimeZone)
 }
 
 func (s *CreateUserSuite) TestCheckerError() {

@@ -34,8 +34,6 @@ func InitHttpModule(
 	dbConnManager mrstorage.DBConnManager,
 	locker mrlock.Locker,
 	requestParser *validate.Parser,
-	languages module.LanguageList,
-	timeZones module.TimeZoneList,
 	responseSender mrserver.ResponseSender,
 	responseFileSender mrserver.FileResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
@@ -127,8 +125,6 @@ func InitHttpModule(
 						sessionHardThreshold,
 						debugFunc,
 						locationResolver,
-						languages,
-						timeZones,
 					)
 				},
 			},

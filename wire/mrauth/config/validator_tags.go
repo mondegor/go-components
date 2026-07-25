@@ -34,19 +34,39 @@ func TagEmailPhone() mrview.Tag {
 	}
 }
 
-// TagLang - возвращает тег валидации формата языка (локали) пользователя.
-func TagLang() mrview.Tag {
+// TagLang - возвращает тег валидации языка (локали) пользователя: проверяется форма записи
+// и принадлежность языка списку langs, зарегистрированному приложением.
+//
+// Проверка строгая - ближайший поддерживаемый язык здесь не подбирается ("fr-CH" при
+// поддержке "fr" совпадением не считается). Подбор уместен для клиентского Accept-Language,
+// который о списке приложения не знает, и выполняется на разборе запроса; сюда же приходит
+// значение, которое клиент выбрал явно и которое пойдёт в профиль, а затем - в область
+// действия его токенов, поэтому оно обязано быть одним из langs.
+func TagLang(langs []string) mrview.Tag {
 	return mrview.Tag{
-		Name:         "tag_lang",
-		ValidateFunc: validate.Lang,
+		Name: "tag_lang",
+		ValidateFunc: mrview.NewValidateAND(
+			validate.Lang,
+			mrview.NewValidateInArray(langs),
+		),
 	}
 }
 
-// TagTimeZone - возвращает тег валидации формата IANA-имени часового пояса.
-func TagTimeZone() mrview.Tag {
+// TagTimeZone - возвращает тег валидации IANA-имени часового пояса: проверяется формат имени
+// и его принадлежность списку zones, зарегистрированному приложением. Имя тега - "tag_tz",
+// по имени поля tz, которое им проверяется.
+//
+// Проверка строгая - подбор по смещению здесь не выполняется; он уместен для клиентского
+// заголовка X-Accept-Time-Zone и выполняется на разборе запроса. Сюда же приходит имя,
+// которое клиент выбрал явно и которое пойдёт в профиль, поэтому оно обязано быть одним
+// из zones.
+func TagTimeZone(zones []string) mrview.Tag {
 	return mrview.Tag{
-		Name:         "tag_timezone",
-		ValidateFunc: validate.TimeZone,
+		Name: "tag_tz",
+		ValidateFunc: mrview.NewValidateAND(
+			validate.TimeZone,
+			mrview.NewValidateInArray(zones),
+		),
 	}
 }
 
