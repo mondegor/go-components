@@ -1,6 +1,7 @@
 type: object
 required:
   - access_token
+  - expires_in
 properties:
   access_token:
     description: |-
