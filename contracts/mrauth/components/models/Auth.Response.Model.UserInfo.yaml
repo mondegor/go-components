@@ -6,6 +6,7 @@ required:
   - auth_2fa_type
   - realms
   - status
+  - settings_pending
 properties:
   email:
     type: string
@@ -51,8 +52,6 @@ properties:
       токене. Пока признак истинен, поля lang и tz отдают новые значения, а даты и тексты
       в ответах формируются по прежним; применить новые к конкретному ответу можно
       query-параметрами lang и tz - на сам признак они не влияют, он описывает токен,
-      а не ответ. Гаснет сам после ближайшего продления сессии (PATCH /v1/session);
-      отсутствие поля равнозначно false
+      а не ответ. Гаснет сам после ближайшего продления сессии (PATCH /v1/session)
     type: boolean
-    default: false
     example: false

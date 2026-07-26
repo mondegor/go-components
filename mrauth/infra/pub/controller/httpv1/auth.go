@@ -249,8 +249,14 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
+	// отсутствие секрета в запросе - это подтверждение без него, поток обрабатывает пустой секрет сам
+	secret := ""
+	if req.Secret != nil {
+		secret = *req.Secret
+	}
+
 	// шаг 1: подтвердить операцию (включая ветку 2FA)
-	op, ok, err := ht.confirmFlow.confirm(w, r, req.Token, req.Secret, "Confirm your identity to sign in by 2fa")
+	op, ok, err := ht.confirmFlow.confirm(w, r, req.Token, secret, "Confirm your identity to sign in by 2fa")
 	if err != nil {
 		return err // ошибка подтверждения операции
 	}
@@ -416,7 +422,7 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 
 // ChangeSettings - сохраняет язык и часовой пояс текущего пользователя.
 //
-// Сохраняются всегда обе настройки, но незаполненное поле означает режим "авто":
+// Сохраняются всегда обе настройки, но отсутствующее поле означает режим "авто":
 // настройка подбирается заново по самому запросу - ровно так же, как при регистрации,
 // и результат - всегда из списков, зарегистрированных приложением.
 // Поэтому клиент присылает только те настройки, которые пользователь задал явно.
@@ -434,7 +440,19 @@ func (ht *Auth) ChangeSettings(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	if req.LangCode == "" || req.TimeZone == "" {
+	// присланные явно значения сохраняются как есть,
+	// а отсутствующее поле - это режим "авто"
+	var langCode, timeZone string
+
+	if req.LangCode != nil {
+		langCode = *req.LangCode
+	}
+
+	if req.TimeZone != nil {
+		timeZone = *req.TimeZone
+	}
+
+	if req.LangCode == nil || req.TimeZone == nil {
 		rc := *r
 
 		// делается копия заголовков запроса когда есть что подбирать и срезаются
@@ -443,28 +461,25 @@ func (ht *Auth) ChangeSettings(w http.ResponseWriter, r *http.Request) error {
 		rc.Header.Del(mrserver.HeaderKeyInternalLangCode)
 		rc.Header.Del(mrserver.HeaderKeyInternalTimeZone)
 
-		if req.LangCode == "" {
-			req.LangCode = ht.parser.Localizer(&rc).Language()
+		if req.LangCode == nil {
+			langCode = ht.parser.Localizer(&rc).Language()
 		}
 
-		if req.TimeZone == "" {
-			req.TimeZone = ht.parser.Location(&rc).String()
+		if req.TimeZone == nil {
+			timeZone = ht.parser.Location(&rc).String()
 		}
 	}
 
-	err := ht.useCaseChangeSettings.Execute(
-		r.Context(),
-		ht.parser.UserID(r),
-		req.LangCode,
-		req.TimeZone,
-	)
-	if err != nil {
+	if err := ht.useCaseChangeSettings.Execute(r.Context(), ht.parser.UserID(r), langCode, timeZone); err != nil {
 		return err
 	}
 
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
-		model.ChangeSettingsResponse(req),
+		model.ChangeSettingsResponse{
+			LangCode: langCode,
+			TimeZone: timeZone,
+		},
 	)
 }

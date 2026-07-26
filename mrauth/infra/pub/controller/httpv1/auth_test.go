@@ -209,6 +209,12 @@ func wantUserInfoResponse(info dto.UserInfo, settingsPending bool) model.UserInf
 	}
 }
 
+// ptr - возвращает указатель на значение: необязательные поля моделей запросов - указатели,
+// чтобы отсутствующее поле отличалось от присланного пустым.
+func ptr[T any](value T) *T {
+	return &value
+}
+
 // expectValidate - разбор тела запроса отдаёт заранее подготовленную структуру.
 func expectValidate[T any](s *AuthSuite, req T) {
 	s.parser.EXPECT().
@@ -220,7 +226,7 @@ func expectValidate[T any](s *AuthSuite, req T) {
 		})
 }
 
-// TestChangeSettings - заполненное поле сохраняется как есть, а незаполненное означает
+// TestChangeSettings - присланное поле сохраняется как есть, а отсутствующее означает
 // режим "авто" и подбирается по самому запросу; в ответ уходят оба сохранённых значения,
 // чтобы клиент применил у себя и подобранное.
 func (s *AuthSuite) TestChangeSettings() {
@@ -232,7 +238,7 @@ func (s *AuthSuite) TestChangeSettings() {
 	}{
 		{
 			name:         "both are set explicitly",
-			req:          model.ChangeSettingsRequest{LangCode: "en-US", TimeZone: "Asia/Tokyo"},
+			req:          model.ChangeSettingsRequest{LangCode: ptr("en-US"), TimeZone: ptr("Asia/Tokyo")},
 			wantLangCode: "en-US",
 			wantTimeZone: "Asia/Tokyo",
 		},
@@ -246,7 +252,7 @@ func (s *AuthSuite) TestChangeSettings() {
 		},
 		{
 			name:         "only lang is set, time zone is auto",
-			req:          model.ChangeSettingsRequest{LangCode: "en-US"},
+			req:          model.ChangeSettingsRequest{LangCode: ptr("en-US")},
 			wantLangCode: "en-US",
 			wantTimeZone: "Europe/Moscow",
 		},
@@ -254,7 +260,7 @@ func (s *AuthSuite) TestChangeSettings() {
 			// смена только языка: пояс подбирается заново по клиенту, а не берётся
 			// из токена - иначе "авто" вырождалось бы в повтор уже сохранённого
 			name:         "only time zone is set, lang is auto",
-			req:          model.ChangeSettingsRequest{TimeZone: "Asia/Tokyo"},
+			req:          model.ChangeSettingsRequest{TimeZone: ptr("Asia/Tokyo")},
 			wantLangCode: "ru-RU",
 			wantTimeZone: "Asia/Tokyo",
 		},

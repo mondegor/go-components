@@ -1,4 +1,6 @@
-description: Уникальный идентификатор клиента
+description: |-
+  Уникальный идентификатор клиента.
+  Невалидный параметр игнорируется, поведение не меняет.
 name: X-Correlation-Id
 in: header
 required: false

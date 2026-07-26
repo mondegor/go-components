@@ -1,4 +1,7 @@
-description: Предпочтительный язык пользователя (https://developer.mozilla.org/ru/docs/Web/HTTP/Headers/Accept-Language)
+description: |-
+  Предпочтительный язык пользователя
+  (https://developer.mozilla.org/ru/docs/Web/HTTP/Headers/Accept-Language)
+  Невалидный параметр игнорируется, поведение не меняет.
 name: Accept-Language
 in: header
 required: false

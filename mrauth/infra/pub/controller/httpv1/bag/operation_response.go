@@ -36,13 +36,14 @@ func (ro *OperationResponse) NewConfirmOperation(
 	message string,
 ) model.WaitingConfirmOperationResponse {
 	action, _ := operation.FirstAction()
+	remainingResends, resendsIn := resendsInfo(&operation, action)
 
 	return model.WaitingConfirmOperationResponse{
 		Token:             operation.Token,
 		ConfirmMethod:     action.Method,
 		RemainingAttempts: operation.RemainingAttempts,
-		RemainingResends:  operation.RemainingResends,
-		ResendsIn:         xtime.TimeLeftInSec(operation.ResendsAt),
+		RemainingResends:  remainingResends,
+		ResendsIn:         resendsIn,
 		ExpiresIn:         xtime.TimeLeftInSec(operation.ExpiresAt),
 		Message:           message,
 		DebugInfo:         ro.debugFunc(operation),
@@ -54,14 +55,34 @@ func (ro *OperationResponse) NewErrorConfirmOperation(
 	response mrresp.Error400Response,
 	operation secureoperation.SecureOperation,
 ) model.ErrorConfirmOperationResponse {
+	action, _ := operation.FirstAction()
+	remainingResends, resendsIn := resendsInfo(&operation, action)
+
 	return model.ErrorConfirmOperationResponse{
 		Error400Response: response,
 		OperationState: model.ConfirmOperationState{
 			RemainingAttempts: operation.RemainingAttempts,
-			RemainingResends:  operation.RemainingResends,
-			ResendsIn:         xtime.TimeLeftInSec(operation.ResendsAt),
+			RemainingResends:  remainingResends,
+			ResendsIn:         resendsIn,
 			ExpiresIn:         xtime.TimeLeftInSec(operation.ExpiresAt),
 			DebugInfo:         ro.debugFunc(operation),
 		},
 	}
+}
+
+// resendsInfo - счётчики повторных отправок кода подтверждения текущим действием операции:
+// сколько их осталось и через сколько секунд можно сделать следующую. Возвращает nil, когда
+// повторные отправки не применимы (пароль и TOTP, а также операция без действий), чтобы эти
+// поля не отдавались вовсе, тогда ноль в них остаётся значением: отправки исчерпаны
+// и отправить можно прямо сейчас соответственно.
+func resendsInfo(operation *secureoperation.SecureOperation, action secureoperation.ConfirmAction) (remaining *int16, in *int64) {
+	// у операции без действий метод не заполнен, поэтому отдельная проверка её пустоты не нужна
+	if !action.Sendable() {
+		return nil, nil
+	}
+
+	remainingResends := operation.RemainingResends
+	resendsIn := xtime.TimeLeftInSec(operation.ResendsAt)
+
+	return &remainingResends, &resendsIn
 }
