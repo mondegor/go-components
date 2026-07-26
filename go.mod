@@ -5,7 +5,7 @@ go 1.25.8
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/mondegor/go-core v0.15.4-0.20260725021551-a77235809c5b
+	github.com/mondegor/go-core v0.15.4-0.20260726091730-2c77e9018b9f
 	github.com/mondegor/go-storage v0.17.2-0.20260705222830-c29b13b1bbb8
 	github.com/mondegor/go-webcore v0.29.3-0.20260723200925-c4c3e5982343
 	github.com/pquerna/otp v1.5.0

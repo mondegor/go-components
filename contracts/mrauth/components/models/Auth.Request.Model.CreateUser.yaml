@@ -6,6 +6,7 @@ properties:
   realm:
     description: Область, пространство, где должен быть зарегистрирован пользователь
     type: string
+    minLength: 4
     maxLength: 32
     example: "domain_name/user_group"
   user_email:

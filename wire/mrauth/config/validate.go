@@ -248,7 +248,7 @@ func ValidateSessionThresholds(soft, hard int8) error {
 	return nil
 }
 
-// ValidateStorableLanguages - проверяет, что языки приложения пригодны для хранения
+// ValidateLanguages - проверяет, что языки приложения пригодны для хранения
 // в профиле пользователя: сверх общих требований к списку (см. mrlocale/config.ValidateLanguages,
 // она вызывается здесь же) каждый язык должен укладываться в формат колонки lang_code.
 //
@@ -261,7 +261,7 @@ func ValidateSessionThresholds(soft, hard int8) error {
 // Это host-only reference-валидация уровня composition-root: предполагается, что её вызывает
 // host-приложение из своего init-пути (внутри библиотеки она намеренно не вызывается). Конкретный
 // проект может использовать её как есть либо написать собственную.
-func ValidateStorableLanguages(langs []string) error {
+func ValidateLanguages(langs []string) error {
 	if err := localecfg.ValidateLanguages(langs); err != nil {
 		return err
 	}
@@ -280,11 +280,11 @@ func ValidateStorableLanguages(langs []string) error {
 	return nil
 }
 
-// ValidateStorableTimeZones - проверяет, что часовые пояса приложения пригодны для хранения
+// ValidateTimeZones - проверяет, что часовые пояса приложения пригодны для хранения
 // в профиле пользователя: сверх общих требований к списку (см. util/timezone/config.ValidateTimeZones,
 // она вызывается здесь же) каждое имя должно укладываться в ширину колонки user_timezone.
 //
-// Парная к ValidateStorableLanguages и нужна по той же причине: в профиль попадает пояс
+// Парная к ValidateLanguages и нужна по той же причине: в профиль попадает пояс
 // из этого же списка (на границе ввода принимается только он, см. TagTimeZone). Для самого
 // timezone.LocationList длина имени безразлична, поэтому упереться в колонку может только тот,
 // кто про неё знает.
@@ -292,7 +292,7 @@ func ValidateStorableLanguages(langs []string) error {
 // Это host-only reference-валидация уровня composition-root: предполагается, что её вызывает
 // host-приложение из своего init-пути (внутри библиотеки она намеренно не вызывается). Конкретный
 // проект может использовать её как есть либо написать собственную.
-func ValidateStorableTimeZones(zones []string) error {
+func ValidateTimeZones(zones []string) error {
 	if err := timezonecfg.ValidateTimeZones(zones); err != nil {
 		return err
 	}

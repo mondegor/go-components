@@ -120,6 +120,8 @@ github.com/moby/sys/userns v0.1.0 h1:tVLXkFOxVu9A64/yh59slHVv9ahO9UIev4JZusOLG/g
 github.com/moby/sys/userns v0.1.0/go.mod h1:IHUYgu/kao6N8YZlp9Cf444ySSvCmDlmzUcYfDHOl28=
 github.com/moby/term v0.5.2 h1:6qk3FJAFDs6i/q3W/pQ97SX192qKfZgGjCQqfCJkgzQ=
 github.com/moby/term v0.5.2/go.mod h1:d3djjFCrjnB+fl8NJux+EJzu0msscUP+f8it8hPkFLc=
+github.com/mondegor/go-core v0.15.4-0.20260726091730-2c77e9018b9f h1:NpvqWD36qMosdYuYWYhltqC0lo9SepMFH1oALb+WYgs=
+github.com/mondegor/go-core v0.15.4-0.20260726091730-2c77e9018b9f/go.mod h1:L04Qix8geslljub3Uuc/bWZ1L2Ut2efESlrAMdrxXMw=
 github.com/mondegor/go-storage v0.17.2-0.20260705222830-c29b13b1bbb8 h1:bx1SCQbmSMV9fKqo0Ha66IEFxoyCmKFrr4tMqEUTtSc=
 github.com/mondegor/go-storage v0.17.2-0.20260705222830-c29b13b1bbb8/go.mod h1:JGQdawg9L1zIX3OXFfRq4kYJvSOQDnuigZeIL8YkC3w=
 github.com/mondegor/go-webcore v0.29.3-0.20260723200925-c4c3e5982343 h1:vX7qNciO9HhEPycspRaRbDvfdE5jRHwQNo0hDCT2q+A=

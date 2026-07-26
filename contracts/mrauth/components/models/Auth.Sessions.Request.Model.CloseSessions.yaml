@@ -5,5 +5,7 @@ required:
 properties:
   session_ids:
     type: array
+    minItems: 1
+    maxItems: 64
     items:
       $ref: "./Auth.Sessions.Request.Model.SessionID.yaml"

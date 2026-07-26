@@ -68,13 +68,13 @@ func TestValidateSessionThresholds(t *testing.T) {
 	}
 }
 
-// TestValidateStorableLanguages - язык, не помещающийся в колонку lang_code, отвергается
+// TestValidateLanguages - язык, не помещающийся в колонку lang_code, отвергается
 // при загрузке конфигурации, а не при первой записи в БД. Для самого mrlocale такие языки
 // законны, поэтому отсеять их может только эта проверка.
 //
 // Общие требования к списку (разбор, каноничность) проверяются не здесь, а в
 // mrlocale/config.ValidateLanguages; тут достаточно убедиться, что она вызывается.
-func TestValidateStorableLanguages(t *testing.T) {
+func TestValidateLanguages(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -99,7 +99,7 @@ func TestValidateStorableLanguages(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := config.ValidateStorableLanguages(tc.langs)
+			err := config.ValidateLanguages(tc.langs)
 			if tc.wantErr {
 				require.Error(t, err)
 			} else {
@@ -109,14 +109,14 @@ func TestValidateStorableLanguages(t *testing.T) {
 	}
 }
 
-// TestValidateStorableTimeZones - имя пояса, не помещающееся в колонку user_timezone,
+// TestValidateTimeZones - имя пояса, не помещающееся в колонку user_timezone,
 // отвергается при загрузке конфигурации. Для самого timezone.LocationList длина имени
 // безразлична, поэтому отсеять его может только эта проверка.
 //
 // Общие требования к списку (непустота, уникальность, существование пояса) проверяются
 // не здесь, а в util/timezone/config.ValidateTimeZones; тут достаточно убедиться,
 // что она вызывается.
-func TestValidateStorableTimeZones(t *testing.T) {
+func TestValidateTimeZones(t *testing.T) {
 	t.Parallel()
 
 	// имя укладывается в формат IANA-имени и потому доходит до проверки длины,
@@ -143,7 +143,7 @@ func TestValidateStorableTimeZones(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := config.ValidateStorableTimeZones(tc.zones)
+			err := config.ValidateTimeZones(tc.zones)
 			if tc.wantErr {
 				require.Error(t, err)
 			} else {
