@@ -19,9 +19,10 @@ type (
 	}
 
 	// LoginByTokenRequest - запрос на авторизацию пользователя в системе.
+	// Secret необязателен: он отсутствует, когда подтверждение секретом не требуется.
 	LoginByTokenRequest struct {
-		Token  string `json:"token" validate:"required,min=64,max=128"`
-		Secret string `json:"secret,omitempty" validate:"omitempty,min=4,max=32"`
+		Token  string  `json:"token" validate:"required,min=64,max=128"`
+		Secret *string `json:"secret,omitempty" validate:"omitnil,min=4,max=32"`
 	}
 
 	// ContinueSessionRequest - запрос на продление текущей сессии по refresh токену.
@@ -35,16 +36,16 @@ type (
 	}
 
 	// ChangeSettingsRequest - запрос на изменение языка и часового пояса пользователя.
-	// Оба поля необязательны, но незаполненное означает режим "авто":
+	// Оба поля необязательны, но отсутствующее означает режим "авто":
 	// настройка подбирается по самому запросу (см. Auth.ChangeSettings). Поэтому клиент
 	// присылает только те настройки, которые пользователь задал явно.
 	ChangeSettingsRequest struct {
-		LangCode string `json:"lang,omitempty" validate:"omitempty,max=5,tag_lang"`
-		TimeZone string `json:"tz,omitempty" validate:"omitempty,max=64,tag_tz"`
+		LangCode *string `json:"lang,omitempty" validate:"omitnil,min=2,max=5,tag_lang"`
+		TimeZone *string `json:"tz,omitempty" validate:"omitnil,min=3,max=64,tag_tz"`
 	}
 
 	// ChangeSettingsResponse - настройки пользователя, которые реально сохранены.
-	// Для поля, оставленного пустым, здесь возвращается подобранное значение,
+	// Для поля, отсутствовавшего в запросе, здесь возвращается подобранное значение,
 	// поэтому клиент применяет у себя именно эти.
 	ChangeSettingsResponse struct {
 		LangCode string `json:"lang"`
@@ -71,7 +72,7 @@ type (
 		Auth2FAType     auth2fatype.Enum `json:"auth_2fa_type"`
 		Realms          []UserRealm      `json:"realms"`
 		Status          userstatus.Enum  `json:"status"`
-		SettingsPending bool             `json:"settings_pending,omitempty"`
+		SettingsPending bool             `json:"settings_pending"`
 	}
 
 	// UserRealm - realm пользователя с его видом и статистикой последнего входа

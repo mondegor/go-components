@@ -19,15 +19,16 @@ type (
 	}
 
 	// WaitingConfirmOperationResponse - информация для подтверждения операции.
-	// ResendsIn отсутствует в ответе как когда повторные отправки не применимы
-	// (пароль и TOTP, см. RemainingResends), так и когда до повторной отправки
-	// осталось 0 секунд, то есть её можно сделать прямо сейчас.
+	// RemainingResends и ResendsIn отдаются вместе и только когда повторные отправки
+	// применимы (емаил и телефон); для пароля и TOTP их в ответе нет. Ноль в них -
+	// значение, а не отсутствие: RemainingResends=0 - отправки исчерпаны,
+	// ResendsIn=0 - повторную отправку можно сделать прямо сейчас.
 	WaitingConfirmOperationResponse struct {
 		Token             string             `json:"token"`
 		ConfirmMethod     confirmmethod.Enum `json:"confirm_method"`
 		RemainingAttempts int16              `json:"remaining_attempts"`
-		RemainingResends  int16              `json:"remaining_resends,omitempty"`
-		ResendsIn         int64              `json:"resends_in,omitempty"`
+		RemainingResends  *int16             `json:"remaining_resends,omitempty"`
+		ResendsIn         *int64             `json:"resends_in,omitempty"`
 		ExpiresIn         int64              `json:"expires_in"`
 		Message           string             `json:"message,omitempty"`
 		DebugInfo         string             `json:"debug_info,omitempty"`
@@ -41,13 +42,14 @@ type (
 	}
 
 	// ConfirmOperationState - информация об оставшихся попытках и времени действия операции.
-	// Поля RemainingResends и ResendsIn не используются для пароля и TOTP, поэтому в этом
-	// случае они в ответе отсутствуют. ResendsIn отсутствует также, когда до повторной
-	// отправки осталось 0 секунд, то есть её можно сделать прямо сейчас.
+	// RemainingResends и ResendsIn отдаются вместе и только когда повторные отправки
+	// применимы (емаил и телефон); для пароля и TOTP их в ответе нет. Ноль в них -
+	// значение, а не отсутствие: RemainingResends=0 - отправки исчерпаны,
+	// ResendsIn=0 - повторную отправку можно сделать прямо сейчас.
 	ConfirmOperationState struct {
 		RemainingAttempts int16  `json:"remaining_attempts"`
-		RemainingResends  int16  `json:"remaining_resends,omitempty"`
-		ResendsIn         int64  `json:"resends_in,omitempty"`
+		RemainingResends  *int16 `json:"remaining_resends,omitempty"`
+		ResendsIn         *int64 `json:"resends_in,omitempty"`
 		ExpiresIn         int64  `json:"expires_in"`
 		DebugInfo         string `json:"debug_info,omitempty"`
 	}
