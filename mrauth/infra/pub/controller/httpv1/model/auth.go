@@ -61,18 +61,14 @@ type (
 	}
 
 	// UserInfoResponse - ответ со сводной информацией о текущем пользователе.
-	// LangCode и TimeZone читаются из профиля, а тексты и даты формируются по языку и поясу,
-	// зафиксированным в предъявленном access-токене, поэтому SettingsPending сообщает,
-	// что сохранённые настройки в этот токен ещё не попали.
 	UserInfoResponse struct {
-		Email           string           `json:"email"`
-		Phone           string           `json:"phone,omitempty"`
-		LangCode        string           `json:"lang"`
-		TimeZone        string           `json:"tz"`
-		Auth2FAType     auth2fatype.Enum `json:"auth_2fa_type"`
-		Realms          []UserRealm      `json:"realms"`
-		Status          userstatus.Enum  `json:"status"`
-		SettingsPending bool             `json:"settings_pending"`
+		Email       string           `json:"email"`
+		Phone       string           `json:"phone,omitempty"`
+		LangCode    string           `json:"lang"`
+		TimeZone    string           `json:"tz"`
+		Auth2FAType auth2fatype.Enum `json:"auth_2fa_type"`
+		Realms      []UserRealm      `json:"realms"`
+		Status      userstatus.Enum  `json:"status"`
 	}
 
 	// UserRealm - realm пользователя с его видом и статистикой последнего входа

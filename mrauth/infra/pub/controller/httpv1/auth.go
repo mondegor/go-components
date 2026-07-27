@@ -408,14 +408,13 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 		w,
 		http.StatusOK,
 		model.UserInfoResponse{
-			Email:           info.User.Email,
-			Phone:           casttype.UintToPhone(info.User.Phone),
-			LangCode:        info.User.LangCode,
-			TimeZone:        info.User.TimeZone,
-			Auth2FAType:     info.Auth2FA.Type,
-			Realms:          realms,
-			Status:          info.User.Status,
-			SettingsPending: isSettingsPending(info.User, ht.parser.LangCode(r), ht.parser.TimeZoneName(r)),
+			Email:       info.User.Email,
+			Phone:       casttype.UintToPhone(info.User.Phone),
+			LangCode:    info.User.LangCode,
+			TimeZone:    info.User.TimeZone,
+			Auth2FAType: info.Auth2FA.Type,
+			Realms:      realms,
+			Status:      info.User.Status,
 		},
 	)
 }
