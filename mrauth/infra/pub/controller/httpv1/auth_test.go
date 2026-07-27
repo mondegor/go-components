@@ -183,11 +183,12 @@ func okUserInfo() dto.UserInfo {
 	}
 }
 
-// wantUserInfoResponse - ответ, ожидаемый от контроллера для указанной информации о пользователе.
+// wantUserInfoResponse - ответ, ожидаемый от контроллера для указанной информации
+// о пользователе, где realmName - имя, под которым отдаётся единственный realm.
 //
 // Даты записаны литералами в поясе responseTimeZone, а не собраны тем же форматированием,
 // что и в контроллере: иначе проверка повторяла бы проверяемое и приняла бы любой формат.
-func wantUserInfoResponse(info dto.UserInfo, settingsPending bool) model.UserInfoResponse {
+func wantUserInfoResponse(info dto.UserInfo, realmName string) model.UserInfoResponse {
 	return model.UserInfoResponse{
 		Email:       info.User.Email,
 		Phone:       "+79001234567",
@@ -196,7 +197,7 @@ func wantUserInfoResponse(info dto.UserInfo, settingsPending bool) model.UserInf
 		Auth2FAType: info.Auth2FA.Type,
 		Realms: []model.UserRealm{
 			{
-				Name:         "site/admin",
+				Name:         realmName,
 				UserKind:     "admin",
 				LastLocation: "Moscow, RU",
 				LastLoggedAt: "2026-05-06T10:08:09+03:00",
@@ -204,8 +205,7 @@ func wantUserInfoResponse(info dto.UserInfo, settingsPending bool) model.UserInf
 				UpdatedAt:    "2026-03-04T08:06:07+03:00",
 			},
 		},
-		Status:          info.User.Status,
-		SettingsPending: settingsPending,
+		Status: info.User.Status,
 	}
 }
 
@@ -304,83 +304,28 @@ func (s *AuthSuite) TestSignup() {
 	s.Require().NoError(s.signup())
 }
 
-// TestUserInfoSettingsPending - признак сообщает, что сохранённые в профиле настройки
-// ещё не попали в предъявленный access-токен: язык или пояс профиля отличается от
-// зафиксированного в области действия этого токена.
-//
-// Значения токена приходят из внутренних заголовков (parser.LangCode и parser.TimeZoneName),
-// которые на авторизованных маршрутах заполняет middleware, а на гостевых срезает.
-// Пустое значение означает, что настройка в токене не зафиксирована, - сравнивать не с чем,
-// и по ней признак не поднимается.
-func (s *AuthSuite) TestUserInfoSettingsPending() {
+// TestUserInfo - ответ сверяется целиком, а не по отдельным полям: иначе поле, переставшее
+// доезжать до клиента, осталось бы незамеченным. Разом проверяются перевод дат в пояс запроса
+// (его отдаёт parser.Location), формат телефона и имя realm'а, подставленное из реестра.
+func (s *AuthSuite) TestUserInfo() {
 	tests := []struct {
 		name          string
-		user          entity.User
-		tokenLang     string
-		tokenTimeZone string
-		want          bool
+		registryName  string
+		registryFound bool
+		wantRealmName string
 	}{
 		{
-			name:          "settings applied",
-			user:          entity.User{LangCode: "ru-RU", TimeZone: "Europe/Moscow"},
-			tokenLang:     "ru-RU",
-			tokenTimeZone: "Europe/Moscow",
-			want:          false,
+			name:          "realm is known",
+			registryName:  "site/admin",
+			registryFound: true,
+			wantRealmName: "site/admin",
 		},
 		{
-			name:          "time zone changed",
-			user:          entity.User{LangCode: "ru-RU", TimeZone: "Asia/Tokyo"},
-			tokenLang:     "ru-RU",
-			tokenTimeZone: "Europe/Moscow",
-			want:          true,
-		},
-		{
-			// смена только языка - основной сценарий: пояс совпадает, но тексты
-			// в ответах ещё формируются по языку из токена
-			name:          "lang changed, time zone applied",
-			user:          entity.User{LangCode: "en-US", TimeZone: "Europe/Moscow"},
-			tokenLang:     "ru-RU",
-			tokenTimeZone: "Europe/Moscow",
-			want:          true,
-		},
-		{
-			name:          "both changed",
-			user:          entity.User{LangCode: "en-US", TimeZone: "Asia/Tokyo"},
-			tokenLang:     "ru-RU",
-			tokenTimeZone: "Europe/Moscow",
-			want:          true,
-		},
-		{
-			// язык в токене не зафиксирован - сравнивать не с чем,
-			// признак решается одним поясом
-			name:          "token lang is not set",
-			user:          entity.User{LangCode: "ru-RU", TimeZone: "Europe/Moscow"},
-			tokenLang:     "",
-			tokenTimeZone: "Europe/Moscow",
-			want:          false,
-		},
-		{
-			// пояс в токене не зафиксирован - симметрично языку,
-			// признак решается одним языком
-			name:          "token time zone is not set",
-			user:          entity.User{LangCode: "ru-RU", TimeZone: "Europe/Moscow"},
-			tokenLang:     "ru-RU",
-			tokenTimeZone: "",
-			want:          false,
-		},
-		{
-			name:          "nothing is fixed in the token",
-			user:          entity.User{LangCode: "ru-RU", TimeZone: "Europe/Moscow"},
-			tokenLang:     "",
-			tokenTimeZone: "",
-			want:          false,
-		},
-		{
-			name:          "default time zone",
-			user:          entity.User{LangCode: "ru-RU", TimeZone: "UTC"},
-			tokenLang:     "ru-RU",
-			tokenTimeZone: "UTC",
-			want:          false,
+			// realm'а нет в реестре: имя собирается из его идентификатора, иначе клиент
+			// получил бы пустое поле вместо хоть какой-то ссылки на realm
+			name:          "realm is unknown",
+			registryFound: false,
+			wantRealmName: "id:7",
 		},
 	}
 
@@ -388,21 +333,14 @@ func (s *AuthSuite) TestUserInfoSettingsPending() {
 		s.Run(tt.name, func() {
 			userID := uuid.New()
 			info := okUserInfo()
-			info.User.LangCode = tt.user.LangCode
-			info.User.TimeZone = tt.user.TimeZone
 
 			s.parser.EXPECT().UserID(gomock.Any()).Return(userID)
 			s.parser.EXPECT().Location(gomock.Any()).Return(s.mustLoadLocation(responseTimeZone))
-			s.parser.EXPECT().LangCode(gomock.Any()).Return(tt.tokenLang)
-			s.parser.EXPECT().TimeZoneName(gomock.Any()).Return(tt.tokenTimeZone)
-			s.realmRegistry.EXPECT().NameByID(uint16(7)).Return("site/admin", true)
+			s.realmRegistry.EXPECT().NameByID(uint16(7)).Return(tt.registryName, tt.registryFound)
 			s.serviceUserInfo.EXPECT().Get(gomock.Any(), userID).Return(info, nil)
 
 			s.Require().NoError(s.userInfo())
-
-			// ответ сверяется целиком, а не по признаку: иначе поле, переставшее доезжать
-			// до клиента, осталось бы незамеченным
-			s.Equal(wantUserInfoResponse(info, tt.want), s.sent)
+			s.Equal(wantUserInfoResponse(info, tt.wantRealmName), s.sent)
 		})
 	}
 }

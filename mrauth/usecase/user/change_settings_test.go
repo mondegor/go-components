@@ -86,8 +86,8 @@ func (s *ChangeSettingsSuite) TestExecuteStorageError() {
 }
 
 // TestExecuteAuthTokenStorageError - ошибка обновления области действия токенов доходит
-// до вызывающего: успешный ответ при неперенесённых в токены настройках означал бы,
-// что признак "настройки ещё не применены" у клиента уже не погаснет.
+// до вызывающего: успешный ответ при неперенесённых в токены настройках оставил бы профиль
+// разошедшимся с областью действия действующих токенов, а клиента - в неведении об этом.
 func (s *ChangeSettingsSuite) TestExecuteAuthTokenStorageError() {
 	errStorage := errors.New("storage is unavailable")
 
