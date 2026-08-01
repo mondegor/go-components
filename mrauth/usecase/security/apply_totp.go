@@ -8,6 +8,7 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
@@ -15,6 +16,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrnotifier"
 )
@@ -41,7 +43,7 @@ type (
 	}
 
 	user2faBinder interface {
-		InsertOrUpdate(ctx context.Context, row entity.Auth2FA) error
+		Insert(ctx context.Context, row entity.Auth2FA) error
 	}
 
 	recoveryCodesGenerator interface {
@@ -74,7 +76,7 @@ func NewApplyTOTPGenerator(
 		totpValidator:    totpValidator,
 		notifierAPI:      notifierAPI,
 		logOperation:     logOperation,
-		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 		recoveryCount:    recoveryCount,
 	}
 }
@@ -82,6 +84,8 @@ func NewApplyTOTPGenerator(
 // Execute - проверяет TOTP-код, введённый пользователем, против секрета операции
 // и при успехе в одной транзакции привязывает TOTP-генератор, удаляет операцию,
 // отправляет уведомление и возвращает аварийные коды в открытом виде (показываются один раз).
+// Если к моменту применения 2FA уже включена (её успели включить другим способом после
+// создания операции), возвращает mrauth.ErrAuth2FAMustBeDisabledFirst.
 func (uc *ApplyTOTPGenerator) Execute(
 	ctx context.Context,
 	actor dto.ActorMeta,
@@ -96,7 +100,7 @@ func (uc *ApplyTOTPGenerator) Execute(
 	}
 
 	if operationToken == "" {
-		return nil, errors.ErrRecordNotFound // TODO: возможно, стоит возвращать ошибку о некорректном параметре
+		return nil, secureoperation.ErrOperationInvalid
 	}
 
 	var (
@@ -108,6 +112,10 @@ func (uc *ApplyTOTPGenerator) Execute(
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		op, err := uc.storageOperation.FetchOneForUpdate(ctx, operationToken)
 		if err != nil {
+			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+				return secureoperation.ErrOperationInvalid
+			}
+
 			return uc.errorWrapper.Wrap(err)
 		}
 
@@ -131,7 +139,7 @@ func (uc *ApplyTOTPGenerator) Execute(
 		if !op.Is(operationstatus.Confirmed) {
 			failedLogState = newLogState(logstatus.Blocked, logreason.NotConfirmed)
 
-			return errors.New("operation is not confirmed")
+			return secureoperation.ErrOperationIsNotConfirmed
 		}
 
 		payload, err := unit.ParseChangeTOTPPayload(op.Payload)
@@ -147,7 +155,7 @@ func (uc *ApplyTOTPGenerator) Execute(
 		if !ok {
 			failedLogState = newLogState(logstatus.ConfirmFailed, logreason.WrongCode)
 
-			return errors.ErrIncorrectInputData.New("invalid totp code")
+			return mrauth.ErrTOTPCodeIsIncorrect
 		}
 
 		var hashed []string
@@ -157,7 +165,7 @@ func (uc *ApplyTOTPGenerator) Execute(
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		if err = uc.storage.InsertOrUpdate(
+		if err = uc.storage.Insert(
 			ctx,
 			entity.Auth2FA{
 				UserID:        op.UserID,
@@ -167,6 +175,14 @@ func (uc *ApplyTOTPGenerator) Execute(
 				RecoveryCodes: hashed,
 			},
 		); err != nil {
+			// 2FA включили другим способом между созданием операции и её применением:
+			// активный второй фактор не перезатирается, его нужно сначала отключить
+			if errors.Is(err, errors.ErrInternalStorageDuplicateKeyViolation) {
+				failedLogState = newLogState(logstatus.Blocked, logreason.Auth2FAStateChanged)
+
+				return mrauth.ErrAuth2FAMustBeDisabledFirst
+			}
+
 			return uc.errorWrapper.Wrap(err)
 		}
 
@@ -178,7 +194,8 @@ func (uc *ApplyTOTPGenerator) Execute(
 	})
 	if err != nil {
 		if failedLogState.isSet() {
-			// или обращение к чужой, неподходящей или ещё не подтверждённой операции: фиксируем блокировку;
+			// или обращение к чужой, неподходящей или ещё не подтверждённой операции,
+			// или гонка с включением 2FA другим способом: фиксируем блокировку;
 			// или неверный TOTP-код: фиксируем в журнале как неудачное подтверждение;
 			uc.logOperation.Log(
 				ctx,

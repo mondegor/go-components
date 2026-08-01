@@ -1,4 +1,4 @@
-description: DTO следующих ошибок - 401, 403, 404, 5XX. RFC 9457 (Problem Details for HTTP APIs)
+description: DTO следующих ошибок - 401, 403, 404, 409, 422, 429, 5XX. RFC 9457 (Problem Details for HTTP APIs)
 type: object
 required:
   - title

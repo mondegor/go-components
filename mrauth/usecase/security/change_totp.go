@@ -36,7 +36,7 @@ func NewChangeTOTPGeneratorProperty(
 		opener:                      opener,
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
 		factoryOperationTOTP:        factoryOperationTOTP,
-		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:                errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
@@ -54,7 +54,7 @@ func (uc *ChangeTOTPGeneratorProperty) Execute(ctx context.Context, actor dto.Ac
 
 	// активный 2FA нельзя менять на месте: сначала нужно отключить текущий (disable 2FA)
 	if user2FA.Action2FA.Method > 0 {
-		return secureoperation.SecureOperation{}, mrauth.Err2FAMustBeDisabledFirst
+		return secureoperation.SecureOperation{}, mrauth.ErrAuth2FAMustBeDisabledFirst
 	}
 
 	op, err := uc.factoryOperationTOTP.Create(user2FA)

@@ -18,7 +18,7 @@ properties:
     maxLength: 32
     example: "+7 999 888 77 66"
   lang:
-    description: >-
+    description: |-
       Язык пользователя, сохранённый в его профиле. Тексты в ответах формируются
       по языку, зафиксированному в access-токене, поэтому после смены настроек
       значения могут отличаться — до ближайшего продления сессии (`PATCH /v1/session`),
@@ -27,7 +27,7 @@ properties:
     maxLength: 5
     example: "ru-RU"
   tz:
-    description: >-
+    description: |-
       Часовой пояс пользователя (IANA-имя), сохранённый в его профиле.
       Даты/время в ответах форматируются по поясу, зафиксированному в access-токене,
       поэтому после смены настроек значения могут отличаться — до ближайшего продления
@@ -37,6 +37,14 @@ properties:
     example: "Europe/Moscow"
   auth_2fa_type:
     $ref: "../enums/Auth.Enum.UserAuth2fa.yaml"
+  recovery_codes_left:
+    description: |-
+      Количество неиспользованных одноразовых аварийных кодов. Ноль означает, что коды
+      исчерпаны и их следует перевыпустить (`POST /v1/security/recovery-codes`).
+      Поле отсутствует, если 2FA выключена (`auth_2fa_type`: `NONE`).
+    type: integer
+    minimum: 0
+    example: 8
   realms:
     type: array
     items:

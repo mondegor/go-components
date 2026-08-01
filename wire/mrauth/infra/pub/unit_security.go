@@ -145,6 +145,11 @@ func initSecurityController(
 		},
 	)
 
+	useCaseGetTOTPGeneratorSecret := security.NewGetTOTPGeneratorSecret(
+		storageSecureOperation,
+		totpAuthenticator,
+	)
+
 	useCaseRenderTOTPGeneratorQR := security.NewRenderTOTPGeneratorQR(
 		storageSecureOperation,
 		totpAuthenticator,
@@ -201,6 +206,7 @@ func initSecurityController(
 		useCaseChangePasswordProperty,
 		useCaseApplyPassword,
 		useCaseChangeTOTPProperty,
+		useCaseGetTOTPGeneratorSecret,
 		useCaseRenderTOTPGeneratorQR,
 		useCaseApplyTOTPGenerator,
 		useCaseRegenerateRecovery,

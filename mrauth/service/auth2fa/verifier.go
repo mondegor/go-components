@@ -4,7 +4,9 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/mondegor/go-core/errors"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
@@ -102,6 +104,11 @@ func (v *Verifier) Verify(
 ) (ok bool, commit func(ctx context.Context) error, err error) {
 	row, err := v.storage.FetchOne(ctx, userID)
 	if err != nil {
+		// строки 2FA нет: она удалена между созданием операции и её подтверждением
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+			return false, nil, mrauth.ErrAuth2FAIsDisabled
+		}
+
 		return false, nil, err
 	}
 
@@ -137,7 +144,18 @@ func (v *Verifier) Verify(
 			}
 
 			commit = func(ctx context.Context) error {
-				return v.storage.UpdateTOTPStep(ctx, userID, timeStep)
+				if err := v.storage.UpdateTOTPStep(ctx, userID, timeStep); err != nil {
+					// шаг не продвинулся: тот же time-step уже израсходован конкурентным
+					// подтверждением (либо строку 2FA удалили - одним UPDATE эти случаи
+					// не различить, и на исход это не влияет)
+					if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+						return mrauth.ErrEventAuth2FACodeAlreadyUsed
+					}
+
+					return err
+				}
+
+				return nil
 			}
 
 			return true, commit, nil
@@ -180,11 +198,16 @@ func (v *Verifier) tryRecovery(
 		commit := func(ctx context.Context) error {
 			remaining, err := v.storage.UpdateRecoveryCode(ctx, userID, hash)
 			if err != nil {
+				// хеша в наборе уже нет: код израсходован конкурентным подтверждением
+				if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+					return mrauth.ErrEventAuth2FACodeAlreadyUsed
+				}
+
 				return err
 			}
 
-			// сообщаем остаток аварийных кодов; нужно ли уведомлять пользователя
-			// (порог) - решает alerter. Вызов идёт в той же транзакции подтверждения.
+			// сообщается остаток аварийных кодов; нужно ли уведомлять пользователя
+			// (порог) - решает alerter. Вызов идёт в той же транзакции подтверждения
 			return v.recoveryAlerter.SendAlert(ctx, userID, remaining)
 		}
 

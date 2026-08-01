@@ -49,7 +49,7 @@ func NewResendCode(
 		notifierAPI:       notifierAPI,
 		operationPreparer: operationPreparer,
 		logOperation:      logOperation,
-		errorWrapper:      errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:      errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
@@ -60,8 +60,12 @@ func (co *ResendCode) Execute(
 	actor dto.ActorMeta,
 	langCode, operationToken string,
 ) (op secureoperation.SecureOperation, err error) {
+	if langCode == "" {
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("langCode is empty")
+	}
+
 	if operationToken == "" {
-		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("operationToken is empty")
+		return secureoperation.SecureOperation{}, secureoperation.ErrOperationInvalid
 	}
 
 	// resendCodeErr - бизнес-результат временной невозможности повторной отправки кода.
@@ -73,6 +77,10 @@ func (co *ResendCode) Execute(
 	err = co.txManager.Do(ctx, func(ctx context.Context) error {
 		op, err = co.storageOperation.FetchOneForUpdate(ctx, operationToken)
 		if err != nil {
+			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+				return secureoperation.ErrOperationInvalid
+			}
+
 			return co.errorWrapper.Wrap(err)
 		}
 
@@ -82,10 +90,21 @@ func (co *ResendCode) Execute(
 
 		op, err = co.operationPreparer.Prepare(op)
 		if err != nil {
-			if errors.Is(err, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted) {
+			// временный троттл и окончательно израсходованные отправки - оба бизнес-результат,
+			// а не сбой: транзакция должна закоммититься, чтобы клиент получил актуальные
+			// счётчики операции вместе с ошибкой
+			if errors.Is(err, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted) ||
+				errors.Is(err, secureoperation.ErrNoAttemptsToResendCode) {
 				resendCodeErr = err
 				operationLogStatus = logstatus.Blocked
-				operationLogReason = logreason.Throttled
+
+				// в журнале «ещё рано» и «уже никогда» - разные причины: по первой клиент
+				// вернётся, по второй операцию придётся создавать заново
+				if errors.Is(err, secureoperation.ErrNoAttemptsToResendCode) {
+					operationLogReason = logreason.ResendsExhausted
+				} else {
+					operationLogReason = logreason.Throttled
+				}
 
 				return nil
 			}

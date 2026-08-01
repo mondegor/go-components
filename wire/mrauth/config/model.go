@@ -148,5 +148,11 @@ type (
 		LogsLifeTime             time.Duration               `yaml:"logs_life_time"`
 		UserStatRequestCollector processcfg.MessageCollector `yaml:"user_stat_request_collector"`
 		OperationLogCollector    processcfg.MessageCollector `yaml:"operation_log_collector"`
+
+		// TrimSessions - фоновая чистка лишних сессий. Её период приложение отдаёт не только
+		// планировщику, но и как sessionLimitRetryAfter модулю Auth: именно эта задача
+		// освобождает место под новую сессию, поэтому её период и есть срок повторной попытки
+		// входа, отклонённого по hard-порогу лимита сессий (заголовок Retry-After ответа 429).
+		TrimSessions processcfg.SchedulerTask `yaml:"trim_sessions"`
 	}
 )

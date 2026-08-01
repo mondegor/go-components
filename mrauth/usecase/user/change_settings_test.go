@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	coreerrors "github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -70,6 +71,31 @@ func (s *ChangeSettingsSuite) TestExecute() {
 		Return(nil)
 
 	s.Require().NoError(s.uc.Execute(s.ctx, userID, "ja-JP", "Asia/Tokyo"))
+}
+
+// TestExecuteEmptyRequiredArgs - метод доступен только залогиненным, а язык и пояс приходят
+// уже определёнными по запросу, поэтому пустое значение здесь - ошибка проводки
+// (моки хранилищ и транзакции без EXPECT: любой вызов провалит тест).
+func (s *ChangeSettingsSuite) TestExecuteEmptyRequiredArgs() {
+	type testCase struct {
+		name     string
+		userID   uuid.UUID
+		langCode string
+		timeZone string
+	}
+
+	tests := []testCase{
+		{name: "empty userId", userID: uuid.Nil, langCode: "ru-RU", timeZone: "Europe/Moscow"},
+		{name: "empty langCode", userID: uuid.New(), timeZone: "Europe/Moscow"},
+		{name: "empty timeZone", userID: uuid.New(), langCode: "ru-RU"},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			err := s.uc.Execute(s.ctx, tt.userID, tt.langCode, tt.timeZone)
+			s.Require().ErrorIs(err, coreerrors.ErrInternalIncorrectInputData)
+		})
+	}
 }
 
 // TestExecuteStorageError - ошибка сохранения профиля доходит до вызывающего,

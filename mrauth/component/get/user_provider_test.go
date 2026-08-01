@@ -14,7 +14,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/component/get"
 	"github.com/mondegor/go-components/mrauth/component/get/mock"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/repository"
 )
 
 //go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth AuthTokenFetcher
@@ -61,10 +60,21 @@ func (s *UserProviderSuite) TestNoRecordFound() {
 
 func (s *UserProviderSuite) TestTokenExpired() {
 	s.storage.EXPECT().FetchOneByAccessToken(gomock.Any(), "tok").
-		Return(dto.UserScopes{}, repository.ErrTokenExpired)
+		Return(dto.UserScopes{}, mrauth.ErrEventTokenExpired)
 
 	_, err := s.co.UserByToken(s.ctx, "tok")
 	s.Require().ErrorIs(err, mrauth.ErrTokenNotFoundOrExpired)
+}
+
+// TestTokenInvalid - токен, не разобравшийся структурно (например, JWT с битой подписью),
+// отличим от неизвестного и истёкшего: он заведомо не выдавался этим сервисом.
+func (s *UserProviderSuite) TestTokenInvalid() {
+	s.storage.EXPECT().FetchOneByAccessToken(gomock.Any(), "tok").
+		Return(dto.UserScopes{}, mrauth.ErrTokenInvalid)
+
+	_, err := s.co.UserByToken(s.ctx, "tok")
+	s.Require().ErrorIs(err, mrauth.ErrTokenInvalid)
+	s.NotErrorIs(err, mrauth.ErrTokenNotFoundOrExpired)
 }
 
 func (s *UserProviderSuite) TestOtherError() {

@@ -41,18 +41,18 @@ func (m *Mockuser2faBinder) EXPECT() *Mockuser2faBinderMockRecorder {
 	return m.recorder
 }
 
-// InsertOrUpdate mocks base method.
-func (m *Mockuser2faBinder) InsertOrUpdate(ctx context.Context, row entity.Auth2FA) error {
+// Insert mocks base method.
+func (m *Mockuser2faBinder) Insert(ctx context.Context, row entity.Auth2FA) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertOrUpdate", ctx, row)
+	ret := m.ctrl.Call(m, "Insert", ctx, row)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// InsertOrUpdate indicates an expected call of InsertOrUpdate.
-func (mr *Mockuser2faBinderMockRecorder) InsertOrUpdate(ctx, row any) *gomock.Call {
+// Insert indicates an expected call of Insert.
+func (mr *Mockuser2faBinderMockRecorder) Insert(ctx, row any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertOrUpdate", reflect.TypeOf((*Mockuser2faBinder)(nil).InsertOrUpdate), ctx, row)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*Mockuser2faBinder)(nil).Insert), ctx, row)
 }
 
 // MockrecoveryCodesGenerator is a mock of recoveryCodesGenerator interface.

@@ -1,6 +1,20 @@
 get:
   summary: Auth/SES/R1. Метод получения списка открытых сессий пользователя
-  description: Метод предназначен для получения из БД списка открытых сессий пользователя
+  description: |-
+    Метод предназначен для получения из БД списка открытых сессий пользователя.
+
+    По умолчанию возвращаются сессии realm'а предъявленного access-токена. Query-параметром
+    `realm` можно запросить сессии другого realm'а — при условии, что пользователь к нему
+    привязан.
+
+    ### Значения `code` в ответе `400`
+    - `ValidateError/realm` — параметр не проходит проверку схемы (в т.ч. когда указанный
+      realm не входит в список realm'ов приложения); пустое `?realm=` не эквивалентно
+      отсутствию параметра и валидацию не проходит;
+
+    ### Причины ответа `403`
+    - пользователь не привязан к запрошенному realm'у;
+    - общие причины отказа — см. «Аутентификация и доступ» в описании API;
   operationId: getUserSessions
   tags:
     - Auth.Sessions
@@ -19,7 +33,11 @@ get:
             type: array
             items:
               $ref: "../components/models/Auth.Sessions.Response.Model.UserSession.yaml"
+    "400":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
     "401":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
+    "403":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

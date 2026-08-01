@@ -13,8 +13,8 @@ type (
 		Roles []string
 	}
 
-	// CreateUserRealm - сообщение для получателя.
-	CreateUserRealm struct {
+	// CreateRealmUser - сообщение для получателя.
+	CreateRealmUser struct {
 		Name     string
 		UserKind string
 	}

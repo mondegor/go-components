@@ -1,6 +1,8 @@
 package unit
 
 import (
+	"time"
+
 	"github.com/mondegor/go-core/mrtype"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -20,9 +22,15 @@ type (
 	CreateUser struct {
 		realm          string
 		userKind       string
-		actionCreator  mrauth.ConfirmByAddressCreator
+		actionCreator  confirmByEmailCreator
 		tokenGenerator mrauth.TokenGenerator
 		codeGenerator  mrauth.CodeGenerator
+	}
+
+	// confirmByEmailCreator - фабрика действия подтверждения по email, знающая срок его жизни.
+	confirmByEmailCreator interface {
+		Create(address contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error)
+		Expiry() time.Duration
 	}
 )
 
@@ -46,6 +54,14 @@ func NewCreateUser(
 // Name - возвращает название создаваемой операции.
 func (o *CreateUser) Name() string {
 	return NameConfirmCreateUser
+}
+
+// Expiry - возвращает срок жизни первого действия подтверждения создаваемой операции,
+// т.е. срок, в течение которого действителен уже отправленный код (в т.ч. когда он
+// подставлен по умолчанию). Это нижняя граница жизни самой операции: повторная отправка
+// кода и переход ко второму, 2FA-шагу продлевают её ExpiresAt на свой Expiry заново.
+func (o *CreateUser) Expiry() time.Duration {
+	return o.actionCreator.Expiry()
 }
 
 // Create - создаёт операцию создания пользователя по его email. Если email уже принадлежит

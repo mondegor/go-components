@@ -5,12 +5,15 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mraccess"
 	modelmedia "github.com/mondegor/go-core/mrmodel/media"
 	"github.com/mondegor/go-webcore/mrserver"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
+	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
 )
@@ -22,7 +25,8 @@ const (
 	securityPasswordURL            = "/v1/security/password"
 	securityApplyPasswordURL       = "/v1/security/apply-password" //nolint:gosec
 	securityTOTPGeneratorURL       = "/v1/security/totp"
-	securityRenderTOTPGeneratorURL = "/v1/security/totp/{token}"
+	securityTOTPGeneratorSecretURL = "/v1/security/totp/{token}"
+	securityRenderTOTPGeneratorURL = "/v1/security/totp/{token}/qrcode"
 	securityApplyTOTPGeneratorURL  = "/v1/security/apply-totp"
 	securityRecoveryCodesURL       = "/v1/security/recovery-codes"
 	securityApplyRecoveryCodesURL  = "/v1/security/apply-recovery-codes"
@@ -40,6 +44,7 @@ type (
 		useCaseChangePasswordProperty changePasswordUseCase
 		useCaseApplyPassword          applyPasswordUseCase
 		useCaseChangeTOTPProperty     changeTOTPGeneratorUseCase
+		useCaseGetTOTPGeneratorSecret getTOTPGeneratorSecretUseCase
 		useCaseRenderTOTPGeneratorQR  renderTOTPGeneratorQRUseCase
 		useCaseApplyTOTPGenerator     applyTOTPGeneratorUseCase
 		useCaseRegenerateRecovery     regenerateRecoveryUseCase
@@ -49,11 +54,11 @@ type (
 	}
 
 	changeEmailUseCase interface {
-		Execute(ctx context.Context, actor dto.ActorMeta, newEmail string) (secureoperation.SecureOperation, error)
+		Execute(ctx context.Context, actor dto.ActorMeta, newEmail contactaddress.ContactAddress) (secureoperation.SecureOperation, error)
 	}
 
 	changePhoneUseCase interface {
-		Execute(ctx context.Context, actor dto.ActorMeta, newPhone string) (secureoperation.SecureOperation, error)
+		Execute(ctx context.Context, actor dto.ActorMeta, newPhone contactaddress.ContactAddress) (secureoperation.SecureOperation, error)
 	}
 
 	applyOperationUseCase interface {
@@ -70,6 +75,10 @@ type (
 
 	changeTOTPGeneratorUseCase interface {
 		Execute(ctx context.Context, actor dto.ActorMeta) (secureoperation.SecureOperation, error)
+	}
+
+	getTOTPGeneratorSecretUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID, operationToken string) (dto.TOTPGeneratorSecret, error)
 	}
 
 	renderTOTPGeneratorQRUseCase interface {
@@ -103,6 +112,7 @@ func NewSecurity(
 	useCaseChangePasswordProperty changePasswordUseCase,
 	useCaseApplyPassword applyPasswordUseCase,
 	useCaseChangeTOTPProperty changeTOTPGeneratorUseCase,
+	useCaseGetTOTPGeneratorSecret getTOTPGeneratorSecretUseCase,
 	useCaseRenderTOTPGeneratorQR renderTOTPGeneratorQRUseCase,
 	useCaseApplyTOTPGenerator applyTOTPGeneratorUseCase,
 	useCaseRegenerateRecovery regenerateRecoveryUseCase,
@@ -119,6 +129,7 @@ func NewSecurity(
 		useCaseChangePasswordProperty: useCaseChangePasswordProperty,
 		useCaseApplyPassword:          useCaseApplyPassword,
 		useCaseChangeTOTPProperty:     useCaseChangeTOTPProperty,
+		useCaseGetTOTPGeneratorSecret: useCaseGetTOTPGeneratorSecret,
 		useCaseRenderTOTPGeneratorQR:  useCaseRenderTOTPGeneratorQR,
 		useCaseApplyTOTPGenerator:     useCaseApplyTOTPGenerator,
 		useCaseRegenerateRecovery:     useCaseRegenerateRecovery,
@@ -137,6 +148,7 @@ func (ht *Security) Handlers() []mrserver.HttpHandler {
 		{Method: http.MethodPost, URL: securityPasswordURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangePassword},
 		{Method: http.MethodPost, URL: securityApplyPasswordURL, Permission: mraccess.PermissionAnyUser, Func: ht.ApplyPassword},
 		{Method: http.MethodPost, URL: securityTOTPGeneratorURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangeTOTPGenerator},
+		{Method: http.MethodGet, URL: securityTOTPGeneratorSecretURL, Permission: mraccess.PermissionAnyUser, Func: ht.GetTOTPGeneratorSecret},
 		{Method: http.MethodGet, URL: securityRenderTOTPGeneratorURL, Permission: mraccess.PermissionAnyUser, Func: ht.RenderTOTPGeneratorQR},
 		{Method: http.MethodPost, URL: securityApplyTOTPGeneratorURL, Permission: mraccess.PermissionAnyUser, Func: ht.ApplyTOTPGenerator},
 		{Method: http.MethodPost, URL: securityRecoveryCodesURL, Permission: mraccess.PermissionAnyUser, Func: ht.RegenerateRecoveryCodes},
@@ -153,8 +165,12 @@ func (ht *Security) ChangeEmail(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	op, err := ht.useCaseChangeEmailProperty.Execute(r.Context(), ht.userActor(r), req.NewEmail)
+	op, err := ht.useCaseChangeEmailProperty.Execute(r.Context(), ht.userActor(r), contactaddress.NewEmail(req.NewEmail))
 	if err != nil {
+		if errors.Is(err, mrauth.ErrEmailAlreadyExists) {
+			return errors.WithCustomCode(err, "new_email")
+		}
+
 		return err
 	}
 
@@ -176,8 +192,12 @@ func (ht *Security) ChangePhone(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	op, err := ht.useCaseChangePhoneProperty.Execute(r.Context(), ht.userActor(r), req.NewPhone)
+	op, err := ht.useCaseChangePhoneProperty.Execute(r.Context(), ht.userActor(r), contactaddress.NewPhone(req.NewPhone))
 	if err != nil {
+		if errors.Is(err, mrauth.ErrPhoneAlreadyExists) {
+			return errors.WithCustomCode(err, "new_phone")
+		}
+
 		return err
 	}
 
@@ -200,7 +220,7 @@ func (ht *Security) ApplyOperation(w http.ResponseWriter, r *http.Request) error
 	}
 
 	if err := ht.useCaseApplyOperation.Execute(r.Context(), ht.userActor(r), req.Token); err != nil {
-		return err
+		return wrapOperationError(err, "token")
 	}
 
 	return ht.sender.SendNoContent(w)
@@ -240,7 +260,7 @@ func (ht *Security) ApplyPassword(w http.ResponseWriter, r *http.Request) error 
 
 	codes, err := ht.useCaseApplyPassword.Execute(r.Context(), ht.userActor(r), req.Token)
 	if err != nil {
-		return err
+		return wrapOperationError(err, "token")
 	}
 
 	return ht.sender.Send(w, http.StatusOK, model.RecoveryCodesResponse{RecoveryCodes: codes})
@@ -263,11 +283,29 @@ func (ht *Security) ChangeTOTPGenerator(w http.ResponseWriter, r *http.Request) 
 	)
 }
 
+// GetTOTPGeneratorSecret - возвращает secret TOTP генератора и otpauth-ссылку на него
+// для ручного добавления генератора в приложение (альтернатива сканированию QR-кода).
+func (ht *Security) GetTOTPGeneratorSecret(w http.ResponseWriter, r *http.Request) error {
+	item, err := ht.useCaseGetTOTPGeneratorSecret.Execute(r.Context(), ht.parser.UserID(r), ht.getRawToken(r))
+	if err != nil {
+		return wrapOperationError(err, "") // токен пришёл path-параметром, поля запроса нет
+	}
+
+	return ht.sender.Send(
+		w,
+		http.StatusOK,
+		model.TOTPGeneratorSecretResponse{
+			Secret:     item.Secret,
+			OTPAuthURI: item.OTPAuthURI,
+		},
+	)
+}
+
 // RenderTOTPGeneratorQR - возвращает QR-код TOTP генератора, построенный из секрета подтверждённой операции.
 func (ht *Security) RenderTOTPGeneratorQR(w http.ResponseWriter, r *http.Request) error {
 	totpImage, err := ht.useCaseRenderTOTPGeneratorQR.Execute(r.Context(), ht.parser.UserID(r), ht.getRawToken(r))
 	if err != nil {
-		return err
+		return wrapOperationError(err, "") // токен пришёл path-параметром, поля запроса нет
 	}
 
 	return ht.sender.SendFile(
@@ -287,7 +325,11 @@ func (ht *Security) ApplyTOTPGenerator(w http.ResponseWriter, r *http.Request) e
 
 	codes, err := ht.useCaseApplyTOTPGenerator.Execute(r.Context(), ht.userActor(r), req.Token, req.Code)
 	if err != nil {
-		return err
+		if errors.Is(err, mrauth.ErrTOTPCodeIsIncorrect) {
+			return errors.WithCustomCode(err, "totp_code")
+		}
+
+		return wrapOperationError(err, "token")
 	}
 
 	return ht.sender.Send(w, http.StatusOK, model.RecoveryCodesResponse{RecoveryCodes: codes})
@@ -321,7 +363,7 @@ func (ht *Security) ApplyRecoveryCodes(w http.ResponseWriter, r *http.Request) e
 
 	codes, err := ht.useCaseApplyRecovery.Execute(r.Context(), ht.userActor(r), req.Token)
 	if err != nil {
-		return err
+		return wrapOperationError(err, "token")
 	}
 
 	return ht.sender.Send(w, http.StatusOK, model.RecoveryCodesResponse{RecoveryCodes: codes})

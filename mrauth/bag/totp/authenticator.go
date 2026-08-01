@@ -93,7 +93,7 @@ func (a *Authenticator) GenerateCode(secret string, t time.Time) (string, error)
 // QRImage - строит QR-код TOTP-генератора для указанного аккаунта и секрета
 // размером width x height.
 func (a *Authenticator) QRImage(accountName, secret string, width, height int) (image.Image, error) {
-	key, err := pqotp.NewKeyFromURL(a.otpAuthURL(accountName, secret))
+	key, err := pqotp.NewKeyFromURL(a.OTPAuthURL(accountName, secret))
 	if err != nil {
 		return nil, errors.WrapInternalError(err, "failed to parse otpauth URL")
 	}
@@ -106,8 +106,11 @@ func (a *Authenticator) QRImage(accountName, secret string, width, height int) (
 	return img, nil
 }
 
-// otpAuthURL - собирает otpauth-URL для построения QR из сохранённого секрета.
-func (a *Authenticator) otpAuthURL(account, secret string) string {
+// OTPAuthURL - собирает otpauth-URL по сохранённому секрету: из него строится QR-код,
+// и он же отдаётся клиенту для ручного добавления генератора в приложение.
+// Параметры генератора (период, число цифр, алгоритм) в URL не пишутся: используемые
+// значения совпадают с дефолтными для otpauth (30с, 6 цифр, SHA1).
+func (a *Authenticator) OTPAuthURL(account, secret string) string {
 	query := url.Values{}
 	query.Set("secret", secret)
 	query.Set("issuer", a.issuer)

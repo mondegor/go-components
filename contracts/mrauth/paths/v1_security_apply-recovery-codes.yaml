@@ -5,6 +5,28 @@ post:
     `POST /v1/security/recovery-codes`. Набор аварийных кодов заменяется на новый и единоразово
     возвращается (старые коды становятся недействительными, новые нужно сохранить — повторно
     они не показываются).
+
+    ### Влияние на сессии
+    Сессии и токены не затрагиваются: текущая сессия сохраняется, refresh токен не ротируется,
+    остальные открытые сессии не закрываются, повторный вход не требуется. Клиенту достаточно
+    перечитать профиль (`GET /v1/user`). Закрыть прочие сессии пользователь при желании может
+    сам — `GET /v1/sessions` и `POST /v1/sessions/close`.
+
+    ### Значения `code` в ответе `400`
+    - `ValidateError/token` — токен операции не указан или не проходит проверку схемы;
+    - `OperationInvalid/token` — токен операции неизвестен, истёк или уже использован;
+    - `OperationIsNotConfirmed/token` — операция ещё не подтверждена: сначала нужно пройти
+      подтверждение через `PATCH /v1/operation/confirm`;
+    - `OperationAlreadyExpired/token` — срок жизни операции истёк, её нужно создавать заново;
+
+    ### Причины ответа `403`
+    - указанная операция принадлежит другому пользователю;
+    - токен указывает на операцию другого типа, а не на перевыпуск аварийных кодов
+      (`POST /v1/security/recovery-codes`);
+    - общие причины отказа — см. «Аутентификация и доступ» в описании API;
+
+    ### Причины ответа `409`
+    - 2FA была отключена после создания операции: перевыпускать аварийные коды нечему;
   operationId: applyUser2faRecoveryCodes
   tags:
     - Auth.Security
@@ -25,12 +47,14 @@ post:
           schema:
             $ref: "../components/models/Auth.Security.Response.RecoveryCodes.yaml"
     "400":
-      # Токен операции должен быть указан
-      # Токен операции некорректен или недействителен
       $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
     "401":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
     "403":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    "409":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error409.yaml"
+    "422":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error422.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

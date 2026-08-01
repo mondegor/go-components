@@ -1,7 +1,7 @@
 package secureoperation
 
 import (
-	"github.com/mondegor/go-core/errors"
+	"errors"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
@@ -28,20 +28,17 @@ func NewResendCode(
 
 // Prepare - генерирует новый токен и код подтверждения для повторной отправки кода операции.
 func (o *ResendCode) Prepare(op secureoperation.SecureOperation) (secureoperation.SecureOperation, error) {
-	// if item.Payload["audience"] == "" {
-	// 	return 0, errors.New("invalid operation token")
-	// }
-	//
-	// if item.Payload["visitor_id"] == "" {
-	// 	return 0, errors.New("invalid operation token")
-	// }
 	token, err := o.tokenGenerator.GenToken()
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
 
 	if err = op.ActivateResendCode(token); err != nil {
-		if errors.Is(err, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted) {
+		// временный троттл и окончательно израсходованные отправки - оба бизнес-результат,
+		// а не сбой: операция обязана вернуться вместе с ошибкой, иначе вызывающий не сможет
+		// отдать клиенту актуальные счётчики операции
+		if errors.Is(err, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted) ||
+			errors.Is(err, secureoperation.ErrNoAttemptsToResendCode) {
 			return op, err // WARNING: 'op' используется с этой ошибкой
 		}
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	sysmesserrors "github.com/mondegor/go-core/errors"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
@@ -79,6 +80,19 @@ func (s *ConfirmCodeSuite) newOpWithSingleTOTPAction(userID uuid.UUID) secureope
 	s.Require().NoError(err)
 
 	return op
+}
+
+// TestEmptyConfirmCodeRejected - пустой секрет сюда попасть не может: вызывающий отсекает его
+// до Prepare. Поэтому это нарушение контракта, а не пользовательский ввод, и отдаётся внутренней
+// ошибкой, а не «введено неверно»; верификатор при этом не дёргается.
+func (s *ConfirmCodeSuite) TestEmptyConfirmCodeRejected() {
+	s.verifier.EXPECT().Verify(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "")
+	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
+	s.Require().NotErrorIs(err, secureoperation_model.ErrConfirmCodeIsIncorrect)
+	s.False(out.Is(operationstatus.Confirmed))
+	s.Nil(commitConfirmed)
 }
 
 func (s *ConfirmCodeSuite) TestTOTPVerifiedNoConsume() {

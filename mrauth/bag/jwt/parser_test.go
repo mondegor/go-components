@@ -56,27 +56,88 @@ func TestParser_Parse_SectionInvalid(t *testing.T) {
 	t.Parallel()
 
 	type testCase struct {
-		name   string
-		mutate func(claims gojwt.MapClaims)
+		name    string
+		mutate  func(claims gojwt.MapClaims)
+		wantErr string
 	}
 
 	tests := []testCase{
-		{name: "aud absent", mutate: func(c gojwt.MapClaims) { delete(c, "aud") }},
-		{name: "sub absent", mutate: func(c gojwt.MapClaims) { delete(c, "sub") }},
-		{name: "sid absent", mutate: func(c gojwt.MapClaims) { delete(c, "sid") }},
-		{name: "lan absent", mutate: func(c gojwt.MapClaims) { delete(c, "lan") }},
-		{name: "tz absent", mutate: func(c gojwt.MapClaims) { delete(c, "tz") }},
-		{name: "scope absent", mutate: func(c gojwt.MapClaims) { delete(c, "scope") }},
-		{name: "aud empty", mutate: func(c gojwt.MapClaims) { c["aud"] = "" }},
-		{name: "sid empty", mutate: func(c gojwt.MapClaims) { c["sid"] = "" }},
-		{name: "lan empty", mutate: func(c gojwt.MapClaims) { c["lan"] = "" }},
-		{name: "tz empty", mutate: func(c gojwt.MapClaims) { c["tz"] = "" }},
-		{name: "scope empty", mutate: func(c gojwt.MapClaims) { c["scope"] = "" }},
-		{name: "sub not uuid", mutate: func(c gojwt.MapClaims) { c["sub"] = "not-a-uuid" }},
-		{name: "sid not numeric", mutate: func(c gojwt.MapClaims) { c["sid"] = "abc" }},
-		{name: "scope wrong type", mutate: func(c gojwt.MapClaims) { c["scope"] = 123 }},
-		// парсер трактует 'aud' как одиночную строку (realm); массив (формат RFC 7519) не поддерживается
-		{name: "aud as array", mutate: func(c gojwt.MapClaims) { c["aud"] = []string{"site/admin"} }},
+		{
+			name:    "aud absent",
+			mutate:  func(c gojwt.MapClaims) { delete(c, "aud") },
+			wantErr: "jwt token claims[aud] is missing",
+		},
+		{
+			name:    "sub absent",
+			mutate:  func(c gojwt.MapClaims) { delete(c, "sub") },
+			wantErr: "jwt token claims[sub] is missing",
+		},
+		{
+			name:    "sid absent",
+			mutate:  func(c gojwt.MapClaims) { delete(c, "sid") },
+			wantErr: "jwt token claims[sid] is missing",
+		},
+		{
+			name:    "lan absent",
+			mutate:  func(c gojwt.MapClaims) { delete(c, "lan") },
+			wantErr: "jwt token claims[lan] is missing",
+		},
+		{
+			name:    "tz absent",
+			mutate:  func(c gojwt.MapClaims) { delete(c, "tz") },
+			wantErr: "jwt token claims[tz] is missing",
+		},
+		{
+			name:    "scope absent",
+			mutate:  func(c gojwt.MapClaims) { delete(c, "scope") },
+			wantErr: "jwt token claims[scope] is missing",
+		},
+		{
+			name:    "aud empty",
+			mutate:  func(c gojwt.MapClaims) { c["aud"] = "" },
+			wantErr: "jwt token claims[aud] is empty",
+		},
+		{
+			name:    "sid empty",
+			mutate:  func(c gojwt.MapClaims) { c["sid"] = "" },
+			wantErr: "jwt token claims[sid] is empty",
+		},
+		{
+			name:    "lan empty",
+			mutate:  func(c gojwt.MapClaims) { c["lan"] = "" },
+			wantErr: "jwt token claims[lan] is empty",
+		},
+		{
+			name:    "tz empty",
+			mutate:  func(c gojwt.MapClaims) { c["tz"] = "" },
+			wantErr: "jwt token claims[tz] is empty",
+		},
+		{
+			name:    "scope empty",
+			mutate:  func(c gojwt.MapClaims) { c["scope"] = "" },
+			wantErr: "jwt token claims[scope] is empty",
+		},
+		{
+			name:    "sub not uuid",
+			mutate:  func(c gojwt.MapClaims) { c["sub"] = "not-a-uuid" },
+			wantErr: "jwt token userID is invalid; expected: uuid type",
+		},
+		{
+			name:    "sid not numeric",
+			mutate:  func(c gojwt.MapClaims) { c["sid"] = "abc" },
+			wantErr: "jwt token sessionID is invalid; expected: uint32 type",
+		},
+		{
+			name:    "scope wrong type",
+			mutate:  func(c gojwt.MapClaims) { c["scope"] = 123 },
+			wantErr: "jwt token claims[scope] is invalid; expected: string type",
+		},
+		{
+			// парсер трактует 'aud' как одиночную строку (realm); массив (формат RFC 7519) не поддерживается
+			name:    "aud as array",
+			mutate:  func(c gojwt.MapClaims) { c["aud"] = []string{"site/admin"} },
+			wantErr: "jwt token claims[aud] is invalid; expected: string type",
+		},
 	}
 
 	for _, tt := range tests {
@@ -88,7 +149,7 @@ func TestParser_Parse_SectionInvalid(t *testing.T) {
 			token := signToken(t, claims, secret)
 
 			_, err := jwt.NewParser(hmacKeySet(t, secret)).Parse(token)
-			require.ErrorIs(t, err, jwt.ErrTokenSectionInvalid)
+			require.EqualError(t, err, tt.wantErr)
 		})
 	}
 }
@@ -122,5 +183,5 @@ func TestParser_Parse_WrongSecret(t *testing.T) {
 	token := signToken(t, validClaims(), "another-secret-value")
 
 	_, err := jwt.NewParser(hmacKeySet(t, secret)).Parse(token)
-	require.ErrorIs(t, err, jwt.ErrTokenInvalid)
+	require.ErrorContains(t, err, "jwt token is not parsed")
 }

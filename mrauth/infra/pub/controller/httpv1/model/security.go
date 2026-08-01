@@ -44,4 +44,11 @@ type (
 	RecoveryCodesResponse struct {
 		RecoveryCodes []string `json:"recovery_codes"`
 	}
+
+	// TOTPGeneratorSecretResponse - заготовка TOTP-генератора в текстовом виде: secret для
+	// ручного ввода и otpauth-ссылка с теми же параметрами, что закодированы в QR-коде.
+	TOTPGeneratorSecretResponse struct {
+		Secret     string `json:"secret"`
+		OTPAuthURI string `json:"otpauth_uri"`
+	}
 )

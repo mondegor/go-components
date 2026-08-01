@@ -23,6 +23,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
+	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/auth"
@@ -36,6 +37,10 @@ import (
 //go:generate mockgen -destination=mock/mrlock.go -package=mock github.com/mondegor/go-core/mrlock Locker
 //go:generate mockgen -destination=mock/mrnotifier.go -package=mock github.com/mondegor/go-components/mrnotifier NoteProducer
 //go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth User2FAConfirmActionCreator
+
+// testThrottleWindow - срок действия кода подтверждения, который отдаёт фабрика операции;
+// по нему же держится анти-спам лок повторной регистрации.
+const testThrottleWindow = 10 * time.Minute
 
 // testIP - IP регистрации, используемый во всех тестах создания пользователя.
 func testIP() mrtype.DetailedIP {
@@ -156,14 +161,32 @@ func (s *CreateSessionSuite) expectCheckLogin(err error) {
 	s.checker.EXPECT().CheckAvailabilityRealm(gomock.Any(), gomock.Any(), gomock.Any()).Return(err).AnyTimes()
 }
 
-func (s *CreateSessionSuite) TestEmptyLogin() {
-	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", "")
-	s.Require().Error(err)
+// realm от клиента проверен тегом tag_realm, поэтому промах здесь - нарушение инварианта.
+func (s *CreateSessionSuite) TestUnknownRealm() {
+	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "unknown", "en", contactaddress.NewEmail("user@example.com"))
+	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 
-func (s *CreateSessionSuite) TestUnknownRealm() {
-	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "unknown", "en", "user@example.com")
-	s.Require().Error(err)
+// язык и логин приходят уже определёнными по запросу,
+// поэтому пустое значение здесь - ошибка проводки, а не клиента.
+func (s *CreateSessionSuite) TestEmptyRequiredArgs() {
+	type testCase struct {
+		name      string
+		langCode  string
+		userLogin contactaddress.ContactAddress
+	}
+
+	tests := []testCase{
+		{name: "empty langCode", langCode: "", userLogin: contactaddress.NewEmail("user@example.com")},
+		{name: "empty userLogin", langCode: "en", userLogin: contactaddress.ContactAddress{}},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", tt.langCode, tt.userLogin)
+			s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
+		})
+	}
 }
 
 func (s *CreateSessionSuite) TestLoginDoesNotExist() {
@@ -174,7 +197,7 @@ func (s *CreateSessionSuite) TestLoginDoesNotExist() {
 		Return(newOpenedEmailOp(s.T()), nil).
 		AnyTimes()
 
-	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", "user@example.com")
+	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().ErrorIs(err, mrauth.ErrLoginNotExists)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
@@ -192,7 +215,7 @@ func (s *CreateSessionSuite) TestSuccess() {
 		AnyTimes()
 	s.expectOpen()
 
-	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", "user@example.com")
+	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().NoError(err)
 	s.Equal("confirm.create.session.by.email", s.openedNote)
 	// запись об открытии операции (и о вытеснении прежних) пишет компонент Opener,
@@ -207,8 +230,24 @@ func (s *CreateSessionSuite) TestCheckerError() {
 		Return(newOpenedEmailOp(s.T()), nil).
 		AnyTimes()
 
-	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", "user@example.com")
+	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().Error(err)
+}
+
+// TestCheckerRecordNotFoundIsInternal - строка пользователя пропала между проверкой логина и
+// созданием операции: это рассогласованное состояние БД, а не ответ клиенту. Наружу должна идти
+// внутренняя ошибка (500), а не errors.ErrRecordNotFound, который маппер отдал бы как 404 -
+// статус, которого контракт signin не объявляет.
+func (s *CreateSessionSuite) TestCheckerRecordNotFoundIsInternal() {
+	s.expectCheckLogin(sysmesserrors.ErrEventStorageNoRecordFound)
+	s.opFactory.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(newOpenedEmailOp(s.T()), nil).
+		AnyTimes()
+
+	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", contactaddress.NewEmail("user@example.com"))
+	s.Require().Error(err)
+	s.Require().NotErrorIs(err, sysmesserrors.ErrRecordNotFound)
 }
 
 type CreateUserSuite struct {
@@ -224,6 +263,10 @@ type CreateUserSuite struct {
 	opFactory    *mock.MockcreateUserOperation
 	logOperation *mock.MockoperationLogger
 	logEntries   []entity.SecureOperationLog
+
+	// аргументы, доехавшие до блокировщика емаила
+	gotLockKey    string
+	gotLockExpiry time.Duration
 
 	// аргументы, доехавшие до компонента открытия операции
 	openedNote  string
@@ -253,6 +296,8 @@ func (s *CreateUserSuite) SetupTest() {
 	s.opFactory = mock.NewMockcreateUserOperation(s.ctrl)
 	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
 	s.logEntries = nil
+	s.gotLockKey = ""
+	s.gotLockExpiry = 0
 	s.openedNote = ""
 	s.openedActor = dto.ActorMeta{}
 	s.gotUser2FA = dto.User2FA{}
@@ -263,6 +308,7 @@ func (s *CreateUserSuite) SetupTest() {
 	expectPassThroughTx(s.txManager)
 
 	s.opFactory.EXPECT().Name().Return(unit.NameConfirmCreateUser).AnyTimes()
+	s.opFactory.EXPECT().Expiry().Return(testThrottleWindow).AnyTimes()
 	s.logOperation.EXPECT().
 		Log(gomock.Any(), gomock.Any()).
 		Do(func(_ context.Context, entry entity.SecureOperationLog) {
@@ -287,7 +333,7 @@ func (s *CreateUserSuite) newUseCase() *auth.CreateUser {
 		s.factory2FA,
 		s.locker,
 		s.logOperation,
-		[]auth.CreateUserRealm{{Name: "shop", Operation: s.opFactory}},
+		[]auth.CreateRealmUser{{Name: "shop", Operation: s.opFactory}},
 	)
 }
 
@@ -312,17 +358,23 @@ func (s *CreateUserSuite) expect2FA(user dto.User2FA, err error) {
 	s.factory2FA.EXPECT().CreateByUserLogin(gomock.Any(), gomock.Any()).Return(user, err).AnyTimes()
 }
 
+// expectLock - блокировщик емаила запоминает доехавшие до него ключ и срок блокировки.
 func (s *CreateUserSuite) expectLock(err error) {
+	unlock := func() {}
 	if err != nil {
-		s.locker.EXPECT().Lock(gomock.Any(), gomock.Any()).Return(nil, err).AnyTimes()
-		s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, err).AnyTimes()
-
-		return
+		unlock = nil
 	}
 
-	unlock := func() {}
-	s.locker.EXPECT().Lock(gomock.Any(), gomock.Any()).Return(unlock, nil).AnyTimes()
-	s.locker.EXPECT().LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).Return(unlock, nil).AnyTimes()
+	s.locker.EXPECT().Lock(gomock.Any(), gomock.Any()).Return(unlock, err).AnyTimes()
+	s.locker.EXPECT().
+		LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, key string, expiry time.Duration) (func(), error) {
+			s.gotLockKey = key
+			s.gotLockExpiry = expiry
+
+			return unlock, err
+		}).
+		AnyTimes()
 }
 
 // expectCreateOperation - фабрика операции запоминает доехавшие до неё аргументы.
@@ -346,18 +398,51 @@ func (s *CreateUserSuite) expectCreateOperation(op secureoperation.SecureOperati
 		AnyTimes()
 }
 
+// realm от клиента проверен тегом tag_realm, поэтому промах здесь - нарушение инварианта.
 func (s *CreateUserSuite) TestUnknownRealm() {
 	s.expectHappyDeps()
 
-	_, err := s.newUseCase().Execute(s.ctx, "unknown", "en", testTZ(), "user@example.com", testIP())
-	s.Require().Error(err)
+	_, err := s.newUseCase().Execute(s.ctx, "unknown", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
+	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 
-func (s *CreateUserSuite) TestInvalidEmail() {
-	s.expectHappyDeps()
+// язык, часовой пояс и email приходят уже определёнными по запросу,
+// поэтому пустое значение здесь - ошибка проводки, а не клиента.
+func (s *CreateUserSuite) TestEmptyRequiredArgs() {
+	type testCase struct {
+		name      string
+		langCode  string
+		timeZone  string
+		userEmail contactaddress.ContactAddress
+	}
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "bad", testIP())
-	s.Require().Error(err)
+	tests := []testCase{
+		{name: "empty langCode", timeZone: testTZ(), userEmail: contactaddress.NewEmail("user@example.com")},
+		{name: "empty timeZone", langCode: "en", userEmail: contactaddress.NewEmail("user@example.com")},
+		{name: "empty userEmail", langCode: "en", timeZone: testTZ()},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			_, err := s.newUseCase().Execute(s.ctx, "shop", tt.langCode, tt.timeZone, tt.userEmail, testIP())
+			s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
+		})
+	}
+}
+
+// TestLockTakenForOperationExpiry - окно анти-спам троттла не отдельная настройка, а срок
+// действия отправляемого кода: лок обязан браться ровно на него, иначе email освободится раньше
+// или позже, чем истечёт уже отправленный код подтверждения.
+func (s *CreateUserSuite) TestLockTakenForOperationExpiry() {
+	s.expectHappyDeps()
+	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
+	s.expectOpen()
+
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
+	s.Require().NoError(err)
+	s.Equal(testThrottleWindow, s.gotLockExpiry)
+	// лок именной: он держится на паре (realm, email), а не на одном емаиле
+	s.Equal("auth.create-user:shop:user@example.com", s.gotLockKey)
 }
 
 func (s *CreateUserSuite) TestLockNotObtained() {
@@ -366,8 +451,16 @@ func (s *CreateUserSuite) TestLockNotObtained() {
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
 	s.Require().ErrorIs(err, mrauth.ErrSignupAlreadyInProgressTryLater)
+
+	// ошибка несёт срок повторной попытки: контроллер отдаёт его заголовком Retry-After,
+	// а знает окно троттла только здесь
+	var retryErr *mrauth.RetryAfterError
+
+	s.Require().ErrorAs(err, &retryErr)
+	s.Equal(testThrottleWindow, retryErr.RetryAfter)
+
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
 	s.Equal(logreason.Throttled, s.logEntries[0].Reason)
@@ -379,7 +472,7 @@ func (s *CreateUserSuite) TestSuccess() {
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 	s.expectOpen()
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
 	s.Require().NoError(err)
 	s.Equal(testIP(), s.gotRegisteredIP, "IP регистрации доезжает до фабрики операции")
 	s.Equal("confirm.user.activation", s.openedNote)
@@ -397,7 +490,7 @@ func (s *CreateUserSuite) TestSettingsForwardedAsIs() {
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 	s.expectOpen()
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en-US", "Asia/Tokyo", "user@example.com", testIP())
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en-US", "Asia/Tokyo", contactaddress.NewEmail("user@example.com"), testIP())
 	s.Require().NoError(err)
 	s.Equal("en-US", s.gotLangCode)
 	s.Equal("Asia/Tokyo", s.gotTimeZone)
@@ -409,8 +502,21 @@ func (s *CreateUserSuite) TestCheckerError() {
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
 	s.Require().Error(err)
+}
+
+// TestCheckerRecordNotFoundIsInternal - см. одноимённый тест CreateSessionSuite: отсутствие
+// строки на этапе проверки логина - рассогласование БД (500), а не 404 клиенту.
+func (s *CreateUserSuite) TestCheckerRecordNotFoundIsInternal() {
+	s.expectCheckLogin(sysmesserrors.ErrEventStorageNoRecordFound)
+	s.expectLock(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
+
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
+	s.Require().Error(err)
+	s.Require().NotErrorIs(err, sysmesserrors.ErrRecordNotFound)
 }
 
 func (s *CreateUserSuite) Test2FAFactoryError() {
@@ -419,7 +525,7 @@ func (s *CreateUserSuite) Test2FAFactoryError() {
 	s.expectCheckLogin(nil)
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
 	s.Require().Error(err)
 }
 
@@ -433,7 +539,7 @@ func (s *CreateUserSuite) TestNewEmailEmpty2FAForwarded() {
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 	s.expectOpen()
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
 	s.Require().NoError(err)
 	s.Equal(dto.User2FA{}, s.gotUser2FA)
 }
@@ -452,7 +558,7 @@ func (s *CreateUserSuite) TestExistingUser2FAForwarded() {
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 	s.expectOpen()
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), "user@example.com", testIP())
+	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
 	s.Require().NoError(err)
 	s.Equal(user2FA, s.gotUser2FA)
 }

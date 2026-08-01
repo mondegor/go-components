@@ -12,6 +12,7 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/request"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/validate"
@@ -59,9 +60,22 @@ func (ht *Session) Handlers() []mrserver.HttpHandler {
 
 // GetList - возвращает список открытых сессий текущего пользователя.
 func (ht *Session) GetList(w http.ResponseWriter, r *http.Request) error {
-	realm := ht.parser.FilterString(r, "realm")
+	req := model.UserSessionsRequest{
+		Realm: ht.parser.RawParamString(r, "realm"),
+	}
 
-	list, err := ht.useCase.GetList(r.Context(), ht.parser.UserID(r), request.AccessToken(r), realm)
+	if err := ht.parser.ValidateStruct(r.Context(), &req); err != nil {
+		return err
+	}
+
+	var paramRealm string
+
+	// отсутствующий realm = realm текущей сессии
+	if req.Realm != nil {
+		paramRealm = *req.Realm
+	}
+
+	list, err := ht.useCase.GetList(r.Context(), ht.parser.UserID(r), request.AccessToken(r), paramRealm)
 	if err != nil {
 		return err
 	}
@@ -101,10 +115,11 @@ func (ht *Session) Close(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	sessionIDs := make([]uint32, 0, len(req.SessionIDs))
-	for _, hash := range req.SessionIDs {
-		id, err := strconv.ParseUint(hash, 16, 32)
+	for _, sessionID := range req.SessionIDs {
+		// тег hexadecimal пропускает префикс 0x, а разбор числа - нет, поэтому ветка достижима
+		id, err := strconv.ParseUint(sessionID, 16, 32)
 		if err != nil {
-			return errors.WithCustomCode(errors.ErrIncorrectInputData.New(err), "hashes")
+			return errors.WithCustomCode(mrauth.ErrSessionIDIsInvalid, "session_ids")
 		}
 
 		sessionIDs = append(sessionIDs, uint32(id))

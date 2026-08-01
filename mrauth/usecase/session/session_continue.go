@@ -13,7 +13,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
-	"github.com/mondegor/go-components/mrauth/repository"
 )
 
 const (
@@ -56,7 +55,7 @@ func NewContinueSession(
 		tokenRecreator: tokenRecreator,
 		eventEmitter:   eventEmitter,
 		logOperation:   logOperation,
-		errorWrapper:   errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:   errors.NewServiceOperationFailedWrapper(),
 		logger:         logger,
 	}
 }
@@ -65,12 +64,12 @@ func NewContinueSession(
 // отозванного токена вне окна действия отзывает всю сессию.
 func (uc *ContinueSession) Execute(ctx context.Context, actor dto.ActorMeta, _, refreshToken string) (authToken dto.AuthTokenPair, err error) {
 	if refreshToken == "" {
-		return dto.AuthTokenPair{}, errors.ErrIncorrectInputData.New("refreshToken is empty")
+		return dto.AuthTokenPair{}, mrauth.ErrTokenNotFoundOrExpired
 	}
 
 	authToken, err = uc.tokenRecreator.Recreate(ctx, refreshToken)
 	if err != nil {
-		var tokenErr *repository.TokenAlreadyRevokedError
+		var tokenErr *mrauth.TokenAlreadyRevokedError
 
 		if errors.As(err, &tokenErr) {
 			// повторное использование отозванного refresh токена вне окна его действия
@@ -105,7 +104,7 @@ func (uc *ContinueSession) Execute(ctx context.Context, actor dto.ActorMeta, _, 
 			return dto.AuthTokenPair{}, mrauth.ErrTokenNotFoundOrExpired
 		}
 
-		if errors.Is(err, errors.ErrEventStorageNoRecordFound) || errors.Is(err, repository.ErrTokenExpired) {
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) || errors.Is(err, mrauth.ErrEventTokenExpired) {
 			return dto.AuthTokenPair{}, mrauth.ErrTokenNotFoundOrExpired
 		}
 

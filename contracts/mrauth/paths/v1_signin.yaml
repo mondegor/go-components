@@ -16,6 +16,17 @@ post:
     Если включена 2FA аутентификация по TOTP и доступ к TOTP генератору временно невозможен или он был утерян,
     то предоставляется возможность ввести один из аварийных TOTP кодов, которые были сгенерированы при подключении
     TOTP генератора.
+
+    ### Значения `code` в ответе `400`
+    - `ValidateError/realm` / `ValidateError/user_login` — поле не указано или не проходит
+      проверку схемы (в т.ч. когда realm не входит в список realm'ов приложения, а логин
+      не является емаилом/телефоном);
+    - `LoginNotExists/user_login` — пользователя с таким логином нет; суффикс указывает на поле
+      формы, чтобы ошибка села под поле ввода;
+
+    ### Причины ответа `403`
+    - метод гостевой: запрос выполнен с действующим access-токеном, то есть вызывающий уже
+      авторизован и повторно авторизовываться ему нельзя;
   operationId: authorizeUser
   tags:
     - Auth
@@ -36,12 +47,10 @@ post:
       # На емаил/телефон было отправлено сообщение с кодом подтверждения авторизации пользователя
       $ref: "../components/responses/Auth.ResponseJson.WaitingConfirmOperation.yaml"
     "400":
-      # Емаил/телефон должен быть указан
-      # Емаил/телефон некорректен или не существует такого пользователя
-      # Пользователь под емаилом/телефоном заблокирован в системе
-      # Пользователь отправил слишком много SMS за короткое время с указанного телефона (remainingResends <= 0);
       $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
     "403":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    "422":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error422.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

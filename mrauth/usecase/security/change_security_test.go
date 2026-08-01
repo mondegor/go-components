@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	coreerrors "github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/util/conv"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -15,6 +16,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
@@ -63,14 +65,15 @@ func userWith2FA(method confirmmethod.Enum) dto.User2FA {
 type ChangeSecuritySuite struct {
 	baseSuite
 
-	opener       *mock.MockoperationOpener
-	factory2FA   *mock.MockUser2FAConfirmActionCreator
-	valueFactory *mock.MockfactoryOperationValue2FA
-	opFactory    *mock.Mockuser2faOperationCreator
-	emailChecker *mock.MockuserEmailChecker
-	phoneChecker *mock.MockuserPhoneChecker
-	opened       bool
-	openedNote   string
+	opener         *mock.MockoperationOpener
+	factory2FA     *mock.MockUser2FAConfirmActionCreator
+	addressFactory *mock.MockfactoryOperationAddress2FA
+	secretFactory  *mock.MockfactoryOperationSecret2FA
+	opFactory      *mock.Mockuser2faOperationCreator
+	emailChecker   *mock.MockuserEmailChecker
+	phoneChecker   *mock.MockuserPhoneChecker
+	opened         bool
+	openedNote     string
 }
 
 func TestChangeSecuritySuite(t *testing.T) {
@@ -84,7 +87,8 @@ func (s *ChangeSecuritySuite) SetupTest() {
 
 	s.opener = mock.NewMockoperationOpener(s.ctrl)
 	s.factory2FA = mock.NewMockUser2FAConfirmActionCreator(s.ctrl)
-	s.valueFactory = mock.NewMockfactoryOperationValue2FA(s.ctrl)
+	s.addressFactory = mock.NewMockfactoryOperationAddress2FA(s.ctrl)
+	s.secretFactory = mock.NewMockfactoryOperationSecret2FA(s.ctrl)
 	s.opFactory = mock.NewMockuser2faOperationCreator(s.ctrl)
 	s.emailChecker = mock.NewMockuserEmailChecker(s.ctrl)
 	s.phoneChecker = mock.NewMockuserPhoneChecker(s.ctrl)
@@ -115,8 +119,11 @@ func (s *ChangeSecuritySuite) expect2FA(user dto.User2FA, err error) {
 	s.factory2FA.EXPECT().CreateByUserLogin(gomock.Any(), gomock.Any()).Return(user, err).AnyTimes()
 }
 
+// expectValueFactory - фабрики операций (по адресу и по секрету) отрабатывают одинаково:
+// тесты не различают их, поэтому ожидание ставится сразу на обе.
 func (s *ChangeSecuritySuite) expectValueFactory(op secureoperation.SecureOperation, err error) {
-	s.valueFactory.EXPECT().Create(gomock.Any(), gomock.Any()).Return(op, err).AnyTimes()
+	s.addressFactory.EXPECT().Create(gomock.Any(), gomock.Any()).Return(op, err).AnyTimes()
+	s.secretFactory.EXPECT().Create(gomock.Any(), gomock.Any()).Return(op, err).AnyTimes()
 }
 
 func (s *ChangeSecuritySuite) expectOpFactory(op secureoperation.SecureOperation, err error) {
@@ -132,15 +139,15 @@ func (s *ChangeSecuritySuite) expectPhoneChecker(err error) {
 }
 
 func (s *ChangeSecuritySuite) newChangeEmail() *security.ChangeEmailProperty {
-	return security.NewChangeEmailProperty(s.opener, s.emailChecker, s.factory2FA, s.valueFactory)
+	return security.NewChangeEmailProperty(s.opener, s.emailChecker, s.factory2FA, s.addressFactory)
 }
 
 func (s *ChangeSecuritySuite) newChangePassword() *security.ChangePasswordProperty {
-	return security.NewChangePasswordProperty(s.opener, s.factory2FA, s.valueFactory)
+	return security.NewChangePasswordProperty(s.opener, s.factory2FA, s.secretFactory)
 }
 
 func (s *ChangeSecuritySuite) newChangePhone() *security.ChangePhoneProperty {
-	return security.NewChangePhoneProperty(s.opener, s.phoneChecker, s.factory2FA, s.valueFactory)
+	return security.NewChangePhoneProperty(s.opener, s.phoneChecker, s.factory2FA, s.addressFactory)
 }
 
 func (s *ChangeSecuritySuite) newChangeTOTP() *security.ChangeTOTPGeneratorProperty {
@@ -157,7 +164,7 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertyNilUserID() {
 	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
 	s.expectEmailChecker(nil)
 
-	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{}, "new@example.com")
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{}, contactaddress.NewEmail("new@example.com"))
 	s.Require().Error(err)
 }
 
@@ -167,20 +174,10 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertySuccess() {
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(nil)
 
-	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new@example.com")
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
 	s.Require().NoError(err)
 	s.True(s.opened)
 	s.Equal("confirm.change.email", s.openedNote)
-}
-
-func (s *ChangeSecuritySuite) TestChangeEmailPropertyInvalidEmail() {
-	s.expectOpen(nil)
-	s.expect2FA(dto.User2FA{}, nil)
-	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
-	s.expectEmailChecker(nil)
-
-	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "bad")
-	s.Require().Error(err)
 }
 
 func (s *ChangeSecuritySuite) TestChangeEmailPropertyEmailUnavailable() {
@@ -189,7 +186,7 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertyEmailUnavailable() {
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(errors.New("taken"))
 
-	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new@example.com")
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
 	s.Require().Error(err)
 }
 
@@ -199,7 +196,7 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertyUser2FAFactoryError() {
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(nil)
 
-	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new@example.com")
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
 	s.Require().Error(err)
 }
 
@@ -209,7 +206,7 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertyOpenError() {
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(nil)
 
-	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new@example.com")
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
 	s.Require().Error(err)
 }
 
@@ -252,10 +249,37 @@ func (s *ChangeSecuritySuite) TestChangePasswordPropertyRejectedWhen2FAActive() 
 			s.expectValueFactory(openedEmailOp(s.T()), nil)
 
 			_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
-			s.Require().ErrorIs(err, mrauth.Err2FAMustBeDisabledFirst)
+			s.Require().ErrorIs(err, mrauth.ErrAuth2FAMustBeDisabledFirst)
 			s.False(s.opened)
 		})
 	}
+}
+
+// новое значение свойства провалидировано на границе ввода,
+// поэтому пустое значение здесь - ошибка проводки, а не клиента.
+func (s *ChangeSecuritySuite) TestChangePropertyEmptyNewValue() {
+	s.expectOpen(nil)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectValueFactory(openedEmailOp(s.T()), nil)
+	s.expectEmailChecker(nil)
+	s.expectPhoneChecker(nil)
+
+	actor := dto.ActorMeta{VisitorID: uuid.New()}
+
+	s.Run("empty newEmail", func() {
+		_, err := s.newChangeEmail().Execute(s.ctx, actor, contactaddress.ContactAddress{})
+		s.Require().ErrorIs(err, coreerrors.ErrInternalIncorrectInputData)
+	})
+
+	s.Run("empty newPhone", func() {
+		_, err := s.newChangePhone().Execute(s.ctx, actor, contactaddress.ContactAddress{})
+		s.Require().ErrorIs(err, coreerrors.ErrInternalIncorrectInputData)
+	})
+
+	s.Run("empty newPassword", func() {
+		_, err := s.newChangePassword().Execute(s.ctx, actor, "")
+		s.Require().ErrorIs(err, coreerrors.ErrInternalIncorrectInputData)
+	})
 }
 
 func (s *ChangeSecuritySuite) TestChangePhonePropertyNilUserID() {
@@ -264,7 +288,7 @@ func (s *ChangeSecuritySuite) TestChangePhonePropertyNilUserID() {
 	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
 	s.expectPhoneChecker(nil)
 
-	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{}, "79991234567")
+	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{}, contactaddress.NewPhone("79991234567"))
 	s.Require().Error(err)
 }
 
@@ -274,20 +298,10 @@ func (s *ChangeSecuritySuite) TestChangePhonePropertySuccess() {
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectPhoneChecker(nil)
 
-	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "79991234567")
+	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewPhone("79991234567"))
 	s.Require().NoError(err)
 	s.True(s.opened)
 	s.Equal("confirm.change.phone", s.openedNote)
-}
-
-func (s *ChangeSecuritySuite) TestChangePhonePropertyInvalidPhone() {
-	s.expectOpen(nil)
-	s.expect2FA(dto.User2FA{}, nil)
-	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
-	s.expectPhoneChecker(nil)
-
-	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "bad")
-	s.Require().Error(err)
 }
 
 func (s *ChangeSecuritySuite) TestChangePhonePropertyPhoneUnavailable() {
@@ -296,7 +310,7 @@ func (s *ChangeSecuritySuite) TestChangePhonePropertyPhoneUnavailable() {
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectPhoneChecker(errors.New("taken"))
 
-	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "79991234567")
+	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewPhone("79991234567"))
 	s.Require().Error(err)
 }
 
@@ -348,7 +362,7 @@ func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyRejectedWhen2FAActi
 			s.expectOpFactory(openedEmailOp(s.T()), nil)
 
 			_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
-			s.Require().ErrorIs(err, mrauth.Err2FAMustBeDisabledFirst)
+			s.Require().ErrorIs(err, mrauth.ErrAuth2FAMustBeDisabledFirst)
 			s.False(s.opened)
 		})
 	}
@@ -381,4 +395,87 @@ func (s *ChangeSecuritySuite) TestDisable2FAFactoryError() {
 
 	_, err := s.newDisable2FA().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
 	s.Require().Error(err)
+}
+
+// TestUserRowIsMissingIsInternal - строки пользователя нет, хотя access-токен предъявлен и
+// валиден: это рассогласованное состояние БД, а не ответ клиенту. Наружу должна идти внутренняя
+// ошибка (500), а не ошибка о недействительном токене и не errors.ErrRecordNotFound (404).
+// Проверяются все создающие методы: обёртка ошибок задаётся в каждом конструкторе отдельно,
+// поэтому одного usecase здесь недостаточно.
+func (s *ChangeSecuritySuite) TestUserRowIsMissingIsInternal() {
+	tests := []struct {
+		name string
+		call func() error
+	}{
+		{
+			name: "change email",
+			call: func() error {
+				_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
+
+				return err
+			},
+		},
+		{
+			name: "change phone",
+			call: func() error {
+				_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewPhone("79991234567"))
+
+				return err
+			},
+		},
+		{
+			name: "change password",
+			call: func() error {
+				_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
+
+				return err
+			},
+		},
+		{
+			name: "change totp",
+			call: func() error {
+				_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+
+				return err
+			},
+		},
+		{
+			name: "disable 2fa",
+			call: func() error {
+				_, err := s.newDisable2FA().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+
+				return err
+			},
+		},
+		{
+			name: "regenerate recovery codes",
+			call: func() error {
+				_, err := s.newRegenerateRecovery().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			s.expectOpen(nil)
+			s.expectEmailChecker(nil)
+			s.expectPhoneChecker(nil)
+			s.expectValueFactory(secureoperation.SecureOperation{}, nil)
+			s.expectOpFactory(secureoperation.SecureOperation{}, nil)
+
+			// фабрика второго фактора не нашла пользователя
+			s.expect2FA(dto.User2FA{}, coreerrors.ErrEventStorageNoRecordFound)
+
+			err := tt.call()
+			s.Require().Error(err)
+			s.Require().NotErrorIs(err, coreerrors.ErrRecordNotFound)
+			s.Require().NotErrorIs(err, secureoperation.ErrOperationInvalid)
+		})
+	}
+}
+
+func (s *ChangeSecuritySuite) newRegenerateRecovery() *security.RegenerateRecoveryProperty {
+	return security.NewRegenerateRecoveryProperty(s.opener, s.factory2FA, s.opFactory)
 }

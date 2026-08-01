@@ -1,6 +1,10 @@
 get:
   summary: Auth/R6. Метод получения информации о пользователе
-  description: Метод предназначен для получения информации из БД о текущем пользователе
+  description: |-
+    Метод предназначен для получения информации из БД о текущем пользователе.
+
+    ### Причины ответа `403`
+    - общие причины отказа — см. «Аутентификация и доступ» в описании API;
   operationId: getUserInfo
   tags:
     - Auth
@@ -16,5 +20,7 @@ get:
             $ref: "../components/models/Auth.Response.Model.UserInfo.yaml"
     "401":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
+    "403":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

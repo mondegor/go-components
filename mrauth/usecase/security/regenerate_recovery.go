@@ -32,7 +32,7 @@ func NewRegenerateRecoveryProperty(
 		opener:                      opener,
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
 		factoryOperationRegenerate:  factoryOperationRegenerate,
-		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:                errors.NewServiceOperationFailedWrapper(),
 	}
 }
 

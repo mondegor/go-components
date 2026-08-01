@@ -1,11 +1,11 @@
 package initing
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mraccess"
 	"github.com/mondegor/go-core/mrlog"
 	"github.com/mondegor/go-core/mrstorage"

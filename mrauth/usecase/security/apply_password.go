@@ -8,6 +8,7 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
@@ -15,6 +16,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrnotifier"
 )
@@ -53,7 +55,7 @@ func NewApplyPassword(
 		codeGenerator:    codeGenerator,
 		notifierAPI:      notifierAPI,
 		logOperation:     logOperation,
-		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 		recoveryCount:    recoveryCount,
 	}
 }
@@ -61,6 +63,8 @@ func NewApplyPassword(
 // Execute - проверяет, что операция смены пароля подтверждена, и в одной транзакции
 // привязывает пароль как 2FA, удаляет операцию, отправляет уведомление и возвращает
 // новые аварийные коды в открытом виде (показываются один раз).
+// Если к моменту применения 2FA уже включена (её успели включить другим способом после
+// создания операции), возвращает mrauth.ErrAuth2FAMustBeDisabledFirst.
 func (uc *ApplyPassword) Execute(
 	ctx context.Context,
 	actor dto.ActorMeta,
@@ -71,7 +75,7 @@ func (uc *ApplyPassword) Execute(
 	}
 
 	if operationToken == "" {
-		return nil, errors.ErrRecordNotFound // TODO: возможно, стоит возвращать ошибку о некорректном параметре
+		return nil, secureoperation.ErrOperationInvalid
 	}
 
 	var (
@@ -83,6 +87,10 @@ func (uc *ApplyPassword) Execute(
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		op, err := uc.storageOperation.FetchOneForUpdate(ctx, operationToken)
 		if err != nil {
+			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+				return secureoperation.ErrOperationInvalid
+			}
+
 			return uc.errorWrapper.Wrap(err)
 		}
 
@@ -104,7 +112,7 @@ func (uc *ApplyPassword) Execute(
 		if !op.Is(operationstatus.Confirmed) {
 			failedLogState = newLogState(logstatus.Blocked, logreason.NotConfirmed)
 
-			return errors.New("operation is not confirmed")
+			return secureoperation.ErrOperationIsNotConfirmed
 		}
 
 		payload, err := unit.ParseChangePasswordPayload(op.Payload)
@@ -119,7 +127,7 @@ func (uc *ApplyPassword) Execute(
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		if err = uc.storage.InsertOrUpdate(
+		if err = uc.storage.Insert(
 			ctx,
 			entity.Auth2FA{
 				UserID:        op.UserID,
@@ -128,6 +136,14 @@ func (uc *ApplyPassword) Execute(
 				RecoveryCodes: hashedCodes,
 			},
 		); err != nil {
+			// 2FA включили другим способом между созданием операции и её применением:
+			// активный второй фактор не перезатирается, его нужно сначала отключить
+			if errors.Is(err, errors.ErrInternalStorageDuplicateKeyViolation) {
+				failedLogState = newLogState(logstatus.Blocked, logreason.Auth2FAStateChanged)
+
+				return mrauth.ErrAuth2FAMustBeDisabledFirst
+			}
+
 			return uc.errorWrapper.Wrap(err)
 		}
 
@@ -139,8 +155,8 @@ func (uc *ApplyPassword) Execute(
 	})
 	if err != nil {
 		if failedLogState.isSet() {
-			// обращение к чужой, неподходящей или ещё не подтверждённой операции:
-			// фиксируем блокировку в журнале
+			// обращение к чужой, неподходящей или ещё не подтверждённой операции
+			// либо гонка с включением 2FA другим способом: фиксируем блокировку в журнале
 			uc.logOperation.Log(
 				ctx,
 				actor.NewOperationLog(

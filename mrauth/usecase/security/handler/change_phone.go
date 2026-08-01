@@ -42,6 +42,10 @@ func NewChangePhone(
 
 // Execute - применяет подтверждённую операцию смены телефона пользователя.
 func (uc *ChangePhone) Execute(ctx context.Context, userID uuid.UUID, payload []byte) error {
+	if userID == uuid.Nil {
+		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
+	}
+
 	payloadDTO, err := unit.ParseChangePhonePayload(payload)
 	if err != nil {
 		return err

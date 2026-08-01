@@ -29,6 +29,8 @@ func TestParseStringRoundTrip(t *testing.T) {
 		{"LoginNotExists", logreason.LoginNotExists, "LOGIN_NOT_EXISTS"},
 		{"SessionLimit", logreason.SessionLimit, "SESSION_LIMIT"},
 		{"Superseded", logreason.Superseded, "SUPERSEDED"},
+		{"ResendsExhausted", logreason.ResendsExhausted, "RESENDS_EXHAUSTED"},
+		{"Auth2FAStateChanged", logreason.Auth2FAStateChanged, "AUTH_2FA_STATE_CHANGED"},
 	}
 
 	for _, c := range cases {
@@ -68,7 +70,7 @@ func TestSetBounds(t *testing.T) {
 	require.Equal(t, logreason.Unspecified, e)
 
 	// за верхней границей
-	require.Error(t, e.Set(uint8(logreason.Superseded)+1))
+	require.Error(t, e.Set(uint8(logreason.Auth2FAStateChanged)+1))
 }
 
 func TestParseInvalid(t *testing.T) {

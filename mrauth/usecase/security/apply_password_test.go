@@ -5,9 +5,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/mondegor/go-core/errors"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -38,6 +40,7 @@ type ApplyPasswordSuite struct {
 	verifier *mock.MockoperationDeleter
 	saved    entity.Auth2FA
 	deleted  string
+	bindErr  error // ошибка, которую вернёт привязка 2FA (по умолчанию привязка успешна)
 }
 
 func TestApplyPasswordSuite(t *testing.T) {
@@ -53,10 +56,15 @@ func (s *ApplyPasswordSuite) SetupTest() {
 	s.verifier = mock.NewMockoperationDeleter(s.ctrl)
 	s.saved = entity.Auth2FA{}
 	s.deleted = ""
+	s.bindErr = nil
 
 	s.binder.EXPECT().
-		InsertOrUpdate(gomock.Any(), gomock.Any()).
+		Insert(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, row entity.Auth2FA) error {
+			if s.bindErr != nil {
+				return s.bindErr
+			}
+
 			s.saved = row
 
 			return nil
@@ -134,6 +142,29 @@ func (s *ApplyPasswordSuite) TestPayloadWithoutPasswordNoBind() {
 	s.Require().Error(err)
 	s.Nil(codes)
 	s.Empty(s.saved.Secret, "пароль не должен привязываться")
+}
+
+// TestActive2FAConflictNoApply - 2FA включили другим способом между созданием операции
+// и её применением: привязка отклоняется нарушением уникальности, операция остаётся
+// неприменённой, а наружу уходит ErrAuth2FAMustBeDisabledFirst (409).
+func (s *ApplyPasswordSuite) TestActive2FAConflictNoApply() {
+	userID := uuid.New()
+	s.bindErr = errors.ErrInternalStorageDuplicateKeyViolation.New()
+
+	s.verifier.EXPECT().
+		FetchOneForUpdate(gomock.Any(), gomock.Any()).
+		Return(confirmedPasswordOp(userID, `{"new_password":"hashed-pwd","email":"u@e"}`), nil)
+
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	s.Require().ErrorIs(err, mrauth.ErrAuth2FAMustBeDisabledFirst)
+	s.Nil(codes)
+	s.Equal(entity.Auth2FA{}, s.saved, "второй фактор не должен привязываться")
+	s.Empty(s.deleted, "операция не должна применяться")
+	s.False(s.notified)
+	// гонка с включением 2FA другим способом фиксируется в журнале как блокировка
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+	s.Equal(logreason.Auth2FAStateChanged, s.logEntries[0].Reason)
 }
 
 func (s *ApplyPasswordSuite) TestWrongOperationNameNoBind() {

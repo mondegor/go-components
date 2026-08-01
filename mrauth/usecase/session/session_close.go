@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"github.com/mondegor/go-core/errors"
-
-	"github.com/mondegor/go-components/mrauth"
 )
 
 type (
@@ -26,22 +24,18 @@ func NewCloseSession(
 ) *CloseSession {
 	return &CloseSession{
 		tokenCloser:  tokenCloser,
-		errorWrapper: errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper: errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
-// Execute - отзывает все действующие токены сессии по её refresh токену.
+// Execute - отзывает все действующие токены сессии по её refresh токену
+// (идемпотентно: пустой и неизвестный токен, как и уже закрытая сессия - это успех, а не ошибка).
 func (uc *CloseSession) Execute(ctx context.Context, refreshToken string) error {
 	if refreshToken == "" {
-		return errors.ErrIncorrectInputData.New("refreshToken is empty")
+		return nil
 	}
 
 	if err := uc.tokenCloser.Close(ctx, refreshToken); err != nil {
-		// отзывать нечего - токен не найден либо сессия уже отозвана
-		if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
-			return mrauth.ErrTokenInvalid
-		}
-
 		return uc.errorWrapper.Wrap(err)
 	}
 

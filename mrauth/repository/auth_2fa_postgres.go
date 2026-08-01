@@ -58,9 +58,12 @@ func (re *Auth2FAPostgres) FetchOne(ctx context.Context, userID uuid.UUID) (row 
 	return row, nil
 }
 
-// InsertOrUpdate - создаёт или обновляет данные 2FA пользователя.
-func (re *Auth2FAPostgres) InsertOrUpdate(ctx context.Context, row entity.Auth2FA) error {
-	// created_at = NOW() - время привязки 2FA (обновляется при каждой перепривязке)
+// Insert - привязывает пользователю второй фактор (2FA). Привязка возможна только когда
+// 2FA отключена: если строка уже есть (активный второй фактор), возвращает
+// errors.ErrInternalStorageDuplicateKeyViolation - менять активный фактор на месте нельзя,
+// его нужно сначала отключить (см. Delete).
+func (re *Auth2FAPostgres) Insert(ctx context.Context, row entity.Auth2FA) error {
+	// created_at (DEFAULT NOW()) - время привязки 2FA
 	sql := `
 		INSERT INTO ` + re.tableName + `
 			(
@@ -71,16 +74,7 @@ func (re *Auth2FAPostgres) InsertOrUpdate(ctx context.Context, row entity.Auth2F
 				recovery_codes
 			)
 		VALUES
-			($1, $2, $3, $4, $5)
-		ON CONFLICT
-			(user_id) DO UPDATE
-		SET
-			auth_2fa_type = EXCLUDED.auth_2fa_type,
-			auth_secret = EXCLUDED.auth_secret,
-			last_totp_step = EXCLUDED.last_totp_step,
-			recovery_codes = EXCLUDED.recovery_codes,
-			created_at = NOW(),
-			last_recovery_at = NULL;`
+			($1, $2, $3, $4, $5);`
 
 	err := re.client.Conn(ctx).ExecRow(
 		ctx,

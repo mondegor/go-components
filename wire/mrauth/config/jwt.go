@@ -1,9 +1,8 @@
 package config
 
 import (
+	"errors"
 	"fmt"
-
-	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth/bag/jwt/crypt"
 )

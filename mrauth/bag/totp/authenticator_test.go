@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pquerna/otp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/mondegor/go-components/mrauth/bag/totp"
@@ -55,4 +56,38 @@ func TestAuthenticator_QRImage(t *testing.T) {
 	require.NotNil(t, img)
 	require.Equal(t, 256, img.Bounds().Dx())
 	require.Equal(t, 256, img.Bounds().Dy())
+}
+
+// TestAuthenticator_OTPAuthURL - ссылка отдаётся клиенту как есть (и строкой, и в QR-коде),
+// поэтому её форма фиксируется целиком: схема otpauth://totp, метка "issuer:account"
+// и параметры secret/issuer. Параметры генератора в неё намеренно не пишутся - используемые
+// значения совпадают с дефолтными для otpauth.
+func TestAuthenticator_OTPAuthURL(t *testing.T) {
+	t.Parallel()
+
+	auth := totp.NewAuthenticator("TestIssuer", 64)
+
+	require.Equal(
+		t,
+		"otpauth://totp/TestIssuer:user@example.com?issuer=TestIssuer&secret=JBSWY3DPEHPK3PXP",
+		auth.OTPAuthURL("user@example.com", "JBSWY3DPEHPK3PXP"),
+	)
+}
+
+// TestAuthenticator_OTPAuthURLIsParsable - ссылка должна разбираться той же библиотекой,
+// что строит по ней QR-код: иначе клиент получил бы валидный на вид URI, по которому
+// QR-ручка отвечает ошибкой.
+func TestAuthenticator_OTPAuthURLIsParsable(t *testing.T) {
+	t.Parallel()
+
+	auth := totp.NewAuthenticator("TestIssuer", 64)
+
+	secret, err := auth.GenerateSecret("user@example.com")
+	require.NoError(t, err)
+
+	key, err := otp.NewKeyFromURL(auth.OTPAuthURL("user@example.com", secret))
+	require.NoError(t, err)
+	require.Equal(t, secret, key.Secret())
+	require.Equal(t, "TestIssuer", key.Issuer())
+	require.Equal(t, "user@example.com", key.AccountName())
 }

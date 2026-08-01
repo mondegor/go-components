@@ -230,6 +230,15 @@ func (s *AuthTokenSuite) TestClose_Success() {
 	s.Require().NoError(s.sv.Close(s.ctx, "rt"))
 }
 
+// отзывать нечего (токен неизвестен либо сессия уже отозвана): logout идемпотентен,
+// поэтому sentinel хранилища гасится здесь и наружу уходит успех.
+func (s *AuthTokenSuite) TestClose_NothingToRevokeIsNoOp() {
+	s.storage.EXPECT().RevokeSessionByRefreshToken(gomock.Any(), "rt").
+		Return(sysmesserrors.ErrEventStorageRecordsNotAffected)
+
+	s.Require().NoError(s.sv.Close(s.ctx, "rt"))
+}
+
 func (s *AuthTokenSuite) TestClose_Error() {
 	s.storage.EXPECT().RevokeSessionByRefreshToken(gomock.Any(), "rt").
 		Return(sysmesserrors.ErrEventStorageNoRecordFound)

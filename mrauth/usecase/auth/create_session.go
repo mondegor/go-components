@@ -73,7 +73,7 @@ func NewCreateSession(
 	return &CreateSession{
 		opener:                      opener,
 		userChecker:                 userChecker,
-		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:                errors.NewServiceOperationFailedWrapper(),
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
 		logOperation:                logOperation,
 		realm2operation:             realm2operation,
@@ -85,23 +85,23 @@ func NewCreateSession(
 func (co *CreateSession) Execute(
 	ctx context.Context,
 	actor dto.ActorMeta,
-	realm, langCode, userLogin string,
+	realm, langCode string,
+	userLogin contactaddress.ContactAddress,
 ) (secureoperation.SecureOperation, error) {
-	if userLogin == "" {
-		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("userLogin is empty")
+	if langCode == "" {
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("langCode is empty")
+	}
+
+	if userLogin.Value() == "" {
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userLogin is empty")
 	}
 
 	opCreator, ok := co.realm2operation[realm]
 	if !ok {
-		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("realm is unknown")
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("realm is unknown", "realm", realm)
 	}
 
-	parsedLogin, err := contactaddress.Parse(userLogin)
-	if err != nil {
-		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New(err)
-	}
-
-	err = co.userChecker.CheckAvailabilityRealm(ctx, realm, parsedLogin)
+	err := co.userChecker.CheckAvailabilityRealm(ctx, realm, userLogin)
 	if err == nil {
 		// логина не существует: фиксируем в журнале попытку входа по несуществующему логину
 		// (операция не создана, поэтому её имя берётся у фабрики, а метод подтверждения неизвестен)
@@ -119,12 +119,12 @@ func (co *CreateSession) Execute(
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
-	user2FA, err := co.factoryUser2FAConfirmAction.CreateByUserLogin(ctx, parsedLogin)
+	user2FA, err := co.factoryUser2FAConfirmAction.CreateByUserLogin(ctx, userLogin)
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
-	op, err := opCreator.Create(user2FA, realm, langCode, parsedLogin)
+	op, err := opCreator.Create(user2FA, realm, langCode, userLogin)
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}

@@ -382,3 +382,17 @@ func (mr *MockRequestParserMockRecorder) ValidateContent(ctx, content, structPoi
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateContent", reflect.TypeOf((*MockRequestParser)(nil).ValidateContent), ctx, content, structPointer)
 }
+
+// ValidateStruct mocks base method.
+func (m *MockRequestParser) ValidateStruct(ctx context.Context, structPointer any) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ValidateStruct", ctx, structPointer)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ValidateStruct indicates an expected call of ValidateStruct.
+func (mr *MockRequestParserMockRecorder) ValidateStruct(ctx, structPointer any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateStruct", reflect.TypeOf((*MockRequestParser)(nil).ValidateStruct), ctx, structPointer)
+}

@@ -104,7 +104,7 @@ func NewOpenSession(
 		logOperation:        logOperation,
 		logger:              logger,
 		limiter:             newSessionLimiter(allowedRealms, softThreshold, hardThreshold),
-		errorWrapper:        errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:        errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
@@ -187,7 +187,17 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 		// берёт row-lock и сериализует конкурентные открытия одного токена (оптимистично, без
 		// отдельной блокирующей выборки). При любом сбое выше всё откатывается, операция остаётся
 		// Confirmed и вход можно безопасно повторить тем же токеном (ConfirmOperation идемпотентен)
-		return uc.storageOperation.Delete(ctx, op.Token)
+		if err = uc.storageOperation.Delete(ctx, op.Token); err != nil {
+			// операция потреблена конкурентным запросом: снаружи это тот же
+			// «токен больше не действует», а не нарушение инварианта
+			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+				return secureoperation.ErrOperationInvalid
+			}
+
+			return err
+		}
+
+		return nil
 	})
 	if err != nil {
 		return dto.AuthTokenPair{}, uc.errorWrapper.Wrap(err)

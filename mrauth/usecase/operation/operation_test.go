@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
@@ -142,9 +143,47 @@ func (s *ConfirmOperationSuite) execute(code string) (secureoperation.SecureOper
 	return s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "token", code)
 }
 
+// пустым токеном не может быть найдена ни одна операция: снаружи это неотличимо
+// от неизвестного и истёкшего токена и отдаётся тем же сентинелом.
 func (s *ConfirmOperationSuite) TestEmptyToken() {
 	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "", "code")
+	s.Require().ErrorIs(err, secureoperation.ErrOperationInvalid)
+}
+
+// язык приходит уже определённым по запросу, поэтому пустой - ошибка проводки.
+func (s *ConfirmOperationSuite) TestEmptyLangCode() {
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Times(0)
+
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "", "token", "code")
+	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
+}
+
+// TestUnknownTokenIsDomainError - операции по предъявленному токену нет: usecase обязан сам
+// перевести отсутствие записи в доменную ошибку, не полагаясь на перевод в контроллере.
+func (s *ConfirmOperationSuite) TestUnknownTokenIsDomainError() {
+	s.expectFetch(secureoperation.SecureOperation{}, sysmesserrors.ErrEventStorageNoRecordFound)
+
+	_, err := s.execute("code")
+	s.Require().ErrorIs(err, secureoperation.ErrOperationInvalid)
+	s.Require().NotErrorIs(err, sysmesserrors.ErrRecordNotFound)
+}
+
+// TestRecordNotFoundAfterLockIsInternal - строка уже выбрана через FetchOneForUpdate, то есть
+// заблокирована в этой же транзакции: её исчезновение на записи - нарушение инварианта, а не
+// недействительный токен. Перевод "записи нет" вешается только на поиск по токену, иначе
+// повреждение данных замаскируется под обычный ответ клиенту.
+func (s *ConfirmOperationSuite) TestRecordNotFoundAfterLockIsInternal() {
+	op := openedEmailOp(s.T())
+	s.expectFetch(op, nil)
+	s.expectPrepare(op, nil, nil)
+	s.storage.EXPECT().
+		Replace(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(sysmesserrors.ErrEventStorageNoRecordFound)
+
+	_, err := s.execute("code123")
 	s.Require().Error(err)
+	s.Require().NotErrorIs(err, secureoperation.ErrOperationInvalid)
+	s.Require().NotErrorIs(err, sysmesserrors.ErrRecordNotFound)
 }
 
 func (s *ConfirmOperationSuite) TestFetchError() {
@@ -252,26 +291,83 @@ func (s *ConfirmOperationSuite) TestAlreadyConfirmedIsIdempotent() {
 	s.Empty(s.logEntries)
 }
 
+// TestEmptySecretOnConfirmedOperation - подтверждённая операция без секрета: подтверждать нечего,
+// поэтому пустой код не является ошибкой. Так приходит вход, у которого последнее звено пройдено
+// отдельным методом подтверждения, а также повтор входа после отказа по лимиту сессий или сбоя.
+func (s *ConfirmOperationSuite) TestEmptySecretOnConfirmedOperation() {
+	s.expectFetch(confirmedOp(s.T()), nil)
+	// короткое замыкание: ни подготовка, ни учёт неудачной попытки не выполняются
+	s.preparer.EXPECT().Prepare(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	s.storage.EXPECT().Replace(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	s.storage.EXPECT().UpdateFailedAttempt(gomock.Any(), gomock.Any()).Times(0)
+	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	out, err := s.execute("")
+	s.Require().NoError(err)
+	s.True(out.Is(operationstatus.Confirmed))
+	s.Empty(s.logEntries)
+}
+
+// TestEmptySecretOnOpenedOperation - секрет не передан, а звено ещё открыто: подтверждать нечем.
+// Отдаётся отдельной ошибкой, а не как неверный код: клиент должен отличать «ввод не сделан» от
+// «введено неверно». Попытка не расходуется и возвращаются реальные счётчики операции - иначе
+// клиент увидел бы исправную операцию с нулевыми остатками.
+func (s *ConfirmOperationSuite) TestEmptySecretOnOpenedOperation() {
+	op := openedEmailOp(s.T())
+	s.expectFetch(op, nil)
+	s.preparer.EXPECT().Prepare(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	s.storage.EXPECT().UpdateFailedAttempt(gomock.Any(), gomock.Any()).Times(0)
+
+	out, err := s.execute("")
+	s.Require().ErrorIs(err, secureoperation.ErrConfirmCodeIsRequired)
+	s.Require().NotErrorIs(err, secureoperation.ErrConfirmCodeIsIncorrect)
+	s.Positive(out.RemainingAttempts)
+	s.Equal(op.RemainingAttempts, out.RemainingAttempts)
+	// пропуск поля клиентом не является попыткой подтверждения, поэтому в журнал не пишется
+	s.Empty(s.logEntries)
+}
+
 func (s *ConfirmOperationSuite) TestSuccessAuth2FARaceRejectedAsWrongCode() {
 	op := openedEmailOp(s.T()) // в хранилище операция ещё Opened
 
 	s.expectFetch(op, nil)
 	// второй фактор уже израсходован конкурентным подтверждением
 	s.expectPrepare(confirmedOp(s.T()), func(context.Context) error {
-		return sysmesserrors.ErrEventStorageNoRecordFound
+		return mrauth.ErrEventAuth2FACodeAlreadyUsed
 	}, nil)
 	s.storage.EXPECT().Replace(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 	gotOp, err := s.execute("code123")
 	s.Require().ErrorIs(err, secureoperation.ErrConfirmCodeIsIncorrect) // гонка отдаётся как неверный код
-	s.Require().NotErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
-	s.Equal(secureoperation.SecureOperation{}, gotOp) // транзакция откатилась
+	s.Require().NotErrorIs(err, mrauth.ErrEventAuth2FACodeAlreadyUsed)  // внутренний сигнал наружу не уходит
+	s.Equal(secureoperation.SecureOperation{}, gotOp)                   // транзакция откатилась
 	// TOTP-replay фиксируется в журнале даже при откате транзакции
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.ConfirmFailed, s.logEntries[0].LogStatus)
 	s.Equal(logreason.TOTPReplay, s.logEntries[0].Reason)
 	s.Equal(op.UserID, s.logEntries[0].VisitorID)
+}
+
+// TestCommitFailureIsNotReplay - commit второго фактора упал по причине, не связанной
+// с его расходованием (например, сбой alerter'а внутри транзакции). Такой сбой не должен
+// маскироваться под повтор кода: наружу идёт внутренняя ошибка, а не «неверный код»,
+// и в журнал безопасности не пишется TOTP_REPLAY.
+func (s *ConfirmOperationSuite) TestCommitFailureIsNotReplay() {
+	wantErr := errors.New("alerter failed")
+
+	s.expectFetch(openedEmailOp(s.T()), nil)
+	s.expectPrepare(confirmedOp(s.T()), func(context.Context) error {
+		return wantErr
+	}, nil)
+	s.storage.EXPECT().Replace(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	gotOp, err := s.execute("code123")
+	s.Require().ErrorIs(err, wantErr)
+	s.Require().NotErrorIs(err, secureoperation.ErrConfirmCodeIsIncorrect)
+	s.Equal(secureoperation.SecureOperation{}, gotOp) // транзакция откатилась
+	s.Empty(s.logEntries)
 }
 
 type ResendCodeSuite struct {
@@ -315,9 +411,19 @@ func (s *ResendCodeSuite) SetupTest() {
 	s.uc = operation.NewResendCode(s.txManager, s.storage, s.notifierAPI, s.preparer, s.logOperation)
 }
 
+// пустым токеном не может быть найдена ни одна операция: снаружи это неотличимо
+// от неизвестного и истёкшего токена и отдаётся тем же сентинелом.
 func (s *ResendCodeSuite) TestEmptyToken() {
 	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "")
-	s.Require().Error(err)
+	s.Require().ErrorIs(err, secureoperation.ErrOperationInvalid)
+}
+
+// язык приходит уже определённым по запросу, поэтому пустой - ошибка проводки.
+func (s *ResendCodeSuite) TestEmptyLangCode() {
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Times(0)
+
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "", "token")
+	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 
 func (s *ResendCodeSuite) TestRestricted() {
@@ -332,6 +438,46 @@ func (s *ResendCodeSuite) TestRestricted() {
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
 	s.Equal(logreason.Throttled, s.logEntries[0].Reason)
+}
+
+// TestNoAttemptsToResend - повторные отправки израсходованы окончательно. Это бизнес-результат,
+// а не сбой: транзакция обязана закоммититься, а операция - вернуться вместе с ошибкой, иначе
+// клиент не получит актуальные счётчики в operation_state.
+func (s *ResendCodeSuite) TestNoAttemptsToResend() {
+	op := openedEmailOp(s.T())
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
+	s.preparer.EXPECT().
+		Prepare(gomock.Any()).
+		Return(op, secureoperation.ErrNoAttemptsToResendCode)
+
+	got, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "token")
+	s.Require().ErrorIs(err, secureoperation.ErrNoAttemptsToResendCode)
+	s.Equal(op.Token, got.Token, "операция должна вернуться вместе с ошибкой")
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+	s.Equal(
+		logreason.ResendsExhausted,
+		s.logEntries[0].Reason,
+		"окончательное исчерпание отправок в журнале отличается от временного троттла",
+	)
+}
+
+// TestNotSupported - повторная отправка по 2FA-действию неприменима. Отказ адресован клиенту,
+// поэтому сентинел обязан выйти наружу неизменным (иначе вместо 400 с кодом уедет 500),
+// но событием журнала не является: это неверный вызов, а не атака или лимит.
+func (s *ResendCodeSuite) TestNotSupported() {
+	op := openedEmailOp(s.T())
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
+	s.preparer.EXPECT().
+		Prepare(gomock.Any()).
+		Return(secureoperation.SecureOperation{}, secureoperation.ErrResendCodeIsNotSupported)
+	s.storage.EXPECT().Replace(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "token")
+	s.Require().ErrorIs(err, secureoperation.ErrResendCodeIsNotSupported)
+	s.Require().NotErrorIs(err, sysmesserrors.ErrInternalServiceOperationFailed)
+	s.Empty(s.logEntries)
 }
 
 func (s *ResendCodeSuite) TestSuccess() {
@@ -385,8 +531,18 @@ func (s *RevokeOperationSuite) SetupTest() {
 	s.uc = operation.NewRevokeOperation(s.storage, s.logOperation)
 }
 
+// пустым токеном не может быть найдена ни одна операция: снаружи это неотличимо
+// от неизвестного и истёкшего токена и отдаётся тем же сентинелом.
 func (s *RevokeOperationSuite) TestEmptyToken() {
-	s.Require().Error(s.uc.Execute(s.ctx, dto.ActorMeta{}, ""))
+	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, ""), secureoperation.ErrOperationInvalid)
+}
+
+// поток отзыва доступен только залогиненным, поэтому анонимный вызывающий - ошибка проводки.
+func (s *RevokeOperationSuite) TestEmptyUserID() {
+	s.storage.EXPECT().FetchOne(gomock.Any(), gomock.Any()).Times(0)
+
+	err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "token")
+	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 
 func (s *RevokeOperationSuite) TestSuccess() {
@@ -394,7 +550,7 @@ func (s *RevokeOperationSuite) TestSuccess() {
 	s.storage.EXPECT().FetchOne(gomock.Any(), "token").Return(op, nil)
 	s.storage.EXPECT().Delete(gomock.Any(), "token").Return(nil)
 
-	s.Require().NoError(s.uc.Execute(s.ctx, dto.ActorMeta{}, "token"))
+	s.Require().NoError(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: op.UserID}, "token"))
 	// операция читается перед удалением, поэтому в журнал попадает, что именно отозвано
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Revoked, s.logEntries[0].LogStatus)
@@ -408,18 +564,34 @@ func (s *RevokeOperationSuite) TestFetchError() {
 	s.storage.EXPECT().FetchOne(gomock.Any(), gomock.Any()).Return(secureoperation.SecureOperation{}, wantErr)
 	s.storage.EXPECT().Delete(gomock.Any(), gomock.Any()).Times(0)
 
-	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{}, "token"), wantErr)
+	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "token"), wantErr)
 	s.Empty(s.logEntries)
 }
 
 func (s *RevokeOperationSuite) TestDeleteError() {
 	wantErr := errors.New("delete failed")
 
-	s.storage.EXPECT().FetchOne(gomock.Any(), gomock.Any()).Return(openedEmailOp(s.T()), nil)
+	op := openedEmailOp(s.T())
+	s.storage.EXPECT().FetchOne(gomock.Any(), gomock.Any()).Return(op, nil)
 	s.storage.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(wantErr)
 
-	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{}, "token"), wantErr)
+	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: op.UserID}, "token"), wantErr)
 	s.Empty(s.logEntries)
+}
+
+// отозвать можно только собственную операцию: владение её токеном доступа не даёт.
+func (s *RevokeOperationSuite) TestForeignOperation() {
+	op := openedEmailOp(s.T())
+	s.storage.EXPECT().FetchOne(gomock.Any(), gomock.Any()).Return(op, nil)
+	s.storage.EXPECT().Delete(gomock.Any(), gomock.Any()).Times(0)
+
+	err := s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "token")
+	s.Require().ErrorIs(err, sysmesserrors.ErrAccessForbidden)
+	// обращение к чужой операции фиксируется в журнале за реальным вызывающим, а не за владельцем
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+	s.Equal(logreason.AccessForbidden, s.logEntries[0].Reason)
+	s.NotEqual(op.UserID, s.logEntries[0].VisitorID)
 }
 
 func (s *RevokeOperationSuite) TestStatisticSuccess() {

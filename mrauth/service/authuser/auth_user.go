@@ -77,7 +77,7 @@ func New(
 		storageUserRealm: storageUserRealm,
 		realmRegistry:    realmRegistry,
 		notifierAPI:      notifierAPI,
-		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 		logger:           logger,
 	}
 }
@@ -126,6 +126,8 @@ func (s *Service) PrepareAuthorization(ctx context.Context, userID uuid.UUID, in
 		return dto.UserScopes{}, nil, errors.ErrInternalIncorrectInputData.WithDetails("realm is unknown", "realm", in.Realm)
 	}
 
+	// строка пользователя подтверждённой операции обязана существовать: её отсутствие -
+	// рассогласованное состояние БД, а не ответ клиенту, поэтому наружу идёт внутренняя ошибка
 	user, err := s.storageUser.FetchOne(ctx, userID)
 	if err != nil {
 		return dto.UserScopes{}, nil, s.errorWrapper.Wrap(err, "userId", userID)
@@ -133,6 +135,12 @@ func (s *Service) PrepareAuthorization(ctx context.Context, userID uuid.UUID, in
 
 	userRealm, err := s.storageUserRealm.FetchOne(ctx, userID, realmID)
 	if err != nil {
+		// привязка к realm снята между созданием операции и входом:
+		// доступ отозван - это не «не найдено» и не сбой сервера
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+			return dto.UserScopes{}, nil, errors.ErrAccessForbidden
+		}
+
 		return dto.UserScopes{}, nil, s.errorWrapper.Wrap(err, "userId", userID, "realm", in.Realm)
 	}
 

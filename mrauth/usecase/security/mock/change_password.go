@@ -8,3 +8,50 @@
 
 // Package mock is a generated GoMock package.
 package mock
+
+import (
+	reflect "reflect"
+
+	dto "github.com/mondegor/go-components/mrauth/dto"
+	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
+	gomock "go.uber.org/mock/gomock"
+)
+
+// MockfactoryOperationSecret2FA is a mock of factoryOperationSecret2FA interface.
+type MockfactoryOperationSecret2FA struct {
+	ctrl     *gomock.Controller
+	recorder *MockfactoryOperationSecret2FAMockRecorder
+	isgomock struct{}
+}
+
+// MockfactoryOperationSecret2FAMockRecorder is the mock recorder for MockfactoryOperationSecret2FA.
+type MockfactoryOperationSecret2FAMockRecorder struct {
+	mock *MockfactoryOperationSecret2FA
+}
+
+// NewMockfactoryOperationSecret2FA creates a new mock instance.
+func NewMockfactoryOperationSecret2FA(ctrl *gomock.Controller) *MockfactoryOperationSecret2FA {
+	mock := &MockfactoryOperationSecret2FA{ctrl: ctrl}
+	mock.recorder = &MockfactoryOperationSecret2FAMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockfactoryOperationSecret2FA) EXPECT() *MockfactoryOperationSecret2FAMockRecorder {
+	return m.recorder
+}
+
+// Create mocks base method.
+func (m *MockfactoryOperationSecret2FA) Create(user2FA dto.User2FA, secret string) (secureoperation.SecureOperation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", user2FA, secret)
+	ret0, _ := ret[0].(secureoperation.SecureOperation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Create indicates an expected call of Create.
+func (mr *MockfactoryOperationSecret2FAMockRecorder) Create(user2FA, secret any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockfactoryOperationSecret2FA)(nil).Create), user2FA, secret)
+}

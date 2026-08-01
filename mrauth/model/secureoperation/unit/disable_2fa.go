@@ -1,8 +1,6 @@
 package unit
 
 import (
-	"errors"
-
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
@@ -18,7 +16,7 @@ const (
 type (
 	// Disable2FA - фабрика операции отключения 2FA пользователя.
 	Disable2FA struct {
-		actionCreator  mrauth.ConfirmByAddressCreator
+		actionCreator  confirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
 		codeGenerator  mrauth.CodeGenerator
 	}
@@ -40,7 +38,7 @@ func NewDisable2FA(
 // Create - создаёт операцию отключения 2FA для указанного пользователя.
 func (o *Disable2FA) Create(user2FA dto.User2FA) (secureoperation.SecureOperation, error) {
 	if user2FA.Action2FA.Method == 0 {
-		return secureoperation.SecureOperation{}, errors.New("2fa already disabled")
+		return secureoperation.SecureOperation{}, mrauth.ErrAuth2FAIsDisabled
 	}
 
 	operationToken, err := o.tokenGenerator.GenToken()

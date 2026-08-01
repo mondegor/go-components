@@ -5,9 +5,11 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/mondegor/go-core/errors"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
@@ -93,6 +95,34 @@ func (s *ApplyRecoverySuite) TestConfirmedReplacesAndReturnsCodes() {
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
 	s.Equal(unit.NameConfirmRegenerateRecovery, s.logEntries[0].OperationName)
+}
+
+// TestNo2FARowReportsDisabled - строки 2FA нет: её удалили между созданием операции и её
+// применением. Клиент должен увидеть "2FA выключена", а не ошибку о недействительном токене:
+// токен цел, и создавать операцию заново бессмысленно - сначала нужно включить 2FA.
+func (s *ApplyRecoverySuite) TestNo2FARowReportsDisabled() {
+	userID := uuid.New()
+
+	// заготовка из SetupTest заменяется: здесь обновление обязано сообщить "запись не найдена"
+	s.updater = mock.NewMockrecoveryCodesUpdater(s.ctrl)
+	s.updater.EXPECT().
+		UpdateRecoveryCodes(gomock.Any(), userID, gomock.Any()).
+		Return(errors.ErrEventStorageNoRecordFound)
+
+	s.verifier.EXPECT().
+		FetchOneForUpdate(gomock.Any(), gomock.Any()).
+		Return(confirmedRegenerateOp(userID), nil)
+
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
+	s.Require().NotErrorIs(err, errors.ErrRecordNotFound)
+	s.Nil(codes)
+	s.Empty(s.deleted)
+	s.False(s.notified)
+	// гонка с отключением 2FA фиксируется в журнале как блокировка
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+	s.Equal(logreason.Auth2FAStateChanged, s.logEntries[0].Reason)
 }
 
 func (s *ApplyRecoverySuite) TestWrongOperationNameNoUpdate() {

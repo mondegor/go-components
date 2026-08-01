@@ -1,8 +1,13 @@
-description: Realm, чьи сессии нужно вернуть (если не указано, берётся realm текущей сессии)
+description: |-
+  Realm, чьи сессии нужно вернуть.
+  Необязателен: если параметр в запросе отсутствует, берётся realm предъявленного access-токена.
+  Указанный явно realm должен входить в список realm'ов приложения, а пользователь -
+  быть к нему привязан; пустое значение является невалидным.
 name: realm
 in: query
 required: false
 schema:
   type: string
+  minLength: 4
   maxLength: 32
 example: "domain_name/user_group"

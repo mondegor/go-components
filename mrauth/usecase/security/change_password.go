@@ -17,8 +17,12 @@ type (
 	ChangePasswordProperty struct {
 		opener                      operationOpener
 		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
-		factoryOperationPassword    factoryOperationValue2FA
+		factoryOperationPassword    factoryOperationSecret2FA
 		errorWrapper                errors.Wrapper
+	}
+
+	factoryOperationSecret2FA interface {
+		Create(user2FA dto.User2FA, secret string) (secureoperation.SecureOperation, error)
 	}
 )
 
@@ -26,13 +30,13 @@ type (
 func NewChangePasswordProperty(
 	opener operationOpener,
 	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
-	factoryOperationPassword factoryOperationValue2FA,
+	factoryOperationPassword factoryOperationSecret2FA,
 ) *ChangePasswordProperty {
 	return &ChangePasswordProperty{
 		opener:                      opener,
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
 		factoryOperationPassword:    factoryOperationPassword,
-		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:                errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
@@ -47,6 +51,10 @@ func (uc *ChangePasswordProperty) Execute(
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
+	if newPassword == "" {
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("newPassword is empty")
+	}
+
 	user2FA, err := uc.factoryUser2FAConfirmAction.CreateByUserID(ctx, actor.VisitorID) // TODO: объединить CreateByUserLogin и CreateByUserID
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
@@ -54,7 +62,7 @@ func (uc *ChangePasswordProperty) Execute(
 
 	// активный 2FA нельзя менять на месте: сначала нужно отключить текущий (disable 2FA)
 	if user2FA.Action2FA.Method > 0 {
-		return secureoperation.SecureOperation{}, mrauth.Err2FAMustBeDisabledFirst
+		return secureoperation.SecureOperation{}, mrauth.ErrAuth2FAMustBeDisabledFirst
 	}
 
 	op, err := uc.factoryOperationPassword.Create(user2FA, newPassword)

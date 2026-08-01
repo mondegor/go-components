@@ -233,6 +233,50 @@ func (s *AuthUserSuite) TestResolveUserLookupError() {
 	s.Require().Error(err)
 }
 
+// TestPrepareAuthorizationUserRowIsMissingIsInternal - строка пользователя подтверждённой
+// операции пропала: это рассогласованное состояние БД, а не ответ клиенту. Наружу должна идти
+// внутренняя ошибка (500), а не errors.ErrRecordNotFound, который маппер отдал бы как 404
+// (и который контракт POST /v1/session не объявляет вовсе).
+func (s *AuthUserSuite) TestPrepareAuthorizationUserRowIsMissingIsInternal() {
+	userID := uuid.New()
+
+	s.storageUser.EXPECT().
+		FetchOne(gomock.Any(), userID).
+		Return(entity.User{}, errors.ErrEventStorageNoRecordFound)
+	s.storageUserRealm.EXPECT().FetchOne(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	_, _, err := s.svc.PrepareAuthorization(
+		s.ctx,
+		userID,
+		dto.AuthorizeUserOperation{Realm: "site/admin", LangCode: "en"},
+	)
+	s.Require().Error(err)
+	s.Require().NotErrorIs(err, errors.ErrRecordNotFound)
+	s.Require().NotErrorIs(err, errors.ErrAccessForbidden)
+}
+
+// TestPrepareAuthorizationMissingRealmBindingIsForbidden - привязку к realm сняли между
+// созданием операции и входом по ней: доступ отозван, поэтому 403, а не «не найдено» и не 500.
+// Тот же ответ на ту же причину даёт usecase/session/session_list.go.
+func (s *AuthUserSuite) TestPrepareAuthorizationMissingRealmBindingIsForbidden() {
+	userID := uuid.New()
+
+	s.storageUser.EXPECT().
+		FetchOne(gomock.Any(), userID).
+		Return(entity.User{ID: userID, Email: "user@example.com", LangCode: "en"}, nil)
+	s.storageUserRealm.EXPECT().
+		FetchOne(gomock.Any(), userID, uint16(1)).
+		Return(entity.UserRealm{}, errors.ErrEventStorageNoRecordFound)
+
+	_, _, err := s.svc.PrepareAuthorization(
+		s.ctx,
+		userID,
+		dto.AuthorizeUserOperation{Realm: "site/admin", LangCode: "en"},
+	)
+	s.Require().ErrorIs(err, errors.ErrAccessForbidden)
+	s.Require().NotErrorIs(err, errors.ErrRecordNotFound)
+}
+
 // PrepareAuthorization сам НЕ шлёт login-alert: он возвращает scopes и отложенный callback,
 // а уведомление user.authorization.success.<realm> уходит только при вызове callback'а.
 func (s *AuthUserSuite) TestPrepareAuthorizationDefersRealmSpecificNotice() {

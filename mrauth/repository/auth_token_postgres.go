@@ -9,6 +9,7 @@ import (
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrstorage"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/authtokenstatus"
@@ -84,7 +85,7 @@ func (re *AuthTokenPostgres) FetchOneByAccessToken(ctx context.Context, accessTo
 	}
 
 	if isExpired {
-		return dto.UserScopes{}, ErrTokenExpired
+		return dto.UserScopes{}, mrauth.ErrEventTokenExpired
 	}
 
 	// дозаполняется структура данными, полученными из отдельных полей
@@ -305,9 +306,9 @@ func (re *AuthTokenPostgres) UpdateScopesSettings(ctx context.Context, userID uu
 //   - isRetried=false - токен был действующим и отозван, требуется выпуск новой пары токенов;
 //   - isRetried=true - токен уже отозван, но окно его действия ещё не закрыто,
 //     требуется вернуть текущую (последнюю) пару токенов сессии;
-//   - ErrTokenExpired - токен истёк (не был отозван);
-//   - TokenAlreadyRevokedError - токен отозван и окно его действия истекло (возможна компрометация);
-//   - ErrEventStorageNoRecordFound - токен не найден.
+//   - mrauth.ErrEventTokenExpired - токен истёк (не был отозван);
+//   - mrauth.TokenAlreadyRevokedError - токен отозван и окно его действия истекло (возможна компрометация);
+//   - errors.ErrEventStorageNoRecordFound - токен не найден.
 func (re *AuthTokenPostgres) RevokeRefresh(ctx context.Context, refreshToken string, grace time.Duration) (row dto.UserScopes, isRetried bool, err error) {
 	// атомарный перевод действующего refresh токена в статус "отозван";
 	// предотвращает повторную ротацию при гонке запросов
@@ -397,10 +398,10 @@ func (re *AuthTokenPostgres) fetchEnabledRefreshToken(ctx context.Context, refre
 
 	if isExpired {
 		if status == authtokenstatus.Enabled {
-			return dto.UserScopes{}, false, ErrTokenExpired
+			return dto.UserScopes{}, false, mrauth.ErrEventTokenExpired
 		}
 
-		return row, false, NewTokenAlreadyRevokedError(userID, sessionID)
+		return dto.UserScopes{}, false, mrauth.NewTokenAlreadyRevokedError(userID, sessionID)
 	}
 
 	row.UserID = userID
@@ -477,7 +478,7 @@ func (re *AuthTokenPostgres) fetchActiveToken(
 	// запрос не фильтрует по expires_at, поэтому действующий токен мог уже истечь;
 	// в норме такого быть не должно, проверка защищает от выдачи просроченного токена
 	if row.ExpiresAt.Before(time.Now()) {
-		return entity.AuthToken{}, ErrTokenExpired
+		return entity.AuthToken{}, mrauth.ErrEventTokenExpired
 	}
 
 	row.Type = tokenType

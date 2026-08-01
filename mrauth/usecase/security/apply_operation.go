@@ -50,7 +50,7 @@ func NewApplyOperation(
 		txManager:        txManager,
 		storageOperation: storageOperation,
 		logOperation:     logOperation,
-		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 		handlerMap:       handlerMap,
 	}
 }
@@ -64,7 +64,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 	}
 
 	if operationToken == "" {
-		return errors.ErrRecordNotFound // TODO: возможно, стоит возвращать ошибку о некорректном параметре
+		return secureoperation.ErrOperationInvalid
 	}
 
 	var (
@@ -76,6 +76,10 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 	err := uc.txManager.Do(ctx, func(ctx context.Context) error {
 		op, err := uc.storageOperation.FetchOneForUpdate(ctx, operationToken)
 		if err != nil {
+			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+				return secureoperation.ErrOperationInvalid
+			}
+
 			return uc.errorWrapper.Wrap(err)
 		}
 
@@ -92,13 +96,13 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 
 		handler, ok := uc.handlerMap[op.Name]
 		if !ok {
-			return errors.New("operation name is not supported") // TODO: оборачивать в пользовательскую ошибку
+			return errors.NewInternalError("operation name is not supported")
 		}
 
 		if !op.Is(operationstatus.Confirmed) {
 			failedLogState = newLogState(logstatus.Blocked, logreason.NotConfirmed)
 
-			return errors.New("operation is not confirmed")
+			return secureoperation.ErrOperationIsNotConfirmed
 		}
 
 		if err = uc.storageOperation.Delete(ctx, op.Token); err != nil {

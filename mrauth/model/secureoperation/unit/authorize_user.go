@@ -17,10 +17,16 @@ const (
 type (
 	// AuthorizeUser - фабрика операции подтверждения авторизации пользователя.
 	AuthorizeUser struct {
-		actionCreator       mrauth.ConfirmByAddressCreator
+		actionCreator       confirmByAddressCreator
 		tokenGenerator      mrauth.TokenGenerator
 		codeGenerator       mrauth.CodeGenerator
 		confirmPhoneByEmail bool
+	}
+
+	// confirmByAddressCreator - создаёт действие подтверждения операции по контактному адресу (емаил/телефон).
+	// Параметр confirmCode передаётся в открытом виде (для отправки) и в виде хеша (для хранения).
+	confirmByAddressCreator interface {
+		Create(address contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error)
 	}
 )
 

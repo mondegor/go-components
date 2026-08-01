@@ -14,8 +14,13 @@ func (o *SecureOperation) ActivateConfirmation(token string) (err error) {
 		return errors.ErrInternalIncorrectInputData.WithDetails("token is empty")
 	}
 
-	if o.Status != operationstatus.Opened || len(o.actions) == 0 {
-		return ErrOperationAlreadyConfirmed // operation is not opened
+	if o.Status != operationstatus.Opened {
+		return ErrOperationAlreadyConfirmed
+	}
+
+	// запрещено инвариантом (см. checkInvariants): у Opened всегда есть хотя бы одно действие
+	if len(o.actions) == 0 {
+		return errors.ErrInternalIncorrectInputData.WithDetails("operation is opened, but len(actions) == 0")
 	}
 
 	action := &o.actions[0]

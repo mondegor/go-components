@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	sysmesserrors "github.com/mondegor/go-core/errors"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -264,4 +266,97 @@ func (s *VerifierSuite) TestFetchError() {
 	s.Require().ErrorIs(err, wantErr)
 	s.False(ok)
 	s.Nil(commit)
+}
+
+// TestFetch2FADisabled - строка 2FA удалена между созданием операции и её подтверждением.
+// Верификатор обязан отдать доменную ошибку: без неё "запись не найдена" поднялась бы выше
+// и превратилась в сообщение о недействительном токене операции, хотя токен цел,
+// а причина совсем другая - 2FA выключена.
+func (s *VerifierSuite) TestFetch2FADisabled() {
+	s.source.EXPECT().
+		FetchOne(gomock.Any(), gomock.Any()).
+		Return(entity.Auth2FA{}, sysmesserrors.ErrEventStorageNoRecordFound)
+
+	ok, commit, err := s.newVerifier().Verify(s.ctx, uuid.New(), confirmmethod.TOTP, "000000")
+	s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
+	s.Require().NotErrorIs(err, sysmesserrors.ErrRecordNotFound)
+	s.False(ok)
+	s.Nil(commit)
+}
+
+// TestCommitTOTPStepRaceTranslated - TOTP-шаг не удалось продвинуть: тот же time-step уже
+// израсходован конкурентным подтверждением. Верификатор обязан перевести "запись не найдена"
+// в доменный сигнал прямо здесь: только он знает, какой запрос её вернул.
+func (s *VerifierSuite) TestCommitTOTPStepRaceTranslated() {
+	code, err := s.auth.GenerateCode(testTOTPSecret, time.Now())
+	s.Require().NoError(err)
+
+	s.expectFetch(entity.Auth2FA{Type: auth2fatype.TOTP, Secret: testTOTPSecret})
+	s.source.EXPECT().
+		UpdateTOTPStep(gomock.Any(), s.userID, gomock.Any()).
+		Return(sysmesserrors.ErrEventStorageNoRecordFound)
+
+	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.TOTP, code)
+	s.Require().NoError(err)
+	s.Require().True(ok)
+	s.Require().NotNil(commit)
+
+	commitErr := commit(s.ctx)
+	s.Require().ErrorIs(commitErr, mrauth.ErrEventAuth2FACodeAlreadyUsed)
+	s.Require().NotErrorIs(commitErr, sysmesserrors.ErrEventStorageNoRecordFound)
+}
+
+// TestCommitRecoveryCodeRaceTranslated - аварийный код израсходован конкурентным
+// подтверждением: тот же перевод, что и для TOTP-шага.
+func (s *VerifierSuite) TestCommitRecoveryCodeRaceTranslated() {
+	h1 := s.hashed("AAAAABBBBB")
+
+	s.expectFetch(entity.Auth2FA{
+		Type:          auth2fatype.TOTP,
+		Secret:        testTOTPSecret,
+		RecoveryCodes: []string{h1},
+	})
+	s.source.EXPECT().
+		UpdateRecoveryCode(gomock.Any(), s.userID, h1).
+		Return(0, sysmesserrors.ErrEventStorageNoRecordFound)
+
+	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.TOTP, "AAAAABBBBB")
+	s.Require().NoError(err)
+	s.Require().True(ok)
+	s.Require().NotNil(commit)
+
+	commitErr := commit(s.ctx)
+	s.Require().ErrorIs(commitErr, mrauth.ErrEventAuth2FACodeAlreadyUsed)
+	s.Require().NotErrorIs(commitErr, sysmesserrors.ErrEventStorageNoRecordFound)
+}
+
+// TestAlerterErrorIsNotTranslated - код успешно израсходован, а упал alerter (внедряется
+// хостом и ходит в своё хранилище). Его "запись не найдена" к расходу кода отношения не имеет
+// и обязана дойти как есть: иначе вызывающий код примет сбой alerter'а за повтор второго
+// фактора и отдаст клиенту "неверный код" вместо внутренней ошибки.
+func (s *VerifierSuite) TestAlerterErrorIsNotTranslated() {
+	h1 := s.hashed("AAAAABBBBB")
+
+	s.expectFetch(entity.Auth2FA{
+		Type:          auth2fatype.TOTP,
+		Secret:        testTOTPSecret,
+		RecoveryCodes: []string{h1},
+	})
+	gomock.InOrder(
+		s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, h1).Return(1, nil),
+		s.alerter.EXPECT().
+			SendAlert(gomock.Any(), s.userID, 1).
+			Return(sysmesserrors.ErrEventStorageNoRecordFound),
+	)
+
+	v := s.newVerifier(auth2fa.WithRecoveryAlerter(s.alerter))
+
+	ok, commit, err := v.Verify(s.ctx, s.userID, confirmmethod.TOTP, "AAAAABBBBB")
+	s.Require().NoError(err)
+	s.Require().True(ok)
+	s.Require().NotNil(commit)
+
+	commitErr := commit(s.ctx)
+	s.Require().ErrorIs(commitErr, sysmesserrors.ErrEventStorageNoRecordFound)
+	s.Require().NotErrorIs(commitErr, mrauth.ErrEventAuth2FACodeAlreadyUsed)
 }

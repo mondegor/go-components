@@ -21,7 +21,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
-	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service/realm"
 	"github.com/mondegor/go-components/mrauth/usecase/session"
 	"github.com/mondegor/go-components/mrauth/usecase/session/mock"
@@ -333,7 +332,7 @@ func (s *OpenSessionSuite) TestSessionLimitFetchError() {
 
 // TestOperationConsumeRace - оптимистичная сериализация: конкурентный запрос уже потребил
 // (удалил) операцию, поэтому Delete затрагивает 0 строк и возвращает ErrEventStorageNoRecordFound;
-// errorWrapper приводит его к ErrRecordNotFound -> транзакция открытия сессии откатывается.
+// usecase приводит его к ErrOperationInvalid -> транзакция открытия сессии откатывается.
 func (s *OpenSessionSuite) TestOperationConsumeRace() {
 	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
 	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
@@ -343,7 +342,7 @@ func (s *OpenSessionSuite) TestOperationConsumeRace() {
 	s.storageOp.EXPECT().Delete(gomock.Any(), "op-token").Return(errors.ErrEventStorageNoRecordFound)
 
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
-	s.Require().ErrorIs(err, errors.ErrRecordNotFound)
+	s.Require().ErrorIs(err, secureoperation.ErrOperationInvalid)
 	s.Zero(s.notifyCount, "при откате транзакции login-alert не шлётся")
 }
 
@@ -373,6 +372,22 @@ func (s *OpenSessionSuite) TestHandlerError() {
 
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
 	s.Require().Error(err)
+	s.Zero(s.notifyCount)
+}
+
+// TestHandlerUserErrorPassesThrough - обработчик отдал пользовательскую ошибку (например, у
+// пользователя отозвана привязка к realm - 403): usecase обязан вернуть её как есть.
+// Ниже по стеку контроллер привязывает к полю только ошибки токена, поэтому любая подмена
+// здесь уехала бы клиенту статусом, которого нет в контракте POST /v1/session.
+func (s *OpenSessionSuite) TestHandlerUserErrorPassesThrough() {
+	s.authFlow.EXPECT().
+		Execute(gomock.Any(), gomock.Any()).
+		Return(dto.UserScopes{}, nil, errors.ErrAccessForbidden)
+
+	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
+	s.Require().ErrorIs(err, errors.ErrAccessForbidden)
+	s.Require().NotErrorIs(err, errors.ErrRecordNotFound)
+	s.Require().NotErrorIs(err, secureoperation.ErrOperationInvalid)
 	s.Zero(s.notifyCount)
 }
 
@@ -500,10 +515,9 @@ func (s *ContinueSessionSuite) TestHappy() {
 
 func (s *ContinueSessionSuite) TestReuseRevokesSession() {
 	userID := uuid.New()
-	revokedErr := repository.NewTokenAlreadyRevokedError(userID, 123)
-	s.recreator.EXPECT().Recreate(gomock.Any(), "rt").Return(dto.AuthTokenPair{}, revokedErr)
+	s.recreator.EXPECT().Recreate(gomock.Any(), "rt").Return(dto.AuthTokenPair{}, mrauth.NewTokenAlreadyRevokedError(userID, 123))
 	s.storage.EXPECT().RevokeTokensBySessionID(gomock.Any(), userID, uint32(123)).Return(nil)
-	s.emitter.EXPECT().Emit(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any())
+	s.emitter.EXPECT().Emit(gomock.Any(), "RevokeAlert", "userId", userID)
 
 	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "rt")
 	s.Require().ErrorIs(err, mrauth.ErrTokenNotFoundOrExpired)
@@ -523,7 +537,7 @@ func (s *ContinueSessionSuite) TestNoRecordFound() {
 
 func (s *ContinueSessionSuite) TestTokenExpired() {
 	s.recreator.EXPECT().Recreate(gomock.Any(), "rt").
-		Return(dto.AuthTokenPair{}, repository.ErrTokenExpired)
+		Return(dto.AuthTokenPair{}, mrauth.ErrEventTokenExpired)
 
 	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "rt")
 	s.Require().ErrorIs(err, mrauth.ErrTokenNotFoundOrExpired)
@@ -562,23 +576,18 @@ func (s *CloseSessionSuite) SetupTest() {
 	s.uc = session.NewCloseSession(s.closer)
 }
 
+// TestEmptyToken - метод идемпотентен, поэтому пустой токен - такой же успех, как неизвестный:
+// контракт обещает 204, а ошибка здесь ломала бы logout. При этом отзывать по пустому токену
+// заведомо нечего, поэтому запрос вниз не идёт вовсе: отсутствие EXPECT на Close пиннит,
+// что гард в usecase не даёт уйти бессмысленному запросу в БД.
 func (s *CloseSessionSuite) TestEmptyToken() {
-	s.Require().Error(s.uc.Execute(s.ctx, ""))
+	s.Require().NoError(s.uc.Execute(s.ctx, ""))
 }
 
 func (s *CloseSessionSuite) TestSuccess() {
 	s.closer.EXPECT().Close(gomock.Any(), "rt").Return(nil)
 
 	s.Require().NoError(s.uc.Execute(s.ctx, "rt"))
-}
-
-// отзывать нечего (токен неизвестен либо сессия уже отозвана): хранилище сообщает
-// о незатронутых строках - именно этот sentinel и отдаёт RevokeSessionByRefreshToken.
-func (s *CloseSessionSuite) TestRecordsNotAffected() {
-	s.closer.EXPECT().Close(gomock.Any(), "rt").Return(errors.ErrEventStorageRecordsNotAffected)
-
-	err := s.uc.Execute(s.ctx, "rt")
-	s.Require().ErrorIs(err, mrauth.ErrTokenInvalid)
 }
 
 func (s *CloseSessionSuite) TestOtherError() {
@@ -725,12 +734,13 @@ func (s *ListSuite) TestGetListForeignRealmNotMemberFails() {
 	s.Require().ErrorIs(err, errors.ErrAccessForbidden)
 }
 
-// неизвестное имя realm от клиента - клиентская ошибка (не Internal), userRealm/opener не вызываются.
+// неизвестное имя realm - нарушение инварианта (имя от клиента проверено тегом tag_realm
+// по списку realm'ов приложения): Internal-ошибка, userRealm/opener не вызываются.
 func (s *ListSuite) TestGetListUnknownRealmFails() {
 	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
 
 	_, err := s.uc.GetList(s.ctx, s.userID, "acc", "unknown/realm")
-	s.Require().ErrorIs(err, errors.ErrIncorrectInputData)
+	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
 }
 
 func (s *ListSuite) TestGetListEmptyOpenSetFails() {
@@ -937,9 +947,24 @@ func (s *ListSuite) TestGetListListerError() {
 	s.Require().Error(err)
 }
 
-func (s *ListSuite) TestCloseEmptyInput() {
-	// closer.RevokeTokensBySessionIDs НЕ должен вызываться
-	s.Require().Error(s.uc.Close(s.ctx, s.userID, nil))
+// оба метода доступны только залогиненным, поэтому пустой userID - ошибка проводки
+// (моки хранилищ без EXPECT: любой вызов провалит тест).
+func (s *ListSuite) TestEmptyUserID() {
+	s.Run("GetList", func() {
+		_, err := s.uc.GetList(s.ctx, uuid.Nil, "acc", "")
+		s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
+	})
+
+	s.Run("Close", func() {
+		err := s.uc.Close(s.ctx, uuid.Nil, []uint32{1})
+		s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
+	})
+}
+
+// пустой список закрывать нечего - метод идемпотентен, поэтому это успех,
+// closer.RevokeTokensBySessionIDs при этом НЕ вызывается.
+func (s *ListSuite) TestCloseEmptyInputIsNoOp() {
+	s.Require().NoError(s.uc.Close(s.ctx, s.userID, nil))
 }
 
 func (s *ListSuite) TestCloseSuccess() {

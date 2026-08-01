@@ -1,6 +1,8 @@
 package mapping
 
 import (
+	"net/http"
+
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/jwt"
@@ -71,10 +73,10 @@ func OptionUserRealmsToSessionLimitRealms(realms []authcfg.UserRealm) []usecases
 	return mappedRealms
 }
 
-// OptionUserRealmsToConfirmCreateUserRealms - строит realm'ы регистрации пользователей,
+// OptionUserRealmsToConfirmCreateRealmUsers - строит realm'ы регистрации пользователей,
 // пропуская realm'ы без поддержки регистрации.
-func OptionUserRealmsToConfirmCreateUserRealms(realms []authcfg.UserRealm) []usecaseauth.CreateUserRealm {
-	mappedRealms := make([]usecaseauth.CreateUserRealm, 0, len(realms))
+func OptionUserRealmsToConfirmCreateRealmUsers(realms []authcfg.UserRealm) []usecaseauth.CreateRealmUser {
+	mappedRealms := make([]usecaseauth.CreateRealmUser, 0, len(realms))
 
 	for _, item := range realms {
 		// добавляются только области пользователей, с поддержкой регистрации
@@ -84,7 +86,7 @@ func OptionUserRealmsToConfirmCreateUserRealms(realms []authcfg.UserRealm) []use
 
 		mappedRealms = append(
 			mappedRealms,
-			usecaseauth.CreateUserRealm{
+			usecaseauth.CreateRealmUser{
 				Name: item.Name,
 				Operation: unit.NewCreateUser(
 					item.Name,
@@ -172,4 +174,17 @@ func OptionUserRealmsToCreateSessionRealms(realms []authcfg.UserRealm, jwtConfig
 	}
 
 	return mappedRealms
+}
+
+// OptionErrorCodeToHttpStatus - пары "код ошибки -> HTTP-статус" для mrserver.NewHttpErrorStatusMapper.
+// Без этих пар контракт не будет полностью выполняться.
+func OptionErrorCodeToHttpStatus() []any {
+	return []any{
+		mrauth.ErrTokenInvalid.Code(), http.StatusForbidden,
+		mrauth.ErrTokenNotFoundOrExpired.Code(), http.StatusUnauthorized,
+		mrauth.ErrSessionLimitExceededTryLater.Code(), http.StatusTooManyRequests,
+		mrauth.ErrSignupAlreadyInProgressTryLater.Code(), http.StatusTooManyRequests,
+		mrauth.ErrAuth2FAMustBeDisabledFirst.Code(), http.StatusConflict,
+		mrauth.ErrAuth2FAIsDisabled.Code(), http.StatusConflict,
+	}
 }

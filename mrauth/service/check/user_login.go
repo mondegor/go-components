@@ -67,7 +67,7 @@ func (sv *UserLogin) CheckAvailabilityRealm(ctx context.Context, realm string, u
 		return sv.checkAvailabilityRealmPhone(ctx, realm, userLogin.DigitValue())
 	}
 
-	return contactaddress.ErrAddressIsInvalid
+	return errors.ErrInternalIncorrectInputData.WithDetails("userLogin is neither an email nor a phone address")
 }
 
 func (sv *UserLogin) checkAvailabilityRealmEmail(ctx context.Context, realm, userEmail string) error {

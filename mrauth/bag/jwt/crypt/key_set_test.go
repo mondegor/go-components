@@ -120,7 +120,7 @@ func TestParser_Parse_AlgNoneRejected(t *testing.T) {
 	keySet := mustKeySet(t, crypt.NewRSAKey("rsa-1", mustRSAKey(t)))
 
 	_, err := jwt.NewParser(keySet).Parse(token)
-	require.ErrorIs(t, err, jwt.ErrTokenInvalid)
+	require.ErrorContains(t, err, "jwt token is not parsed")
 }
 
 func TestParser_Parse_UnknownKID(t *testing.T) {
@@ -132,7 +132,7 @@ func TestParser_Parse_UnknownKID(t *testing.T) {
 	keySet := mustKeySet(t, crypt.NewRSAKey("rsa-1", key))
 
 	_, err := jwt.NewParser(keySet).Parse(token)
-	require.ErrorIs(t, err, jwt.ErrTokenInvalid)
+	require.ErrorContains(t, err, "jwt token is not parsed")
 }
 
 func TestParser_Parse_SelectsByKID(t *testing.T) {
@@ -157,7 +157,7 @@ func TestParser_Parse_SelectsByKID(t *testing.T) {
 	tokenWrongKID := signWith(t, gojwt.SigningMethodRS256, rsa2, "rsa-1")
 
 	_, err = jwt.NewParser(keySet).Parse(tokenWrongKID)
-	require.ErrorIs(t, err, jwt.ErrTokenInvalid)
+	require.ErrorContains(t, err, "jwt token is not parsed")
 }
 
 func TestParser_Parse_RotationWithVerifyOnlyKey(t *testing.T) {
@@ -194,7 +194,7 @@ func TestParser_Parse_AlgConfusionRejected(t *testing.T) {
 	token := signWith(t, gojwt.SigningMethodHS256, []byte("public-key-as-hmac-secret"), "rsa-1")
 
 	_, err := jwt.NewParser(keySet).Parse(token)
-	require.ErrorIs(t, err, jwt.ErrTokenInvalid)
+	require.ErrorContains(t, err, "jwt token is not parsed")
 }
 
 func TestKeySet_JWKS(t *testing.T) {

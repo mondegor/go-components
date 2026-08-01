@@ -16,7 +16,7 @@ const (
 type (
 	// ChangeTOTP - фабрика операции смены TOTP пользователя.
 	ChangeTOTP struct {
-		actionCreator   mrauth.ConfirmByAddressCreator
+		actionCreator   confirmByAddressCreator
 		tokenGenerator  mrauth.TokenGenerator
 		codeGenerator   mrauth.CodeGenerator
 		secretGenerator totpSecretGenerator

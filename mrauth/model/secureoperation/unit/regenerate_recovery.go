@@ -1,8 +1,6 @@
 package unit
 
 import (
-	"errors"
-
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
@@ -18,7 +16,7 @@ const (
 type (
 	// RegenerateRecovery - фабрика операции перевыпуска аварийных кодов пользователя.
 	RegenerateRecovery struct {
-		actionCreator  mrauth.ConfirmByAddressCreator
+		actionCreator  confirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
 		codeGenerator  mrauth.CodeGenerator
 	}
@@ -41,7 +39,7 @@ func NewRegenerateRecovery(
 // Требует включённую 2FA: перевыпуск подтверждается email + текущим вторым фактором.
 func (o *RegenerateRecovery) Create(user2FA dto.User2FA) (secureoperation.SecureOperation, error) {
 	if user2FA.Action2FA.Method == 0 {
-		return secureoperation.SecureOperation{}, errors.New("2fa is not enabled")
+		return secureoperation.SecureOperation{}, mrauth.ErrAuth2FAIsDisabled
 	}
 
 	operationToken, err := o.tokenGenerator.GenToken()

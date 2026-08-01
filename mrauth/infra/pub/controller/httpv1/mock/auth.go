@@ -17,6 +17,7 @@ import (
 	uuid "github.com/google/uuid"
 	dto "github.com/mondegor/go-components/mrauth/dto"
 	model "github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
+	contactaddress "github.com/mondegor/go-components/mrauth/model/contactaddress"
 	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	mrtype "github.com/mondegor/go-core/mrtype"
 	mrresp "github.com/mondegor/go-webcore/mrserver/mrresp"
@@ -110,7 +111,7 @@ func (m *MockcreateUserUseCase) EXPECT() *MockcreateUserUseCaseMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockcreateUserUseCase) Execute(ctx context.Context, realm, langCode, timeZone, userEmail string, registeredIP mrtype.DetailedIP) (secureoperation.SecureOperation, error) {
+func (m *MockcreateUserUseCase) Execute(ctx context.Context, realm, langCode, timeZone string, userEmail contactaddress.ContactAddress, registeredIP mrtype.DetailedIP) (secureoperation.SecureOperation, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", ctx, realm, langCode, timeZone, userEmail, registeredIP)
 	ret0, _ := ret[0].(secureoperation.SecureOperation)
@@ -149,7 +150,7 @@ func (m *MockauthUserUseCase) EXPECT() *MockauthUserUseCaseMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockauthUserUseCase) Execute(ctx context.Context, actor dto.ActorMeta, realm, langCode, userLogin string) (secureoperation.SecureOperation, error) {
+func (m *MockauthUserUseCase) Execute(ctx context.Context, actor dto.ActorMeta, realm, langCode string, userLogin contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Execute", ctx, actor, realm, langCode, userLogin)
 	ret0, _ := ret[0].(secureoperation.SecureOperation)

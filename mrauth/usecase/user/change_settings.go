@@ -51,6 +51,18 @@ func NewChangeSettings(
 //
 // Оба обновления идут одной транзакцией: профиль не должен расходиться с областью действия токенов.
 func (uc *ChangeSettings) Execute(ctx context.Context, userID uuid.UUID, langCode, timeZone string) error {
+	if userID == uuid.Nil {
+		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
+	}
+
+	if langCode == "" {
+		return errors.ErrInternalIncorrectInputData.WithDetails("langCode is empty")
+	}
+
+	if timeZone == "" {
+		return errors.ErrInternalIncorrectInputData.WithDetails("timeZone is empty")
+	}
+
 	item := entity.UserSettings{
 		UserID:   userID,
 		LangCode: langCode,
