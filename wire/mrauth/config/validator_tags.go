@@ -29,7 +29,7 @@ func TagEmailPhone() mrview.Tag {
 		Name: "tag_email_phone",
 		ValidateFunc: mrview.NewValidateOR(
 			contactaddress.ValidateEmail,
-			contactaddress.ValidatePhoneWorld,
+			contactaddress.ValidatePhone,
 		),
 	}
 }

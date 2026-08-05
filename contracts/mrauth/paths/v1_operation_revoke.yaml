@@ -1,6 +1,17 @@
 patch:
   summary: Auth/OP/R3. Метод отзыва/отмены операции
-  description: Метод предназначен для отзыва/отмены пользователем указанной операции, если это возможно
+  description: |-
+    Метод предназначен для отзыва/отмены пользователем указанной операции, если это возможно
+
+    ### Значения `code` в ответе `400`
+    - `ValidateError/token` — токен операции не указан или не проходит проверку схемы;
+    - `OperationInvalid/token` — токен операции неизвестен, истёк или уже использован
+      (в том числе когда её отозвал конкурентный запрос между чтением и удалением);
+    - `OperationAlreadyExpired/token` — срок жизни операции истёк, отзывать уже нечего;
+
+    ### Причины ответа `403`
+    - указанная операция принадлежит другому пользователю;
+    - общие причины отказа — см. «Аутентификация и доступ» в описании API;
   operationId: revokeUserOperation
   tags:
     - Auth.Operation
@@ -18,12 +29,12 @@ patch:
     "204":
       description: Указанная операция была отозвана
     "400":
-      # Токен операции должен быть указан
-      # Токен операции некорректен или недействителен
       $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
     "401":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
     "403":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    "422":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error422.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

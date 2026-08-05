@@ -83,14 +83,9 @@ func (ht *Check) CheckLogin(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	parsedLogin, err := contactaddress.Parse(req.UserLogin)
-	if err != nil {
-		return errors.WithCustomCode(errors.ErrIncorrectInputData.New(err), "userLogin")
-	}
-
-	if err := ht.serviceLogin.CheckAvailabilityRealm(r.Context(), req.Realm, parsedLogin); err != nil {
+	if err := ht.serviceLogin.CheckAvailabilityRealm(r.Context(), req.Realm, contactaddress.NewValidAddress(req.UserLogin)); err != nil {
 		if errors.Is(err, mrauth.ErrEmailAlreadyExists) || errors.Is(err, mrauth.ErrPhoneAlreadyExists) {
-			return errors.WithCustomCode(err, "userLogin")
+			return errors.WithCustomCode(err, "user_login")
 		}
 
 		return err

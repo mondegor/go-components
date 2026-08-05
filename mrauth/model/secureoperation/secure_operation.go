@@ -127,7 +127,9 @@ func (o *SecureOperation) Is(status operationstatus.Enum) bool {
 // (только для отправки). Для не-sendable действий (TOTP/password) не делает ничего.
 func (o *SecureOperation) InitSendableAction(generateCodeFunc func() (code, hashedCode string, err error)) error {
 	if o.Status != operationstatus.Opened || len(o.actions) == 0 {
-		return errors.New("operation is not opened")
+		return errors.ErrInternalIncorrectInputData.WithDetails(
+			"operation is not opened", "status", o.Status, "actions", len(o.actions),
+		)
 	}
 
 	if !o.actions[0].Sendable() {
@@ -135,7 +137,7 @@ func (o *SecureOperation) InitSendableAction(generateCodeFunc func() (code, hash
 	}
 
 	if generateCodeFunc == nil {
-		return errors.New("generateCode is nil")
+		return errors.ErrInternalNilPointer.New("generateCodeFunc is nil")
 	}
 
 	code, hashedCode, err := generateCodeFunc()
@@ -155,7 +157,9 @@ func (o *SecureOperation) Notify(
 	sendCodeFunc func(method confirmmethod.Enum, address, confirmCode string) error,
 ) error {
 	if o.Status != operationstatus.Opened || len(o.actions) == 0 {
-		return errors.New("operation is not opened")
+		return errors.ErrInternalIncorrectInputData.WithDetails(
+			"operation is not opened", "status", o.Status, "actions", len(o.actions),
+		)
 	}
 
 	if sendCodeFunc == nil || !o.actions[0].Sendable() {

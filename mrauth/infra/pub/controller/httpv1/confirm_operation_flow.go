@@ -8,7 +8,6 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
@@ -26,9 +25,9 @@ type confirmOperationFlow struct {
 }
 
 // confirm - подтверждает защищённую операцию переданным секретом.
-// При неверном коде / исчерпании попыток или необходимости 2FA сам отправляет ответ и
-// возвращает ok=false. ok=true означает, что операция полностью подтверждена и вызывающий
-// обработчик может продолжать. Параметр waitMessage - сообщение для ветки 2FA.
+// При непереданном секрете, неверном коде / исчерпании попыток или необходимости 2FA сам
+// отправляет ответ и возвращает ok=false. ok=true означает, что операция полностью подтверждена
+// и вызывающий обработчик может продолжать. Параметр waitMessage - сообщение для ветки 2FA.
 func (f confirmOperationFlow) confirm(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -47,7 +46,9 @@ func (f confirmOperationFlow) confirm(
 		secret,
 	)
 	if err != nil {
-		if errors.Is(err, secureoperation.ErrConfirmCodeIsIncorrect) ||
+		// все три отказа относятся к самому секрету и отдаются с актуальным состоянием операции
+		if errors.Is(err, secureoperation.ErrConfirmCodeIsRequired) ||
+			errors.Is(err, secureoperation.ErrConfirmCodeIsIncorrect) ||
 			errors.Is(err, secureoperation.ErrNoAttemptsToConfirmOperation) {
 			return op, false, f.sender.Send(
 				w,
@@ -56,7 +57,9 @@ func (f confirmOperationFlow) confirm(
 					mrresp.NewError400Response(
 						r,
 						mrresp.ErrorAttribute{
-							Code:      "secret",
+							// ответ строится вручную ради operation_state, поэтому код поля
+							// собирается тем же способом, что и у ошибок, идущих через sender
+							Code:      errors.WithCustomCode(err, "secret").CustomCode(),
 							Detail:    lz.TranslateError(err),
 							DebugInfo: f.debugFunc(err),
 						},
@@ -66,11 +69,7 @@ func (f confirmOperationFlow) confirm(
 			)
 		}
 
-		if errors.Is(err, errors.ErrRecordNotFound) {
-			return op, false, mrauth.ErrTokenNotFoundOrExpired
-		}
-
-		return op, false, err
+		return op, false, wrapOperationError(err, "token")
 	}
 
 	if op.Is(operationstatus.Confirmed) {

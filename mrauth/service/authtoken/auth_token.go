@@ -76,12 +76,12 @@ func New(
 // Create - выпускает новую пару токенов.
 func (sv *AuthToken) Create(ctx context.Context, userScopes dto.UserScopes) (tokenPair dto.AuthTokenPair, err error) {
 	if userScopes.SessionID == 0 {
-		return dto.AuthTokenPair{}, errors.ErrIncorrectInputData.New("userScopes.SessionID is required")
+		return dto.AuthTokenPair{}, errors.ErrInternalIncorrectInputData.WithDetails("userScopes.SessionID is required")
 	}
 
 	realmProps, ok := sv.realm2props[userScopes.Realm]
 	if !ok {
-		return dto.AuthTokenPair{}, errors.ErrIncorrectInputData.New("realm is unknown")
+		return dto.AuthTokenPair{}, errors.ErrInternalIncorrectInputData.WithDetails("realm is unknown", "realm", userScopes.Realm)
 	}
 
 	tokenPair, err = realmProps.TokenIssuer.CreateTokenPair(userScopes)
@@ -136,7 +136,7 @@ func (sv *AuthToken) Recreate(ctx context.Context, refreshToken string) (token d
 	err = sv.txManager.Do(ctx, func(ctx context.Context) error {
 		scopes, isRetried, err := sv.storage.RevokeRefresh(ctx, refreshToken, sv.gracePeriod)
 		if err != nil {
-			// sentinel-ошибки (TokenAlreadyRevokedError, ErrTokenExpired, ErrEventStorageNoRecordFound)
+			// sentinel-ошибки (TokenAlreadyRevokedError, ErrEventTokenExpired, ErrEventStorageNoRecordFound)
 			// возвращаются без обёртки, чтобы вызывающий код мог их распознать через errors.As/Is
 			return err
 		}
@@ -184,7 +184,7 @@ func (sv *AuthToken) lastSessionToken(ctx context.Context, userScopes dto.UserSc
 	if access.Token == "" {
 		realmProps, ok := sv.realm2props[userScopes.Realm]
 		if !ok {
-			return dto.AuthTokenPair{}, errors.ErrIncorrectInputData.New("realm is unknown")
+			return dto.AuthTokenPair{}, errors.ErrInternalIncorrectInputData.WithDetails("realm is unknown", "realm", userScopes.Realm)
 		}
 
 		pair, err := realmProps.TokenIssuer.CreateTokenPair(userScopes)
@@ -214,9 +214,13 @@ func (sv *AuthToken) lastSessionToken(ctx context.Context, userScopes dto.UserSc
 }
 
 // Close - отзывает все действующие токены сессии по её refresh токену (logout).
+// Метод идемпотентен: неизвестный токен и уже закрытая сессия - это успех, а не ошибка.
 func (sv *AuthToken) Close(ctx context.Context, refreshToken string) error {
 	if err := sv.storage.RevokeSessionByRefreshToken(ctx, refreshToken); err != nil {
-		return sv.errorWrapper.Wrap(err)
+		// если токен не найден, то это не считается ошибкой
+		if !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+			return sv.errorWrapper.Wrap(err)
+		}
 	}
 
 	return nil

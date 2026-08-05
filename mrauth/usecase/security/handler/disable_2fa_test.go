@@ -85,6 +85,13 @@ func (s *Disable2FASuite) TestExecuteAlreadyDisabled() {
 	s.Require().NoError(s.uc.Execute(s.ctx, userID, s.payload()))
 }
 
+// владелец операции известен на момент её применения,
+// поэтому пустой userID - ошибка проводки (мок Delete без EXPECT: любой вызов провалит тест).
+func (s *Disable2FASuite) TestExecuteEmptyUserID() {
+	err := s.uc.Execute(s.ctx, uuid.Nil, s.payload())
+	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
+}
+
 // прочие ошибки хранилища прозрачными не становятся.
 func (s *Disable2FASuite) TestExecuteStorageError() {
 	userID := uuid.New()

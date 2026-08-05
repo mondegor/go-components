@@ -2,7 +2,10 @@ package model
 
 type (
 	// CheckLoginRequest - запрос на проверку свободен ли указанный емаил/телефон.
-	CheckLoginRequest = AuthorizeUserRequest
+	CheckLoginRequest struct {
+		Realm     string `json:"realm" validate:"required,min=4,max=32,tag_realm"`
+		UserLogin string `json:"user_login" validate:"required,min=7,max=64,tag_email_phone"`
+	}
 
 	// CalcPasswordStrengthRequest - запрос на проверку надёжности указанного пароля.
 	CalcPasswordStrengthRequest struct {

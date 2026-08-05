@@ -9,7 +9,6 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/model/usergroup"
-	"github.com/mondegor/go-components/mrauth/repository"
 )
 
 type (
@@ -44,13 +43,16 @@ func New(
 
 // UserByToken - возвращает пользователя с его правами доступа по access токену.
 func (co *UserProvider) UserByToken(ctx context.Context, value string) (mraccess.User, error) {
+	// пустая строка здесь означает, что вызывающий (middleware) не извлёк токен из заголовка,
+	// то есть нарушен внутренний контракт - это не предъявленный клиентом недействительный
+	// токен, поэтому и ошибка не доменная, а внутренняя
 	if value == "" {
 		return nil, errors.ErrInternalIncorrectInputData.WithDetails("token is empty")
 	}
 
 	userScopes, err := co.storage.FetchOneByAccessToken(ctx, value)
 	if err != nil {
-		if errors.Is(err, errors.ErrEventStorageNoRecordFound) || errors.Is(err, repository.ErrTokenExpired) {
+		if errors.Is(err, errors.ErrEventStorageNoRecordFound) || errors.Is(err, mrauth.ErrEventTokenExpired) {
 			return nil, mrauth.ErrTokenNotFoundOrExpired // новая ошибка специально обобщает
 		}
 

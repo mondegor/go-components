@@ -64,12 +64,6 @@ type (
 		CreateTokenPair(userScopes dto.UserScopes) (token dto.AuthTokenPair, err error)
 	}
 
-	// ConfirmByAddressCreator - создаёт действие подтверждения операции по контактному адресу (емаил/телефон).
-	// Параметр confirmCode передаётся в открытом виде (для отправки) и в виде хеша (для хранения).
-	ConfirmByAddressCreator interface {
-		Create(address contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error)
-	}
-
 	// SessionUseCase - управление открытыми сессиями текущего пользователя.
 	SessionUseCase interface {
 		GetList(ctx context.Context, userID uuid.UUID, currentAccessToken, realm string) ([]dto.UserSession, error)

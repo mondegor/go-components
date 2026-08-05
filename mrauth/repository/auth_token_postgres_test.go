@@ -155,7 +155,7 @@ func (ts *AuthTokenPostgresTestSuite) TestRevokeSessionByRefreshToken() {
 	_, err = ts.repo.FetchOneByAccessToken(ts.ctx, accessToken)
 	ts.Require().ErrorIs(err, errors.ErrEventStorageNoRecordFound)
 
-	// повторному logout отзывать уже нечего: на этом построен ответ ErrTokenInvalid
+	// повторному logout отзывать уже нечего: на этом построена идемпотентность AuthToken.Close
 	err = ts.repo.RevokeSessionByRefreshToken(ts.ctx, refreshToken)
 	ts.Require().ErrorIs(err, errors.ErrEventStorageRecordsNotAffected)
 

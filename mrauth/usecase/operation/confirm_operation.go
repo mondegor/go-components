@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
@@ -63,7 +64,7 @@ func NewConfirmOperation(
 		notifierAPI:       notifierAPI,
 		operationPreparer: operationPreparer,
 		logOperation:      logOperation,
-		errorWrapper:      errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:      errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
@@ -71,18 +72,20 @@ func NewConfirmOperation(
 // уменьшает счётчик попыток, при успехе сохраняет операцию и отправляет код
 // следующего действия (либо завершает операцию). Весь цикл выполняется в одной
 // транзакции, что сериализует конкурентные попытки подтверждения одного токена
-// и исключает «размножение» попыток.
+// и исключает «размножение» попыток. Пустой код по уже подтверждённой операции - успех
+// (подтверждать нечего), по операции с открытым звеном - ErrConfirmCodeIsRequired
+// без расхода попытки.
 func (co *ConfirmOperation) Execute(
 	ctx context.Context,
 	actor dto.ActorMeta,
 	langCode, operationToken, confirmCode string,
 ) (op secureoperation.SecureOperation, err error) {
-	if operationToken == "" {
-		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("operationToken is empty")
+	if langCode == "" {
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("langCode is empty")
 	}
 
-	if confirmCode == "" {
-		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("confirmCode is empty")
+	if operationToken == "" {
+		return secureoperation.SecureOperation{}, secureoperation.ErrOperationInvalid
 	}
 
 	var (
@@ -102,12 +105,24 @@ func (co *ConfirmOperation) Execute(
 	err = co.txManager.Do(ctx, func(ctx context.Context) error {
 		op, err = co.storageOperation.FetchOneForUpdate(ctx, operationToken)
 		if err != nil {
+			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+				return secureoperation.ErrOperationInvalid
+			}
+
 			return co.errorWrapper.Wrap(err)
 		}
 
 		// идемпотентность: повторное подтверждение уже подтверждённой
 		// операции ничего не меняет (секрет уже израсходован, действий не осталось)
 		if op.Is(operationstatus.Confirmed) {
+			return nil
+		}
+
+		// подтверждать нечем: секрет не передан, а звено ещё открыто. Отдаётся отдельной ошибкой,
+		// а не как неверный код: клиенту нужно показать ввод секрета текущего звена, а не ошибку ввода
+		if confirmCode == "" {
+			confirmCodeErr = secureoperation.ErrConfirmCodeIsRequired
+
 			return nil
 		}
 
@@ -177,7 +192,7 @@ func (co *ConfirmOperation) Execute(
 				// гонка: второй фактор уже израсходован конкурентным подтверждением того же
 				// пользователя. Откатываем транзакцию (повторное использование одного кода
 				// недопустимо) и ниже отдаём это как неверный код, а не как внутреннюю ошибку
-				if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+				if errors.Is(err, mrauth.ErrEventAuth2FACodeAlreadyUsed) {
 					operationLogStatus = logstatus.ConfirmFailed
 					operationLogReason = logreason.TOTPReplay
 

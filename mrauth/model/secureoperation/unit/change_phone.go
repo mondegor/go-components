@@ -1,10 +1,11 @@
 package unit
 
 import (
-	"strconv"
+	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/addresstype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
@@ -18,7 +19,7 @@ const (
 type (
 	// ChangePhone - фабрика операции смены телефона пользователя.
 	ChangePhone struct {
-		actionCreator  mrauth.ConfirmByAddressCreator
+		actionCreator  confirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
 		codeGenerator  mrauth.CodeGenerator
 	}
@@ -38,11 +39,9 @@ func NewChangePhone(
 }
 
 // Create - создаёт операцию смены телефона для указанного пользователя.
-func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone string) (secureoperation.SecureOperation, error) {
-	// 0 отсеивается здесь, потому что строка вида "0000000000" будет валидна и вернёт 0
-	parsedNewPhone, err := strconv.ParseUint(newPhone, 10, 64)
-	if err != nil || parsedNewPhone == 0 {
-		return secureoperation.SecureOperation{}, contactaddress.ErrPhoneIsInvalid
+func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
+	if !newPhone.Is(addresstype.Phone) {
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("newPhone is not a phone address")
 	}
 
 	operationToken, err := o.tokenGenerator.GenToken()
@@ -57,7 +56,7 @@ func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone string) (secureoperat
 
 	payload, err := BuildChangePhonePayload(
 		dto.ChangePhoneOperation{
-			NewPhone: parsedNewPhone,
+			NewPhone: newPhone.DigitValue(),
 			Email:    user2FA.Email,
 		},
 	)
@@ -67,7 +66,7 @@ func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone string) (secureoperat
 
 	actions := make([]secureoperation.ConfirmAction, 1, 2)
 
-	actions[0], err = o.actionCreator.Create(contactaddress.NewPhone(newPhone), confirmCode, hashedCode)
+	actions[0], err = o.actionCreator.Create(newPhone, confirmCode, hashedCode)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}

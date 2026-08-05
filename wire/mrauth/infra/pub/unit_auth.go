@@ -57,6 +57,8 @@ func initUnitAuthController(
 	jwtConfig authcfg.JWT,
 	cookieConfig authcfg.RefreshCookie,
 	sessionSoftThreshold, sessionHardThreshold int8,
+	// sessionLimitRetryAfter - период задачи фоновой чистки лишних сессий, см. InitHttpModule
+	sessionLimitRetryAfter time.Duration,
 	debugFunc func(value any) string,
 	locationResolver mrauth.LocationResolver,
 ) (mrserver.HttpController, error) {
@@ -89,7 +91,7 @@ func initUnitAuthController(
 		factory2FA,
 		locker,
 		operationLogger,
-		mapping.OptionUserRealmsToConfirmCreateUserRealms(userRealms),
+		mapping.OptionUserRealmsToConfirmCreateRealmUsers(userRealms),
 	)
 
 	useCaseConfirmAuthUser := usecaseauth.NewCreateSession(
@@ -180,6 +182,7 @@ func initUnitAuthController(
 		serviceUserInfo,
 		realmRegistry,
 		bag.NewOperationResponse(debugFunc),
+		sessionLimitRetryAfter,
 		debugFunc,
 	)
 

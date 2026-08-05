@@ -33,6 +33,11 @@ func NewConfirmByEmail(opts ...Option) *ConfirmByEmail {
 	}
 }
 
+// Expiry - возвращает срок жизни создаваемого действия подтверждения.
+func (a *ConfirmByEmail) Expiry() time.Duration {
+	return a.expiry
+}
+
 // Create - создаёт действие подтверждения по email; в ConfirmCode сохраняется хеш
 // кода (для хранения), в PlainConfirmCode - открытый код (для отправки пользователю).
 func (a *ConfirmByEmail) Create(email contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error) {

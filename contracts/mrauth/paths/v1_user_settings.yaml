@@ -18,6 +18,14 @@ post:
     которое клиент выполняет штатно, — повторный вход не требуется. Окно ограничено
     остатком времени жизни текущего access-токена (`expires_in`); применить новые значения
     к конкретному ответу раньше можно параметрами `lang`/`tz`.
+
+    ### Значения `code` в ответе `400`
+    - `ValidateError/lang` / `ValidateError/tz` — одноимённое **поле тела** указано явно, но не проходит
+      проверку схемы либо не входит в список поддерживаемых приложением; одноимённые query-параметры
+      к отказу не приводят — см. «Общие параметры запросов» в описании API;
+
+    ### Причины ответа `403`
+    - общие причины отказа — см. «Аутентификация и доступ» в описании API;
   operationId: changeUserSettings
   tags:
     - Auth
@@ -45,12 +53,12 @@ post:
           schema:
             $ref: "../components/models/Auth.Response.Model.UserSettings.yaml"
     "400":
-      # Язык не соответствует формату кода языка с необязательным кодом региона
-      # Язык не поддерживается приложением
-      # Имя часового пояса не соответствует формату IANA-имени
-      # Часовой пояс не предоставляется приложением
       $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
     "401":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
+    "403":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    "422":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error422.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

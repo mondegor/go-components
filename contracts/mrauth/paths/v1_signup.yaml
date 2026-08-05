@@ -16,6 +16,22 @@ post:
     создаётся с теми же настройками, с какими шла регистрация, даже если подтверждение кода
     придёт позже и из другого окружения. Изменить их потом можно через
     `POST /v1/user/settings`.
+
+    ### Значения `code` в ответе `400`
+    - `ValidateError/realm` / `ValidateError/user_email` — поле не указано или не проходит
+      проверку схемы (в т.ч. когда realm не входит в список realm'ов приложения, а емаил
+      не является адресом);
+    - `EmailAlreadyExists/user_email` — емаил уже занят другим пользователем; суффикс указывает
+      на поле формы, чтобы ошибка села под поле ввода;
+
+    ### Причины ответа `403`
+    - метод гостевой: запрос выполнен с действующим access-токеном, то есть вызывающий уже
+      авторизован и регистрировать нового пользователя ему нельзя;
+
+    ### Причины ответа `429`
+    - по этому емаилу уже идёт регистрация (код подтверждения отправлен недавно): анти-спам
+      троттл. Ответ не раскрывает, зарегистрирован ли емаил, — он лишь сообщает, что попытку
+      следует повторить через время из заголовка `Retry-After`;
   operationId: createUser
   tags:
     - Auth
@@ -42,10 +58,12 @@ post:
       # На емаил было отправлено сообщение с кодом подтверждения создания пользователя
       $ref: "../components/responses/Auth.ResponseJson.WaitingConfirmOperation.yaml"
     "400":
-      # Eмаил должен быть указан
-      # Eмаил некорректен или уже привязан к другому пользователю
       $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
     "403":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    "422":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error422.yaml"
+    "429":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error429.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

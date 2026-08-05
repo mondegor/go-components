@@ -87,6 +87,73 @@ func (s *ResendCodeSuite) TestPrepareTokenGeneratorError() {
 	s.Require().ErrorIs(err, wantErr)
 }
 
+// TestPrepareBusinessErrorsKeepOperation - временный троттл и окончательно израсходованные
+// отправки - бизнес-результат, а не сбой: вызывающий отдаёт клиенту актуальные счётчики
+// операции вместе с ошибкой, поэтому операция обязана вернуться непустой. Нулевая операция
+// здесь стоила бы клиенту пустого operation_state, а журналу - пустого имени операции.
+func (s *ResendCodeSuite) TestPrepareBusinessErrorsKeepOperation() {
+	for _, tt := range []struct {
+		name    string
+		prepare func(op *secureoperation_model.SecureOperation)
+		wantErr error
+	}{
+		{
+			name: "ещё рано",
+			prepare: func(op *secureoperation_model.SecureOperation) {
+				op.ResendsAt = time.Now().Add(time.Minute)
+			},
+			wantErr: secureoperation_model.ErrSendingNewMessagesIsTemporarilyRestricted,
+		},
+		{
+			name: "отправки исчерпаны",
+			prepare: func(op *secureoperation_model.SecureOperation) {
+				op.RemainingResends = 0
+			},
+			wantErr: secureoperation_model.ErrNoAttemptsToResendCode,
+		},
+	} {
+		s.Run(tt.name, func() {
+			s.tokenGen.EXPECT().GenToken().Return("new-token", nil)
+
+			op := s.openedEmailOp()
+			tt.prepare(&op)
+
+			out, err := s.svc.Prepare(op)
+			s.Require().ErrorIs(err, tt.wantErr)
+			s.Equal(op.Token, out.Token, "операция должна вернуться вместе с ошибкой")
+			s.Equal(op.Name, out.Name)
+		})
+	}
+}
+
+// TestPrepareNonSendableActionFails - повторная отправка по 2FA-действию (TOTP/пароль)
+// неприменима: отправлять нечего. Это отказ клиенту, а не сбой, поэтому отдаётся отдельным
+// пользовательским сентинелом; операция с ним не возвращается - счётчики отправок
+// у такого действия всё равно не заполняются.
+func (s *ResendCodeSuite) TestPrepareNonSendableActionFails() {
+	s.tokenGen.EXPECT().GenToken().Return("new-token", nil).AnyTimes()
+
+	op := secureoperation_model.SecureOperation{
+		Token:             "token",
+		Name:              "name1",
+		UserID:            uuid.New(),
+		RemainingAttempts: 3,
+		Status:            operationstatus.Opened,
+		ExpiresAt:         time.Now().Add(10 * time.Minute),
+	}
+	s.Require().NoError(secureoperation_model.WakeUp(&op, []secureoperation_model.ConfirmAction{
+		{
+			Method:      confirmmethod.TOTP,
+			MaxAttempts: 3,
+			Expiry:      10 * time.Minute,
+		},
+	}))
+
+	_, err := s.svc.Prepare(op)
+	s.Require().ErrorIs(err, secureoperation_model.ErrResendCodeIsNotSupported)
+	s.Require().NotErrorIs(err, secureoperation_model.ErrNoAttemptsToResendCode)
+}
+
 func (s *ResendCodeSuite) TestPrepareNotOpenedFails() {
 	s.tokenGen.EXPECT().GenToken().Return("new-token", nil).AnyTimes()
 

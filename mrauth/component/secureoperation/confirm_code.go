@@ -46,7 +46,8 @@ func (o *ConfirmCode) Prepare(
 	confirmCode string,
 ) (_ secureoperation.SecureOperation, commit func(ctx context.Context) error, err error) {
 	if confirmCode == "" {
-		return secureoperation.SecureOperation{}, nil, errors.ErrIncorrectInputData.New("confirmCode is empty")
+		return secureoperation.SecureOperation{}, nil,
+			errors.ErrInternalIncorrectInputData.WithDetails("confirmCode is empty")
 	}
 
 	confirmed, confirmCodeErr := op.ConfirmAction(

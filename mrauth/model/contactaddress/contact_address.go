@@ -1,6 +1,8 @@
 package contactaddress
 
 import (
+	"strings"
+
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"
 )
 
@@ -37,6 +39,17 @@ func (a ContactAddress) Value() string {
 // DigitValue - возвращает адрес в виде целого числа (актуально только для номера телефона).
 func (a ContactAddress) DigitValue() uint64 {
 	return a.digitValue
+}
+
+// NewValidAddress - создаёт объект ContactAddress с типом Email/Phone из значения,
+// уже прошедшего проверку (ValidateEmail или ValidatePhone): тип определяется наличием '@',
+// повторный разбор адреса здесь не выполняется.
+func NewValidAddress(value string) ContactAddress {
+	if strings.Contains(value, "@") {
+		return NewEmail(value)
+	}
+
+	return NewPhone(value)
 }
 
 // Parse - преобразует строковое представление адреса и возвращает его в виде структуры,

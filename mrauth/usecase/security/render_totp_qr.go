@@ -10,10 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	modelmedia "github.com/mondegor/go-core/mrmodel/media"
-
-	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
 const (
@@ -29,10 +25,6 @@ type (
 		errorWrapper     errors.Wrapper
 	}
 
-	operationFetcher interface {
-		FetchOne(ctx context.Context, token string) (secureoperation.SecureOperation, error)
-	}
-
 	totpQRRenderer interface {
 		QRImage(accountName, secret string, width, height int) (image.Image, error)
 	}
@@ -43,43 +35,16 @@ func NewRenderTOTPGeneratorQR(storageOperation operationFetcher, totpRenderer to
 	return &RenderTOTPGeneratorQR{
 		storageOperation: storageOperation,
 		totpRenderer:     totpRenderer,
-		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
 // Execute - проверяет подтверждённую операцию и возвращает QR-код TOTP-генератора,
 // построенный из secret, сохранённого в payload операции.
-// QR рендерится при каждом запросе намеренно (показ при enrollment однократный, операция
-// короткоживущая и owner-scoped) и не кэшируется; внешний rate-limit - ответственность хоста.
+// QR рендерится при каждом запросе и не кэшируется намеренно (показ однократный и операция короткоживущая).
+// Также имеется альтернатива GetTOTPGeneratorSecret.
 func (uc *RenderTOTPGeneratorQR) Execute(ctx context.Context, userID uuid.UUID, operationToken string) (modelmedia.Image, error) {
-	if userID == uuid.Nil {
-		return modelmedia.Image{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
-	}
-
-	if operationToken == "" {
-		return modelmedia.Image{}, errors.ErrRecordNotFound // TODO: возможно, стоит возвращать ошибку о некорректном параметре
-	}
-
-	op, err := uc.storageOperation.FetchOne(ctx, operationToken)
-	if err != nil {
-		return modelmedia.Image{}, uc.errorWrapper.Wrap(err)
-	}
-
-	if userID != op.UserID {
-		return modelmedia.Image{}, errors.ErrAccessForbidden
-	}
-
-	// TODO: проверить, что пользователь не заблокирован
-
-	if op.Name != unit.NameConfirmChangeTOTP {
-		return modelmedia.Image{}, errors.ErrAccessForbidden
-	}
-
-	if !op.Is(operationstatus.Confirmed) {
-		return modelmedia.Image{}, errors.New("operation is not confirmed")
-	}
-
-	payload, err := unit.ParseChangeTOTPPayload(op.Payload)
+	payload, err := fetchConfirmedTOTPPayload(ctx, uc.storageOperation, uc.errorWrapper, userID, operationToken)
 	if err != nil {
 		return modelmedia.Image{}, err
 	}

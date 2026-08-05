@@ -1,6 +1,26 @@
 patch:
   summary: Auth/OP/R2. Метод повторной отправки кода подтверждения
-  description: Метод предназначен для повторной отправки кода подтверждения указанной операции инициированной пользователем на емаил/телефон
+  description: |-
+    Метод предназначен для повторной отправки кода подтверждения указанной операции
+    инициированной пользователем на емаил/телефон
+
+    Метод гостевой: правом на повторную отправку служит владение самим токеном операции, а не
+    access-токен, поэтому принадлежность операции вызывающему **не проверяется** и ответа `403`
+    у метода нет (в отличие от `PATCH /v1/operation/revoke`).
+
+    ### Значения `code` в ответе `400`
+    - `ValidateError/token` — токен операции не указан или не проходит проверку схемы;
+    - `SendingNewMessagesIsTemporarilyRestricted/token` — повторная отправка временно ограничена
+      (слишком часто); ответ дополнен объектом `operation_state` с актуальными счётчиками операции.
+      Отказ временный, но отдаётся кодом `400`, а не `429`: срок повтора клиент берёт из
+      `operation_state.resends_in`, а тело `429` (problem+json) ни `code`, ни счётчиков не вмещает;
+    - `OperationInvalid/token` — токен операции неизвестен, истёк или уже использован;
+    - `OperationAlreadyExpired/token` — срок жизни операции истёк, её нужно создавать заново;
+    - `OperationAlreadyConfirmed/token` — операция уже подтверждена, отправлять код повторно незачем;
+    - `NoAttemptsToResendCode/token` — повторные отправки израсходованы окончательно: ждать
+      бессмысленно, операцию нужно создавать заново; ответ дополнен объектом `operation_state`;
+    - `ResendCodeIsNotSupported/token` — текущее действие операции подтверждается вторым
+      фактором (TOTP/пароль), поэтому отправлять по нему нечего: код повторно не высылается;
   operationId: resendUserOperationConfirmCode
   tags:
     - Auth.Operation
@@ -19,11 +39,8 @@ patch:
       # На емаил/телефон было отправлено сообщение с кодом подтверждения операции
       $ref: "../components/responses/Auth.ResponseJson.WaitingConfirmOperation.yaml"
     "400":
-      # Токен операции должен быть указан
-      # Токен операции некорректен или недействителен
-      # Повторная отправка временно ограничена (слишком часто) — с operation_state
       $ref: "../components/responses/Auth.ResponseJson.Error400.yaml"
-    "403":
-      $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    "422":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error422.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

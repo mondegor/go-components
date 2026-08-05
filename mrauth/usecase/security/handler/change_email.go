@@ -42,6 +42,10 @@ func NewChangeEmail(
 
 // Execute - применяет подтверждённую операцию смены email пользователя.
 func (uc *ChangeEmail) Execute(ctx context.Context, userID uuid.UUID, payload []byte) error {
+	if userID == uuid.Nil {
+		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
+	}
+
 	payloadDTO, err := unit.ParseChangeEmailPayload(payload)
 	if err != nil {
 		return err

@@ -8,10 +8,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	sysmesserrors "github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrtype"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
@@ -77,7 +79,7 @@ func (s *FactorySuite) TestChangeEmailCreate() {
 
 		f := unit.NewChangeEmail(s.tokenGen, s.codeGen)
 
-		op, err := f.Create(userWithout2FA(), "new@example.com")
+		op, err := f.Create(userWithout2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().NoError(err)
 		s.Equal(unit.NameConfirmChangeEmail, op.Name)
 		s.Require().Len(op.Actions(), 1)
@@ -93,7 +95,7 @@ func (s *FactorySuite) TestChangeEmailCreate() {
 
 		f := unit.NewChangeEmail(s.tokenGen, s.codeGen)
 
-		op, err := f.Create(userWith2FA(), "new@example.com")
+		op, err := f.Create(userWith2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().NoError(err)
 		s.Require().Len(op.Actions(), 2)
 	})
@@ -105,7 +107,7 @@ func (s *FactorySuite) TestChangeEmailCreate() {
 
 		f := unit.NewChangeEmail(s.tokenGen, s.codeGen)
 
-		_, err := f.Create(userWithout2FA(), "new@example.com")
+		_, err := f.Create(userWithout2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().ErrorIs(err, wantErr)
 	})
 }
@@ -135,7 +137,7 @@ func (s *FactorySuite) TestChangePhoneCreate() {
 
 	f := unit.NewChangePhone(s.tokenGen, s.codeGen)
 
-	op, err := f.Create(userWithout2FA(), "79991234567")
+	op, err := f.Create(userWithout2FA(), contactaddress.NewPhone("79991234567"))
 	s.Require().NoError(err)
 	s.Equal(unit.NameConfirmChangePhone, op.Name)
 
@@ -144,7 +146,7 @@ func (s *FactorySuite) TestChangePhoneCreate() {
 	s.Equal(uint64(79991234567), p.NewPhone)
 	s.Equal("user@example.com", p.Email)
 
-	op2fa, err := f.Create(userWith2FA(), "79991234567")
+	op2fa, err := f.Create(userWith2FA(), contactaddress.NewPhone("79991234567"))
 	s.Require().NoError(err)
 	s.Require().Len(op2fa.Actions(), 2)
 }
@@ -154,11 +156,11 @@ func (s *FactorySuite) TestChangePhoneCreateInvalidPhone() {
 
 	f := unit.NewChangePhone(s.tokenGen, s.codeGen)
 
-	// "0000000000" проходит tag_phone на границе ввода, поэтому негодным его признаёт фабрика,
-	// и признаёт именно пользовательской ошибкой, а не внутренней
+	// такие значения отсекаются ещё тегом на границе ввода, поэтому пустой адрес,
+	// который возвращает на них NewPhone, для фабрики - нарушение инварианта
 	for _, phone := range []string{"not-a-number", "0000000000", "0"} {
-		_, err := f.Create(userWithout2FA(), phone)
-		s.Require().ErrorIs(err, contactaddress.ErrPhoneIsInvalid, "phone: %s", phone)
+		_, err := f.Create(userWithout2FA(), contactaddress.NewPhone(phone))
+		s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData, "phone: %s", phone)
 	}
 }
 
@@ -256,7 +258,7 @@ func (s *FactorySuite) TestDisable2FACreate() {
 		f := unit.NewDisable2FA(s.tokenGen, s.codeGen)
 
 		_, err := f.Create(userWithout2FA())
-		s.Require().ErrorContains(err, "2fa already disabled")
+		s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
 	})
 }
 
@@ -282,7 +284,7 @@ func (s *FactorySuite) TestRegenerateRecoveryCreate() {
 		f := unit.NewRegenerateRecovery(s.tokenGen, s.codeGen)
 
 		_, err := f.Create(userWithout2FA())
-		s.Require().ErrorContains(err, "2fa is not enabled")
+		s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
 	})
 }
 

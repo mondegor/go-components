@@ -14,18 +14,26 @@ func (o *SecureOperation) ActivateResendCode(token string) (err error) {
 		return errors.ErrInternalIncorrectInputData.WithDetails("token is empty")
 	}
 
-	if o.Status != operationstatus.Opened || len(o.actions) == 0 {
-		return ErrOperationAlreadyConfirmed // operation is not opened
+	if o.Status != operationstatus.Opened {
+		return ErrOperationAlreadyConfirmed
+	}
+
+	// запрещено инвариантом (см. checkInvariants): у Opened всегда есть хотя бы одно действие
+	if len(o.actions) == 0 {
+		return errors.ErrInternalIncorrectInputData.WithDetails("operation is opened, but len(actions) == 0")
 	}
 
 	action := &o.actions[0]
 
+	// у не-sendable действия (2FA: TOTP/password) нет кода для повторной отправки. Ситуация
+	// достижима клиентом: в цепочке email -> TOTP после подтверждения email текущим становится
+	// 2FA-действие, и повторная отправка по нему уже неприменима
 	if !action.Sendable() {
-		return errors.New("action not support resend")
+		return ErrResendCodeIsNotSupported
 	}
 
 	if o.RemainingResends == 0 {
-		return errors.New("operation failed resends")
+		return ErrNoAttemptsToResendCode
 	}
 
 	if time.Now().UTC().Before(o.ResendsAt) {

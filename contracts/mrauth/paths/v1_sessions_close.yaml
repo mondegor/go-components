@@ -1,6 +1,17 @@
 post:
   summary: Auth/SES/R2. Метод закрытия указанных сессий пользователя
-  description: Метод предназначен для закрытия указанных открытых сессий пользователя
+  description: |-
+    Метод предназначен для закрытия указанных открытых сессий пользователя.
+
+    Метод идемпотентен: чужие и уже закрытые сессии из списка молча игнорируются.
+
+    ### Значения `code` в ответе `400`
+    - `ValidateError/session_ids` — список не указан, пуст, длиннее 64 элементов либо элемент
+      не является 8-символьным hex-идентификатором;
+    - `SessionIDIsInvalid/session_ids` — элемент прошёл проверку схемы, но не разобрался как число;
+
+    ### Причины ответа `403`
+    - общие причины отказа — см. «Аутентификация и доступ» в описании API;
   operationId: closeUserSessions
   tags:
     - Auth.Sessions
@@ -18,11 +29,12 @@ post:
     "204":
       description: Указанные сессии пользователя были закрыты
     "400":
-      # Идентификаторы сессий (session_ids) некорректны
       $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
     "401":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
     "403":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    "422":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error422.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

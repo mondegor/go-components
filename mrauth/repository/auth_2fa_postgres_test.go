@@ -76,7 +76,7 @@ func (ts *Auth2FAPostgresTestSuite) TestRecoveryCodesRoundTrip() {
 	userID := ts.seedUser()
 	repo := repository.NewAuth2FAPostgres(ts.pgt.ConnManager(), ts.tableName)
 
-	err := repo.InsertOrUpdate(ts.ctx, entity.Auth2FA{
+	err := repo.Insert(ts.ctx, entity.Auth2FA{
 		UserID:        userID,
 		Type:          auth2fatype.TOTP,
 		Secret:        "SECRET",
@@ -106,11 +106,43 @@ func (ts *Auth2FAPostgresTestSuite) TestRecoveryCodesRoundTrip() {
 	ts.Equal([]string{"hash2", "hash3"}, got.RecoveryCodes)
 }
 
+// TestInsertOnActive2FAConflicts - повторная привязка при уже активном 2FA отклоняется
+// нарушением уникальности, а не перезаписывает текущий второй фактор. На этом построена
+// защита apply-password/apply-totp от гонки «2FA включили другим способом между созданием
+// операции и её применением» (mrauth.ErrAuth2FAMustBeDisabledFirst -> 409).
+func (ts *Auth2FAPostgresTestSuite) TestInsertOnActive2FAConflicts() {
+	userID := ts.seedUser()
+	repo := repository.NewAuth2FAPostgres(ts.pgt.ConnManager(), ts.tableName)
+
+	err := repo.Insert(ts.ctx, entity.Auth2FA{
+		UserID:        userID,
+		Type:          auth2fatype.TOTP,
+		Secret:        "TOTP-SECRET",
+		RecoveryCodes: []string{"hash1"},
+	})
+	ts.Require().NoError(err)
+
+	err = repo.Insert(ts.ctx, entity.Auth2FA{
+		UserID:        userID,
+		Type:          auth2fatype.Password,
+		Secret:        "PASSWORD-HASH",
+		RecoveryCodes: []string{"other-hash"},
+	})
+	ts.Require().ErrorIs(err, sysmesserrors.ErrInternalStorageDuplicateKeyViolation)
+
+	// активный второй фактор остался нетронутым
+	got, err := repo.FetchOne(ts.ctx, userID)
+	ts.Require().NoError(err)
+	ts.Equal(auth2fatype.TOTP, got.Type)
+	ts.Equal("TOTP-SECRET", got.Secret)
+	ts.Equal([]string{"hash1"}, got.RecoveryCodes)
+}
+
 func (ts *Auth2FAPostgresTestSuite) TestDelete() {
 	userID := ts.seedUser()
 	repo := repository.NewAuth2FAPostgres(ts.pgt.ConnManager(), ts.tableName)
 
-	err := repo.InsertOrUpdate(ts.ctx, entity.Auth2FA{
+	err := repo.Insert(ts.ctx, entity.Auth2FA{
 		UserID:        userID,
 		Type:          auth2fatype.TOTP,
 		Secret:        "SECRET",
@@ -137,7 +169,7 @@ func (ts *Auth2FAPostgresTestSuite) TestUpdateTOTPStepMonotonic() {
 	userID := ts.seedUser()
 	repo := repository.NewAuth2FAPostgres(ts.pgt.ConnManager(), ts.tableName)
 
-	err := repo.InsertOrUpdate(ts.ctx, entity.Auth2FA{
+	err := repo.Insert(ts.ctx, entity.Auth2FA{
 		UserID:        userID,
 		Type:          auth2fatype.TOTP,
 		Secret:        "SECRET",

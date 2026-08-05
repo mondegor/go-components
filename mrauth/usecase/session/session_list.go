@@ -80,13 +80,17 @@ func NewList(
 		appResolver:      appResolver,
 		locationResolver: locationResolver,
 		limiter:          newLimitResolver(allowedRealms),
-		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
 // GetList - возвращает список открытых сессий пользователя. Если realm не задан, берётся realm
 // текущей сессии; иначе - указанный realm при условии членства в нём пользователя.
 func (uc *List) GetList(ctx context.Context, userID uuid.UUID, currentAccessToken, realm string) ([]dto.UserSession, error) {
+	if userID == uuid.Nil {
+		return nil, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
+	}
+
 	scopes, err := uc.resolver.FetchOneByAccessToken(ctx, currentAccessToken)
 	if err != nil {
 		return nil, uc.errorWrapper.Wrap(err)
@@ -102,12 +106,9 @@ func (uc *List) GetList(ctx context.Context, userID uuid.UUID, currentAccessToke
 
 	realmID, ok := uc.realmRegistry.IDByName(realmName)
 	if !ok {
-		// realm текущей сессии обязан быть известен (нарушение инварианта); чужой realm задаёт клиент
-		if isCurrentRealm {
-			return nil, errors.ErrInternalIncorrectInputData.WithDetails("realm is unknown", "realm", realmName)
-		}
-
-		return nil, errors.ErrIncorrectInputData.New("realm is unknown")
+		// оба realm'а обязаны быть известны: realm текущей сессии - по инварианту токена,
+		// а запрошенный клиентом проверен по списку realm'ов приложения (тег tag_realm)
+		return nil, errors.ErrInternalIncorrectInputData.WithDetails("realm is unknown", "realm", realmName)
 	}
 
 	// лимит сессий задаётся per-(realm, kind), а kind пользователя зависит от realm: для чужого realm
@@ -199,8 +200,13 @@ func (uc *List) GetList(ctx context.Context, userID uuid.UUID, currentAccessToke
 
 // Close - закрывает указанные сессии пользователя (идемпотентно: чужие/несуществующие игнорируются).
 func (uc *List) Close(ctx context.Context, userID uuid.UUID, sessionIDs []uint32) error {
+	if userID == uuid.Nil {
+		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
+	}
+
+	// закрывать нечего - метод идемпотентен, поэтому это успех, а не ошибка
 	if len(sessionIDs) == 0 {
-		return errors.ErrIncorrectInputData.New("sessionIDs is empty")
+		return nil
 	}
 
 	if err := uc.closer.RevokeTokensBySessionIDs(ctx, userID, sessionIDs); err != nil {

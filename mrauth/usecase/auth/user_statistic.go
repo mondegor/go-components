@@ -49,7 +49,7 @@ func NewUserStatistic(
 		storageActivityLog:  storageActivityLog,
 		storageSession:      storageSession,
 		logger:              logger,
-		errorWrapper:        errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:        errors.NewServiceOperationFailedWrapper(),
 	}
 }
 

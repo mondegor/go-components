@@ -1,6 +1,13 @@
 package model
 
 type (
+	// UserSessionsRequest - запрос списка открытых сессий пользователя.
+	// Заполняется не из тела запроса, а из query-параметра ?realm= (json-тег задаёт имя
+	// атрибута в ошибке валидации); realm необязателен: nil = realm текущей сессии.
+	UserSessionsRequest struct {
+		Realm *string `json:"realm,omitempty" validate:"omitnil,min=4,max=32,tag_realm"`
+	}
+
 	// CloseSessionsRequest - запрос на закрытие указанных сессий пользователя.
 	CloseSessionsRequest struct {
 		SessionIDs []string `json:"session_ids" validate:"required,gte=1,lte=64,dive,len=8,hexadecimal"`

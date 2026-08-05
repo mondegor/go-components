@@ -10,22 +10,24 @@ import (
 // Причины провала/блокировки записи журнала защищённых операций.
 // Нулевое значение UNSPECIFIED используется при успешных исходах.
 const (
-	Unspecified       Enum = iota // причина не указана (успех)
-	WrongCode                     // неверный код подтверждения
-	AttemptsExhausted             // исчерпаны попытки подтверждения
-	Throttled                     // сработал троттлинг/анти-спам
-	TokenReuse                    // повторное использование refresh-токена
-	AccessForbidden               // обращение к чужой операции
-	TOTPReplay                    // гонка 2FA / повтор TOTP-шага
-	Expired                       // операция истекла (зарезервировано: сейчас не выставляется)
-	NotConfirmed                  // операция не подтверждена
-	LoginNotExists                // логин не существует
-	SessionLimit                  // превышен лимит сессий
-	Superseded                    // операция вытеснена новой операцией того же типа
+	Unspecified         Enum = iota // причина не указана (успех)
+	WrongCode                       // неверный код подтверждения
+	AttemptsExhausted               // исчерпаны попытки подтверждения
+	Throttled                       // сработал троттлинг/анти-спам
+	TokenReuse                      // повторное использование refresh-токена
+	AccessForbidden                 // обращение к чужой операции
+	TOTPReplay                      // повторное использование уже израсходованного второго фактора
+	Expired                         // операция истекла (зарезервировано: сейчас не выставляется)
+	NotConfirmed                    // операция не подтверждена
+	LoginNotExists                  // логин не существует
+	SessionLimit                    // превышен лимит сессий
+	Superseded                      // операция вытеснена новой операцией того же типа
+	ResendsExhausted                // исчерпаны повторные отправки кода подтверждения
+	Auth2FAStateChanged             // состояние 2FA изменилось между созданием операции и её применением
 )
 
 const (
-	enumLast = uint8(Superseded)
+	enumLast = uint8(Auth2FAStateChanged)
 	enumName = "LogReason"
 )
 
@@ -37,33 +39,37 @@ type (
 //nolint:gochecknoglobals
 var (
 	enumKeys = map[Enum]string{
-		Unspecified:       "UNSPECIFIED",
-		WrongCode:         "WRONG_CODE",
-		AttemptsExhausted: "ATTEMPTS_EXHAUSTED",
-		Throttled:         "THROTTLED",
-		TokenReuse:        "TOKEN_REUSE",
-		AccessForbidden:   "ACCESS_FORBIDDEN",
-		TOTPReplay:        "TOTP_REPLAY",
-		Expired:           "EXPIRED",
-		NotConfirmed:      "NOT_CONFIRMED",
-		LoginNotExists:    "LOGIN_NOT_EXISTS",
-		SessionLimit:      "SESSION_LIMIT",
-		Superseded:        "SUPERSEDED",
+		Unspecified:         "UNSPECIFIED",
+		WrongCode:           "WRONG_CODE",
+		AttemptsExhausted:   "ATTEMPTS_EXHAUSTED",
+		Throttled:           "THROTTLED",
+		TokenReuse:          "TOKEN_REUSE",
+		AccessForbidden:     "ACCESS_FORBIDDEN",
+		TOTPReplay:          "TOTP_REPLAY",
+		Expired:             "EXPIRED",
+		NotConfirmed:        "NOT_CONFIRMED",
+		LoginNotExists:      "LOGIN_NOT_EXISTS",
+		SessionLimit:        "SESSION_LIMIT",
+		Superseded:          "SUPERSEDED",
+		ResendsExhausted:    "RESENDS_EXHAUSTED",
+		Auth2FAStateChanged: "AUTH_2FA_STATE_CHANGED",
 	}
 
 	enumValues = map[string]Enum{
-		"UNSPECIFIED":        Unspecified,
-		"WRONG_CODE":         WrongCode,
-		"ATTEMPTS_EXHAUSTED": AttemptsExhausted,
-		"THROTTLED":          Throttled,
-		"TOKEN_REUSE":        TokenReuse,
-		"ACCESS_FORBIDDEN":   AccessForbidden,
-		"TOTP_REPLAY":        TOTPReplay,
-		"EXPIRED":            Expired,
-		"NOT_CONFIRMED":      NotConfirmed,
-		"LOGIN_NOT_EXISTS":   LoginNotExists,
-		"SESSION_LIMIT":      SessionLimit,
-		"SUPERSEDED":         Superseded,
+		"UNSPECIFIED":            Unspecified,
+		"WRONG_CODE":             WrongCode,
+		"ATTEMPTS_EXHAUSTED":     AttemptsExhausted,
+		"THROTTLED":              Throttled,
+		"TOKEN_REUSE":            TokenReuse,
+		"ACCESS_FORBIDDEN":       AccessForbidden,
+		"TOTP_REPLAY":            TOTPReplay,
+		"EXPIRED":                Expired,
+		"NOT_CONFIRMED":          NotConfirmed,
+		"LOGIN_NOT_EXISTS":       LoginNotExists,
+		"SESSION_LIMIT":          SessionLimit,
+		"SUPERSEDED":             Superseded,
+		"RESENDS_EXHAUSTED":      ResendsExhausted,
+		"AUTH_2FA_STATE_CHANGED": Auth2FAStateChanged,
 	}
 )
 

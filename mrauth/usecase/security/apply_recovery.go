@@ -8,11 +8,13 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrnotifier"
 )
@@ -55,7 +57,7 @@ func NewApplyRecovery(
 		codeGenerator:    codeGenerator,
 		notifierAPI:      notifierAPI,
 		logOperation:     logOperation,
-		errorWrapper:     errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 		recoveryCount:    recoveryCount,
 	}
 }
@@ -73,7 +75,7 @@ func (uc *ApplyRecovery) Execute(
 	}
 
 	if operationToken == "" {
-		return nil, errors.ErrRecordNotFound // TODO: возможно, стоит возвращать ошибку о некорректном параметре
+		return nil, secureoperation.ErrOperationInvalid
 	}
 
 	var (
@@ -85,6 +87,10 @@ func (uc *ApplyRecovery) Execute(
 	err = uc.txManager.Do(ctx, func(ctx context.Context) error {
 		op, err := uc.storageOperation.FetchOneForUpdate(ctx, operationToken)
 		if err != nil {
+			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+				return secureoperation.ErrOperationInvalid
+			}
+
 			return uc.errorWrapper.Wrap(err)
 		}
 
@@ -106,7 +112,7 @@ func (uc *ApplyRecovery) Execute(
 		if !op.Is(operationstatus.Confirmed) {
 			failedLogState = newLogState(logstatus.Blocked, logreason.NotConfirmed)
 
-			return errors.New("operation is not confirmed")
+			return secureoperation.ErrOperationIsNotConfirmed
 		}
 
 		payload, err := unit.ParseRegenerateRecoveryPayload(op.Payload)
@@ -122,6 +128,13 @@ func (uc *ApplyRecovery) Execute(
 		}
 
 		if err = uc.storage.UpdateRecoveryCodes(ctx, op.UserID, hashedCodes); err != nil {
+			// строки 2FA нет: она удалена между созданием операции и её применением
+			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
+				failedLogState = newLogState(logstatus.Blocked, logreason.Auth2FAStateChanged)
+
+				return mrauth.ErrAuth2FAIsDisabled
+			}
+
 			return uc.errorWrapper.Wrap(err)
 		}
 
@@ -133,8 +146,8 @@ func (uc *ApplyRecovery) Execute(
 	})
 	if err != nil {
 		if failedLogState.isSet() {
-			// обращение к чужой, неподходящей или ещё не подтверждённой операции:
-			// фиксируем блокировку в журнале
+			// обращение к чужой, неподходящей или ещё не подтверждённой операции
+			// либо гонка с отключением 2FA: фиксируем блокировку в журнале
 			uc.logOperation.Log(
 				ctx,
 				actor.NewOperationLog(

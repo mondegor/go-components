@@ -1,9 +1,35 @@
 post:
-  summary: Auth/SC/R7. Метод проверяет TOTP-код и привязывает генератор, выдавая аварийные коды
+  summary: Auth/SC/R9. Метод проверяет TOTP-код и привязывает генератор, выдавая аварийные коды
   description: |-
     Пользователь вводит код из TOTP-приложения для подтверждения владения генератором.
     При успехе генератор привязывается, 2FA по TOTP включается и единоразово возвращается
     набор одноразовых аварийных кодов (их нужно сохранить — повторно они не показываются).
+
+    ### Влияние на сессии
+    Сессии и токены не затрагиваются: текущая сессия сохраняется, refresh токен не ротируется,
+    остальные открытые сессии не закрываются, повторный вход не требуется. Клиенту достаточно
+    перечитать профиль (`GET /v1/user`). Закрыть прочие сессии после смены второго фактора
+    пользователь при желании может сам — `GET /v1/sessions` и `POST /v1/sessions/close`.
+
+    ### Значения `code` в ответе `400`
+    - `ValidateError/token` — токен операции не указан или не проходит проверку схемы;
+    - `ValidateError/totp_code` — TOTP код не указан или это не 6 цифр;
+    - `TOTPCodeIsIncorrect/totp_code` — TOTP код не совпал с кодом, ожидаемым для секрета операции;
+    - `OperationInvalid/token` — токен операции неизвестен, истёк или уже использован;
+    - `OperationIsNotConfirmed/token` — операция ещё не подтверждена: сначала нужно пройти
+      подтверждение через `PATCH /v1/operation/confirm`;
+    - `OperationAlreadyExpired/token` — срок жизни операции истёк, её нужно создавать заново;
+
+    ### Причины ответа `403`
+    - указанная операция принадлежит другому пользователю;
+    - токен указывает на операцию другого типа, а не на установку TOTP генератора
+      (`POST /v1/security/totp`);
+    - общие причины отказа — см. «Аутентификация и доступ» в описании API;
+
+    ### Причины ответа `409`
+    - 2FA была включена после создания операции (например, применён пароль как второй фактор):
+      активный второй фактор не перезаписывается, его нужно сначала отключить
+      через `POST /v1/security/disable2fa`;
   operationId: applyTotpGenerator
   tags:
     - Auth.Security
@@ -24,12 +50,14 @@ post:
           schema:
             $ref: "../components/models/Auth.Security.Response.RecoveryCodes.yaml"
     "400":
-      # Токен операции должен быть указан
-      # Токен операции некорректен или недействителен
       $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
     "401":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
     "403":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    "409":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error409.yaml"
+    "422":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error422.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

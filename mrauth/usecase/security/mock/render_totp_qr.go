@@ -10,52 +10,11 @@
 package mock
 
 import (
-	context "context"
 	image "image"
 	reflect "reflect"
 
-	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	gomock "go.uber.org/mock/gomock"
 )
-
-// MockoperationFetcher is a mock of operationFetcher interface.
-type MockoperationFetcher struct {
-	ctrl     *gomock.Controller
-	recorder *MockoperationFetcherMockRecorder
-	isgomock struct{}
-}
-
-// MockoperationFetcherMockRecorder is the mock recorder for MockoperationFetcher.
-type MockoperationFetcherMockRecorder struct {
-	mock *MockoperationFetcher
-}
-
-// NewMockoperationFetcher creates a new mock instance.
-func NewMockoperationFetcher(ctrl *gomock.Controller) *MockoperationFetcher {
-	mock := &MockoperationFetcher{ctrl: ctrl}
-	mock.recorder = &MockoperationFetcherMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockoperationFetcher) EXPECT() *MockoperationFetcherMockRecorder {
-	return m.recorder
-}
-
-// FetchOne mocks base method.
-func (m *MockoperationFetcher) FetchOne(ctx context.Context, token string) (secureoperation.SecureOperation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchOne", ctx, token)
-	ret0, _ := ret[0].(secureoperation.SecureOperation)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FetchOne indicates an expected call of FetchOne.
-func (mr *MockoperationFetcherMockRecorder) FetchOne(ctx, token any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchOne", reflect.TypeOf((*MockoperationFetcher)(nil).FetchOne), ctx, token)
-}
 
 // MocktotpQRRenderer is a mock of totpQRRenderer interface.
 type MocktotpQRRenderer struct {

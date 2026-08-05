@@ -1,0 +1,10 @@
+description: |-
+  Запрос корректен, но отклонён временно: повторить его следует позже.
+  Срок повторной попытки - в заголовке `Retry-After` (если сервер может его назвать)
+headers:
+  Retry-After:
+    $ref: "../headers/Api.Response.Header.RetryAfter.yaml"
+content:
+  application/problem+json;charset=UTF-8:
+    schema:
+      $ref: "../models/Api.Response.Model.ErrorDetails.yaml"

@@ -1,8 +1,11 @@
 package unit
 
 import (
+	"github.com/mondegor/go-core/errors"
+
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/addresstype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
@@ -16,7 +19,7 @@ const (
 type (
 	// ChangeEmail - фабрика операции смены email пользователя.
 	ChangeEmail struct {
-		actionCreator  mrauth.ConfirmByAddressCreator
+		actionCreator  confirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
 		codeGenerator  mrauth.CodeGenerator
 	}
@@ -36,7 +39,11 @@ func NewChangeEmail(
 }
 
 // Create - создаёт операцию смены email для указанного пользователя.
-func (o *ChangeEmail) Create(user2FA dto.User2FA, newEmail string) (secureoperation.SecureOperation, error) {
+func (o *ChangeEmail) Create(user2FA dto.User2FA, newEmail contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
+	if !newEmail.Is(addresstype.Email) {
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("newEmail is not an email address")
+	}
+
 	operationToken, err := o.tokenGenerator.GenToken()
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
@@ -49,7 +56,7 @@ func (o *ChangeEmail) Create(user2FA dto.User2FA, newEmail string) (secureoperat
 
 	payload, err := BuildChangeEmailPayload(
 		dto.ChangeEmailOperation{
-			NewEmail: newEmail,
+			NewEmail: newEmail.Value(),
 			Email:    user2FA.Email,
 		},
 	)
@@ -59,7 +66,7 @@ func (o *ChangeEmail) Create(user2FA dto.User2FA, newEmail string) (secureoperat
 
 	actions := make([]secureoperation.ConfirmAction, 1, 2)
 
-	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(newEmail), confirmCode, hashedCode)
+	actions[0], err = o.actionCreator.Create(newEmail, confirmCode, hashedCode)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}

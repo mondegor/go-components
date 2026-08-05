@@ -54,21 +54,21 @@ func WithMaxAttempts(value int16) Option {
 	}
 }
 
-// WithMaxResends - устанавливает поправку на задержку сообщения.
+// WithMaxResends - устанавливает кол-во повторных отправок кода подтверждения.
 func WithMaxResends(value int16) Option {
 	return func(o *confirmOptions) {
 		o.maxResends = value
 	}
 }
 
-// WithMinResendTime - устанавливает поправку на задержку сообщения.
+// WithMinResendTime - устанавливает минимальную паузу между повторными отправками кода.
 func WithMinResendTime(value time.Duration) Option {
 	return func(o *confirmOptions) {
 		o.minResendTime = value
 	}
 }
 
-// WithExpiry - устанавливает поправку на задержку сообщения.
+// WithExpiry - устанавливает срок жизни действия подтверждения.
 func WithExpiry(value time.Duration) Option {
 	return func(o *confirmOptions) {
 		o.expiry = value

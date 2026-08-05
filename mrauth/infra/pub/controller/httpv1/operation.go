@@ -10,7 +10,6 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
@@ -127,11 +126,9 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 		req.Token,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrRecordNotFound) {
-			return mrauth.ErrTokenNotFoundOrExpired
-		}
-
-		if errors.Is(err, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted) {
+		// оба отказа отдаются вместе с актуальными счётчиками операции
+		if errors.Is(err, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted) ||
+			errors.Is(err, secureoperation.ErrNoAttemptsToResendCode) {
 			return ht.sender.Send(
 				w,
 				http.StatusBadRequest,
@@ -139,7 +136,9 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 					mrresp.NewError400Response(
 						r,
 						mrresp.ErrorAttribute{
-							Code:      "token",
+							// ответ строится вручную ради operation_state, поэтому код поля
+							// собирается тем же способом, что и у ошибок, идущих через sender
+							Code:      errors.WithCustomCode(err, "token").CustomCode(),
 							Detail:    lz.TranslateError(err),
 							DebugInfo: ht.debugFunc(err),
 						},
@@ -149,7 +148,7 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 			)
 		}
 
-		return err
+		return wrapOperationError(err, "token")
 	}
 
 	return ht.sender.Send(
@@ -173,16 +172,12 @@ func (ht *Operation) Revoke(w http.ResponseWriter, r *http.Request) error {
 	if err := ht.useCaseRevokeOperation.Execute(
 		r.Context(),
 		dto.ActorMeta{
-			VisitorID: uuid.Nil, // отзыв операции по токену: форензику несёт ClientIP
+			VisitorID: ht.parser.UserID(r),
 			ClientIP:  ht.parser.DetailedIP(r),
 		},
 		req.Token,
 	); err != nil {
-		if errors.Is(err, errors.ErrRecordNotFound) {
-			return mrauth.ErrTokenNotFoundOrExpired
-		}
-
-		return err
+		return wrapOperationError(err, "token")
 	}
 
 	return ht.sender.SendNoContent(w)

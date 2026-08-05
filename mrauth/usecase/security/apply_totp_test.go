@@ -6,10 +6,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -25,7 +27,9 @@ import (
 //go:generate mockgen -source=apply_totp.go -destination=mock/apply_totp.go -package=mock
 //go:generate mockgen -source=apply_operation.go -destination=mock/apply_operation.go -package=mock
 //go:generate mockgen -source=apply_recovery.go -destination=mock/apply_recovery.go -package=mock
+//go:generate mockgen -source=totp_operation.go -destination=mock/totp_operation.go -package=mock
 //go:generate mockgen -source=render_totp_qr.go -destination=mock/render_totp_qr.go -package=mock
+//go:generate mockgen -source=get_totp_secret.go -destination=mock/get_totp_secret.go -package=mock
 //go:generate mockgen -source=change_email.go -destination=mock/change_email.go -package=mock
 //go:generate mockgen -source=change_phone.go -destination=mock/change_phone.go -package=mock
 //go:generate mockgen -source=change_totp.go -destination=mock/change_totp.go -package=mock
@@ -95,6 +99,7 @@ type ApplyTOTPSuite struct {
 	verifier *mock.MockoperationDeleter
 	saved    entity.Auth2FA
 	deleted  string
+	bindErr  error // ошибка, которую вернёт привязка 2FA (по умолчанию привязка успешна)
 }
 
 func TestApplyTOTPSuite(t *testing.T) {
@@ -110,10 +115,15 @@ func (s *ApplyTOTPSuite) SetupTest() {
 	s.verifier = mock.NewMockoperationDeleter(s.ctrl)
 	s.saved = entity.Auth2FA{}
 	s.deleted = ""
+	s.bindErr = nil
 
 	s.binder.EXPECT().
-		InsertOrUpdate(gomock.Any(), gomock.Any()).
+		Insert(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, row entity.Auth2FA) error {
+			if s.bindErr != nil {
+				return s.bindErr
+			}
+
 			s.saved = row
 
 			return nil
@@ -159,6 +169,37 @@ func (s *ApplyTOTPSuite) TestValidCodeBindsAndReturnsCodes() {
 	s.Equal(unit.NameConfirmChangeTOTP, s.logEntries[0].OperationName)
 }
 
+// TestActive2FAConflictNoApply - 2FA включили другим способом между созданием операции
+// и её применением: привязка отклоняется нарушением уникальности, операция остаётся
+// неприменённой, а наружу уходит ErrAuth2FAMustBeDisabledFirst (409).
+func (s *ApplyTOTPSuite) TestActive2FAConflictNoApply() {
+	userID := uuid.New()
+	op := confirmedOp(userID, `{"email":"u@e","secret":"`+testTotpSecret+`"}`)
+	s.bindErr = errors.ErrInternalStorageDuplicateKeyViolation.New()
+
+	s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
+
+	auth := totp.NewAuthenticator("TestIssuer", 20)
+	uc := security.NewApplyTOTPGenerator(
+		s.txManager, s.binder, s.verifier,
+		crypt.NewSecretGenerator(10), auth, s.notifierAPI, s.logOperation, 10,
+	)
+
+	code, err := auth.GenerateCode(testTotpSecret, time.Now())
+	s.Require().NoError(err)
+
+	codes, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token", code)
+	s.Require().ErrorIs(err, mrauth.ErrAuth2FAMustBeDisabledFirst)
+	s.Nil(codes)
+	s.Equal(entity.Auth2FA{}, s.saved, "второй фактор не должен привязываться")
+	s.Empty(s.deleted, "операция не должна применяться")
+	s.False(s.notified)
+	// гонка с включением 2FA другим способом фиксируется в журнале как блокировка
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+	s.Equal(logreason.Auth2FAStateChanged, s.logEntries[0].Reason)
+}
+
 func (s *ApplyTOTPSuite) TestInvalidCodeNoBind() {
 	userID := uuid.New()
 	op := confirmedOp(userID, `{"email":"u@e","secret":"`+testTotpSecret+`"}`)
@@ -172,7 +213,7 @@ func (s *ApplyTOTPSuite) TestInvalidCodeNoBind() {
 	)
 
 	codes, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token", "000000")
-	s.Require().Error(err)
+	s.Require().ErrorIs(err, mrauth.ErrTOTPCodeIsIncorrect)
 	s.Nil(codes)
 	s.Equal(entity.Auth2FA{}, s.saved)
 	s.Empty(s.deleted)

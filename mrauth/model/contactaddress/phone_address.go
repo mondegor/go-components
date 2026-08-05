@@ -12,23 +12,26 @@ const (
 	maxPhoneLength = 16
 )
 
-// NewPhone - создаёт объект ContactAddress с типом Phone.
+// NewPhone - создаёт объект ContactAddress с типом Phone из значения, уже прошедшего
+// проверку (ValidatePhone): номер нормализуется, как при разборе.
 func NewPhone(value string) ContactAddress {
-	return ContactAddress{
-		kind: addresstype.Phone,
-		// original: value,
-		value: strings.ToLower(value),
+	address, err := makePhone(value)
+	if err != nil {
+		return ContactAddress{}
 	}
+
+	return address
 }
 
 // NewDigitPhone - создаёт объект ContactAddress с типом Phone.
 func NewDigitPhone(value uint64) ContactAddress {
-	phoneString := strconv.FormatUint(value, 10)
+	phoneStr := strconv.FormatUint(value, 10)
 
 	return ContactAddress{
 		kind: addresstype.Phone,
-		// original: phoneString,
-		value: strings.ToLower(phoneString),
+		// original: phoneStr,
+		value:      phoneStr,
+		digitValue: value,
 	}
 }
 
@@ -43,11 +46,36 @@ func ParsePhone(value string) (ContactAddress, error) {
 }
 
 func parsePhone(value string) (ContactAddress, error) {
-	if !ValidatePhone(value) {
+	if !regexpPhone.MatchString(value) {
 		return ContactAddress{}, ErrPhoneIsInvalid
 	}
 
-	phoneString := strings.Map(
+	return makePhone(value)
+}
+
+func makePhone(value string) (ContactAddress, error) {
+	value = correctPhoneNumber(value)
+
+	if len(value) < minPhoneLength || len(value) > maxPhoneLength {
+		return ContactAddress{}, ErrPhoneIsInvalid
+	}
+
+	// 0 тоже отсеивается, потому что строка вида "0000000000" будет валидна и вернёт 0
+	phoneDigit, err := strconv.ParseUint(value, 10, 64)
+	if err != nil || phoneDigit == 0 {
+		return ContactAddress{}, ErrPhoneIsInvalid
+	}
+
+	return ContactAddress{
+		kind: addresstype.Phone,
+		// original:   value,
+		value:      value,
+		digitValue: phoneDigit,
+	}, nil
+}
+
+func correctPhoneNumber(value string) string {
+	value = strings.Map(
 		func(r rune) rune {
 			if r > '9' || r < '0' {
 				return -1
@@ -58,26 +86,10 @@ func parsePhone(value string) (ContactAddress, error) {
 		value,
 	)
 
-	if len(phoneString) < minPhoneLength || len(phoneString) > maxPhoneLength {
-		return ContactAddress{}, ErrPhoneIsInvalid
+	if len(value) == 0 {
+		return ""
 	}
 
-	phoneString = correctPhoneNumber(phoneString)
-
-	phoneDigit, err := strconv.ParseUint(phoneString, 10, 64)
-	if err != nil {
-		return ContactAddress{}, ErrPhoneIsInvalid
-	}
-
-	return ContactAddress{
-		kind: addresstype.Phone,
-		// original:   value,
-		value:      phoneString,
-		digitValue: phoneDigit,
-	}, nil
-}
-
-func correctPhoneNumber(value string) string {
 	firstChar := value[0]
 
 	// correct russian phone number: 8 -> 7

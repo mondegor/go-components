@@ -5,12 +5,26 @@ post:
 
     ### Алгоритм установки/изменения телефона пользователя:
     1. `POST /v1/security/phone` (новый телефон) — отправляется код подтверждения на текущий емаил;
-    2. Пользователь указывает полученный код и подтверждает операцию (`POST /v1/operation/confirm`);
+    2. Пользователь указывает полученный код и подтверждает операцию (`PATCH /v1/operation/confirm`);
     3. Если 2FA включена — пользователю предлагается ввести пароль или TOTP код (или одноразовый
       аварийный код) для подтверждения операции;
     4. Пользователь применяет подтверждённую операцию методом `POST /v1/security/apply-operation` —
       телефон устанавливается/изменяется на новый;
     5. На текущий емаил отправляется уведомление, что телефон был установлен/изменён;
+
+    ### Влияние на сессии
+    Смена телефона (шаг 4, `POST /v1/security/apply-operation`) сессии и токены не затрагивает:
+    текущая сессия сохраняется, refresh токен не ротируется, остальные открытые сессии
+    не закрываются, повторный вход не требуется. Закрыть прочие сессии пользователь при желании
+    может сам — `GET /v1/sessions` и `POST /v1/sessions/close`.
+
+    ### Значения `code` в ответе `400`
+    - `ValidateError/new_phone` — новый телефон не указан или не проходит проверку схемы (в т.ч.
+      когда значение не является номером: неверное число цифр или недопустимый код);
+    - `PhoneAlreadyExists/new_phone` — новый телефон уже используется другим пользователем;
+
+    ### Причины ответа `403`
+    - общие причины отказа — см. «Аутентификация и доступ» в описании API;
   operationId: changeUserPhone
   tags:
     - Auth.Security
@@ -28,11 +42,12 @@ post:
     "200":
       $ref: "../components/responses/Auth.ResponseJson.WaitingConfirmOperation.yaml"
     "400":
-      # Новый телефон должен быть указан
-      # Новый телефон некорректен или уже используется другим пользователем
-      # Пользователь отправил слишком много SMS за короткое время с указанного телефона (countSmsSend <= 0);
       $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
     "401":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
+    "403":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    "422":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error422.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

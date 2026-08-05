@@ -12,6 +12,7 @@ package mock
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	dto "github.com/mondegor/go-components/mrauth/dto"
 	entity "github.com/mondegor/go-components/mrauth/entity"
@@ -46,18 +47,32 @@ func (m *MockcreateUserOperation) EXPECT() *MockcreateUserOperationMockRecorder 
 }
 
 // Create mocks base method.
-func (m *MockcreateUserOperation) Create(user2FA dto.User2FA, langCode, timeZone string, address contactaddress.ContactAddress, registeredIP mrtype.DetailedIP) (secureoperation.SecureOperation, error) {
+func (m *MockcreateUserOperation) Create(user2FA dto.User2FA, langCode, timeZone string, userEmail contactaddress.ContactAddress, registeredIP mrtype.DetailedIP) (secureoperation.SecureOperation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", user2FA, langCode, timeZone, address, registeredIP)
+	ret := m.ctrl.Call(m, "Create", user2FA, langCode, timeZone, userEmail, registeredIP)
 	ret0, _ := ret[0].(secureoperation.SecureOperation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockcreateUserOperationMockRecorder) Create(user2FA, langCode, timeZone, address, registeredIP any) *gomock.Call {
+func (mr *MockcreateUserOperationMockRecorder) Create(user2FA, langCode, timeZone, userEmail, registeredIP any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockcreateUserOperation)(nil).Create), user2FA, langCode, timeZone, address, registeredIP)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockcreateUserOperation)(nil).Create), user2FA, langCode, timeZone, userEmail, registeredIP)
+}
+
+// Expiry mocks base method.
+func (m *MockcreateUserOperation) Expiry() time.Duration {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Expiry")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+// Expiry indicates an expected call of Expiry.
+func (mr *MockcreateUserOperationMockRecorder) Expiry() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Expiry", reflect.TypeOf((*MockcreateUserOperation)(nil).Expiry))
 }
 
 // Name mocks base method.

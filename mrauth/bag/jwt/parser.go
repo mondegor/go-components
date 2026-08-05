@@ -1,13 +1,13 @@
 package jwt
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth/bag/jwt/crypt"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -35,16 +35,8 @@ type (
 	}
 )
 
-var (
-	// ErrTokenInvalid - token is invalid.
-	ErrTokenInvalid = errors.NewUserError("TokenInvalid", "jwt token is invalid")
-
-	// ErrTokenSectionInvalid - token section is invalid.
-	ErrTokenSectionInvalid = errors.NewUserProto("TokenSectionInvalid", "jwt token section '{Key}' is invalid")
-
-	// ErrTokenExpired - token is expired.
-	ErrTokenExpired = errors.NewUserError("TokenExpired", "jwt token is expired")
-)
+// ErrTokenExpired - token is expired.
+var ErrTokenExpired = errors.New("jwt token is expired")
 
 // NewParser - создаёт объект Parser с набором ключей для проверки подписи.
 func NewParser(keys crypt.KeySet) *Parser {
@@ -57,7 +49,7 @@ func NewParser(keys crypt.KeySet) *Parser {
 func (p *Parser) Parse(value string) (dto.UserScopes, error) {
 	claims := jwt.MapClaims{}
 
-	token, err := jwt.ParseWithClaims(value, claims, func(token *jwt.Token) (any, error) {
+	_, err := jwt.ParseWithClaims(value, claims, func(token *jwt.Token) (any, error) {
 		kid, _ := token.Header["kid"].(string)
 
 		key, ok := p.keys.KeyByKID(kid)
@@ -78,41 +70,37 @@ func (p *Parser) Parse(value string) (dto.UserScopes, error) {
 			return dto.UserScopes{}, ErrTokenExpired
 		}
 
-		return dto.UserScopes{}, ErrTokenInvalid.Wrap(err)
-	}
-
-	if !token.Valid {
-		return dto.UserScopes{}, ErrTokenInvalid
+		return dto.UserScopes{}, fmt.Errorf("jwt token is not parsed; %w", err)
 	}
 
 	realm, err := p.parseString(sectionAudiences, claims)
 	if err != nil {
-		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionAudiences)
+		return dto.UserScopes{}, err
 	}
 
 	userID, err := p.parseUserID(claims)
 	if err != nil {
-		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionUserID)
+		return dto.UserScopes{}, err
 	}
 
 	sessionID, err := p.parseSessionID(claims)
 	if err != nil {
-		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionSessionID)
+		return dto.UserScopes{}, err
 	}
 
 	langCode, err := p.parseString(sectionLangCode, claims)
 	if err != nil {
-		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionLangCode)
+		return dto.UserScopes{}, err
 	}
 
 	timeZone, err := p.parseString(sectionTimeZone, claims)
 	if err != nil {
-		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionTimeZone)
+		return dto.UserScopes{}, err
 	}
 
 	scope, err := p.parseString(sectionScope, claims)
 	if err != nil {
-		return dto.UserScopes{}, ErrTokenSectionInvalid.Wrap(err, sectionScope)
+		return dto.UserScopes{}, err
 	}
 
 	return dto.UserScopes{
@@ -133,7 +121,7 @@ func (p *Parser) parseUserID(claims map[string]any) (uuid.UUID, error) {
 
 	userID, err := uuid.Parse(id)
 	if err != nil {
-		return uuid.Nil, errors.New("userID is invalid; expected: uuid type")
+		return uuid.Nil, errors.New("jwt token userID is invalid; expected: uuid type")
 	}
 
 	return userID, nil
@@ -147,7 +135,7 @@ func (p *Parser) parseSessionID(claims map[string]any) (uint32, error) {
 
 	sessionID, err := strconv.ParseUint(raw, 10, 32)
 	if err != nil {
-		return 0, errors.New("sessionID is invalid; expected: uint32 type")
+		return 0, errors.New("jwt token sessionID is invalid; expected: uint32 type")
 	}
 
 	return uint32(sessionID), nil
@@ -156,16 +144,16 @@ func (p *Parser) parseSessionID(claims map[string]any) (uint32, error) {
 func (p *Parser) parseString(key string, claims map[string]any) (string, error) {
 	raw, ok := claims[key]
 	if !ok {
-		return "", fmt.Errorf("claims[%s] is missing", key)
+		return "", fmt.Errorf("jwt token claims[%s] is missing", key)
 	}
 
 	str, ok := raw.(string)
 	if !ok {
-		return "", fmt.Errorf("claims[%s] is invalid; expected: string type", key)
+		return "", fmt.Errorf("jwt token claims[%s] is invalid; expected: string type", key)
 	}
 
 	if str == "" {
-		return "", fmt.Errorf("claims[%s] is empty", key)
+		return "", fmt.Errorf("jwt token claims[%s] is empty", key)
 	}
 
 	return str, nil

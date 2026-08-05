@@ -1,6 +1,14 @@
 post:
   summary: Auth/CK/R1. Метод проверяет свободен ли указанный емаил/телефон
-  description: Метод предназначен для проверки возможности регистрации пользователя с помощью указанного емаила/телефона
+  description: |-
+    Метод предназначен для проверки возможности регистрации пользователя с помощью указанного
+    емаила/телефона
+
+    ### Значения `code` в ответе `400`
+    - `ValidateError/realm` / `ValidateError/user_login` — поле не указано или не проходит
+      проверку схемы (в т.ч. когда логин не является емаилом/телефоном);
+    - `EmailAlreadyExists/user_login` / `PhoneAlreadyExists/user_login` — логин уже занят
+      другим пользователем;
   operationId: checkLogin
   tags:
     - Auth.Check
@@ -17,8 +25,9 @@ post:
   responses:
     "204":
       description: Указанный емаил/телефон свободен для регистрации пользователя
-    "400": # Емаил/телефон должен быть указан
-      # Емаил/телефон некорректен или уже используется другим пользователем
+    "400":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
+    "422":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error422.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

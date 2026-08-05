@@ -16,7 +16,9 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
+	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
 )
@@ -45,6 +47,7 @@ type (
 		serviceUserInfo        userInfoService
 		realmRegistry          mrauth.RealmRegistry
 		operationResponse      confirmOperationResponse
+		sessionLimitRetryAfter time.Duration
 		debugFunc              func(value any) string
 	}
 
@@ -58,13 +61,18 @@ type (
 		Execute(
 			ctx context.Context,
 			realm, langCode, timeZone string,
-			userEmail string,
+			userEmail contactaddress.ContactAddress,
 			registeredIP mrtype.DetailedIP,
 		) (secureoperation.SecureOperation, error)
 	}
 
 	authUserUseCase interface {
-		Execute(ctx context.Context, actor dto.ActorMeta, realm, langCode, userLogin string) (secureoperation.SecureOperation, error)
+		Execute(
+			ctx context.Context,
+			actor dto.ActorMeta,
+			realm, langCode string,
+			userLogin contactaddress.ContactAddress,
+		) (secureoperation.SecureOperation, error)
 	}
 
 	confirmOperationUseCase interface {
@@ -112,6 +120,7 @@ func NewAuth(
 	serviceUserInfo userInfoService,
 	realmRegistry mrauth.RealmRegistry,
 	operationResponse confirmOperationResponse,
+	sessionLimitRetryAfter time.Duration, // через сколько повторять вход, отклонённый по hard-порогу лимита сессий
 	debugFunc func(value any) string,
 ) *Auth {
 	if debugFunc == nil {
@@ -140,6 +149,7 @@ func NewAuth(
 		serviceUserInfo:        serviceUserInfo,
 		realmRegistry:          realmRegistry,
 		operationResponse:      operationResponse,
+		sessionLimitRetryAfter: sessionLimitRetryAfter,
 		debugFunc:              debugFunc,
 	}
 }
@@ -179,13 +189,15 @@ func (ht *Auth) Signup(w http.ResponseWriter, r *http.Request) error {
 		req.Realm,
 		lz.Language(),
 		ht.parser.Location(r).String(),
-		req.UserEmail,
+		contactaddress.NewEmail(req.UserEmail),
 		ht.parser.DetailedIP(r),
 	)
 	if err != nil {
 		if errors.Is(err, mrauth.ErrEmailAlreadyExists) {
-			return errors.WithCustomCode(err, "userEmail")
+			return errors.WithCustomCode(err, "user_email")
 		}
+
+		setRetryAfterHeaderFromError(w, err)
 
 		return err
 	}
@@ -221,11 +233,11 @@ func (ht *Auth) Signin(w http.ResponseWriter, r *http.Request) error {
 		},
 		req.Realm,
 		lz.Language(),
-		req.UserLogin,
+		contactaddress.NewValidAddress(req.UserLogin),
 	)
 	if err != nil {
 		if errors.Is(err, mrauth.ErrLoginNotExists) {
-			return errors.WithCustomCode(err, "userLogin")
+			return errors.WithCustomCode(err, "user_login")
 		}
 
 		return err
@@ -249,7 +261,8 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	// отсутствие секрета в запросе - это подтверждение без него, поток обрабатывает пустой секрет сам
+	// секрет указывается, только для подтверждения операции,
+	// если операция подтверждена - идемпотентный успех, а если открыта - ошибка неверного кода
 	secret := ""
 	if req.Secret != nil {
 		secret = *req.Secret
@@ -275,7 +288,14 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 		op,
 	)
 	if err != nil {
-		return err
+		if errors.Is(err, mrauth.ErrSessionLimitExceededTryLater) {
+			// сервис отдаёт эту ошибку как 429, поэтому устанавливается Retry-After
+			setRetryAfterHeader(w, ht.sessionLimitRetryAfter)
+
+			return err
+		}
+
+		return wrapOperationError(err, "token")
 	}
 
 	if r.Header.Get("X-Use-Cookie") == "true" {
@@ -321,10 +341,8 @@ func (ht *Auth) ContinueSession(w http.ResponseWriter, r *http.Request) error {
 		refreshToken,
 	)
 	if err != nil {
-		if errors.Is(err, errors.ErrRecordNotFound) {
-			return mrauth.ErrTokenNotFoundOrExpired
-		}
-
+		// ошибка refresh токена к полю запроса не привязывается: привязка форсирует ответ 400,
+		// а негодный сессионный токен должен дойти до маппера статусов и стать 401
 		return err
 	}
 
@@ -404,19 +422,23 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 		realms = append(realms, item)
 	}
 
-	return ht.sender.Send(
-		w,
-		http.StatusOK,
-		model.UserInfoResponse{
-			Email:       info.User.Email,
-			Phone:       casttype.UintToPhone(info.User.Phone),
-			LangCode:    info.User.LangCode,
-			TimeZone:    info.User.TimeZone,
-			Auth2FAType: info.Auth2FA.Type,
-			Realms:      realms,
-			Status:      info.User.Status,
-		},
-	)
+	response := model.UserInfoResponse{
+		Email:       info.User.Email,
+		Phone:       casttype.UintToPhone(info.User.Phone),
+		LangCode:    info.User.LangCode,
+		TimeZone:    info.User.TimeZone,
+		Auth2FAType: info.Auth2FA.Type,
+		Realms:      realms,
+		Status:      info.User.Status,
+	}
+
+	// кол-во оставшихся аварийных кодов отдаётся только при включённой 2FA
+	if info.Auth2FA.Type != auth2fatype.None {
+		recoveryCodesLeft := len(info.Auth2FA.RecoveryCodes)
+		response.RecoveryCodesLeft = &recoveryCodesLeft
+	}
+
+	return ht.sender.Send(w, http.StatusOK, response)
 }
 
 // ChangeSettings - сохраняет язык и часовой пояс текущего пользователя.

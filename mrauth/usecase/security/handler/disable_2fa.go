@@ -42,6 +42,10 @@ func NewDisable2FA(
 
 // Execute - применяет подтверждённую операцию отключения 2FA пользователя.
 func (uc *Disable2FA) Execute(ctx context.Context, userID uuid.UUID, payload []byte) error {
+	if userID == uuid.Nil {
+		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
+	}
+
 	payloadDTO, err := unit.ParseDisable2FAPayload(payload)
 	if err != nil {
 		return err

@@ -5,9 +5,9 @@ go 1.25.8
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/mondegor/go-core v0.15.4-0.20260726091730-2c77e9018b9f
+	github.com/mondegor/go-core v0.15.4-0.20260804234618-6e1977630fd0
 	github.com/mondegor/go-storage v0.17.2-0.20260705222830-c29b13b1bbb8
-	github.com/mondegor/go-webcore v0.29.3-0.20260723200925-c4c3e5982343
+	github.com/mondegor/go-webcore v0.29.3-0.20260804235309-47f1580a8a29
 	github.com/pquerna/otp v1.5.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/mock v0.6.0
@@ -87,7 +87,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/exp v0.0.0-20260718201538-764159d718ef // indirect
+	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743 // indirect
 	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect

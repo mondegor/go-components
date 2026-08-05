@@ -57,6 +57,8 @@ func TestValidatePhone(t *testing.T) {
 
 		{name: "empty", value: "", want: false},
 		{name: "single digit", value: "7", want: false},
+		// номер обнуляется при разборе, поэтому им нельзя пользоваться как логином
+		{name: "zeros only", value: "0000000000", want: false},
 		{name: "with letters", value: "+7900123456a", want: false},
 		{name: "space after plus", value: "+ 79001234567", want: false},
 		{name: "trailing separator", value: "+7 900 123 45 67-", want: false},
@@ -83,6 +85,9 @@ func TestValidatePhoneCIS(t *testing.T) {
 		{name: "russian with eight", value: "89001234567", want: true},
 		{name: "russian without plus", value: "79001234567", want: true},
 		{name: "neighbour country", value: "+9971234567", want: true},
+		// принадлежность диапазону проверяется по нормализованному номеру,
+		// поэтому запись с разделителями не отличается от записи без них
+		{name: "russian with separators", value: "8 (900) 123-45-67", want: true},
 
 		// значение должно совпадать со всей строкой целиком, а не с её началом или концом
 		{name: "trailing garbage", value: "+79001234567abc", want: false},
@@ -115,6 +120,9 @@ func TestValidatePhoneWorld(t *testing.T) {
 	}{
 		{name: "russian", value: "+79001234567", want: true},
 		{name: "usa", value: "+14155552671", want: true},
+		// принадлежность диапазону проверяется по нормализованному номеру,
+		// поэтому запись с разделителями не отличается от записи без них
+		{name: "usa with separators", value: "+1 (415) 555-26-71", want: true},
 
 		{name: "trailing garbage", value: "+14155552671abc", want: false},
 		{name: "leading garbage", value: "garbage+14155552671", want: false},

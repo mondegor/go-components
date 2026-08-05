@@ -16,7 +16,7 @@ const (
 type (
 	// ChangePassword - фабрика операции смены пароля пользователя.
 	ChangePassword struct {
-		actionCreator  mrauth.ConfirmByAddressCreator
+		actionCreator  confirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
 		codeGenerator  mrauth.CodeGenerator
 	}

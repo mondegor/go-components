@@ -32,7 +32,7 @@ func NewDisable2FA(
 		opener:                      opener,
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
 		factoryOperationDisable2FA:  factoryOperationDisable2FA,
-		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:                errors.NewServiceOperationFailedWrapper(),
 	}
 }
 

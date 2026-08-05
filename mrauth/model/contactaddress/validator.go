@@ -14,22 +14,36 @@ var (
 	regexpPhoneWorldNot = regexp.MustCompile(`^\+?([87](95[5-7]|998|907|94[^09]|336)\d*)$`)
 )
 
-// ValidateEmail - сообщает о соответствии указанного значения формату email адреса.
+// ValidateEmail - сообщает о том, что указанное значение разбирается как email адрес.
 func ValidateEmail(value string) bool {
-	return regexpEmail.MatchString(value)
+	_, err := parseEmail(value)
+
+	return err == nil
 }
 
-// ValidatePhone - сообщает о соответствии указанного значения формату телефонного номера.
+// ValidatePhone - сообщает о том, что указанное значение разбирается как телефонный номер.
 func ValidatePhone(value string) bool {
-	return regexpPhone.MatchString(value)
+	_, err := parsePhone(value)
+
+	return err == nil
 }
 
 // ValidatePhoneCIS - сообщает о соответствии указанного значения формату телефонного номера (СНГ).
 func ValidatePhoneCIS(value string) bool {
-	return regexpPhoneCIS.MatchString(value) && !regexpPhoneCISNot.MatchString(value)
+	address, err := parsePhone(value)
+	if err != nil {
+		return false
+	}
+
+	return regexpPhoneCIS.MatchString(address.value) && !regexpPhoneCISNot.MatchString(address.value)
 }
 
 // ValidatePhoneWorld - сообщает о соответствии указанного значения формату телефонного номера (Все страны).
 func ValidatePhoneWorld(value string) bool {
-	return regexpPhoneWorld.MatchString(value) && !regexpPhoneWorldNot.MatchString(value)
+	address, err := parsePhone(value)
+	if err != nil {
+		return false
+	}
+
+	return regexpPhoneWorld.MatchString(address.value) && !regexpPhoneWorldNot.MatchString(address.value)
 }

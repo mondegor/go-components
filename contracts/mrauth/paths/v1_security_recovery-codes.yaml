@@ -6,12 +6,18 @@ post:
 
     ### Алгоритм перевыпуска аварийных кодов:
     1. Отправляется код подтверждения на текущий емаил;
-    2. Пользователь указывает полученный код и подтверждает перевыпуск (`POST /v1/operation/confirm`);
+    2. Пользователь указывает полученный код и подтверждает перевыпуск (`PATCH /v1/operation/confirm`);
     3. Пользователю предлагается ввести пароль или TOTP код (или один из оставшихся аварийных кодов);
     4. После подтверждения пользователь применяет операцию методом `POST /v1/security/apply-recovery-codes`,
        который заменяет набор аварийных кодов на новый и единоразово возвращает его
        (старые коды становятся недействительными);
     5. На текущий емаил отправляется уведомление, что аварийные коды были перевыпущены;
+
+    ### Причины ответа `403`
+    - общие причины отказа — см. «Аутентификация и доступ» в описании API;
+
+    ### Причины ответа `409`
+    - 2FA аутентификация выключена, перевыпускать аварийные коды нечему;
   operationId: regenerateUser2faRecoveryCodes
   tags:
     - Auth.Security
@@ -21,10 +27,11 @@ post:
   responses:
     "200":
       $ref: "../components/responses/Auth.ResponseJson.WaitingConfirmOperation.yaml"
-    "400":
-      # 2FA аутентификация выключена - перевыпускать аварийные коды нечему
-      $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
     "401":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
+    "403":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    "409":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error409.yaml"
     "500":
       $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

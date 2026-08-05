@@ -19,7 +19,7 @@ type (
 		opener                      operationOpener
 		phoneChecker                userPhoneChecker
 		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
-		factoryOperationPhone       factoryOperationValue2FA
+		factoryOperationPhone       factoryOperationAddress2FA
 		errorWrapper                errors.Wrapper
 	}
 
@@ -33,14 +33,14 @@ func NewChangePhoneProperty(
 	opener operationOpener,
 	phoneChecker userPhoneChecker,
 	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
-	factoryOperationPhone factoryOperationValue2FA,
+	factoryOperationPhone factoryOperationAddress2FA,
 ) *ChangePhoneProperty {
 	return &ChangePhoneProperty{
 		opener:                      opener,
 		phoneChecker:                phoneChecker,
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
 		factoryOperationPhone:       factoryOperationPhone,
-		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:                errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
@@ -49,18 +49,17 @@ func NewChangePhoneProperty(
 func (uc *ChangePhoneProperty) Execute(
 	ctx context.Context,
 	actor dto.ActorMeta,
-	newPhone string,
+	newPhone contactaddress.ContactAddress,
 ) (secureoperation.SecureOperation, error) {
 	if actor.VisitorID == uuid.Nil {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
-	parsedPhone, err := contactaddress.ParsePhone(newPhone)
-	if err != nil {
-		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New(err)
+	if newPhone.Value() == "" {
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("newPhone is empty")
 	}
 
-	if err := uc.phoneChecker.CheckAvailabilityPhone(ctx, parsedPhone); err != nil {
+	if err := uc.phoneChecker.CheckAvailabilityPhone(ctx, newPhone); err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 

@@ -22,7 +22,6 @@ import (
 
 const (
 	createUserLockKeyPrefix = "auth.create-user:"
-	createUserLockTimeout   = 10 * time.Minute
 )
 
 type (
@@ -37,8 +36,8 @@ type (
 		realm2operation map[string]createUserOperation
 	}
 
-	// CreateUserRealm - сопоставление realm с операцией создания пользователя для него.
-	CreateUserRealm struct {
+	// CreateRealmUser - сопоставление realm с операцией создания пользователя для него.
+	CreateRealmUser struct {
 		Name      string
 		Operation createUserOperation
 	}
@@ -47,11 +46,16 @@ type (
 		// Name - имя создаваемой операции; используется для событий журнала, возникающих
 		// до её создания (pre-op), чтобы они не разъезжались с именем самой операции.
 		Name() string
+
+		// Expiry - срок действия отправляемого кода подтверждения; по нему выставляется окно
+		// троттла повторной регистрации, чтобы оно не разъезжалось с настройкой самой операции.
+		Expiry() time.Duration
+
 		Create(
 			user2FA dto.User2FA,
 			langCode string,
 			timeZone string,
-			address contactaddress.ContactAddress,
+			userEmail contactaddress.ContactAddress,
 			registeredIP mrtype.DetailedIP,
 		) (secureoperation.SecureOperation, error)
 	}
@@ -73,7 +77,7 @@ func NewCreateUser(
 	factory2FA user2faActionCreator,
 	locker mrlock.Locker,
 	logOperation operationLogger,
-	allowedRealms []CreateUserRealm,
+	allowedRealms []CreateRealmUser,
 ) *CreateUser {
 	realm2operation := make(map[string]createUserOperation, len(allowedRealms))
 	for _, realm := range allowedRealms {
@@ -86,7 +90,7 @@ func NewCreateUser(
 		factory2FA:      factory2FA,
 		locker:          locker,
 		logOperation:    logOperation,
-		errorWrapper:    errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:    errors.NewServiceOperationFailedWrapper(),
 		realm2operation: realm2operation,
 	}
 }
@@ -101,22 +105,31 @@ func NewCreateUser(
 func (co *CreateUser) Execute(
 	ctx context.Context,
 	realm, langCode, timeZone string,
-	userEmail string,
+	userEmail contactaddress.ContactAddress,
 	registeredIP mrtype.DetailedIP,
 ) (op secureoperation.SecureOperation, err error) {
+	if langCode == "" {
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("langCode is empty")
+	}
+
+	if timeZone == "" {
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("timeZone is empty")
+	}
+
+	if userEmail.Value() == "" {
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userEmail is empty")
+	}
+
 	opCreator, ok := co.realm2operation[realm]
 	if !ok {
-		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New("realm is unknown")
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("realm is unknown", "realm", realm)
 	}
 
-	parsedLogin, err := contactaddress.ParseEmail(userEmail)
-	if err != nil {
-		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New(err)
-	}
-
-	// лок держится до createUserLockTimeout и НЕ освобождается при успехе - это намеренный
-	// анти-спам троттл повторной отправки кода подтверждения на тот же email
-	unlockEmail, err := co.locker.LockWithExpiry(ctx, createUserLockKeyPrefix+realm+":"+parsedLogin.Value(), createUserLockTimeout)
+	// лок держится столько же, сколько действителен отправленный код, и НЕ освобождается при
+	// успехе - это намеренный анти-спам троттл повторной отправки кода подтверждения на тот же
+	// email. Сама операция может пережить лок (повторная отправка кода и 2FA-шаг продлевают её
+	// ExpiresAt), поэтому троттл ограничивает частоту отправок, а не время жизни операции
+	unlockEmail, err := co.locker.LockWithExpiry(ctx, createUserLockKeyPrefix+realm+":"+userEmail.Value(), opCreator.Expiry())
 	if err != nil {
 		if errors.Is(err, mrlock.ErrLockKeyNotObtained) {
 			// анти-спам троттл повторной регистрации: фиксируем в журнале заблокированную попытку
@@ -133,7 +146,12 @@ func (co *CreateUser) Execute(
 				),
 			)
 
-			return secureoperation.SecureOperation{}, mrauth.ErrSignupAlreadyInProgressTryLater
+			// создаётся ошибка со сроком повторной попытки, равным верхней границе окна троттла:
+			// сколько его осталось на самом деле, mrlock не сообщает
+			return secureoperation.SecureOperation{},
+				mrauth.ErrSignupAlreadyInProgressTryLater.Wrap(
+					mrauth.NewRetryAfterError(opCreator.Expiry()),
+				)
 		}
 
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
@@ -147,20 +165,20 @@ func (co *CreateUser) Execute(
 		}
 	}()
 
-	if err = co.userChecker.CheckAvailabilityRealm(ctx, realm, parsedLogin); err != nil {
+	if err = co.userChecker.CheckAvailabilityRealm(ctx, realm, userEmail); err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
 	// если email уже принадлежит существующему пользователю, его 2FA будет добавлен вторым шагом
 	// операции (для нового email пользователь не найден и используется пустой User2FA)
-	user2FA, err := co.factory2FA.CreateByUserLogin(ctx, parsedLogin)
+	user2FA, err := co.factory2FA.CreateByUserLogin(ctx, userEmail)
 	if err != nil {
 		if !errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 			return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 		}
 	}
 
-	op, err = opCreator.Create(user2FA, langCode, timeZone, parsedLogin, registeredIP)
+	op, err = opCreator.Create(user2FA, langCode, timeZone, userEmail, registeredIP)
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	sysmesserrors "github.com/mondegor/go-core/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -162,7 +163,7 @@ func TestSecureOperation_InitSendable_NilGeneratorFails(t *testing.T) {
 	t.Parallel()
 
 	op := openedOp(t, emailAction("u@e", ""))
-	require.ErrorContains(t, op.InitSendableAction(nil), "generateCode is nil")
+	require.ErrorIs(t, op.InitSendableAction(nil), sysmesserrors.ErrInternalNilPointer)
 }
 
 func TestSecureOperation_OpenedWithAction(t *testing.T) {
@@ -217,14 +218,14 @@ func TestSecureOperation_ActivateResendCode_NonSendableFails(t *testing.T) {
 	t.Parallel()
 
 	op := wokenOp(t, totpAction(), operationstatus.Opened, time.Now().Add(-time.Minute), 5)
-	require.ErrorContains(t, op.ActivateResendCode("new-token"), "action not support resend")
+	require.ErrorIs(t, op.ActivateResendCode("new-token"), secureoperation.ErrResendCodeIsNotSupported)
 }
 
 func TestSecureOperation_ActivateResendCode_NoResendsLeftFails(t *testing.T) {
 	t.Parallel()
 
 	op := wokenOp(t, emailAction("u@e", "c"), operationstatus.Opened, time.Now().Add(-time.Minute), 0)
-	require.ErrorContains(t, op.ActivateResendCode("new-token"), "operation failed resends")
+	require.ErrorIs(t, op.ActivateResendCode("new-token"), secureoperation.ErrNoAttemptsToResendCode)
 }
 
 func TestSecureOperation_ActivateResendCode_TooSoonRestricted(t *testing.T) {

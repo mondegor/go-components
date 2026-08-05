@@ -20,7 +20,7 @@ type (
 		opener                      operationOpener
 		emailChecker                userEmailChecker
 		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
-		factoryOperationEmail       factoryOperationValue2FA
+		factoryOperationEmail       factoryOperationAddress2FA
 		errorWrapper                errors.Wrapper
 	}
 
@@ -40,8 +40,8 @@ type (
 		CheckAvailabilityEmail(ctx context.Context, userEmail contactaddress.ContactAddress) error
 	}
 
-	factoryOperationValue2FA interface {
-		Create(user2FA dto.User2FA, fieldValue string) (secureoperation.SecureOperation, error)
+	factoryOperationAddress2FA interface {
+		Create(user2FA dto.User2FA, fieldValue contactaddress.ContactAddress) (secureoperation.SecureOperation, error)
 	}
 )
 
@@ -50,14 +50,14 @@ func NewChangeEmailProperty(
 	opener operationOpener,
 	emailChecker userEmailChecker,
 	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
-	factoryOperationEmail factoryOperationValue2FA,
+	factoryOperationEmail factoryOperationAddress2FA,
 ) *ChangeEmailProperty {
 	return &ChangeEmailProperty{
 		opener:                      opener,
 		emailChecker:                emailChecker,
 		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
 		factoryOperationEmail:       factoryOperationEmail,
-		errorWrapper:                errors.NewServiceRecordNotFoundWrapper(),
+		errorWrapper:                errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
@@ -66,18 +66,17 @@ func NewChangeEmailProperty(
 func (uc *ChangeEmailProperty) Execute(
 	ctx context.Context,
 	actor dto.ActorMeta,
-	newEmail string,
+	newEmail contactaddress.ContactAddress,
 ) (secureoperation.SecureOperation, error) {
 	if actor.VisitorID == uuid.Nil {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
-	parsedEmail, err := contactaddress.ParseEmail(newEmail)
-	if err != nil {
-		return secureoperation.SecureOperation{}, errors.ErrIncorrectInputData.New(err)
+	if newEmail.Value() == "" {
+		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("newEmail is empty")
 	}
 
-	if err := uc.emailChecker.CheckAvailabilityEmail(ctx, parsedEmail); err != nil {
+	if err := uc.emailChecker.CheckAvailabilityEmail(ctx, newEmail); err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}
 

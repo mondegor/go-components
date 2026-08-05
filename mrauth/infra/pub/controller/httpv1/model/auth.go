@@ -61,14 +61,16 @@ type (
 	}
 
 	// UserInfoResponse - ответ со сводной информацией о текущем пользователе.
+	// RecoveryCodesLeft - кол-во оставшихся аварийных кодов отдаётся только при включённой 2FA.
 	UserInfoResponse struct {
-		Email       string           `json:"email"`
-		Phone       string           `json:"phone,omitempty"`
-		LangCode    string           `json:"lang"`
-		TimeZone    string           `json:"tz"`
-		Auth2FAType auth2fatype.Enum `json:"auth_2fa_type"`
-		Realms      []UserRealm      `json:"realms"`
-		Status      userstatus.Enum  `json:"status"`
+		Email             string           `json:"email"`
+		Phone             string           `json:"phone,omitempty"`
+		LangCode          string           `json:"lang"`
+		TimeZone          string           `json:"tz"`
+		Auth2FAType       auth2fatype.Enum `json:"auth_2fa_type"`
+		RecoveryCodesLeft *int             `json:"recovery_codes_left,omitempty"`
+		Realms            []UserRealm      `json:"realms"`
+		Status            userstatus.Enum  `json:"status"`
 	}
 
 	// UserRealm - realm пользователя с его видом и статистикой последнего входа

@@ -96,32 +96,32 @@ func (mr *MockuserEmailCheckerMockRecorder) CheckAvailabilityEmail(ctx, userEmai
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CheckAvailabilityEmail", reflect.TypeOf((*MockuserEmailChecker)(nil).CheckAvailabilityEmail), ctx, userEmail)
 }
 
-// MockfactoryOperationValue2FA is a mock of factoryOperationValue2FA interface.
-type MockfactoryOperationValue2FA struct {
+// MockfactoryOperationAddress2FA is a mock of factoryOperationAddress2FA interface.
+type MockfactoryOperationAddress2FA struct {
 	ctrl     *gomock.Controller
-	recorder *MockfactoryOperationValue2FAMockRecorder
+	recorder *MockfactoryOperationAddress2FAMockRecorder
 	isgomock struct{}
 }
 
-// MockfactoryOperationValue2FAMockRecorder is the mock recorder for MockfactoryOperationValue2FA.
-type MockfactoryOperationValue2FAMockRecorder struct {
-	mock *MockfactoryOperationValue2FA
+// MockfactoryOperationAddress2FAMockRecorder is the mock recorder for MockfactoryOperationAddress2FA.
+type MockfactoryOperationAddress2FAMockRecorder struct {
+	mock *MockfactoryOperationAddress2FA
 }
 
-// NewMockfactoryOperationValue2FA creates a new mock instance.
-func NewMockfactoryOperationValue2FA(ctrl *gomock.Controller) *MockfactoryOperationValue2FA {
-	mock := &MockfactoryOperationValue2FA{ctrl: ctrl}
-	mock.recorder = &MockfactoryOperationValue2FAMockRecorder{mock}
+// NewMockfactoryOperationAddress2FA creates a new mock instance.
+func NewMockfactoryOperationAddress2FA(ctrl *gomock.Controller) *MockfactoryOperationAddress2FA {
+	mock := &MockfactoryOperationAddress2FA{ctrl: ctrl}
+	mock.recorder = &MockfactoryOperationAddress2FAMockRecorder{mock}
 	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockfactoryOperationValue2FA) EXPECT() *MockfactoryOperationValue2FAMockRecorder {
+func (m *MockfactoryOperationAddress2FA) EXPECT() *MockfactoryOperationAddress2FAMockRecorder {
 	return m.recorder
 }
 
 // Create mocks base method.
-func (m *MockfactoryOperationValue2FA) Create(user2FA dto.User2FA, fieldValue string) (secureoperation.SecureOperation, error) {
+func (m *MockfactoryOperationAddress2FA) Create(user2FA dto.User2FA, fieldValue contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", user2FA, fieldValue)
 	ret0, _ := ret[0].(secureoperation.SecureOperation)
@@ -130,7 +130,7 @@ func (m *MockfactoryOperationValue2FA) Create(user2FA dto.User2FA, fieldValue st
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockfactoryOperationValue2FAMockRecorder) Create(user2FA, fieldValue any) *gomock.Call {
+func (mr *MockfactoryOperationAddress2FAMockRecorder) Create(user2FA, fieldValue any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockfactoryOperationValue2FA)(nil).Create), user2FA, fieldValue)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockfactoryOperationAddress2FA)(nil).Create), user2FA, fieldValue)
 }
