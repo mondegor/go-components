@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
@@ -211,28 +212,28 @@ func TestSecureOperation_ActivateResendCode_ConfirmedFails(t *testing.T) {
 	t.Parallel()
 
 	op := wokenOp(t, emailAction("u@e", "c"), operationstatus.Confirmed, time.Time{}, 5)
-	require.ErrorIs(t, op.ActivateResendCode("new-token"), secureoperation.ErrOperationAlreadyConfirmed)
+	require.ErrorIs(t, op.ActivateResendCode("new-token"), mrauth.ErrOperationAlreadyConfirmed)
 }
 
 func TestSecureOperation_ActivateResendCode_NonSendableFails(t *testing.T) {
 	t.Parallel()
 
 	op := wokenOp(t, totpAction(), operationstatus.Opened, time.Now().Add(-time.Minute), 5)
-	require.ErrorIs(t, op.ActivateResendCode("new-token"), secureoperation.ErrResendCodeIsNotSupported)
+	require.ErrorIs(t, op.ActivateResendCode("new-token"), mrauth.ErrResendCodeIsNotSupported)
 }
 
 func TestSecureOperation_ActivateResendCode_NoResendsLeftFails(t *testing.T) {
 	t.Parallel()
 
 	op := wokenOp(t, emailAction("u@e", "c"), operationstatus.Opened, time.Now().Add(-time.Minute), 0)
-	require.ErrorIs(t, op.ActivateResendCode("new-token"), secureoperation.ErrNoAttemptsToResendCode)
+	require.ErrorIs(t, op.ActivateResendCode("new-token"), mrauth.ErrNoAttemptsToResendCode)
 }
 
 func TestSecureOperation_ActivateResendCode_TooSoonRestricted(t *testing.T) {
 	t.Parallel()
 
 	op := wokenOp(t, emailAction("u@e", "c"), operationstatus.Opened, time.Now().Add(time.Minute), 5)
-	require.ErrorIs(t, op.ActivateResendCode("new-token"), secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted)
+	require.ErrorIs(t, op.ActivateResendCode("new-token"), mrauth.ErrSendingNewMessagesIsTemporarilyRestricted)
 }
 
 func TestSecureOperation_ConfirmAction_FirstOfTwoKeepsOpened(t *testing.T) {
@@ -262,7 +263,7 @@ func TestSecureOperation_ConfirmAction_AlreadyConfirmedFails(t *testing.T) {
 	op := wokenOp(t, totpAction(), operationstatus.Confirmed, time.Time{}, 0)
 
 	confirmed, err := op.ConfirmAction(confirmOK)
-	require.ErrorIs(t, err, secureoperation.ErrOperationAlreadyConfirmed)
+	require.ErrorIs(t, err, mrauth.ErrOperationAlreadyConfirmed)
 	assert.False(t, confirmed)
 }
 
@@ -272,7 +273,7 @@ func TestSecureOperation_ConfirmAction_NoAttemptsFails(t *testing.T) {
 	op := wokenOp(t, secureoperation.ConfirmAction{Method: confirmmethod.TOTP, MaxAttempts: 0, Expiry: time.Minute}, operationstatus.Opened, time.Time{}, 0)
 
 	confirmed, err := op.ConfirmAction(confirmOK)
-	require.ErrorIs(t, err, secureoperation.ErrNoAttemptsToConfirmOperation)
+	require.ErrorIs(t, err, mrauth.ErrNoAttemptsToConfirmOperation)
 	assert.False(t, confirmed)
 }
 

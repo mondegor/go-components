@@ -14,7 +14,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrnotifier"
 )
@@ -75,7 +74,7 @@ func (uc *ApplyRecovery) Execute(
 	}
 
 	if operationToken == "" {
-		return nil, secureoperation.ErrOperationInvalid
+		return nil, mrauth.ErrOperationInvalid
 	}
 
 	var (
@@ -88,7 +87,7 @@ func (uc *ApplyRecovery) Execute(
 		op, err := uc.storageOperation.FetchOneForUpdate(ctx, operationToken)
 		if err != nil {
 			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
-				return secureoperation.ErrOperationInvalid
+				return mrauth.ErrOperationInvalid
 			}
 
 			return uc.errorWrapper.Wrap(err)
@@ -112,7 +111,7 @@ func (uc *ApplyRecovery) Execute(
 		if !op.Is(operationstatus.Confirmed) {
 			failedLogState = newLogState(logstatus.Blocked, logreason.NotConfirmed)
 
-			return secureoperation.ErrOperationIsNotConfirmed
+			return mrauth.ErrOperationIsNotConfirmed
 		}
 
 		payload, err := unit.ParseRegenerateRecoveryPayload(op.Payload)

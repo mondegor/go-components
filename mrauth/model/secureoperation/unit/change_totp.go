@@ -77,7 +77,7 @@ func (o *ChangeTOTP) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 	}
 
 	if user2FA.Action2FA.Method > 0 {
-		actions = append(actions, user2FA.Action2FA)
+		actions = append(actions, newConfirmActionBy2FA(user2FA.Action2FA))
 	}
 
 	return secureoperation.NewOperation(

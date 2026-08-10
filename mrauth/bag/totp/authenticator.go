@@ -2,11 +2,11 @@ package totp
 
 import (
 	"crypto/subtle"
+	"fmt"
 	"image"
 	"net/url"
 	"time"
 
-	"github.com/mondegor/go-core/errors"
 	pqotp "github.com/pquerna/otp"
 	pqtotp "github.com/pquerna/otp/totp"
 )
@@ -43,7 +43,7 @@ func (a *Authenticator) GenerateSecret(accountName string) (string, error) {
 		},
 	)
 	if err != nil {
-		return "", errors.WrapInternalError(err, "failed to generate TOTP secret")
+		return "", fmt.Errorf("failed to generate TOTP secret: %w", err)
 	}
 
 	return key.Secret(), nil
@@ -69,7 +69,7 @@ func (a *Authenticator) ValidateCode(code, secret string) (ok bool, timeStep int
 
 		candidateCode, err = pqtotp.GenerateCodeCustom(secret, time.Unix(candidateStep*totpPeriod, 0), opts)
 		if err != nil {
-			return false, 0, errors.WrapInternalError(err, "failed to generate TOTP code")
+			return false, 0, fmt.Errorf("failed to generate TOTP code: %w", err)
 		}
 
 		if subtle.ConstantTimeCompare([]byte(candidateCode), []byte(code)) == 1 {
@@ -84,7 +84,7 @@ func (a *Authenticator) ValidateCode(code, secret string) (ok bool, timeStep int
 func (a *Authenticator) GenerateCode(secret string, t time.Time) (string, error) {
 	code, err := pqtotp.GenerateCode(secret, t)
 	if err != nil {
-		return "", errors.WrapInternalError(err, "failed to generate TOTP code")
+		return "", fmt.Errorf("failed to generate TOTP code: %w", err)
 	}
 
 	return code, nil
@@ -95,12 +95,12 @@ func (a *Authenticator) GenerateCode(secret string, t time.Time) (string, error)
 func (a *Authenticator) QRImage(accountName, secret string, width, height int) (image.Image, error) {
 	key, err := pqotp.NewKeyFromURL(a.OTPAuthURL(accountName, secret))
 	if err != nil {
-		return nil, errors.WrapInternalError(err, "failed to parse otpauth URL")
+		return nil, fmt.Errorf("failed to parse otpauth URL: %w", err)
 	}
 
 	img, err := key.Image(width, height)
 	if err != nil {
-		return nil, errors.WrapInternalError(err, "failed to render TOTP QR image")
+		return nil, fmt.Errorf("failed to render TOTP QR image: %w", err)
 	}
 
 	return img, nil

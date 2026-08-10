@@ -85,7 +85,7 @@ func (co *ConfirmOperation) Execute(
 	}
 
 	if operationToken == "" {
-		return secureoperation.SecureOperation{}, secureoperation.ErrOperationInvalid
+		return secureoperation.SecureOperation{}, mrauth.ErrOperationInvalid
 	}
 
 	var (
@@ -106,7 +106,7 @@ func (co *ConfirmOperation) Execute(
 		op, err = co.storageOperation.FetchOneForUpdate(ctx, operationToken)
 		if err != nil {
 			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
-				return secureoperation.ErrOperationInvalid
+				return mrauth.ErrOperationInvalid
 			}
 
 			return co.errorWrapper.Wrap(err)
@@ -121,7 +121,7 @@ func (co *ConfirmOperation) Execute(
 		// подтверждать нечем: секрет не передан, а звено ещё открыто. Отдаётся отдельной ошибкой,
 		// а не как неверный код: клиенту нужно показать ввод секрета текущего звена, а не ошибку ввода
 		if confirmCode == "" {
-			confirmCodeErr = secureoperation.ErrConfirmCodeIsRequired
+			confirmCodeErr = mrauth.ErrConfirmCodeIsRequired
 
 			return nil
 		}
@@ -137,7 +137,7 @@ func (co *ConfirmOperation) Execute(
 
 		op, commitConfirmed, err = co.operationPreparer.Prepare(ctx, op, confirmCode)
 		if err != nil {
-			if errors.Is(err, secureoperation.ErrNoAttemptsToConfirmOperation) {
+			if errors.Is(err, mrauth.ErrNoAttemptsToConfirmOperation) {
 				confirmCodeErr = err
 				operationLogStatus = logstatus.Blocked
 				operationLogReason = logreason.AttemptsExhausted
@@ -145,7 +145,7 @@ func (co *ConfirmOperation) Execute(
 				return nil
 			}
 
-			if !errors.Is(err, secureoperation.ErrConfirmCodeIsIncorrect) {
+			if !errors.Is(err, mrauth.ErrConfirmCodeIsIncorrect) {
 				return co.errorWrapper.Wrap(err)
 			}
 
@@ -175,7 +175,7 @@ func (co *ConfirmOperation) Execute(
 			//	 "secretCode", generateSecretCode,
 			// )
 
-			confirmCodeErr = secureoperation.ErrNoAttemptsToConfirmOperation.Wrap(err)
+			confirmCodeErr = mrauth.ErrNoAttemptsToConfirmOperation.Wrap(err)
 			operationLogStatus = logstatus.Blocked
 			operationLogReason = logreason.AttemptsExhausted
 
@@ -241,7 +241,7 @@ func (co *ConfirmOperation) Execute(
 				),
 			)
 
-			return secureoperation.SecureOperation{}, secureoperation.ErrConfirmCodeIsIncorrect
+			return secureoperation.SecureOperation{}, mrauth.ErrConfirmCodeIsIncorrect
 		}
 
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)

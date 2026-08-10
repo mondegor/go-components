@@ -8,6 +8,7 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
@@ -47,9 +48,9 @@ func (f confirmOperationFlow) confirm(
 	)
 	if err != nil {
 		// все три отказа относятся к самому секрету и отдаются с актуальным состоянием операции
-		if errors.Is(err, secureoperation.ErrConfirmCodeIsRequired) ||
-			errors.Is(err, secureoperation.ErrConfirmCodeIsIncorrect) ||
-			errors.Is(err, secureoperation.ErrNoAttemptsToConfirmOperation) {
+		if errors.Is(err, mrauth.ErrConfirmCodeIsRequired) ||
+			errors.Is(err, mrauth.ErrConfirmCodeIsIncorrect) ||
+			errors.Is(err, mrauth.ErrNoAttemptsToConfirmOperation) {
 			return op, false, f.sender.Send(
 				w,
 				http.StatusBadRequest,

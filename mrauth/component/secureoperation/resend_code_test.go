@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation/mock"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
@@ -102,14 +103,14 @@ func (s *ResendCodeSuite) TestPrepareBusinessErrorsKeepOperation() {
 			prepare: func(op *secureoperation_model.SecureOperation) {
 				op.ResendsAt = time.Now().Add(time.Minute)
 			},
-			wantErr: secureoperation_model.ErrSendingNewMessagesIsTemporarilyRestricted,
+			wantErr: mrauth.ErrSendingNewMessagesIsTemporarilyRestricted,
 		},
 		{
 			name: "отправки исчерпаны",
 			prepare: func(op *secureoperation_model.SecureOperation) {
 				op.RemainingResends = 0
 			},
-			wantErr: secureoperation_model.ErrNoAttemptsToResendCode,
+			wantErr: mrauth.ErrNoAttemptsToResendCode,
 		},
 	} {
 		s.Run(tt.name, func() {
@@ -162,8 +163,8 @@ func (s *ResendCodeSuite) TestPrepareNonSendableActionFails() {
 			}))
 
 			_, err := s.svc.Prepare(op)
-			s.Require().ErrorIs(err, secureoperation_model.ErrResendCodeIsNotSupported)
-			s.Require().NotErrorIs(err, secureoperation_model.ErrNoAttemptsToResendCode)
+			s.Require().ErrorIs(err, mrauth.ErrResendCodeIsNotSupported)
+			s.Require().NotErrorIs(err, mrauth.ErrNoAttemptsToResendCode)
 		})
 	}
 }
@@ -181,5 +182,5 @@ func (s *ResendCodeSuite) TestPrepareNotOpenedFails() {
 	s.Require().NoError(secureoperation_model.WakeUp(&confirmed, nil))
 
 	_, err := s.svc.Prepare(confirmed)
-	s.Require().ErrorIs(err, secureoperation_model.ErrOperationAlreadyConfirmed)
+	s.Require().ErrorIs(err, mrauth.ErrOperationAlreadyConfirmed)
 }

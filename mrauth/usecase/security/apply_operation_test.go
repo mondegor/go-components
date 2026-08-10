@@ -66,7 +66,7 @@ func (s *ApplyOperationSuite) TestUnknownTokenIsDomainError() {
 		Return(secureoperation.SecureOperation{}, errors.ErrEventStorageNoRecordFound)
 
 	err := s.newUseCase(nil).Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "op-token")
-	s.Require().ErrorIs(err, secureoperation.ErrOperationInvalid)
+	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
 	s.Require().NotErrorIs(err, errors.ErrRecordNotFound)
 }
 
@@ -115,7 +115,7 @@ func (s *ApplyOperationSuite) TestNotConfirmed() {
 	// именно пользовательская ошибка: обращение к неподтверждённой операции - ошибка
 	// последовательности вызовов клиента (400), а не сбой сервера
 	err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
-	s.Require().ErrorIs(err, secureoperation.ErrOperationIsNotConfirmed)
+	s.Require().ErrorIs(err, mrauth.ErrOperationIsNotConfirmed)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
 	s.Equal(logreason.NotConfirmed, s.logEntries[0].Reason)

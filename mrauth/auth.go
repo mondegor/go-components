@@ -7,17 +7,9 @@ import (
 
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 type (
-	// OperationUseCase - подтверждение, повторная отправка кода и отзыв защищённой операции пользователя.
-	OperationUseCase interface {
-		ConfirmAction(ctx context.Context, operationToken, secret string) (secureoperation.SecureOperation, error)
-		ResendCode(ctx context.Context, operationToken string) (secureoperation.SecureOperation, error)
-		Revoke(ctx context.Context, operationToken string) error
-	}
-
 	// AuthTokenFetcher - возвращает область действия пользователя по access токену.
 	AuthTokenFetcher interface {
 		FetchOneByAccessToken(ctx context.Context, accessToken string) (dto.UserScopes, error)

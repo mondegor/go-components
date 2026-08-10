@@ -1,7 +1,9 @@
 package crypt
 
 import (
-	"github.com/mondegor/go-core/errors"
+	"errors"
+	"fmt"
+
 	"github.com/mondegor/go-core/util/crypt"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -34,7 +36,7 @@ func NewSecretGenerator(defaultLength int) *SecretGenerator {
 func (c *SecretGenerator) GenToken() (string, error) {
 	token, err := crypt.GenerateToken(c.secretLength)
 	if err != nil {
-		return "", errors.WrapInternalError(err, "invalid GenToken")
+		return "", fmt.Errorf("invalid GenToken: %w", err)
 	}
 
 	return token, nil
@@ -44,7 +46,7 @@ func (c *SecretGenerator) GenToken() (string, error) {
 func (c *SecretGenerator) GenCode() (string, error) {
 	code, err := crypt.GenerateDigits(c.secretLength)
 	if err != nil {
-		return "", errors.WrapInternalError(err, "invalid GenCode")
+		return "", fmt.Errorf("invalid GenCode: %w", err)
 	}
 
 	return code, nil
@@ -70,7 +72,7 @@ func (c *SecretGenerator) GenCodeWithHash() (code, hashedCode string, err error)
 func (c *SecretGenerator) GenRecoveryCode() (string, error) {
 	code, err := crypt.GenerateBytes(charsetRecoveryCode, c.secretLength)
 	if err != nil {
-		return "", errors.WrapInternalError(err, "invalid GenRecoveryCode")
+		return "", fmt.Errorf("invalid GenRecoveryCode: %w", err)
 	}
 
 	if len(code) >= minRecoveryCodeLengthWithSeparator {
@@ -84,7 +86,7 @@ func (c *SecretGenerator) GenRecoveryCode() (string, error) {
 func (c *SecretGenerator) HashedSecret(value string) (string, error) {
 	hashed, err := bcrypt.GenerateFromPassword([]byte(value), bcrypt.DefaultCost)
 	if err != nil {
-		return "", errors.WrapInternalError(err, "invalid HashedSecret")
+		return "", fmt.Errorf("invalid HashedSecret: %w", err)
 	}
 
 	return string(hashed), nil
@@ -97,7 +99,7 @@ func (c *SecretGenerator) CompareSecretAndHash(secret, hashedSecret string) (ok 
 			return false, nil
 		}
 
-		return false, errors.WrapInternalError(err, "invalid CompareSecretAndHash")
+		return false, fmt.Errorf("invalid CompareSecretAndHash: %w", err)
 	}
 
 	return true, nil

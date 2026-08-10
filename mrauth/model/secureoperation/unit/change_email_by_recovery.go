@@ -69,7 +69,9 @@ func (o *ChangeEmailByRecovery) Create(user2FA dto.User2FA, newEmail contactaddr
 		operationToken,
 		NameConfirmChangeEmail,
 		user2FA.ID,
-		[]secureoperation.ConfirmAction{user2FA.Action2FA, o.recoveryCreator.Create()},
+		[]secureoperation.ConfirmAction{
+			newConfirmActionBy2FA(user2FA.Action2FA), o.recoveryCreator.Create(),
+		},
 		payload,
 	)
 }

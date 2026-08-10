@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
@@ -55,7 +56,7 @@ func TestConfirmAction_TOTPActionCheckCodeFails(t *testing.T) {
 	confirmed, err := op.ConfirmAction(func(_ secureoperation.ConfirmAction) (bool, error) {
 		return false, nil // имитация неуспешной внешней проверки
 	})
-	require.ErrorIs(t, err, secureoperation.ErrConfirmCodeIsIncorrect)
+	require.ErrorIs(t, err, mrauth.ErrConfirmCodeIsIncorrect)
 	require.False(t, confirmed)
 	require.Equal(t, before-1, op.RemainingAttempts)
 }

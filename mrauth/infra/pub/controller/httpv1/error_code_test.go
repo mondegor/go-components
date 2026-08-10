@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 // TestErrorCustomCodeFormat - закрепляет вид кода 400, который контроллеры отдают клиенту
@@ -30,24 +29,24 @@ func TestErrorCustomCodeFormat(t *testing.T) {
 		{"смена емаила: емаил занят", mrauth.ErrEmailAlreadyExists, "new_email", "EmailAlreadyExists/new_email"},
 		{"смена телефона: телефон занят", mrauth.ErrPhoneAlreadyExists, "new_phone", "PhoneAlreadyExists/new_phone"},
 		{"привязка TOTP: код не совпал", mrauth.ErrTOTPCodeIsIncorrect, "totp_code", "TOTPCodeIsIncorrect/totp_code"},
-		{"токен операции недействителен", secureoperation.ErrOperationInvalid, "token", "OperationInvalid/token"},
-		{"повторные отправки исчерпаны", secureoperation.ErrNoAttemptsToResendCode, "token", "NoAttemptsToResendCode/token"},
+		{"токен операции недействителен", mrauth.ErrOperationInvalid, "token", "OperationInvalid/token"},
+		{"повторные отправки исчерпаны", mrauth.ErrNoAttemptsToResendCode, "token", "NoAttemptsToResendCode/token"},
 		{
 			"повторная отправка неприменима к текущему действию",
-			secureoperation.ErrResendCodeIsNotSupported,
+			mrauth.ErrResendCodeIsNotSupported,
 			"token",
 			"ResendCodeIsNotSupported/token",
 		},
 		{"идентификаторы сессий", mrauth.ErrSessionIDIsInvalid, "session_ids", "SessionIDIsInvalid/session_ids"},
-		{"операция не подтверждена", secureoperation.ErrOperationIsNotConfirmed, "token", "OperationIsNotConfirmed/token"},
-		{"операция истекла", secureoperation.ErrOperationAlreadyExpired, "token", "OperationAlreadyExpired/token"},
-		{"операция уже подтверждена", secureoperation.ErrOperationAlreadyConfirmed, "token", "OperationAlreadyConfirmed/token"},
-		{"код подтверждения не передан", secureoperation.ErrConfirmCodeIsRequired, "secret", "ConfirmCodeIsRequired/secret"},
-		{"код подтверждения неверен", secureoperation.ErrConfirmCodeIsIncorrect, "secret", "ConfirmCodeIsIncorrect/secret"},
-		{"попытки подтверждения исчерпаны", secureoperation.ErrNoAttemptsToConfirmOperation, "secret", "NoAttemptsToConfirmOperation/secret"},
+		{"операция не подтверждена", mrauth.ErrOperationIsNotConfirmed, "token", "OperationIsNotConfirmed/token"},
+		{"операция истекла", mrauth.ErrOperationAlreadyExpired, "token", "OperationAlreadyExpired/token"},
+		{"операция уже подтверждена", mrauth.ErrOperationAlreadyConfirmed, "token", "OperationAlreadyConfirmed/token"},
+		{"код подтверждения не передан", mrauth.ErrConfirmCodeIsRequired, "secret", "ConfirmCodeIsRequired/secret"},
+		{"код подтверждения неверен", mrauth.ErrConfirmCodeIsIncorrect, "secret", "ConfirmCodeIsIncorrect/secret"},
+		{"попытки подтверждения исчерпаны", mrauth.ErrNoAttemptsToConfirmOperation, "secret", "NoAttemptsToConfirmOperation/secret"},
 		{
 			"повторная отправка ограничена",
-			secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted,
+			mrauth.ErrSendingNewMessagesIsTemporarilyRestricted,
 			"token",
 			"SendingNewMessagesIsTemporarilyRestricted/token",
 		},
@@ -70,8 +69,8 @@ func TestErrorCustomCodeFormat(t *testing.T) {
 func TestErrorCustomCodeKeepsSentinel(t *testing.T) {
 	t.Parallel()
 
-	customErr := errors.WithCustomCode(secureoperation.ErrOperationInvalid, "token")
+	customErr := errors.WithCustomCode(mrauth.ErrOperationInvalid, "token")
 
-	require.ErrorIs(t, customErr, secureoperation.ErrOperationInvalid)
-	require.NotErrorIs(t, customErr, secureoperation.ErrOperationIsNotConfirmed)
+	require.ErrorIs(t, customErr, mrauth.ErrOperationInvalid)
+	require.NotErrorIs(t, customErr, mrauth.ErrOperationIsNotConfirmed)
 }

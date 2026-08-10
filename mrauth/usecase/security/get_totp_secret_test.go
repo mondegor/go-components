@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
@@ -88,7 +89,7 @@ func (s *GetTOTPSecretSuite) TestNotConfirmedOperation() {
 	s.fetcher.EXPECT().FetchOne(gomock.Any(), "op-token").Return(op, nil)
 
 	_, err := s.newUseCase().Execute(s.ctx, userID, "op-token")
-	s.Require().ErrorIs(err, secureoperation.ErrOperationIsNotConfirmed)
+	s.Require().ErrorIs(err, mrauth.ErrOperationIsNotConfirmed)
 }
 
 // TestOperationNotFound - неизвестный токен операции приводится usecase к доменной
@@ -99,6 +100,6 @@ func (s *GetTOTPSecretSuite) TestOperationNotFound() {
 		Return(secureoperation.SecureOperation{}, errors.ErrEventStorageNoRecordFound)
 
 	_, err := s.newUseCase().Execute(s.ctx, uuid.New(), "op-token")
-	s.Require().ErrorIs(err, secureoperation.ErrOperationInvalid)
+	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
 	s.Require().NotErrorIs(err, errors.ErrRecordNotFound)
 }

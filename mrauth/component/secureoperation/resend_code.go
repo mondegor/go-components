@@ -37,8 +37,8 @@ func (o *ResendCode) Prepare(op secureoperation.SecureOperation) (secureoperatio
 		// временный троттл и окончательно израсходованные отправки - оба бизнес-результат,
 		// а не сбой: операция обязана вернуться вместе с ошибкой, иначе вызывающий не сможет
 		// отдать клиенту актуальные счётчики операции
-		if errors.Is(err, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted) ||
-			errors.Is(err, secureoperation.ErrNoAttemptsToResendCode) {
+		if errors.Is(err, mrauth.ErrSendingNewMessagesIsTemporarilyRestricted) ||
+			errors.Is(err, mrauth.ErrNoAttemptsToResendCode) {
 			return op, err // WARNING: 'op' используется с этой ошибкой
 		}
 

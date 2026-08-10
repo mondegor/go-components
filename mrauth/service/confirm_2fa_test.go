@@ -9,12 +9,12 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/userstatus"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/service"
 	"github.com/mondegor/go-components/mrauth/service/mock"
 )
@@ -73,8 +73,8 @@ func (s *FactoryConfirm2FASuite) TestCreateByUserLogin() {
 			FetchOne(gomock.Any(), userID).
 			Return(entity.Auth2FA{UserID: userID, Type: auth2fatype.TOTP, Secret: "secret"}, nil)
 		s.actionFactory.EXPECT().
-			Create(auth2fatype.TOTP, "secret").
-			Return(secureoperation.ConfirmAction{Method: confirmmethod.TOTP}, nil)
+			Create(auth2fatype.TOTP).
+			Return(dto.ConfirmAction2FA{Method: confirmmethod.TOTP}, nil)
 
 		got, err := s.svc.CreateByUserLogin(s.ctx, login)
 		s.Require().NoError(err)

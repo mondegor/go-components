@@ -147,7 +147,7 @@ func (s *ConfirmOperationSuite) execute(code string) (secureoperation.SecureOper
 // от неизвестного и истёкшего токена и отдаётся тем же сентинелом.
 func (s *ConfirmOperationSuite) TestEmptyToken() {
 	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "", "code")
-	s.Require().ErrorIs(err, secureoperation.ErrOperationInvalid)
+	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
 }
 
 // язык приходит уже определённым по запросу, поэтому пустой - ошибка проводки.
@@ -164,7 +164,7 @@ func (s *ConfirmOperationSuite) TestUnknownTokenIsDomainError() {
 	s.expectFetch(secureoperation.SecureOperation{}, sysmesserrors.ErrEventStorageNoRecordFound)
 
 	_, err := s.execute("code")
-	s.Require().ErrorIs(err, secureoperation.ErrOperationInvalid)
+	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
 	s.Require().NotErrorIs(err, sysmesserrors.ErrRecordNotFound)
 }
 
@@ -182,7 +182,7 @@ func (s *ConfirmOperationSuite) TestRecordNotFoundAfterLockIsInternal() {
 
 	_, err := s.execute("code123")
 	s.Require().Error(err)
-	s.Require().NotErrorIs(err, secureoperation.ErrOperationInvalid)
+	s.Require().NotErrorIs(err, mrauth.ErrOperationInvalid)
 	s.Require().NotErrorIs(err, sysmesserrors.ErrRecordNotFound)
 }
 
@@ -197,10 +197,10 @@ func (s *ConfirmOperationSuite) TestFetchError() {
 func (s *ConfirmOperationSuite) TestNoAttempts() {
 	op := openedEmailOp(s.T())
 	s.expectFetch(op, nil)
-	s.expectPrepare(op, nil, secureoperation.ErrNoAttemptsToConfirmOperation)
+	s.expectPrepare(op, nil, mrauth.ErrNoAttemptsToConfirmOperation)
 
 	_, err := s.execute("code")
-	s.Require().ErrorIs(err, secureoperation.ErrNoAttemptsToConfirmOperation)
+	s.Require().ErrorIs(err, mrauth.ErrNoAttemptsToConfirmOperation)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
 	s.Equal(logreason.AttemptsExhausted, s.logEntries[0].Reason)
@@ -209,11 +209,11 @@ func (s *ConfirmOperationSuite) TestNoAttempts() {
 func (s *ConfirmOperationSuite) TestWrongCodeAttemptsRemain() {
 	op := openedEmailOp(s.T())
 	s.expectFetch(op, nil)
-	s.expectPrepare(op, nil, secureoperation.ErrConfirmCodeIsIncorrect)
+	s.expectPrepare(op, nil, mrauth.ErrConfirmCodeIsIncorrect)
 	s.storage.EXPECT().UpdateFailedAttempt(gomock.Any(), gomock.Any()).Return(int16(2), nil)
 
 	out, err := s.execute("bad")
-	s.Require().ErrorIs(err, secureoperation.ErrConfirmCodeIsIncorrect)
+	s.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.Equal(int16(2), out.RemainingAttempts)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.ConfirmFailed, s.logEntries[0].LogStatus)
@@ -225,11 +225,11 @@ func (s *ConfirmOperationSuite) TestWrongCodeAttemptsRemain() {
 func (s *ConfirmOperationSuite) TestWrongCodeNoAttemptsLeft() {
 	op := openedEmailOp(s.T())
 	s.expectFetch(op, nil)
-	s.expectPrepare(op, nil, secureoperation.ErrConfirmCodeIsIncorrect)
+	s.expectPrepare(op, nil, mrauth.ErrConfirmCodeIsIncorrect)
 	s.storage.EXPECT().UpdateFailedAttempt(gomock.Any(), gomock.Any()).Return(int16(0), nil)
 
 	_, err := s.execute("bad")
-	s.Require().ErrorIs(err, secureoperation.ErrNoAttemptsToConfirmOperation)
+	s.Require().ErrorIs(err, mrauth.ErrNoAttemptsToConfirmOperation)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
 	s.Equal(logreason.AttemptsExhausted, s.logEntries[0].Reason)
@@ -319,8 +319,8 @@ func (s *ConfirmOperationSuite) TestEmptySecretOnOpenedOperation() {
 	s.storage.EXPECT().UpdateFailedAttempt(gomock.Any(), gomock.Any()).Times(0)
 
 	out, err := s.execute("")
-	s.Require().ErrorIs(err, secureoperation.ErrConfirmCodeIsRequired)
-	s.Require().NotErrorIs(err, secureoperation.ErrConfirmCodeIsIncorrect)
+	s.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsRequired)
+	s.Require().NotErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.Positive(out.RemainingAttempts)
 	s.Equal(op.RemainingAttempts, out.RemainingAttempts)
 	// пропуск поля клиентом не является попыткой подтверждения, поэтому в журнал не пишется
@@ -339,9 +339,9 @@ func (s *ConfirmOperationSuite) TestSuccessAuth2FARaceRejectedAsWrongCode() {
 	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 	gotOp, err := s.execute("code123")
-	s.Require().ErrorIs(err, secureoperation.ErrConfirmCodeIsIncorrect) // гонка отдаётся как неверный код
-	s.Require().NotErrorIs(err, mrauth.ErrEventAuth2FACodeAlreadyUsed)  // внутренний сигнал наружу не уходит
-	s.Equal(secureoperation.SecureOperation{}, gotOp)                   // транзакция откатилась
+	s.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)         // гонка отдаётся как неверный код
+	s.Require().NotErrorIs(err, mrauth.ErrEventAuth2FACodeAlreadyUsed) // внутренний сигнал наружу не уходит
+	s.Equal(secureoperation.SecureOperation{}, gotOp)                  // транзакция откатилась
 	// TOTP-replay фиксируется в журнале даже при откате транзакции
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.ConfirmFailed, s.logEntries[0].LogStatus)
@@ -365,7 +365,7 @@ func (s *ConfirmOperationSuite) TestCommitFailureIsNotReplay() {
 
 	gotOp, err := s.execute("code123")
 	s.Require().ErrorIs(err, wantErr)
-	s.Require().NotErrorIs(err, secureoperation.ErrConfirmCodeIsIncorrect)
+	s.Require().NotErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.Equal(secureoperation.SecureOperation{}, gotOp) // транзакция откатилась
 	s.Empty(s.logEntries)
 }
@@ -415,7 +415,7 @@ func (s *ResendCodeSuite) SetupTest() {
 // от неизвестного и истёкшего токена и отдаётся тем же сентинелом.
 func (s *ResendCodeSuite) TestEmptyToken() {
 	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "")
-	s.Require().ErrorIs(err, secureoperation.ErrOperationInvalid)
+	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
 }
 
 // язык приходит уже определённым по запросу, поэтому пустой - ошибка проводки.
@@ -431,10 +431,10 @@ func (s *ResendCodeSuite) TestRestricted() {
 	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
 	s.preparer.EXPECT().
 		Prepare(gomock.Any()).
-		Return(op, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted)
+		Return(op, mrauth.ErrSendingNewMessagesIsTemporarilyRestricted)
 
 	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "token")
-	s.Require().ErrorIs(err, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted)
+	s.Require().ErrorIs(err, mrauth.ErrSendingNewMessagesIsTemporarilyRestricted)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
 	s.Equal(logreason.Throttled, s.logEntries[0].Reason)
@@ -448,10 +448,10 @@ func (s *ResendCodeSuite) TestNoAttemptsToResend() {
 	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
 	s.preparer.EXPECT().
 		Prepare(gomock.Any()).
-		Return(op, secureoperation.ErrNoAttemptsToResendCode)
+		Return(op, mrauth.ErrNoAttemptsToResendCode)
 
 	got, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "token")
-	s.Require().ErrorIs(err, secureoperation.ErrNoAttemptsToResendCode)
+	s.Require().ErrorIs(err, mrauth.ErrNoAttemptsToResendCode)
 	s.Equal(op.Token, got.Token, "операция должна вернуться вместе с ошибкой")
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
@@ -470,12 +470,12 @@ func (s *ResendCodeSuite) TestNotSupported() {
 	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
 	s.preparer.EXPECT().
 		Prepare(gomock.Any()).
-		Return(secureoperation.SecureOperation{}, secureoperation.ErrResendCodeIsNotSupported)
+		Return(secureoperation.SecureOperation{}, mrauth.ErrResendCodeIsNotSupported)
 	s.storage.EXPECT().Replace(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "token")
-	s.Require().ErrorIs(err, secureoperation.ErrResendCodeIsNotSupported)
+	s.Require().ErrorIs(err, mrauth.ErrResendCodeIsNotSupported)
 	s.Require().NotErrorIs(err, sysmesserrors.ErrInternalServiceOperationFailed)
 	s.Empty(s.logEntries)
 }
@@ -534,7 +534,7 @@ func (s *RevokeOperationSuite) SetupTest() {
 // пустым токеном не может быть найдена ни одна операция: снаружи это неотличимо
 // от неизвестного и истёкшего токена и отдаётся тем же сентинелом.
 func (s *RevokeOperationSuite) TestEmptyToken() {
-	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, ""), secureoperation.ErrOperationInvalid)
+	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, ""), mrauth.ErrOperationInvalid)
 }
 
 // поток отзыва доступен только залогиненным, поэтому анонимный вызывающий - ошибка проводки.

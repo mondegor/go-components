@@ -3,7 +3,7 @@ package httpv1
 import (
 	"github.com/mondegor/go-core/errors"
 
-	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth"
 )
 
 // wrapOperationError - привязывает ошибку защищённой операции к полю запроса, в котором её токен
@@ -19,11 +19,11 @@ func wrapOperationError(err error, fieldName string) error {
 
 	// проверяет, относится ли ошибка к предъявленному токену операции
 	// или к состоянию операции, на которую он указывает
-	if errors.Is(err, secureoperation.ErrOperationInvalid) ||
-		errors.Is(err, secureoperation.ErrOperationIsNotConfirmed) ||
-		errors.Is(err, secureoperation.ErrOperationAlreadyExpired) ||
-		errors.Is(err, secureoperation.ErrOperationAlreadyConfirmed) ||
-		errors.Is(err, secureoperation.ErrResendCodeIsNotSupported) {
+	if errors.Is(err, mrauth.ErrOperationInvalid) ||
+		errors.Is(err, mrauth.ErrOperationIsNotConfirmed) ||
+		errors.Is(err, mrauth.ErrOperationAlreadyExpired) ||
+		errors.Is(err, mrauth.ErrOperationAlreadyConfirmed) ||
+		errors.Is(err, mrauth.ErrResendCodeIsNotSupported) {
 		return errors.WithCustomCode(err, fieldName)
 	}
 

@@ -58,7 +58,7 @@ func userWith2FA(method confirmmethod.Enum) dto.User2FA {
 	return dto.User2FA{
 		ID:        uuid.New(),
 		Email:     "user@example.com",
-		Action2FA: secureoperation.ConfirmAction{Method: method},
+		Action2FA: dto.ConfirmAction2FA{Method: method},
 	}
 }
 
@@ -505,7 +505,7 @@ func (s *ChangeSecuritySuite) TestUserRowIsMissingIsInternal() {
 			err := tt.call()
 			s.Require().Error(err)
 			s.Require().NotErrorIs(err, coreerrors.ErrRecordNotFound)
-			s.Require().NotErrorIs(err, secureoperation.ErrOperationInvalid)
+			s.Require().NotErrorIs(err, mrauth.ErrOperationInvalid)
 		})
 	}
 }

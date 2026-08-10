@@ -14,10 +14,10 @@ import (
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
+	dto "github.com/mondegor/go-components/mrauth/dto"
 	entity "github.com/mondegor/go-components/mrauth/entity"
 	auth2fatype "github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	contactaddress "github.com/mondegor/go-components/mrauth/model/contactaddress"
-	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -139,16 +139,16 @@ func (m *MockfactoryConfirmAction2FA) EXPECT() *MockfactoryConfirmAction2FAMockR
 }
 
 // Create mocks base method.
-func (m *MockfactoryConfirmAction2FA) Create(auth2fa auth2fatype.Enum, secret string) (secureoperation.ConfirmAction, error) {
+func (m *MockfactoryConfirmAction2FA) Create(auth2fa auth2fatype.Enum) (dto.ConfirmAction2FA, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", auth2fa, secret)
-	ret0, _ := ret[0].(secureoperation.ConfirmAction)
+	ret := m.ctrl.Call(m, "Create", auth2fa)
+	ret0, _ := ret[0].(dto.ConfirmAction2FA)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Create indicates an expected call of Create.
-func (mr *MockfactoryConfirmAction2FAMockRecorder) Create(auth2fa, secret any) *gomock.Call {
+func (mr *MockfactoryConfirmAction2FAMockRecorder) Create(auth2fa any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockfactoryConfirmAction2FA)(nil).Create), auth2fa, secret)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockfactoryConfirmAction2FA)(nil).Create), auth2fa)
 }

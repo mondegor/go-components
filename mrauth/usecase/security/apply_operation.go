@@ -64,7 +64,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 	}
 
 	if operationToken == "" {
-		return secureoperation.ErrOperationInvalid
+		return mrauth.ErrOperationInvalid
 	}
 
 	var (
@@ -77,7 +77,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 		op, err := uc.storageOperation.FetchOneForUpdate(ctx, operationToken)
 		if err != nil {
 			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
-				return secureoperation.ErrOperationInvalid
+				return mrauth.ErrOperationInvalid
 			}
 
 			return uc.errorWrapper.Wrap(err)
@@ -102,7 +102,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 		if !op.Is(operationstatus.Confirmed) {
 			failedLogState = newLogState(logstatus.Blocked, logreason.NotConfirmed)
 
-			return secureoperation.ErrOperationIsNotConfirmed
+			return mrauth.ErrOperationIsNotConfirmed
 		}
 
 		if err = uc.storageOperation.Delete(ctx, op.Token); err != nil {

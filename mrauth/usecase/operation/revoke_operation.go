@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
@@ -48,13 +49,13 @@ func (co *RevokeOperation) Execute(ctx context.Context, actor dto.ActorMeta, ope
 	}
 
 	if operationToken == "" {
-		return secureoperation.ErrOperationInvalid
+		return mrauth.ErrOperationInvalid
 	}
 
 	op, err := co.storageOperation.FetchOne(ctx, operationToken)
 	if err != nil {
 		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
-			return secureoperation.ErrOperationInvalid
+			return mrauth.ErrOperationInvalid
 		}
 
 		return co.errorWrapper.Wrap(err)
@@ -78,7 +79,7 @@ func (co *RevokeOperation) Execute(ctx context.Context, actor dto.ActorMeta, ope
 	// «токен больше не действует», а не нарушение инварианта
 	if err = co.storageOperation.Delete(ctx, operationToken); err != nil {
 		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
-			return secureoperation.ErrOperationInvalid
+			return mrauth.ErrOperationInvalid
 		}
 
 		return co.errorWrapper.Wrap(err)

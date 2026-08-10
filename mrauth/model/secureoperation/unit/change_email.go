@@ -76,7 +76,7 @@ func (o *ChangeEmail) Create(user2FA dto.User2FA, newEmail contactaddress.Contac
 		// аварийный код этой цепочке недопустим ни на одном звене: смена адреса обязательно
 		// подтверждается паролем/TOTP, поэтому комбинация "email-код + аварийный код"
 		// отклоняется. Комбинацию "пароль/TOTP + аварийный код" строит ChangeEmailByRecovery
-		actions = append(actions, user2FA.Action2FA)
+		actions = append(actions, newConfirmActionBy2FA(user2FA.Action2FA))
 	}
 
 	return secureoperation.NewOperation(
