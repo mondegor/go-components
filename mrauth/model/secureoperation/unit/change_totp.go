@@ -22,7 +22,6 @@ type (
 		secretGenerator totpSecretGenerator
 	}
 
-	// totpSecretGenerator - интерфейс генератора TOTP-секрета для нового аккаунта.
 	totpSecretGenerator interface {
 		GenerateSecret(accountName string) (secret string, err error)
 	}

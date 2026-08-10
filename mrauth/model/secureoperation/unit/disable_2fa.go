@@ -36,6 +36,8 @@ func NewDisable2FA(
 }
 
 // Create - создаёт операцию отключения 2FA для указанного пользователя.
+// Требует включённую 2FA: снятие подтверждается email-кодом и текущим вторым фактором,
+// вместо которого допустим аварийный код.
 func (o *Disable2FA) Create(user2FA dto.User2FA) (secureoperation.SecureOperation, error) {
 	if user2FA.Action2FA.Method == 0 {
 		return secureoperation.SecureOperation{}, mrauth.ErrAuth2FAIsDisabled
@@ -67,9 +69,11 @@ func (o *Disable2FA) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 		return secureoperation.SecureOperation{}, err
 	}
 
-	if user2FA.Action2FA.Method > 0 {
-		actions = append(actions, user2FA.Action2FA)
-	}
+	// снятие 2FA обязательно подтверждается email-кодом, поэтому аварийный код допустим
+	// только вторым действием: комбинация "пароль/TOTP + аварийный код" отклоняется
+	user2FA.Action2FA.AllowRecovery = true
+
+	actions = append(actions, user2FA.Action2FA)
 
 	return secureoperation.NewOperation(
 		operationToken,

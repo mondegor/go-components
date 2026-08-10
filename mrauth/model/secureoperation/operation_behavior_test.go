@@ -247,7 +247,7 @@ func TestSecureOperation_ConfirmAction_FirstOfTwoKeepsOpened(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	confirmed, err := op.ConfirmAction(func(secureoperation.ConfirmAction) (bool, error) { return true, nil })
+	confirmed, err := op.ConfirmAction(confirmOK)
 	require.NoError(t, err)
 	assert.False(t, confirmed)
 
@@ -261,7 +261,7 @@ func TestSecureOperation_ConfirmAction_AlreadyConfirmedFails(t *testing.T) {
 
 	op := wokenOp(t, totpAction(), operationstatus.Confirmed, time.Time{}, 0)
 
-	confirmed, err := op.ConfirmAction(func(secureoperation.ConfirmAction) (bool, error) { return true, nil })
+	confirmed, err := op.ConfirmAction(confirmOK)
 	require.ErrorIs(t, err, secureoperation.ErrOperationAlreadyConfirmed)
 	assert.False(t, confirmed)
 }
@@ -271,7 +271,12 @@ func TestSecureOperation_ConfirmAction_NoAttemptsFails(t *testing.T) {
 
 	op := wokenOp(t, secureoperation.ConfirmAction{Method: confirmmethod.TOTP, MaxAttempts: 0, Expiry: time.Minute}, operationstatus.Opened, time.Time{}, 0)
 
-	confirmed, err := op.ConfirmAction(func(secureoperation.ConfirmAction) (bool, error) { return true, nil })
+	confirmed, err := op.ConfirmAction(confirmOK)
 	require.ErrorIs(t, err, secureoperation.ErrNoAttemptsToConfirmOperation)
 	assert.False(t, confirmed)
+}
+
+// confirmOK - проверка текущего действия, которая всегда успешна.
+func confirmOK(secureoperation.ConfirmAction) (bool, error) {
+	return true, nil
 }

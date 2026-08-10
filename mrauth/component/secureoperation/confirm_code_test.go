@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation/mock"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
@@ -86,7 +87,7 @@ func (s *ConfirmCodeSuite) newOpWithSingleTOTPAction(userID uuid.UUID) secureope
 // до Prepare. Поэтому это нарушение контракта, а не пользовательский ввод, и отдаётся внутренней
 // ошибкой, а не «введено неверно»; верификатор при этом не дёргается.
 func (s *ConfirmCodeSuite) TestEmptyConfirmCodeRejected() {
-	s.verifier.EXPECT().Verify(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	s.verifier.EXPECT().Verify(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "")
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
@@ -99,7 +100,7 @@ func (s *ConfirmCodeSuite) TestTOTPVerifiedNoConsume() {
 	userID := uuid.New()
 
 	s.verifier.EXPECT().
-		Verify(gomock.Any(), userID, confirmmethod.TOTP, "123456").
+		Verify(gomock.Any(), userID, confirmmethod.TOTP, false, "123456").
 		Return(true, nil, nil)
 
 	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(userID), "123456")
@@ -117,7 +118,7 @@ func (s *ConfirmCodeSuite) TestTOTPVerifiedWithConsume() {
 	}
 
 	s.verifier.EXPECT().
-		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, gomock.Any()).
+		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, false, gomock.Any()).
 		Return(true, consume, nil)
 
 	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "recovery")
@@ -131,7 +132,7 @@ func (s *ConfirmCodeSuite) TestTOTPVerifiedWithConsume() {
 
 func (s *ConfirmCodeSuite) TestTOTPVerifierRejects() {
 	s.verifier.EXPECT().
-		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, gomock.Any()).
+		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, false, gomock.Any()).
 		Return(false, nil, nil)
 
 	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "bad")
@@ -144,11 +145,28 @@ func (s *ConfirmCodeSuite) TestTOTPVerifierError() {
 	wantErr := secureoperation_model.ErrOperationAlreadyExpired
 
 	s.verifier.EXPECT().
-		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, gomock.Any()).
+		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, false, gomock.Any()).
 		Return(false, nil, wantErr)
 
 	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "any")
 	s.Require().ErrorIs(err, wantErr)
+	s.False(out.Is(operationstatus.Confirmed))
+	s.Nil(commitConfirmed)
+}
+
+// Test2FADisabledLooksLikeMiss - строки 2FA нет: либо цепочка подставная (построена аккаунту
+// с выключенной 2FA), либо 2FA сняли уже после создания операции. Отдельного ответа ни у того,
+// ни у другого случая быть не может: метод гостевой, и по такому ответу состояние 2FA аккаунта
+// читалось бы одним запросом. Отсюда единый ответ, см.
+// contracts/mrauth/paths/v1_operation_confirm.yaml.
+func (s *ConfirmCodeSuite) Test2FADisabledLooksLikeMiss() {
+	s.verifier.EXPECT().
+		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, false, gomock.Any()).
+		Return(false, nil, mrauth.ErrAuth2FAIsDisabled)
+
+	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "123456")
+	s.Require().ErrorIs(err, secureoperation_model.ErrConfirmCodeIsIncorrect)
+	s.Require().NotErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Nil(commitConfirmed)
 }

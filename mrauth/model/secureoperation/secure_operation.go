@@ -81,6 +81,9 @@ func WakeUp(op *SecureOperation, actions []ConfirmAction) error {
 // инварианты:
 // 1. У операции в статусе Opened должен быть хотя бы один неподтверждённый ConfirmAction (все экшены до него должны быть подтверждёнными)
 // 2. У операции в статусе Confirmed не должно быть экшенов.
+// 3. Sendable-действия идут раньше не-sendable: код подтверждения отправляется только по цепочке вперёд.
+// 4. Аварийный код принимается только последним действием цепочки (см. ниже).
+// 5. Признак приёма аварийного кода не совместим с sendable-действием.
 func (o *SecureOperation) checkInvariants() error {
 	if o.Name == "" {
 		return errors.ErrInternalIncorrectInputData.WithDetails("name is empty")
@@ -103,14 +106,32 @@ func (o *SecureOperation) checkInvariants() error {
 	}
 
 	for i, action := range o.actions {
+		isLast := i == len(o.actions)-1
+
 		if action.Method == 0 {
 			return errors.ErrInternalIncorrectInputData.WithDetails("action without method", "index", i)
 		}
 
-		// не-sendable действие (2FA: TOTP/password) может быть только завершающим в цепочке:
-		// на этом инварианте держится корректность расхода аварийного кода (см. confirm_code.Prepare).
-		if !action.Sendable() && i != len(o.actions)-1 {
-			return errors.ErrInternalIncorrectInputData.WithDetails("non-sendable action must be the last", "index", i)
+		// цепочка идёт от sendable-действий к не-sendable: код подтверждения генерится и отправляется
+		// при переходе к следующему действию, поэтому sendable после не-sendable не бывает.
+		// Цепочка из двух не-sendable (2FA + аварийный код) при этом допустима
+		if action.Sendable() && i > 0 && !o.actions[i-1].Sendable() {
+			return errors.ErrInternalIncorrectInputData.WithDetails("sendable action must precede non-sendable", "index", i)
+		}
+
+		// аварийный код принимается только последним действием - и как замена его основного
+		// доказательства (AllowRecovery), и как отдельное действие. На этом держится правило
+		// "за операцию расходуется не более одного аварийного кода": предъявить его раньше
+		// последнего действия нельзя, а значит нельзя и погасить код, не завершив комбинацию
+		if !isLast && (action.AllowRecovery || action.Method == confirmmethod.Recovery) {
+			return errors.ErrInternalIncorrectInputData.WithDetails("recovery code is accepted by the last action only", "index", i)
+		}
+
+		// аварийный код подменяет только доказательство второго фактора: у sendable-действия
+		// код сверяет сама операция, а не верификатор, поэтому признак там ничего не значит
+		// и выставленный по ошибке молча замаскировал бы неверно собранную цепочку
+		if action.Sendable() && action.AllowRecovery {
+			return errors.ErrInternalIncorrectInputData.WithDetails("sendable action cannot allow recovery", "index", i)
 		}
 	}
 

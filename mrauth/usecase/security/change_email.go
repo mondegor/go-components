@@ -3,8 +3,6 @@ package security
 import (
 	"context"
 
-	"github.com/google/uuid"
-	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -17,11 +15,8 @@ type (
 	// ChangeEmailProperty - создаёт операцию смены email пользователя (с проверкой
 	// доступности адреса) и отправляет код её подтверждения.
 	ChangeEmailProperty struct {
-		opener                      operationOpener
-		emailChecker                userEmailChecker
-		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
-		factoryOperationEmail       factoryOperationAddress2FA
-		errorWrapper                errors.Wrapper
+		flow                  changeEmailFlow
+		factoryOperationEmail factoryOperationAddress2FA
 	}
 
 	// operationOpener - открывает созданную операцию: гасит прежние операции того же
@@ -53,11 +48,8 @@ func NewChangeEmailProperty(
 	factoryOperationEmail factoryOperationAddress2FA,
 ) *ChangeEmailProperty {
 	return &ChangeEmailProperty{
-		opener:                      opener,
-		emailChecker:                emailChecker,
-		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
-		factoryOperationEmail:       factoryOperationEmail,
-		errorWrapper:                errors.NewServiceOperationFailedWrapper(),
+		flow:                  newChangeEmailFlow(opener, emailChecker, factoryUser2FAConfirmAction, "confirm.change.email"),
+		factoryOperationEmail: factoryOperationEmail,
 	}
 }
 
@@ -68,31 +60,5 @@ func (uc *ChangeEmailProperty) Execute(
 	actor dto.ActorMeta,
 	newEmail contactaddress.ContactAddress,
 ) (secureoperation.SecureOperation, error) {
-	if actor.VisitorID == uuid.Nil {
-		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
-	}
-
-	if newEmail.Value() == "" {
-		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("newEmail is empty")
-	}
-
-	if err := uc.emailChecker.CheckAvailabilityEmail(ctx, newEmail); err != nil {
-		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
-	}
-
-	user2FA, err := uc.factoryUser2FAConfirmAction.CreateByUserID(ctx, actor.VisitorID) // TODO: объединить CreateByUserLogin и CreateByUserID
-	if err != nil {
-		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
-	}
-
-	op, err := uc.factoryOperationEmail.Create(user2FA, newEmail)
-	if err != nil {
-		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
-	}
-
-	if err = uc.opener.Open(ctx, actor, op, "confirm.change.email", nil); err != nil {
-		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
-	}
-
-	return op, nil
+	return uc.flow.execute(ctx, actor, newEmail, uc.factoryOperationEmail.Create)
 }

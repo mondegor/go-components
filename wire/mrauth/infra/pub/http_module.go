@@ -45,9 +45,6 @@ func InitHttpModule(
 	jwtConfig authcfg.JWT,
 	cookieConfig authcfg.RefreshCookie,
 	sessionSoftThreshold, sessionHardThreshold int8,
-	// sessionLimitRetryAfter - период задачи фоновой чистки лишних сессий (TaskSchedule.TrimSessions):
-	// именно она освобождает место, поэтому её период и есть срок повторной попытки входа,
-	// отклонённого по hard-порогу лимита сессий. Нулевое значение - "срок назвать нечем"
 	sessionLimitRetryAfter time.Duration,
 	appResolver module.AppResolver, // OPTIONAL
 	locationResolver module.LocationResolver, // OPTIONAL
@@ -124,6 +121,7 @@ func InitHttpModule(
 						responseSender,
 						notifierAPI,
 						userRealms,
+						auth2faConfig,
 						jwtConfig,
 						cookieConfig,
 						sessionSoftThreshold,

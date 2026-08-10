@@ -20,7 +20,13 @@ type (
 	}
 
 	auth2faVerifier interface {
-		Verify(ctx context.Context, userID uuid.UUID, method confirmmethod.Enum, code string) (bool, func(ctx context.Context) error, error)
+		Verify(
+			ctx context.Context,
+			userID uuid.UUID,
+			method confirmmethod.Enum,
+			allowRecovery bool,
+			code string,
+		) (ok bool, commit func(ctx context.Context) error, err error)
 	}
 )
 
@@ -37,9 +43,9 @@ func NewConfirmCode(
 	}
 }
 
-// Prepare - проверяет текущее действие операции; для TOTP/password использует верификатор.
-// Возвращает commit для расходования аварийного кода (если он был использован),
-// который должен быть вызван в транзакции подтверждения.
+// Prepare - проверяет текущее действие операции; для TOTP/password и аварийного кода
+// использует верификатор. Возвращает commit расхода второго фактора (продвинутый TOTP-шаг
+// или погашенный аварийный код), который должен быть вызван в транзакции подтверждения.
 func (o *ConfirmCode) Prepare(
 	ctx context.Context,
 	op secureoperation.SecureOperation,
@@ -51,15 +57,26 @@ func (o *ConfirmCode) Prepare(
 	}
 
 	confirmed, confirmCodeErr := op.ConfirmAction(
-		func(action secureoperation.ConfirmAction) (ok bool, err error) {
+		func(action secureoperation.ConfirmAction) (bool, error) {
 			switch action.Method {
 			case confirmmethod.Email, confirmmethod.Phone:
 				return o.codeGenerator.CompareSecretAndHash(confirmCode, action.ConfirmCode)
-			case confirmmethod.TOTP, confirmmethod.Password:
-				ok, commit, err = o.verifier.Verify(ctx, op.UserID, action.Method, confirmCode)
+			case confirmmethod.TOTP, confirmmethod.Password, confirmmethod.Recovery:
+				ok, factorCommit, err := o.verifier.Verify(ctx, op.UserID, action.Method, action.AllowRecovery, confirmCode)
 				if err != nil {
+					// строки 2FA нет: либо действие подставное (построено аккаунту с выключенной 2FA),
+					// либо 2FA сняли уже после создания операции. Отдельным кодом ответа эти случаи
+					// не отражаются вовсе: метод гостевой, и любой отличающийся ответ читался бы как
+					// состояние 2FA аккаунта - ровно то, что подстановка скрывает. Поэтому отказ
+					// выглядит как неверно введённое доказательство
+					if errors.Is(err, mrauth.ErrAuth2FAIsDisabled) {
+						return false, nil
+					}
+
 					return false, err
 				}
+
+				commit = factorCommit
 
 				return ok, nil
 			default:
@@ -75,14 +92,13 @@ func (o *ConfirmCode) Prepare(
 		return op, commit, nil
 	}
 
-	// ВНИМАНИЕ: в эту часть кода можно попасть ТОЛЬКО после успешного sendable-действия (email/phone),
-	// у которого commit всегда nil (при этом, данная операция подтверждена ещё НЕ полностью).
-	// Успешное 2FA-действие (TOTP/password) сюда попасть не может: по инварианту checkInvariants
-	// оно всегда последнее в цепочке, поэтому его успех сразу даёт confirmed == true (ветка выше),
-	// и его commit возвращается вызывающему для расхода аварийного кода в той же транзакции.
-	// Значит, здесь расходовать нечего и возврат commit == nil корректен - аварийный код не теряется.
+	// сюда попадает непоследнее действие цепочки: операция подтверждена ещё НЕ полностью.
+	// Аварийный код израсходовать здесь нельзя - по инварианту checkInvariants он принимается
+	// только последним действием, поэтому его успех сразу даёт confirmed == true (ветка выше).
+	// А вот commit непустым быть может: в цепочке "2FA -> аварийный код" первым идёт TOTP,
+	// и его продвинутый шаг обязан попасть в ту же транзакцию подтверждения.
 
-	// для следующего (sendable) действия генерится новый токен и код подтверждения
+	// для следующего действия генерится новый токен, а если оно sendable - ещё и код подтверждения
 	token, err := o.tokenGenerator.GenToken()
 	if err != nil {
 		return secureoperation.SecureOperation{}, nil, err
@@ -96,5 +112,5 @@ func (o *ConfirmCode) Prepare(
 		return secureoperation.SecureOperation{}, nil, err
 	}
 
-	return op, nil, nil
+	return op, commit, nil
 }

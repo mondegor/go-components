@@ -23,37 +23,31 @@ type (
 		confirmPhoneByEmail bool
 	}
 
-	// confirmByAddressCreator - создаёт действие подтверждения операции по контактному адресу (емаил/телефон).
-	// Параметр confirmCode передаётся в открытом виде (для отправки) и в виде хеша (для хранения).
 	confirmByAddressCreator interface {
 		Create(address contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error)
 	}
 )
 
-// NewAuthorizeUser - создаёт объект OperationFactory.
+// NewAuthorizeUser - создаёт объект AuthorizeUser.
 func NewAuthorizeUser(
 	tokenGenerator mrauth.TokenGenerator,
 	codeGenerator mrauth.CodeGenerator,
 	opts ...AuthorizeUserOption,
 ) *AuthorizeUser {
 	o := authorizeUserOptions{
-		authorizer: &AuthorizeUser{
-			tokenGenerator:      tokenGenerator,
-			codeGenerator:       codeGenerator,
-			confirmPhoneByEmail: defaultConfirmPhoneByEmail,
-		},
+		confirmPhoneByEmail: defaultConfirmPhoneByEmail,
 	}
 
 	for _, opt := range opts {
 		opt(&o)
 	}
 
-	o.authorizer.actionCreator = action.NewConfirmByAddress(
-		o.confirmByEmail,
-		o.confirmByPhone,
-	)
-
-	return o.authorizer
+	return &AuthorizeUser{
+		actionCreator:       action.NewConfirmByAddress(o.confirmByEmail, o.confirmByPhone),
+		tokenGenerator:      tokenGenerator,
+		codeGenerator:       codeGenerator,
+		confirmPhoneByEmail: o.confirmPhoneByEmail,
+	}
 }
 
 // Name - возвращает название создаваемой операции.
@@ -61,7 +55,10 @@ func (o *AuthorizeUser) Name() string {
 	return NameAuthorizeUser
 }
 
-// Create - создаёт операцию авторизации пользователя по его логину (email/телефон).
+// Create - создаёт операцию авторизации пользователя по его логину (email/телефон):
+// цепочка "код с емаила/телефона -> второй фактор". Вместо второго фактора допускается
+// предъявить аварийный код, поэтому цепочка покрывает сразу две комбинации из трёх;
+// третью ("второй фактор + аварийный код") строит фабрика AuthorizeUserByRecovery.
 func (o *AuthorizeUser) Create(user2FA dto.User2FA, realm, langCode string, userLogin contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
 	operationToken, err := o.tokenGenerator.GenToken()
 	if err != nil {
@@ -85,6 +82,10 @@ func (o *AuthorizeUser) Create(user2FA dto.User2FA, realm, langCode string, user
 	}
 
 	if user2FA.Action2FA.Method > 0 {
+		// аварийный код принимается вместо второго фактора: это завершающее действие цепочки,
+		// поэтому его успех сразу означает, что комбинация доказательств принята целиком
+		user2FA.Action2FA.AllowRecovery = true
+
 		actions = append(actions, user2FA.Action2FA)
 	}
 

@@ -27,7 +27,6 @@ type (
 		codeGenerator  mrauth.CodeGenerator
 	}
 
-	// confirmByEmailCreator - фабрика действия подтверждения по email, знающая срок его жизни.
 	confirmByEmailCreator interface {
 		Create(address contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error)
 		Expiry() time.Duration

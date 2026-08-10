@@ -6,6 +6,7 @@ package config_test
 import (
 	"strings"
 	"testing"
+	"time"
 	_ "time/tzdata"
 
 	"github.com/stretchr/testify/require"
@@ -149,6 +150,103 @@ func TestValidateTimeZones(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+// TestCorrectValuesAuth2FADecoyTOTPPercent - доля подставного TOTP принимается только в 1..99.
+// Края исключены: и 0, и 100 раздали бы один и тот же подставной тип всем аккаунтам без 2FA,
+// а вырожденное распределение выдаёт заглушку не хуже расхождения с реальным. Значение вне
+// диапазона заменяется дефолтом здесь, а не роняет старт в crypt.NewDecoyFactorSelector.
+func TestCorrectValuesAuth2FADecoyTOTPPercent(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		in   uint8
+		want uint8
+	}{
+		{name: "not set - default", in: 0, want: 50},
+		{name: "lower bound is kept", in: 1, want: 1},
+		{name: "value in range is kept", in: 17, want: 17},
+		{name: "upper bound is kept", in: 99, want: 99},
+		{name: "degenerate 100 - default", in: 100, want: 50},
+		{name: "out of range - default", in: 200, want: 50},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := config.CorrectValuesAuth2FA(config.Auth2FA{DecoyTOTPPercent: tc.in})
+
+			require.Equal(t, tc.want, got.DecoyTOTPPercent)
+		})
+	}
+}
+
+// TestValidateAuth2FADecoyFactorSalt - соль подставного второго фактора не кламплется, а
+// отвергается: это секрет инсталляции, подставить ему умолчание нечем. Короткая соль
+// перебирается, а подобравший её вычисляет ожидаемый подставной тип и по расхождению читает,
+// включена ли у аккаунта 2FA - ровно то, что подстановка и скрывает.
+func TestValidateAuth2FADecoyFactorSalt(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		salt    string
+		wantErr bool
+	}{
+		{name: "empty", salt: "", wantErr: true},
+		{name: "one byte below min", salt: strings.Repeat("s", 31), wantErr: true},
+		{name: "exactly min", salt: strings.Repeat("s", 32), wantErr: false},
+		{name: "above min", salt: strings.Repeat("s", 64), wantErr: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := config.ValidateAuth2FA(config.Auth2FA{DecoyFactorSalt: tc.salt})
+
+			if tc.wantErr {
+				require.Error(t, err)
+				// сама соль в сообщение не попадает: логи ошибок старта обычно не защищены
+				require.NotContains(t, err.Error(), strings.Repeat("s", 8))
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestCorrectValuesAuth2FAConfirmExpiry - срок жизни звена второго фактора ограничен сверху:
+// SecureOperation.ActivateConfirmation переставляет ExpiresAt от текущего звена на каждом шаге,
+// поэтому сроки звеньев складываются, и без потолка операция жила бы сколь угодно долго.
+func TestCorrectValuesAuth2FAConfirmExpiry(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		in   time.Duration
+		want time.Duration
+	}{
+		{name: "not set - default", in: 0, want: 30 * time.Minute},
+		{name: "negative - default", in: -time.Minute, want: 30 * time.Minute},
+		{name: "value in range is kept", in: 5 * time.Minute, want: 5 * time.Minute},
+		{name: "upper bound is kept", in: time.Hour, want: time.Hour},
+		{name: "above upper bound - default", in: 24 * time.Hour, want: 30 * time.Minute},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := config.CorrectValuesAuth2FA(config.Auth2FA{ConfirmExpiry: tc.in})
+
+			require.Equal(t, tc.want, got.ConfirmExpiry)
 		})
 	}
 }

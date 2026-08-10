@@ -65,15 +65,16 @@ func userWith2FA(method confirmmethod.Enum) dto.User2FA {
 type ChangeSecuritySuite struct {
 	baseSuite
 
-	opener         *mock.MockoperationOpener
-	factory2FA     *mock.MockUser2FAConfirmActionCreator
-	addressFactory *mock.MockfactoryOperationAddress2FA
-	secretFactory  *mock.MockfactoryOperationSecret2FA
-	opFactory      *mock.Mockuser2faOperationCreator
-	emailChecker   *mock.MockuserEmailChecker
-	phoneChecker   *mock.MockuserPhoneChecker
-	opened         bool
-	openedNote     string
+	opener          *mock.MockoperationOpener
+	factory2FA      *mock.MockUser2FAConfirmActionCreator
+	addressFactory  *mock.MockfactoryOperationAddress2FA
+	emailRecFactory *mock.MockfactoryOperationAddress2FA
+	secretFactory   *mock.MockfactoryOperationSecret2FA
+	opFactory       *mock.Mockuser2faOperationCreator
+	emailChecker    *mock.MockuserEmailChecker
+	phoneChecker    *mock.MockuserPhoneChecker
+	opened          bool
+	openedNote      string
 }
 
 func TestChangeSecuritySuite(t *testing.T) {
@@ -88,6 +89,7 @@ func (s *ChangeSecuritySuite) SetupTest() {
 	s.opener = mock.NewMockoperationOpener(s.ctrl)
 	s.factory2FA = mock.NewMockUser2FAConfirmActionCreator(s.ctrl)
 	s.addressFactory = mock.NewMockfactoryOperationAddress2FA(s.ctrl)
+	s.emailRecFactory = mock.NewMockfactoryOperationAddress2FA(s.ctrl)
 	s.secretFactory = mock.NewMockfactoryOperationSecret2FA(s.ctrl)
 	s.opFactory = mock.NewMockuser2faOperationCreator(s.ctrl)
 	s.emailChecker = mock.NewMockuserEmailChecker(s.ctrl)
@@ -123,6 +125,7 @@ func (s *ChangeSecuritySuite) expect2FA(user dto.User2FA, err error) {
 // тесты не различают их, поэтому ожидание ставится сразу на обе.
 func (s *ChangeSecuritySuite) expectValueFactory(op secureoperation.SecureOperation, err error) {
 	s.addressFactory.EXPECT().Create(gomock.Any(), gomock.Any()).Return(op, err).AnyTimes()
+	s.emailRecFactory.EXPECT().Create(gomock.Any(), gomock.Any()).Return(op, err).AnyTimes()
 	s.secretFactory.EXPECT().Create(gomock.Any(), gomock.Any()).Return(op, err).AnyTimes()
 }
 
@@ -140,6 +143,10 @@ func (s *ChangeSecuritySuite) expectPhoneChecker(err error) {
 
 func (s *ChangeSecuritySuite) newChangeEmail() *security.ChangeEmailProperty {
 	return security.NewChangeEmailProperty(s.opener, s.emailChecker, s.factory2FA, s.addressFactory)
+}
+
+func (s *ChangeSecuritySuite) newChangeEmailByRecovery() *security.ChangeEmailByRecoveryProperty {
+	return security.NewChangeEmailByRecoveryProperty(s.opener, s.emailChecker, s.factory2FA, s.emailRecFactory)
 }
 
 func (s *ChangeSecuritySuite) newChangePassword() *security.ChangePasswordProperty {
@@ -178,6 +185,33 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertySuccess() {
 	s.Require().NoError(err)
 	s.True(s.opened)
 	s.Equal("confirm.change.email", s.openedNote)
+}
+
+// TestChangeEmailByRecoveryPropertySuccess - смена адреса при утрате доступа к нему идёт
+// отдельным юзкейсом со своей фабрикой (unit.ChangeEmailByRecovery), но тем же конвейером: проверка
+// доступности нового адреса и открытие операции обязаны остаться. Шаблон уведомления при этом
+// не передаётся вовсе: первое звено цепочки не sendable, кода к отправке не возникает.
+func (s *ChangeSecuritySuite) TestChangeEmailByRecoveryPropertySuccess() {
+	s.expectOpen(nil)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectValueFactory(openedEmailOp(s.T()), nil)
+	s.expectEmailChecker(nil)
+
+	_, err := s.newChangeEmailByRecovery().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
+	s.Require().NoError(err)
+	s.True(s.opened)
+	s.Empty(s.openedNote)
+}
+
+// проверка доступности нового адреса нужна обеим цепочкам одинаково.
+func (s *ChangeSecuritySuite) TestChangeEmailByRecoveryPropertyEmailUnavailable() {
+	s.expectOpen(nil)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectValueFactory(openedEmailOp(s.T()), nil)
+	s.expectEmailChecker(errors.New("taken"))
+
+	_, err := s.newChangeEmailByRecovery().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
+	s.Require().Error(err)
 }
 
 func (s *ChangeSecuritySuite) TestChangeEmailPropertyEmailUnavailable() {

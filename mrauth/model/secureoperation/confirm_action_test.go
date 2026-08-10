@@ -52,7 +52,7 @@ func TestConfirmAction_TOTPActionCheckCodeFails(t *testing.T) {
 	op := newOpWithSingleTOTPAction(t)
 	before := op.RemainingAttempts
 
-	confirmed, err := op.ConfirmAction(func(action secureoperation.ConfirmAction) (bool, error) {
+	confirmed, err := op.ConfirmAction(func(_ secureoperation.ConfirmAction) (bool, error) {
 		return false, nil // имитация неуспешной внешней проверки
 	})
 	require.ErrorIs(t, err, secureoperation.ErrConfirmCodeIsIncorrect)

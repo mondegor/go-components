@@ -46,6 +46,7 @@ type AuthSuite struct {
 	serviceUserInfo       *mock.MockuserInfoService
 	useCaseCreateUser     *mock.MockcreateUserUseCase
 	useCaseAuthUser       *mock.MockauthUserUseCase
+	useCaseAuthUserByRec  *mock.MockauthUserUseCase
 	useCaseConfirmOp      *mock.MockconfirmOperationUseCase
 	useCaseOpenSession    *mock.MockopenSessionUseCase
 	useCaseContinueSess   *mock.MockcontinueSessionUseCase
@@ -85,6 +86,7 @@ func (s *AuthSuite) SetupTest() {
 	s.refreshCookie = mock.NewMockcookieValueService(s.ctrl)
 	s.useCaseCreateUser = mock.NewMockcreateUserUseCase(s.ctrl)
 	s.useCaseAuthUser = mock.NewMockauthUserUseCase(s.ctrl)
+	s.useCaseAuthUserByRec = mock.NewMockauthUserUseCase(s.ctrl)
 	s.useCaseConfirmOp = mock.NewMockconfirmOperationUseCase(s.ctrl)
 	s.useCaseOpenSession = mock.NewMockopenSessionUseCase(s.ctrl)
 	s.useCaseChangeSettings = mock.NewMockchangeSettingsUseCase(s.ctrl)
@@ -112,6 +114,7 @@ func (s *AuthSuite) newController() *httpv1.Auth {
 		s.refreshCookie,
 		s.useCaseCreateUser,
 		s.useCaseAuthUser,
+		s.useCaseAuthUserByRec,
 		s.useCaseConfirmOp,
 		s.useCaseOpenSession,
 		s.useCaseContinueSess,
@@ -530,6 +533,38 @@ func (s *AuthSuite) TestSignin() {
 		Return(model.WaitingConfirmOperationResponse{})
 
 	s.Require().NoError(s.signin())
+}
+
+// TestSigninByRecovery - вход по аварийному коду обслуживается отдельным юзкейсом, и адрес
+// с ним связан жёстко: перепутай их - и /v1/signin/recovery отправлял бы код с емаила,
+// то есть ровно ту цепочку, из которой пользователь и выпал.
+func (s *AuthSuite) TestSigninByRecovery() {
+	expectValidate(s, model.AuthorizeUserRequest{Realm: "shop", UserLogin: "user@example.com"})
+
+	s.localizer.EXPECT().Language().Return("en-US")
+	s.localizer.EXPECT().Translate(gomock.Any()).Return("confirm it")
+	s.parser.EXPECT().Localizer(gomock.Any()).Return(s.localizer)
+	s.parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{})
+	s.useCaseAuthUserByRec.EXPECT().
+		Execute(gomock.Any(), gomock.Any(), "shop", "en-US", gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ dto.ActorMeta, _, _ string, userLogin contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
+			s.True(userLogin.Is(addresstype.Email))
+			s.Equal("user@example.com", userLogin.Value())
+
+			return secureoperation.SecureOperation{}, nil
+		})
+	s.operationResponse.EXPECT().
+		NewConfirmOperation(gomock.Any(), "confirm it").
+		Return(model.WaitingConfirmOperationResponse{})
+
+	// обычный юзкейс входа при этом не вызывается - его EXPECT не выставлен
+
+	s.Require().NoError(
+		s.newController().SigninByRecovery(
+			s.rec,
+			httptest.NewRequest(http.MethodPost, "/v1/signin/recovery", http.NoBody),
+		),
+	)
 }
 
 // TestUserInfo - ответ сверяется целиком, а не по отдельным полям: иначе поле, переставшее

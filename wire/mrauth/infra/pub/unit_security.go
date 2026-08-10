@@ -49,19 +49,15 @@ func initSecurityController(
 
 	totpAuthenticator := totp.NewAuthenticator(auth2faConfig.TOTPIssuer, 64)
 
+	confirm2faOpts := []action.Option{
+		action.WithMaxAttempts(int16(auth2faConfig.ConfirmMaxAttempts)),
+		action.WithExpiry(auth2faConfig.ConfirmExpiry),
+	}
+
 	factoryConfirm2FA := service.NewFactoryConfirm2FA(
 		storageUser,
 		storageAuth2fa,
-		action.NewConfirmBy2fa(
-			[]action.Option{
-				action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
-				action.WithExpiry(operationConfig.SessionExpiry),
-			},
-			[]action.Option{
-				action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
-				action.WithExpiry(operationConfig.SessionExpiry),
-			},
-		),
+		action.NewConfirmBy2fa(confirm2faOpts, confirm2faOpts),
 	)
 
 	useCaseChangeEmailProperty := security.NewChangeEmailProperty(
@@ -73,6 +69,18 @@ func initSecurityController(
 			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
+		),
+	)
+
+	useCaseChangeEmailByRecoveryProperty := security.NewChangeEmailByRecoveryProperty(
+		operationOpener,
+		checkUserService,
+		factoryConfirm2FA,
+		// аварийный код предъявляется вместо кода с текущего адреса, поэтому его звено
+		// настраивается наравне со вторым фактором, а не остаётся на умолчаниях
+		unit.NewChangeEmailByRecovery(
+			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
+			confirm2faOpts...,
 		),
 	)
 
@@ -201,6 +209,7 @@ func initSecurityController(
 		requestParser,
 		responseFileSender,
 		useCaseChangeEmailProperty,
+		useCaseChangeEmailByRecoveryProperty,
 		useCaseChangePhoneProperty,
 		useCaseApplyOperation,
 		useCaseChangePasswordProperty,
