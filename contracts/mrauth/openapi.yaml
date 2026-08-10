@@ -117,6 +117,8 @@ paths:
     $ref: "./paths/v1_signup.yaml"
   /v1/signin:
     $ref: "./paths/v1_signin.yaml"
+  /v1/signin/recovery:
+    $ref: "./paths/v1_signin_recovery.yaml"
   /v1/session:
     $ref: "./paths/v1_session.yaml"
   /v1/user:
@@ -142,6 +144,8 @@ paths:
 
   /v1/security/email:
     $ref: "./paths/v1_security_email.yaml"
+  /v1/security/email/recovery:
+    $ref: "./paths/v1_security_email_recovery.yaml"
   /v1/security/phone:
     $ref: "./paths/v1_security_phone.yaml"
   /v1/security/password:

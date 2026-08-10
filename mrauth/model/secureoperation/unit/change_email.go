@@ -32,13 +32,14 @@ func NewChangeEmail(
 	confirmByEmailOpts ...action.Option,
 ) *ChangeEmail {
 	return &ChangeEmail{
+		actionCreator:  action.NewConfirmByEmail(confirmByEmailOpts...),
 		tokenGenerator: tokenGenerator,
 		codeGenerator:  codeGenerator,
-		actionCreator:  action.NewConfirmByEmail(confirmByEmailOpts...),
 	}
 }
 
 // Create - создаёт операцию смены email для указанного пользователя.
+// Утратившему доступ к почте предназначена фабрика ChangeEmailByRecovery.
 func (o *ChangeEmail) Create(user2FA dto.User2FA, newEmail contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
 	if !newEmail.Is(addresstype.Email) {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("newEmail is not an email address")
@@ -66,12 +67,15 @@ func (o *ChangeEmail) Create(user2FA dto.User2FA, newEmail contactaddress.Contac
 
 	actions := make([]secureoperation.ConfirmAction, 1, 2)
 
-	actions[0], err = o.actionCreator.Create(newEmail, confirmCode, hashedCode)
+	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email), confirmCode, hashedCode)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
 
 	if user2FA.Action2FA.Method > 0 {
+		// аварийный код этой цепочке недопустим ни на одном звене: смена адреса обязательно
+		// подтверждается паролем/TOTP, поэтому комбинация "email-код + аварийный код"
+		// отклоняется. Комбинацию "пароль/TOTP + аварийный код" строит ChangeEmailByRecovery
 		actions = append(actions, user2FA.Action2FA)
 	}
 

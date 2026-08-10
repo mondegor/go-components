@@ -20,6 +20,7 @@ import (
 
 const (
 	securityEmailURL               = "/v1/security/email"
+	securityEmailRecoveryURL       = "/v1/security/email/recovery"
 	securityPhoneURL               = "/v1/security/phone"
 	securityApplyOperation         = "/v1/security/apply-operation"
 	securityPasswordURL            = "/v1/security/password"
@@ -36,21 +37,22 @@ const (
 type (
 	// Security - HTTP-контроллер операций безопасности пользователя (2FA, смена email/телефона/пароля).
 	Security struct {
-		parser                        validate.RequestParser
-		sender                        mrserver.FileResponseSender
-		useCaseChangeEmailProperty    changeEmailUseCase
-		useCaseChangePhoneProperty    changePhoneUseCase
-		useCaseApplyOperation         applyOperationUseCase
-		useCaseChangePasswordProperty changePasswordUseCase
-		useCaseApplyPassword          applyPasswordUseCase
-		useCaseChangeTOTPProperty     changeTOTPGeneratorUseCase
-		useCaseGetTOTPGeneratorSecret getTOTPGeneratorSecretUseCase
-		useCaseRenderTOTPGeneratorQR  renderTOTPGeneratorQRUseCase
-		useCaseApplyTOTPGenerator     applyTOTPGeneratorUseCase
-		useCaseRegenerateRecovery     regenerateRecoveryUseCase
-		useCaseApplyRecovery          applyRecoveryUseCase
-		useCaseDisable2FA             disable2FAUseCase
-		operationResponse             confirmOperationResponse
+		parser                               validate.RequestParser
+		sender                               mrserver.FileResponseSender
+		useCaseChangeEmailProperty           changeEmailUseCase
+		useCaseChangeEmailByRecoveryProperty changeEmailUseCase
+		useCaseChangePhoneProperty           changePhoneUseCase
+		useCaseApplyOperation                applyOperationUseCase
+		useCaseChangePasswordProperty        changePasswordUseCase
+		useCaseApplyPassword                 applyPasswordUseCase
+		useCaseChangeTOTPProperty            changeTOTPGeneratorUseCase
+		useCaseGetTOTPGeneratorSecret        getTOTPGeneratorSecretUseCase
+		useCaseRenderTOTPGeneratorQR         renderTOTPGeneratorQRUseCase
+		useCaseApplyTOTPGenerator            applyTOTPGeneratorUseCase
+		useCaseRegenerateRecovery            regenerateRecoveryUseCase
+		useCaseApplyRecovery                 applyRecoveryUseCase
+		useCaseDisable2FA                    disable2FAUseCase
+		operationResponse                    confirmOperationResponse
 	}
 
 	changeEmailUseCase interface {
@@ -107,6 +109,7 @@ func NewSecurity(
 	parser validate.RequestParser,
 	sender mrserver.FileResponseSender,
 	useCaseChangeEmailProperty changeEmailUseCase,
+	useCaseChangeEmailByRecoveryProperty changeEmailUseCase,
 	useCaseChangePhoneProperty changePhoneUseCase,
 	useCaseApplyOperation applyOperationUseCase,
 	useCaseChangePasswordProperty changePasswordUseCase,
@@ -121,21 +124,22 @@ func NewSecurity(
 	operationResponse confirmOperationResponse,
 ) *Security {
 	return &Security{
-		parser:                        parser,
-		sender:                        sender,
-		useCaseChangeEmailProperty:    useCaseChangeEmailProperty,
-		useCaseChangePhoneProperty:    useCaseChangePhoneProperty,
-		useCaseApplyOperation:         useCaseApplyOperation,
-		useCaseChangePasswordProperty: useCaseChangePasswordProperty,
-		useCaseApplyPassword:          useCaseApplyPassword,
-		useCaseChangeTOTPProperty:     useCaseChangeTOTPProperty,
-		useCaseGetTOTPGeneratorSecret: useCaseGetTOTPGeneratorSecret,
-		useCaseRenderTOTPGeneratorQR:  useCaseRenderTOTPGeneratorQR,
-		useCaseApplyTOTPGenerator:     useCaseApplyTOTPGenerator,
-		useCaseRegenerateRecovery:     useCaseRegenerateRecovery,
-		useCaseApplyRecovery:          useCaseApplyRecovery,
-		useCaseDisable2FA:             useCaseDisable2FA,
-		operationResponse:             operationResponse,
+		parser:                               parser,
+		sender:                               sender,
+		useCaseChangeEmailProperty:           useCaseChangeEmailProperty,
+		useCaseChangeEmailByRecoveryProperty: useCaseChangeEmailByRecoveryProperty,
+		useCaseChangePhoneProperty:           useCaseChangePhoneProperty,
+		useCaseApplyOperation:                useCaseApplyOperation,
+		useCaseChangePasswordProperty:        useCaseChangePasswordProperty,
+		useCaseApplyPassword:                 useCaseApplyPassword,
+		useCaseChangeTOTPProperty:            useCaseChangeTOTPProperty,
+		useCaseGetTOTPGeneratorSecret:        useCaseGetTOTPGeneratorSecret,
+		useCaseRenderTOTPGeneratorQR:         useCaseRenderTOTPGeneratorQR,
+		useCaseApplyTOTPGenerator:            useCaseApplyTOTPGenerator,
+		useCaseRegenerateRecovery:            useCaseRegenerateRecovery,
+		useCaseApplyRecovery:                 useCaseApplyRecovery,
+		useCaseDisable2FA:                    useCaseDisable2FA,
+		operationResponse:                    operationResponse,
 	}
 }
 
@@ -143,6 +147,7 @@ func NewSecurity(
 func (ht *Security) Handlers() []mrserver.HttpHandler {
 	return []mrserver.HttpHandler{
 		{Method: http.MethodPost, URL: securityEmailURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangeEmail},
+		{Method: http.MethodPost, URL: securityEmailRecoveryURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangeEmailByRecovery},
 		{Method: http.MethodPost, URL: securityPhoneURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangePhone},
 		{Method: http.MethodPost, URL: securityApplyOperation, Permission: mraccess.PermissionAnyUser, Func: ht.ApplyOperation},
 		{Method: http.MethodPost, URL: securityPasswordURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangePassword},
@@ -159,13 +164,42 @@ func (ht *Security) Handlers() []mrserver.HttpHandler {
 
 // ChangeEmail - создаёт операцию на изменение email пользователя.
 func (ht *Security) ChangeEmail(w http.ResponseWriter, r *http.Request) error {
+	return ht.changeEmail(
+		w,
+		r,
+		ht.useCaseChangeEmailProperty,
+		"Confirm your operation 'change email' by code",
+	)
+}
+
+// ChangeEmailByRecovery - создаёт операцию на изменение email пользователя, утратившего доступ
+// к текущему адресу: подтверждается вторым фактором и аварийным кодом, письмо не отправляется.
+// При выключенной 2FA операция не создаётся: доказательство у такого аккаунта одно - код
+// на текущий адрес. Скрывать состояние 2FA не от кого, метод авторизованный.
+func (ht *Security) ChangeEmailByRecovery(w http.ResponseWriter, r *http.Request) error {
+	return ht.changeEmail(
+		w,
+		r,
+		ht.useCaseChangeEmailByRecoveryProperty,
+		"Confirm your operation 'change email' by second factor",
+	)
+}
+
+// changeEmail - общий шаг создания операции смены email: маршруты отличаются только цепочкой
+// подтверждения, то есть выбранным юзкейсом, и сообщением waitMessage.
+func (ht *Security) changeEmail(
+	w http.ResponseWriter,
+	r *http.Request,
+	useCase changeEmailUseCase,
+	waitMessage string,
+) error {
 	req := model.ChangeEmailRequest{}
 
 	if err := ht.parser.Validate(r, &req); err != nil {
 		return err
 	}
 
-	op, err := ht.useCaseChangeEmailProperty.Execute(r.Context(), ht.userActor(r), contactaddress.NewEmail(req.NewEmail))
+	op, err := useCase.Execute(r.Context(), ht.userActor(r), contactaddress.NewEmail(req.NewEmail))
 	if err != nil {
 		if errors.Is(err, mrauth.ErrEmailAlreadyExists) {
 			return errors.WithCustomCode(err, "new_email")
@@ -177,10 +211,7 @@ func (ht *Security) ChangeEmail(w http.ResponseWriter, r *http.Request) error {
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
-		ht.operationResponse.NewConfirmOperation(
-			op,
-			ht.parser.Localizer(r).Translate("Confirm your operation 'change email' by code"),
-		),
+		ht.operationResponse.NewConfirmOperation(op, ht.parser.Localizer(r).Translate(waitMessage)),
 	)
 }
 

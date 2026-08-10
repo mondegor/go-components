@@ -126,32 +126,46 @@ func (s *ResendCodeSuite) TestPrepareBusinessErrorsKeepOperation() {
 	}
 }
 
-// TestPrepareNonSendableActionFails - повторная отправка по 2FA-действию (TOTP/пароль)
-// неприменима: отправлять нечего. Это отказ клиенту, а не сбой, поэтому отдаётся отдельным
-// пользовательским сентинелом; операция с ним не возвращается - счётчики отправок
-// у такого действия всё равно не заполняются.
+// TestPrepareNonSendableActionFails - повторная отправка неприменима к любому не-sendable
+// действию: отправлять нечего ни по второму фактору (TOTP/пароль), ни по аварийному коду.
+// Это отказ клиенту, а не сбой, поэтому отдаётся отдельным пользовательским сентинелом;
+// операция с ним не возвращается - счётчики отправок у такого действия всё равно
+// не заполняются.
 func (s *ResendCodeSuite) TestPrepareNonSendableActionFails() {
-	s.tokenGen.EXPECT().GenToken().Return("new-token", nil).AnyTimes()
+	for _, tt := range []struct {
+		name   string
+		method confirmmethod.Enum
+	}{
+		{name: "звено TOTP", method: confirmmethod.TOTP},
+		{name: "звено пароля", method: confirmmethod.Password},
+		// звено аварийного кода бывает текущим в цепочке "второй фактор -> аварийный код"
+		// (операции методов .../recovery), когда второй фактор уже подтверждён
+		{name: "звено аварийного кода", method: confirmmethod.Recovery},
+	} {
+		s.Run(tt.name, func() {
+			s.tokenGen.EXPECT().GenToken().Return("new-token", nil).AnyTimes()
 
-	op := secureoperation_model.SecureOperation{
-		Token:             "token",
-		Name:              "name1",
-		UserID:            uuid.New(),
-		RemainingAttempts: 3,
-		Status:            operationstatus.Opened,
-		ExpiresAt:         time.Now().Add(10 * time.Minute),
+			op := secureoperation_model.SecureOperation{
+				Token:             "token",
+				Name:              "name1",
+				UserID:            uuid.New(),
+				RemainingAttempts: 3,
+				Status:            operationstatus.Opened,
+				ExpiresAt:         time.Now().Add(10 * time.Minute),
+			}
+			s.Require().NoError(secureoperation_model.WakeUp(&op, []secureoperation_model.ConfirmAction{
+				{
+					Method:      tt.method,
+					MaxAttempts: 3,
+					Expiry:      10 * time.Minute,
+				},
+			}))
+
+			_, err := s.svc.Prepare(op)
+			s.Require().ErrorIs(err, secureoperation_model.ErrResendCodeIsNotSupported)
+			s.Require().NotErrorIs(err, secureoperation_model.ErrNoAttemptsToResendCode)
+		})
 	}
-	s.Require().NoError(secureoperation_model.WakeUp(&op, []secureoperation_model.ConfirmAction{
-		{
-			Method:      confirmmethod.TOTP,
-			MaxAttempts: 3,
-			Expiry:      10 * time.Minute,
-		},
-	}))
-
-	_, err := s.svc.Prepare(op)
-	s.Require().ErrorIs(err, secureoperation_model.ErrResendCodeIsNotSupported)
-	s.Require().NotErrorIs(err, secureoperation_model.ErrNoAttemptsToResendCode)
 }
 
 func (s *ResendCodeSuite) TestPrepareNotOpenedFails() {

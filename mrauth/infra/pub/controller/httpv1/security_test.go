@@ -67,7 +67,7 @@ func TestSecurityChangePhoneNormalizesNumber(t *testing.T) {
 	sender.EXPECT().Send(gomock.Any(), http.StatusOK, gomock.Any()).Return(nil)
 
 	controller := httpv1.NewSecurity(
-		parser, sender, nil, useCase, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, operationResponse,
+		parser, sender, nil, nil, useCase, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, operationResponse,
 	)
 
 	require.NoError(
@@ -88,7 +88,7 @@ func TestSecurityTOTPRoutes(t *testing.T) {
 
 	// зависимости не нужны: Handlers() лишь собирает список, обработчики не вызываются
 	controller := httpv1.NewSecurity(
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 
 	handlerByURL := make(map[string]string)

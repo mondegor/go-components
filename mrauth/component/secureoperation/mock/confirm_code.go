@@ -43,9 +43,9 @@ func (m *Mockauth2faVerifier) EXPECT() *Mockauth2faVerifierMockRecorder {
 }
 
 // Verify mocks base method.
-func (m *Mockauth2faVerifier) Verify(ctx context.Context, userID uuid.UUID, method confirmmethod.Enum, code string) (bool, func(context.Context) error, error) {
+func (m *Mockauth2faVerifier) Verify(ctx context.Context, userID uuid.UUID, method confirmmethod.Enum, allowRecovery bool, code string) (bool, func(context.Context) error, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Verify", ctx, userID, method, code)
+	ret := m.ctrl.Call(m, "Verify", ctx, userID, method, allowRecovery, code)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(func(context.Context) error)
 	ret2, _ := ret[2].(error)
@@ -53,7 +53,7 @@ func (m *Mockauth2faVerifier) Verify(ctx context.Context, userID uuid.UUID, meth
 }
 
 // Verify indicates an expected call of Verify.
-func (mr *Mockauth2faVerifierMockRecorder) Verify(ctx, userID, method, code any) *gomock.Call {
+func (mr *Mockauth2faVerifierMockRecorder) Verify(ctx, userID, method, allowRecovery, code any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Verify", reflect.TypeOf((*Mockauth2faVerifier)(nil).Verify), ctx, userID, method, code)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Verify", reflect.TypeOf((*Mockauth2faVerifier)(nil).Verify), ctx, userID, method, allowRecovery, code)
 }

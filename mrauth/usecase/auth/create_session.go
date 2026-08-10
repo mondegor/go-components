@@ -3,14 +3,10 @@ package auth
 import (
 	"context"
 
-	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
-	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
-	"github.com/mondegor/go-components/mrauth/enum/logreason"
-	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
@@ -19,12 +15,7 @@ type (
 	// CreateSession - инициирует создание сессии пользователя: подбирает операцию по
 	// realm, создаёт её и отправляет код подтверждения по логину пользователя.
 	CreateSession struct {
-		opener                      operationOpener
-		userChecker                 userLoginChecker
-		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
-		logOperation                operationLogger
-		errorWrapper                errors.Wrapper
-		realm2operation             map[string]createSessionOperation
+		flow createSessionFlow[createSessionOperation]
 	}
 
 	// CreateSessionRealm - сопоставление realm с операцией создания сессии для него.
@@ -66,17 +57,19 @@ func NewCreateSession(
 	allowedRealms []CreateSessionRealm,
 ) *CreateSession {
 	realm2operation := make(map[string]createSessionOperation, len(allowedRealms))
-	for _, realm := range allowedRealms {
-		realm2operation[realm.Name] = realm.Operation
+	for _, item := range allowedRealms {
+		realm2operation[item.Name] = item.Operation
 	}
 
 	return &CreateSession{
-		opener:                      opener,
-		userChecker:                 userChecker,
-		errorWrapper:                errors.NewServiceOperationFailedWrapper(),
-		factoryUser2FAConfirmAction: factoryUser2FAConfirmAction,
-		logOperation:                logOperation,
-		realm2operation:             realm2operation,
+		flow: newCreateSessionFlow(
+			opener,
+			userChecker,
+			factoryUser2FAConfirmAction,
+			logOperation,
+			realm2operation,
+			"confirm.create.session.by.email",
+		),
 	}
 }
 
@@ -88,53 +81,14 @@ func (co *CreateSession) Execute(
 	realm, langCode string,
 	userLogin contactaddress.ContactAddress,
 ) (secureoperation.SecureOperation, error) {
-	if langCode == "" {
-		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("langCode is empty")
-	}
-
-	if userLogin.Value() == "" {
-		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userLogin is empty")
-	}
-
-	opCreator, ok := co.realm2operation[realm]
-	if !ok {
-		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("realm is unknown", "realm", realm)
-	}
-
-	err := co.userChecker.CheckAvailabilityRealm(ctx, realm, userLogin)
-	if err == nil {
-		// логина не существует: фиксируем в журнале попытку входа по несуществующему логину
-		// (операция не создана, поэтому её имя берётся у фабрики, а метод подтверждения неизвестен)
-		co.logOperation.Log(
-			ctx,
-			actor.NewOperationLog(
-				opCreator.Name(), confirmmethod.Unspecified, logstatus.Blocked, logreason.LoginNotExists,
-			),
-		)
-
-		return secureoperation.SecureOperation{}, mrauth.ErrLoginNotExists
-	}
-
-	if !errors.Is(err, mrauth.ErrEmailAlreadyExists) && !errors.Is(err, mrauth.ErrPhoneAlreadyExists) {
-		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
-	}
-
-	user2FA, err := co.factoryUser2FAConfirmAction.CreateByUserLogin(ctx, userLogin)
-	if err != nil {
-		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
-	}
-
-	op, err := opCreator.Create(user2FA, realm, langCode, userLogin)
-	if err != nil {
-		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
-	}
-
-	// владельцем операции входа является существующий пользователь, поэтому Open фиксирует
-	// в журнале его, а не анонимного посетителя (в actor приходит uuid.Nil)
-	err = co.opener.Open(ctx, actor, op, "confirm.create.session.by.email", conv.Group{"lang": langCode})
-	if err != nil {
-		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
-	}
-
-	return op, nil
+	return co.flow.execute(
+		ctx,
+		actor,
+		realm,
+		langCode,
+		userLogin,
+		func(opCreator createSessionOperation, user2FA dto.User2FA) (secureoperation.SecureOperation, error) {
+			return opCreator.Create(user2FA, realm, langCode, userLogin)
+		},
+	)
 }

@@ -1,0 +1,69 @@
+post:
+  summary: Auth/SC/R1b. Метод создания операции изменения емаила при утрате доступа к нему
+  description: |-
+    Метод предназначен для смены емаила пользователем, который не может получить код
+    с текущего адреса. Операция подтверждается комбинацией «пароль/TOTP + аварийный код»,
+    письмо при этом не отправляется. Это выход из сценария утраченного доступа к почте:
+    обычный `POST /v1/security/email` требует кода с текущего адреса.
+
+    ### Алгоритм изменения емаила пользователя:
+    1. `POST /v1/security/email/recovery` (новый емаил) — создаётся операция, письмо
+      не отправляется;
+    2. Пользователю предлагается ввести пароль или TOTP код (`PATCH /v1/operation/confirm`,
+      `confirm_method` — `PASSWORD` либо `TOTP`);
+    3. Затем предлагается ввести один из одноразовых аварийных кодов
+      (`confirm_method` — `RECOVERY`);
+    4. Пользователь применяет подтверждённую операцию методом `POST /v1/security/apply-operation` —
+      емаил изменяется на новый, на прежний емаил отправляется уведомление;
+
+    Смена адреса этим методом требует пароль или TOTP код: после неё аккаунт продолжает зависеть
+    от второго фактора, но уже не от прежнего емаила. Поэтому здесь аварийный код принимается
+    в дополнение ко второму фактору, а не вместо него, и комбинация «код с емаила + аварийный
+    код» недопустима ни этим методом, ни обычным.
+
+    После смены адреса имеет смысл перевыпустить аварийные коды
+    (`POST /v1/security/recovery-codes`) — уже новой парой «код с емаила + пароль/TOTP».
+
+    ### Влияние на сессии
+    Такое же, как у `POST /v1/security/email`: смена емаила сессии и токены не затрагивает.
+
+    ### Значения `code` в ответе `400`
+    - `ValidateError/new_email` — новый емаил не указан или не проходит проверку схемы (в т.ч.
+      когда значение не является емаил адресом);
+    - `EmailAlreadyExists/new_email` — новый емаил уже используется другим пользователем;
+
+    ### Причины ответа `403`
+    - общие причины отказа — см. «Аутентификация и доступ» в описании API;
+
+    ### Причины ответа `409`
+    - 2FA аутентификация выключена: доказательство у такого аккаунта единственное — код
+      на текущий адрес, поэтому смена адреса проводится обычным `POST /v1/security/email`.
+      Состояние 2FA здесь не скрывается: метод авторизованный, вызывающий и есть владелец;
+  operationId: changeUserEmailByRecovery
+  tags:
+    - Auth.Security
+  x-auth-scopes:
+    - any-users
+
+  requestBody:
+    required: true
+    content:
+      application/json;charset=UTF-8:
+        schema:
+          $ref: "../components/models/Auth.Security.Request.Model.ChangeEmail.yaml"
+
+  responses:
+    "200":
+      $ref: "../components/responses/Auth.ResponseJson.WaitingConfirmOperation.yaml"
+    "400":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error400.yaml"
+    "401":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
+    "403":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    "409":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error409.yaml"
+    "422":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error422.yaml"
+    "500":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

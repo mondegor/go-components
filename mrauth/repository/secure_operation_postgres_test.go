@@ -73,6 +73,112 @@ func (ts *SecureOperationPostgresTestSuite) seedOperation(userID uuid.UUID, name
 	return token
 }
 
+// TestRecoveryChainRoundTrip - и признак AllowRecovery, и звено RECOVERY живут в jsonb-колонке
+// confirm_actions и обязаны переживать запись, чтение и перезапись операции. Признак невидим
+// в нулевом значении (omitempty), поэтому проверяется, что снятым он читается как снятый,
+// а не как потерянное поле.
+//
+// Пара "AllowRecovery на звене RECOVERY" здесь синтетическая: ни одна фабрика такую не строит
+// (аварийный код вместо аварийного кода), но она единственная, где признак можно выставить
+// не нарушив инвариант - поднять его на первое звено checkInvariants не даст.
+func (ts *SecureOperationPostgresTestSuite) TestRecoveryChainRoundTrip() {
+	token := "token-" + uuid.NewString()
+
+	op, err := secureoperation.NewOperation(
+		token,
+		"confirm.authorize.user",
+		uuid.New(),
+		[]secureoperation.ConfirmAction{
+			{
+				Method:      confirmmethod.TOTP,
+				MaxAttempts: 3,
+				Expiry:      10 * time.Minute,
+			},
+			{
+				Method:        confirmmethod.Recovery,
+				MaxAttempts:   3,
+				Expiry:        10 * time.Minute,
+				AllowRecovery: true,
+			},
+		},
+		nil,
+	)
+	ts.Require().NoError(err)
+	ts.Require().NoError(ts.repo.Insert(ts.ctx, op))
+
+	stored, err := ts.repo.FetchOne(ts.ctx, token)
+	ts.Require().NoError(err)
+	ts.Require().Len(stored.Actions(), 2)
+	ts.Equal(confirmmethod.TOTP, stored.Actions()[0].Method)
+	ts.False(stored.Actions()[0].AllowRecovery)
+	ts.Equal(confirmmethod.Recovery, stored.Actions()[1].Method)
+	ts.True(stored.Actions()[1].AllowRecovery)
+
+	// первое звено подтверждено - до следующего запроса остаток цепочки доносит Replace
+	confirmed, err := stored.ConfirmAction(func(secureoperation.ConfirmAction) (bool, error) {
+		return true, nil
+	})
+	ts.Require().NoError(err)
+	ts.Require().False(confirmed)
+	ts.Require().NoError(ts.repo.Replace(ts.ctx, token, stored))
+
+	reread, err := ts.repo.FetchOne(ts.ctx, token)
+	ts.Require().NoError(err)
+	ts.Require().Len(reread.Actions(), 1)
+	ts.Equal(confirmmethod.Recovery, reread.Actions()[0].Method)
+	ts.True(reread.Actions()[0].AllowRecovery)
+}
+
+// TestTwoFactorChainRoundTrip - цепочка "второй фактор -> аварийный код" обязана пережить
+// запись, чтение и перезапись операции целиком: оба звена не-sendable, кода подтверждения
+// в них нет, и потерянное при сериализации звено превратило бы двухшаговую операцию
+// в одношаговую. Такую цепочку строит unit.AuthorizeUserByRecovery.
+func (ts *SecureOperationPostgresTestSuite) TestTwoFactorChainRoundTrip() {
+	token := "token-" + uuid.NewString()
+
+	op, err := secureoperation.NewOperation(
+		token,
+		"confirm.authorize.user",
+		uuid.New(),
+		[]secureoperation.ConfirmAction{
+			{
+				Method:      confirmmethod.Password,
+				MaxAttempts: 3,
+				Expiry:      10 * time.Minute,
+			},
+			{
+				Method:      confirmmethod.Recovery,
+				MaxAttempts: 3,
+				Expiry:      10 * time.Minute,
+			},
+		},
+		nil,
+	)
+	ts.Require().NoError(err)
+	ts.Require().NoError(ts.repo.Insert(ts.ctx, op))
+
+	stored, err := ts.repo.FetchOne(ts.ctx, token)
+	ts.Require().NoError(err)
+	ts.Require().Len(stored.Actions(), 2)
+	ts.Equal(confirmmethod.Password, stored.Actions()[0].Method)
+	ts.Equal(confirmmethod.Recovery, stored.Actions()[1].Method)
+
+	// неверное доказательство расходует попытку, и остаток цепочки вместе с ней
+	// до следующего запроса доносит Replace
+	confirmed, err := stored.ConfirmAction(func(_ secureoperation.ConfirmAction) (bool, error) {
+		return false, nil
+	})
+	ts.Require().ErrorIs(err, secureoperation.ErrConfirmCodeIsIncorrect)
+	ts.Require().False(confirmed)
+	ts.Require().NoError(ts.repo.Replace(ts.ctx, token, stored))
+
+	reread, err := ts.repo.FetchOne(ts.ctx, token)
+	ts.Require().NoError(err)
+	ts.Require().Len(reread.Actions(), 2)
+	ts.Equal(confirmmethod.Password, reread.Actions()[0].Method)
+	ts.Equal(int16(2), reread.RemainingAttempts)
+}
+
 func (ts *SecureOperationPostgresTestSuite) TestDeleteByUserIDAndName() {
 	userID := uuid.New()
 	otherUserID := uuid.New()

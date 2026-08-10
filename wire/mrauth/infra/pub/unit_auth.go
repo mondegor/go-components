@@ -10,6 +10,7 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/component/produce"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
@@ -54,15 +55,25 @@ func initUnitAuthController(
 	responseSender mrserver.ResponseSender,
 	notifierAPI mrnotifier.NoteProducer,
 	userRealms []authcfg.UserRealm,
+	auth2faConfig authcfg.Auth2FA,
 	jwtConfig authcfg.JWT,
 	cookieConfig authcfg.RefreshCookie,
 	sessionSoftThreshold, sessionHardThreshold int8,
-	// sessionLimitRetryAfter - период задачи фоновой чистки лишних сессий, см. InitHttpModule
 	sessionLimitRetryAfter time.Duration,
 	debugFunc func(value any) string,
 	locationResolver mrauth.LocationResolver,
 ) (mrserver.HttpController, error) {
 	realmRegistry := mapping.OptionUserRealmsToRealmRegistry(userRealms)
+
+	// подставной второй фактор для аккаунтов без 2FA: вход по аварийному коду обязан выглядеть
+	// одинаково при любом состоянии аккаунта (см. unit.AuthorizeUserByRecovery)
+	decoyFactorSelector, err := crypt.NewDecoyFactorSelector(
+		[]byte(auth2faConfig.DecoyFactorSalt),
+		uint32(auth2faConfig.DecoyTOTPPercent),
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	checkUserService := check.NewUserLogin(
 		storageCheckUser,
@@ -70,19 +81,15 @@ func initUnitAuthController(
 		realmRegistry,
 	)
 
+	confirm2faOpts := []action.Option{
+		action.WithMaxAttempts(int16(auth2faConfig.ConfirmMaxAttempts)),
+		action.WithExpiry(auth2faConfig.ConfirmExpiry),
+	}
+
 	factory2FA := service.NewFactoryConfirm2FA(
 		storageUser,
 		storageAuth2fa,
-		action.NewConfirmBy2fa(
-			[]action.Option{
-				action.WithMaxAttempts(5), // TODO: в настройки
-				action.WithExpiry(30 * time.Minute),
-			},
-			[]action.Option{
-				action.WithMaxAttempts(5), // TODO: в настройки
-				action.WithExpiry(30 * time.Minute),
-			},
-		),
+		action.NewConfirmBy2fa(confirm2faOpts, confirm2faOpts),
 	)
 
 	useCaseCreateUser := usecaseauth.NewCreateUser(
@@ -100,6 +107,20 @@ func initUnitAuthController(
 		factory2FA,
 		operationLogger,
 		mapping.OptionUserRealmsToConfirmCreateSessionRealms(userRealms),
+	)
+
+	createSessionByRecoveryRealms := mapping.OptionUserRealmsToConfirmCreateSessionByRecoveryRealms(
+		userRealms,
+		decoyFactorSelector,
+		confirm2faOpts,
+	)
+
+	useCaseConfirmAuthUserByRecovery := usecaseauth.NewCreateSessionByRecovery(
+		operationOpener,
+		checkUserService,
+		factory2FA,
+		operationLogger,
+		createSessionByRecoveryRealms,
 	)
 
 	serviceAuthToken := authtoken.New(
@@ -174,6 +195,7 @@ func initUnitAuthController(
 		refreshTokenCookie,
 		useCaseCreateUser,
 		useCaseConfirmAuthUser,
+		useCaseConfirmAuthUserByRecovery,
 		useCaseConfirmOperation,
 		useCaseOpenSession,
 		useCaseContinueSession,

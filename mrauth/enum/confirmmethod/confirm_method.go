@@ -14,15 +14,16 @@ const (
 	Phone                   // по телефону
 	Password                // по паролю
 	TOTP                    // по TOTP
+	Recovery                // по аварийному коду (только последним звеном цепочки)
 )
 
 const (
-	enumLast = uint8(TOTP)
+	enumLast = uint8(Recovery)
 	enumName = "ConfirmMethod"
 )
 
 type (
-	// Enum - статус элемента.
+	// Enum - метод подтверждения подлинности пользователя.
 	Enum uint8
 )
 
@@ -34,6 +35,7 @@ var (
 		Phone:       "PHONE",
 		Password:    "PASSWORD",
 		TOTP:        "TOTP",
+		Recovery:    "RECOVERY",
 	}
 
 	enumValues = map[string]Enum{
@@ -42,6 +44,7 @@ var (
 		"PHONE":       Phone,
 		"PASSWORD":    Password,
 		"TOTP":        TOTP,
+		"RECOVERY":    Recovery,
 	}
 )
 

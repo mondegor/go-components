@@ -70,10 +70,14 @@ type (
 
 	// Auth2FA - настройки второго фактора: TOTP-генератор и аварийные (recovery) коды.
 	Auth2FA struct {
-		TOTPIssuer           string `yaml:"totp_issuer"`            // имя издателя TOTP (метка в приложении-аутентификаторе)
-		RecoveryCount        uint8  `yaml:"recovery_count"`         // число выдаваемых аварийных кодов
-		RecoveryCodeLength   uint8  `yaml:"recovery_code_length"`   // длина одного аварийного кода
-		RecoveryLowThreshold uint8  `yaml:"recovery_low_threshold"` // остаток, при котором слать предупреждение
+		TOTPIssuer           string        `yaml:"totp_issuer"`            // имя издателя TOTP (метка в приложении-аутентификаторе)
+		RecoveryCount        uint8         `yaml:"recovery_count"`         // число выдаваемых аварийных кодов
+		RecoveryCodeLength   uint8         `yaml:"recovery_code_length"`   // длина одного аварийного кода
+		RecoveryLowThreshold uint8         `yaml:"recovery_low_threshold"` // остаток, при котором слать предупреждение
+		ConfirmMaxAttempts   uint8         `yaml:"confirm_max_attempts"`   // лимит попыток звена подтверждения вторым фактором
+		ConfirmExpiry        time.Duration `yaml:"confirm_expiry"`         // срок жизни звена подтверждения вторым фактором
+		DecoyTOTPPercent     uint8         `yaml:"decoy_totp_percent"`     // доля аккаунтов, которым достаётся подставной TOTP (остальным пароль)
+		DecoyFactorSalt      string        `yaml:"decoy_factor_salt" env:"APPX_2FA_DECOY_FACTOR_SALT" env-required:"true"`
 	}
 
 	// RefreshCookie - настройки cookie с refresh токеном (web-версия).

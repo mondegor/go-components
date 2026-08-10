@@ -9,33 +9,34 @@ const (
 )
 
 type (
-	// AuthorizeUserOption - настройка объекта MessageSender.
+	// AuthorizeUserOption - настройка объекта AuthorizeUser.
 	AuthorizeUserOption func(o *authorizeUserOptions)
 
 	authorizeUserOptions struct {
-		authorizer     *AuthorizeUser
-		confirmByEmail []action.Option
-		confirmByPhone []action.Option
+		confirmByEmail      []action.Option
+		confirmByPhone      []action.Option
+		confirmPhoneByEmail bool
 	}
 )
 
-// WithAuthorizeUserConfirmByEmailOpts - устанавливает кол-во попыток отправки одного сообщения.
+// WithAuthorizeUserConfirmByEmailOpts - настраивает действие подтверждения кодом с емаила.
 func WithAuthorizeUserConfirmByEmailOpts(opts ...action.Option) AuthorizeUserOption {
 	return func(o *authorizeUserOptions) {
 		o.confirmByEmail = append(o.confirmByEmail, opts...)
 	}
 }
 
-// WithAuthorizeUserConfirmByPhoneOpts - устанавливает кол-во попыток отправки одного сообщения.
+// WithAuthorizeUserConfirmByPhoneOpts - настраивает действие подтверждения кодом с телефона.
 func WithAuthorizeUserConfirmByPhoneOpts(opts ...action.Option) AuthorizeUserOption {
 	return func(o *authorizeUserOptions) {
 		o.confirmByPhone = append(o.confirmByPhone, opts...)
 	}
 }
 
-// WithAuthorizeUserConfirmPhoneByEmail - устанавливает кол-во попыток отправки одного сообщения.
+// WithAuthorizeUserConfirmPhoneByEmail - включает отправку кода подтверждения на емаил
+// пользователя, даже когда он входит по номеру телефона.
 func WithAuthorizeUserConfirmPhoneByEmail(value bool) AuthorizeUserOption {
 	return func(o *authorizeUserOptions) {
-		o.authorizer.confirmPhoneByEmail = value
+		o.confirmPhoneByEmail = value
 	}
 }

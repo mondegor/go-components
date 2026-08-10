@@ -4,10 +4,13 @@ description: |-
   - PHONE - телефон;
   - PASSWORD - пароль;
   - TOTP - генератор одноразовых паролей;
+  - RECOVERY - одноразовый аварийный код; встречается только последним звеном цепочки
+    и только у операций, созданных методами `.../recovery`;
 type: string
 enum:
   - EMAIL
   - PHONE
   - PASSWORD
   - TOTP
+  - RECOVERY
 example: "EMAIL"

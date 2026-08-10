@@ -24,31 +24,33 @@ import (
 )
 
 const (
-	authSignupURL       = "/v1/signup"
-	authSigninURL       = "/v1/signin"
-	authSessionURL      = "/v1/session"
-	authUserURL         = "/v1/user"
-	authUserSettingsURL = "/v1/user/settings"
+	authSignupURL         = "/v1/signup"
+	authSigninURL         = "/v1/signin"
+	authSigninRecoveryURL = "/v1/signin/recovery"
+	authSessionURL        = "/v1/session"
+	authUserURL           = "/v1/user"
+	authUserSettingsURL   = "/v1/user/settings"
 )
 
 type (
 	// Auth - контроллер аутентификации: регистрация, вход, жизненный цикл сессии и информация о пользователе.
 	Auth struct {
-		parser                 validate.RequestParser
-		sender                 mrserver.ResponseSender
-		refreshTokenCookie     cookieValueService
-		confirmFlow            confirmOperationFlow
-		useCaseCreateUser      createUserUseCase
-		useCaseAuthUser        authUserUseCase
-		useCaseOpenSession     openSessionUseCase
-		useCaseContinueSession continueSessionUseCase
-		useCaseCloseSession    closeSessionUseCase
-		useCaseChangeSettings  changeSettingsUseCase
-		serviceUserInfo        userInfoService
-		realmRegistry          mrauth.RealmRegistry
-		operationResponse      confirmOperationResponse
-		sessionLimitRetryAfter time.Duration
-		debugFunc              func(value any) string
+		parser                    validate.RequestParser
+		sender                    mrserver.ResponseSender
+		refreshTokenCookie        cookieValueService
+		confirmFlow               confirmOperationFlow
+		useCaseCreateUser         createUserUseCase
+		useCaseAuthUser           authUserUseCase
+		useCaseAuthUserByRecovery authUserUseCase
+		useCaseOpenSession        openSessionUseCase
+		useCaseContinueSession    continueSessionUseCase
+		useCaseCloseSession       closeSessionUseCase
+		useCaseChangeSettings     changeSettingsUseCase
+		serviceUserInfo           userInfoService
+		realmRegistry             mrauth.RealmRegistry
+		operationResponse         confirmOperationResponse
+		sessionLimitRetryAfter    time.Duration
+		debugFunc                 func(value any) string
 	}
 
 	cookieValueService interface {
@@ -112,6 +114,7 @@ func NewAuth(
 	refreshTokenCookie cookieValueService,
 	useCaseCreateUser createUserUseCase,
 	useCaseConfirmAuthUser authUserUseCase,
+	useCaseConfirmAuthUserByRecovery authUserUseCase,
 	useCaseConfirmOperation confirmOperationUseCase,
 	useCaseOpenSession openSessionUseCase,
 	useCaseContinueSession continueSessionUseCase,
@@ -140,17 +143,18 @@ func NewAuth(
 			operationResponse: operationResponse,
 			debugFunc:         debugFunc,
 		},
-		useCaseCreateUser:      useCaseCreateUser,
-		useCaseAuthUser:        useCaseConfirmAuthUser,
-		useCaseOpenSession:     useCaseOpenSession,
-		useCaseContinueSession: useCaseContinueSession,
-		useCaseCloseSession:    useCaseCloseSession,
-		useCaseChangeSettings:  useCaseChangeSettings,
-		serviceUserInfo:        serviceUserInfo,
-		realmRegistry:          realmRegistry,
-		operationResponse:      operationResponse,
-		sessionLimitRetryAfter: sessionLimitRetryAfter,
-		debugFunc:              debugFunc,
+		useCaseCreateUser:         useCaseCreateUser,
+		useCaseAuthUser:           useCaseConfirmAuthUser,
+		useCaseAuthUserByRecovery: useCaseConfirmAuthUserByRecovery,
+		useCaseOpenSession:        useCaseOpenSession,
+		useCaseContinueSession:    useCaseContinueSession,
+		useCaseCloseSession:       useCaseCloseSession,
+		useCaseChangeSettings:     useCaseChangeSettings,
+		serviceUserInfo:           serviceUserInfo,
+		realmRegistry:             realmRegistry,
+		operationResponse:         operationResponse,
+		sessionLimitRetryAfter:    sessionLimitRetryAfter,
+		debugFunc:                 debugFunc,
 	}
 }
 
@@ -159,6 +163,7 @@ func (ht *Auth) Handlers() []mrserver.HttpHandler {
 	return []mrserver.HttpHandler{
 		{Method: http.MethodPost, URL: authSignupURL, Permission: mraccess.PermissionGuestOnly, Func: ht.Signup},
 		{Method: http.MethodPost, URL: authSigninURL, Permission: mraccess.PermissionGuestOnly, Func: ht.Signin},
+		{Method: http.MethodPost, URL: authSigninRecoveryURL, Permission: mraccess.PermissionGuestOnly, Func: ht.SigninByRecovery},
 		{Method: http.MethodPost, URL: authSessionURL, Permission: mraccess.PermissionGuestOnly, Func: ht.OpenSession},
 		{Method: http.MethodPatch, URL: authSessionURL, Permission: mraccess.PermissionEveryone, Func: ht.ContinueSession},
 		{Method: http.MethodDelete, URL: authSessionURL, Permission: mraccess.PermissionAnyUser, Func: ht.CloseSession},
@@ -214,6 +219,33 @@ func (ht *Auth) Signup(w http.ResponseWriter, r *http.Request) error {
 
 // Signin - принимает запрос на вход пользователя и инициирует подтверждение операции по коду.
 func (ht *Auth) Signin(w http.ResponseWriter, r *http.Request) error {
+	return ht.signin(w, r, ht.useCaseAuthUser, "Confirm your identity to sign in by code")
+}
+
+// SigninByRecovery - принимает запрос на вход пользователя, утратившего доступ к почте:
+// операция подтверждается вторым фактором и аварийным кодом, письмо не отправляется.
+//
+// Аккаунту с выключенной 2FA операция создаётся такая же, с подставным вторым фактором:
+// подтвердить он её не сможет, но и определить по ответам, включена ли у аккаунта 2FA,
+// нельзя. Метод гостевой, поэтому отказ по состоянию аккаунта здесь недопустим - в отличие
+// от авторизованного POST /v1/security/email/recovery.
+func (ht *Auth) SigninByRecovery(w http.ResponseWriter, r *http.Request) error {
+	return ht.signin(w, r, ht.useCaseAuthUserByRecovery, "Confirm your identity to sign in by second factor")
+}
+
+// signin - общий шаг входа для обоих гостевых маршрутов: создаёт операцию указанным юзкейсом
+// и отдаёт клиенту её токен со счётчиками. Маршруты отличаются только цепочкой подтверждения,
+// то есть выбранным юзкейсом, и сообщением waitMessage.
+//
+// существование логина раскрывается осознанно (ErrLoginNotExists), как в check-login и Signup -
+// это by design ради UX формы входа; перебор аккаунтов закрывается rate-limit'ом (отдельная задача).
+// TODO: добавить rate-limit (частота попыток входа/повторной отправки кода по identifier+IP).
+func (ht *Auth) signin(
+	w http.ResponseWriter,
+	r *http.Request,
+	useCase authUserUseCase,
+	waitMessage string,
+) error {
 	req := model.AuthorizeUserRequest{}
 
 	if err := ht.parser.Validate(r, &req); err != nil {
@@ -222,10 +254,7 @@ func (ht *Auth) Signin(w http.ResponseWriter, r *http.Request) error {
 
 	lz := ht.parser.Localizer(r)
 
-	// существование логина раскрывается осознанно (ErrLoginNotExists), как в check-login и Signup -
-	// это by design ради UX формы входа; перебор аккаунтов закрывается rate-limit'ом (отдельная задача).
-	// TODO: добавить rate-limit (частота попыток входа/повторной отправки кода по identifier+IP)
-	op, err := ht.useCaseAuthUser.Execute(
+	op, err := useCase.Execute(
 		r.Context(),
 		dto.ActorMeta{
 			VisitorID: uuid.Nil, // анонимный поток входа: форензику несёт ClientIP
@@ -246,10 +275,7 @@ func (ht *Auth) Signin(w http.ResponseWriter, r *http.Request) error {
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
-		ht.operationResponse.NewConfirmOperation(
-			op,
-			lz.Translate("Confirm your identity to sign in by code"),
-		),
+		ht.operationResponse.NewConfirmOperation(op, lz.Translate(waitMessage)),
 	)
 }
 

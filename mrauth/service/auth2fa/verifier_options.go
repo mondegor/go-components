@@ -25,3 +25,12 @@ func WithRecoveryAlerter(alerter recoveryAlerter) Option {
 		o.verifier.recoveryAlerter = alerter
 	}
 }
+
+// WithDecoySecrets - задаёт подставные секреты, с которыми сверяется доказательство аккаунта
+// без 2FA, чтобы время ответа не выдавало его состояние.
+func WithDecoySecrets(passwordHash, totpSecret string) Option {
+	return func(o *options) {
+		o.verifier.decoyPasswordHash = passwordHash
+		o.verifier.decoyTOTPSecret = totpSecret
+	}
+}

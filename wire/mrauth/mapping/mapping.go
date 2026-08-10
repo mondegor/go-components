@@ -139,6 +139,34 @@ func OptionUserRealmsToConfirmCreateSessionRealms(realms []authcfg.UserRealm) []
 	return mappedRealms
 }
 
+// OptionUserRealmsToConfirmCreateSessionByRecoveryRealms - строит realm'ы входа пользователя,
+// утратившего доступ к почте: цепочка "второй фактор -> аварийный код".
+func OptionUserRealmsToConfirmCreateSessionByRecoveryRealms(
+	realms []authcfg.UserRealm,
+	decoyFactorSelector *crypt.DecoyFactorSelector,
+	confirm2faOpts []action.Option,
+) []usecaseauth.CreateSessionByRecoveryRealm {
+	mappedRealms := make([]usecaseauth.CreateSessionByRecoveryRealm, 0, len(realms))
+
+	for _, item := range realms {
+		mappedRealms = append(
+			mappedRealms,
+			usecaseauth.CreateSessionByRecoveryRealm{
+				Name: item.Name,
+				Operation: unit.NewAuthorizeUserByRecovery(
+					crypt.NewSecretGenerator(int(item.AuthToken.Length)),
+					decoyFactorSelector,
+					unit.WithAuthorizeUserByRecoveryConfirmByPasswordOpts(confirm2faOpts...),
+					unit.WithAuthorizeUserByRecoveryConfirmByTOTPOpts(confirm2faOpts...),
+					unit.WithAuthorizeUserByRecoveryConfirmByRecoveryOpts(confirm2faOpts...),
+				),
+			},
+		)
+	}
+
+	return mappedRealms
+}
+
 // OptionUserRealmsToCreateSessionRealms - строит realm'ы выпуска токенов сессии, выбирая
 // issuer по типу токена realm'а (jwt либо обычный session-токен).
 func OptionUserRealmsToCreateSessionRealms(realms []authcfg.UserRealm, jwtConfig authcfg.JWT) []authtoken.Realm {

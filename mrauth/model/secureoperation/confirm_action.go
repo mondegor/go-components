@@ -15,9 +15,15 @@ type (
 		MinResendTime time.Duration      `json:"min_resend_time,omitempty"`
 		Expiry        time.Duration      `json:"expiry"`
 
-		// only for confirmmethod.Email and confirmmethod.Phone
-		Address     string `json:"address,omitempty"`
-		ConfirmCode string `json:"code,omitempty"` // bcrypt-хеш кода подтверждения
+		// AllowRecovery - вместо основного доказательства этого действия допускается предъявить аварийный код.
+		AllowRecovery bool `json:"allow_recovery,omitempty"`
+
+		// Address - only for confirmmethod.Email and confirmmethod.Phone.
+		Address string `json:"address,omitempty"`
+
+		// ConfirmCode - bcrypt-хеш кода подтверждения; заполняется только у Email/Phone,
+		// у остальных действий доказательство сверяет второй фактор, а не операция.
+		ConfirmCode string `json:"code,omitempty"`
 
 		// PlainConfirmCode - код подтверждения в открытом виде, используется только для
 		// отправки пользователю в рамках текущего запроса; не сохраняется в хранилище.

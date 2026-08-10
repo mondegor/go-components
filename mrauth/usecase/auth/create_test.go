@@ -31,6 +31,7 @@ import (
 )
 
 //go:generate mockgen -source=create_session.go -destination=mock/create_session.go -package=mock
+//go:generate mockgen -source=create_session_by_recovery.go -destination=mock/create_session_by_recovery.go -package=mock
 //go:generate mockgen -source=create_user.go -destination=mock/create_user.go -package=mock
 //go:generate mockgen -source=user_statistic.go -destination=mock/user_statistic.go -package=mock
 //go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
@@ -98,6 +99,7 @@ type CreateSessionSuite struct {
 	opener       *mock.MockoperationOpener
 	factory2FA   *mock.MockUser2FAConfirmActionCreator
 	opFactory    *mock.MockcreateSessionOperation
+	opRecFactory *mock.MockcreateSessionByRecoveryOperation
 	logOperation *mock.MockoperationLogger
 	logEntries   []entity.SecureOperationLog
 	openedNote   string
@@ -117,6 +119,7 @@ func (s *CreateSessionSuite) SetupTest() {
 	s.opener = mock.NewMockoperationOpener(s.ctrl)
 	s.factory2FA = mock.NewMockUser2FAConfirmActionCreator(s.ctrl)
 	s.opFactory = mock.NewMockcreateSessionOperation(s.ctrl)
+	s.opRecFactory = mock.NewMockcreateSessionByRecoveryOperation(s.ctrl)
 	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
 	s.logEntries = nil
 	s.openedNote = ""
@@ -124,6 +127,7 @@ func (s *CreateSessionSuite) SetupTest() {
 	expectPassThroughTx(s.txManager)
 
 	s.opFactory.EXPECT().Name().Return(unit.NameAuthorizeUser).AnyTimes()
+	s.opRecFactory.EXPECT().Name().Return(unit.NameAuthorizeUser).AnyTimes()
 	s.factory2FA.EXPECT().CreateByUserLogin(gomock.Any(), gomock.Any()).Return(dto.User2FA{}, nil).AnyTimes()
 	s.factory2FA.EXPECT().CreateByUserID(gomock.Any(), gomock.Any()).Return(dto.User2FA{}, nil).AnyTimes()
 	s.logOperation.EXPECT().
@@ -141,6 +145,16 @@ func (s *CreateSessionSuite) newUseCase() *auth.CreateSession {
 		s.factory2FA,
 		s.logOperation,
 		[]auth.CreateSessionRealm{{Name: "shop", Operation: s.opFactory}},
+	)
+}
+
+func (s *CreateSessionSuite) newByRecoveryUseCase() *auth.CreateSessionByRecovery {
+	return auth.NewCreateSessionByRecovery(
+		s.opener,
+		s.checker,
+		s.factory2FA,
+		s.logOperation,
+		[]auth.CreateSessionByRecoveryRealm{{Name: "shop", Operation: s.opRecFactory}},
 	)
 }
 
@@ -190,7 +204,7 @@ func (s *CreateSessionSuite) TestEmptyRequiredArgs() {
 }
 
 func (s *CreateSessionSuite) TestLoginDoesNotExist() {
-	// nil от CheckAvailabilityRealm означает, что логин свободен - значит входить некому.
+	// nil от CheckAvailabilityRealm означает, что логин свободен - значит входить некому
 	s.expectCheckLogin(nil)
 	s.opFactory.EXPECT().
 		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -221,6 +235,26 @@ func (s *CreateSessionSuite) TestSuccess() {
 	// запись об открытии операции (и о вытеснении прежних) пишет компонент Opener,
 	// поэтому здесь журнал остаётся пустым - проверка в его собственном тесте
 	s.Empty(s.logEntries)
+}
+
+// TestByRecoverySuccess - вход по аварийному коду отличается от обычного двумя вещами:
+// цепочку строит другая фабрика, и шаблон уведомления не задаётся вовсе. Общий конвейер
+// (проверка логина, журнал, открытие операции) у обоих юзкейсов один и здесь
+// повторно не проверяется.
+func (s *CreateSessionSuite) TestByRecoverySuccess() {
+	s.expectCheckLogin(mrauth.ErrEmailAlreadyExists)
+	s.opRecFactory.EXPECT().
+		Create(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(newOpenedEmailOp(s.T()), nil)
+	s.expectOpen()
+
+	// обычная фабрика при этом не вызывается - её EXPECT не выставлен
+
+	_, err := s.newByRecoveryUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", contactaddress.NewEmail("user@example.com"))
+	s.Require().NoError(err)
+
+	// шаблон уведомления не передаётся вовсе: кода к отправке в этой цепочке не возникает
+	s.Empty(s.openedNote)
 }
 
 func (s *CreateSessionSuite) TestCheckerError() {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"time"
 
 	localecfg "github.com/mondegor/go-core/mrlocale/config"
 	timezonecfg "github.com/mondegor/go-core/util/timezone/config"
@@ -31,7 +32,33 @@ const (
 	defaultRecoveryCodeLength = 17
 
 	// defaultRecoveryLowThreshold - остаток кодов по умолчанию, при котором слать предупреждение.
-	defaultRecoveryLowThreshold = 2
+	defaultRecoveryLowThreshold = 3
+
+	// defaultDecoyTOTPPercent - доля подставного TOTP по умолчанию: применяется, когда реальное
+	// распределение вторых факторов в инсталляции неизвестно.
+	defaultDecoyTOTPPercent = 50
+
+	// minDecoyTOTPPercent, maxDecoyTOTPPercent - границы доли подставного TOTP, повторяют
+	// инвариант crypt.NewDecoyFactorSelector. Края диапазона исключены намеренно: и 0, и 100
+	// раздали бы один и тот же подставной тип всем аккаунтам без 2FA, а вырожденное
+	// распределение выдаёт заглушку не хуже расхождения с реальным.
+	minDecoyTOTPPercent = 1
+	maxDecoyTOTPPercent = 99
+
+	// minDecoyFactorSaltLength - минимальная длина соли подставного второго фактора
+	// (256 бит), повторяет инвариант crypt.NewDecoyFactorSelector. Проверки на непустоту
+	// недостаточно: короткая соль перебирается, а подобравший её вычисляет ожидаемый
+	// подставной тип и по расхождению читает, включена ли у аккаунта 2FA.
+	minDecoyFactorSaltLength = 32
+
+	// defaultConfirmMaxAttempts - число попыток ввода второго фактора по умолчанию.
+	defaultConfirmMaxAttempts = 5
+
+	// defaultConfirmExpiry - срок жизни звена подтверждения вторым фактором по умолчанию.
+	defaultConfirmExpiry = 30 * time.Minute
+
+	// maxConfirmExpiry - потолок срока жизни звена подтверждения вторым фактором.
+	maxConfirmExpiry = time.Hour
 
 	// minSessionThreshold - нижняя граница soft/hard отклонения от лимита сессий
 	// (зеркалит клампинг domain-слоя correctThresholds).
@@ -81,7 +108,43 @@ func CorrectValuesAuth2FA(cfg Auth2FA) Auth2FA {
 		cfg.RecoveryLowThreshold = defaultRecoveryLowThreshold
 	}
 
+	if cfg.DecoyTOTPPercent < minDecoyTOTPPercent || cfg.DecoyTOTPPercent > maxDecoyTOTPPercent {
+		cfg.DecoyTOTPPercent = defaultDecoyTOTPPercent
+	}
+
+	if cfg.ConfirmMaxAttempts < 1 {
+		cfg.ConfirmMaxAttempts = defaultConfirmMaxAttempts
+	}
+
+	// потолок задан затем, что сроки звеньев складываются (см. maxConfirmExpiry)
+	if cfg.ConfirmExpiry < 1 || cfg.ConfirmExpiry > maxConfirmExpiry {
+		cfg.ConfirmExpiry = defaultConfirmExpiry
+	}
+
 	return cfg
+}
+
+// ValidateAuth2FA - проверяет настройки 2FA, которые нельзя привести к допустимым
+// значениям подстановкой умолчаний (см. CorrectValuesAuth2FA): соль подставного второго
+// фактора - секрет инсталляции, и взять его неоткуда, поэтому короткая соль остаётся ошибкой.
+//
+// Без этой проверки короткая соль роняет старт из глубины сборки контроллера
+// (crypt.NewDecoyFactorSelector), то есть из места, где конфигурация уже считается проверенной.
+//
+// Это host-only reference-валидация уровня composition-root: предполагается, что её вызывает
+// host-приложение из своего init-пути (внутри библиотеки она намеренно не вызывается). Конкретный
+// проект может использовать её как есть либо написать собственную.
+func ValidateAuth2FA(cfg Auth2FA) error {
+	// значение соли в ошибку не попадает: это секрет, а логи ошибок старта обычно не защищены
+	if len(cfg.DecoyFactorSalt) < minDecoyFactorSaltLength {
+		return fmt.Errorf(
+			"decoy factor salt is too short (got %d bytes, min=%d)",
+			len(cfg.DecoyFactorSalt),
+			minDecoyFactorSaltLength,
+		)
+	}
+
+	return nil
 }
 
 // ValidateRealms - проверяет конфигурацию realm'ов: уникальность id и имён, корректность типов токенов,
