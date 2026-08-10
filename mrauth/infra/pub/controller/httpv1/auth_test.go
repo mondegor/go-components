@@ -462,7 +462,7 @@ func (s *AuthSuite) TestOpenSessionWithoutSecretOnOpenedOperation() {
 	s.localizer.EXPECT().TranslateError(gomock.Any()).Return("confirm code is required")
 	s.useCaseConfirmOp.EXPECT().
 		Execute(gomock.Any(), gomock.Any(), gomock.Any(), "op-token", "").
-		Return(openedOp, secureoperation.ErrConfirmCodeIsRequired)
+		Return(openedOp, mrauth.ErrConfirmCodeIsRequired)
 	s.operationResponse.EXPECT().
 		NewErrorConfirmOperation(gomock.Any(), openedOp).
 		DoAndReturn(func(response mrresp.Error400Response, _ secureoperation.SecureOperation) model.ErrorConfirmOperationResponse {
@@ -505,7 +505,7 @@ func (s *AuthSuite) TestOpenSessionLimitExceededSetsRetryAfter() {
 
 	err := s.openSession()
 	s.Require().ErrorIs(err, mrauth.ErrSessionLimitExceededTryLater)
-	s.Require().NotErrorIs(err, secureoperation.ErrOperationInvalid)
+	s.Require().NotErrorIs(err, mrauth.ErrOperationInvalid)
 	s.Equal("300", s.rec.Header().Get("Retry-After"))
 }
 

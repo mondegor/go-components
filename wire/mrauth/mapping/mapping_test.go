@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/wire/mrauth/mapping"
 )
 
@@ -45,12 +44,12 @@ func TestOptionErrorCodeToHttpStatus(t *testing.T) {
 		// ошибки защищённой операции в таблице отсутствуют намеренно: им нужен дефолтный 400
 		// с кодом в теле. Появись здесь пара - и токен операции, переданный path-параметром
 		// (`GET /v1/security/totp/{token}`), уехал бы клиенту статусом без кода вовсе
-		{"токен операции недействителен", secureoperation.ErrOperationInvalid, http.StatusBadRequest},
-		{"повторные отправки исчерпаны", secureoperation.ErrNoAttemptsToResendCode, http.StatusBadRequest},
-		{"повторная отправка неприменима", secureoperation.ErrResendCodeIsNotSupported, http.StatusBadRequest},
-		{"операция не подтверждена", secureoperation.ErrOperationIsNotConfirmed, http.StatusBadRequest},
-		{"операция истекла", secureoperation.ErrOperationAlreadyExpired, http.StatusBadRequest},
-		{"секрет не передан", secureoperation.ErrConfirmCodeIsRequired, http.StatusBadRequest},
+		{"токен операции недействителен", mrauth.ErrOperationInvalid, http.StatusBadRequest},
+		{"повторные отправки исчерпаны", mrauth.ErrNoAttemptsToResendCode, http.StatusBadRequest},
+		{"повторная отправка неприменима", mrauth.ErrResendCodeIsNotSupported, http.StatusBadRequest},
+		{"операция не подтверждена", mrauth.ErrOperationIsNotConfirmed, http.StatusBadRequest},
+		{"операция истекла", mrauth.ErrOperationAlreadyExpired, http.StatusBadRequest},
+		{"секрет не передан", mrauth.ErrConfirmCodeIsRequired, http.StatusBadRequest},
 	}
 
 	for _, tt := range tests {

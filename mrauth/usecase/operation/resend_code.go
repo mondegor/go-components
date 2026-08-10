@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
@@ -65,7 +66,7 @@ func (co *ResendCode) Execute(
 	}
 
 	if operationToken == "" {
-		return secureoperation.SecureOperation{}, secureoperation.ErrOperationInvalid
+		return secureoperation.SecureOperation{}, mrauth.ErrOperationInvalid
 	}
 
 	// resendCodeErr - бизнес-результат временной невозможности повторной отправки кода.
@@ -78,7 +79,7 @@ func (co *ResendCode) Execute(
 		op, err = co.storageOperation.FetchOneForUpdate(ctx, operationToken)
 		if err != nil {
 			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
-				return secureoperation.ErrOperationInvalid
+				return mrauth.ErrOperationInvalid
 			}
 
 			return co.errorWrapper.Wrap(err)
@@ -93,14 +94,14 @@ func (co *ResendCode) Execute(
 			// временный троттл и окончательно израсходованные отправки - оба бизнес-результат,
 			// а не сбой: транзакция должна закоммититься, чтобы клиент получил актуальные
 			// счётчики операции вместе с ошибкой
-			if errors.Is(err, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted) ||
-				errors.Is(err, secureoperation.ErrNoAttemptsToResendCode) {
+			if errors.Is(err, mrauth.ErrSendingNewMessagesIsTemporarilyRestricted) ||
+				errors.Is(err, mrauth.ErrNoAttemptsToResendCode) {
 				resendCodeErr = err
 				operationLogStatus = logstatus.Blocked
 
 				// в журнале «ещё рано» и «уже никогда» - разные причины: по первой клиент
 				// вернётся, по второй операцию придётся создавать заново
-				if errors.Is(err, secureoperation.ErrNoAttemptsToResendCode) {
+				if errors.Is(err, mrauth.ErrNoAttemptsToResendCode) {
 					operationLogReason = logreason.ResendsExhausted
 				} else {
 					operationLogReason = logreason.Throttled

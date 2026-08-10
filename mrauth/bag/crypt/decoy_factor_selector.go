@@ -4,9 +4,9 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/binary"
+	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 )
@@ -38,6 +38,9 @@ type (
 	// ожидаемый тип - а несовпадение однозначно выдавало бы аккаунт с включённой 2FA.
 	// Ключ обязан быть постоянным для инсталляции: при его смене подставной тип у одних и тех же
 	// аккаунтов поменяется, и это тоже наблюдаемо.
+	//
+	// Долю totpPercent имеет смысл выставлять близкой к реальному распределению вторых факторов в инсталляции:
+	// при заметном расхождении сам тип становится статистическим признаком подставной цепочки.
 	DecoyFactorSelector struct {
 		salt        []byte
 		totpPercent uint32
@@ -45,21 +48,14 @@ type (
 )
 
 // NewDecoyFactorSelector - создаёт объект DecoyFactorSelector.
-// salt - постоянный секрет инсталляции длиной не менее minSaltLength байт;
-// totpPercent - доля аккаунтов, которым достанется подставной TOTP (остальным пароль),
-// допускается только 1..99 (см. minTOTPPercent, maxTOTPPercent).
-// Долю имеет смысл выставлять близкой к реальному распределению вторых факторов в инсталляции:
-// при заметном расхождении сам тип становится статистическим признаком подставной цепочки.
 func NewDecoyFactorSelector(salt []byte, totpPercent uint32) (*DecoyFactorSelector, error) {
 	if len(salt) < minSaltLength {
-		return nil, errors.ErrInternalIncorrectInputData.WithDetails(
-			"decoy factor selector salt is too short", "minSaltLength", minSaltLength,
-		)
+		return nil, fmt.Errorf("decoy factor selector salt is too short: minimum is %d bytes", minSaltLength)
 	}
 
 	if totpPercent < minTOTPPercent || totpPercent > maxTOTPPercent {
-		return nil, errors.ErrInternalIncorrectInputData.WithDetails(
-			"decoy factor selector totpPercent is out of range", "totpPercent", totpPercent,
+		return nil, fmt.Errorf(
+			"decoy factor selector totpPercent is out of range: allowed %d..%d", minTOTPPercent, maxTOTPPercent,
 		)
 	}
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/mondegor/go-core/errors"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
@@ -15,7 +16,7 @@ func (o *SecureOperation) ActivateResendCode(token string) (err error) {
 	}
 
 	if o.Status != operationstatus.Opened {
-		return ErrOperationAlreadyConfirmed
+		return mrauth.ErrOperationAlreadyConfirmed
 	}
 
 	// запрещено инвариантом (см. checkInvariants): у Opened всегда есть хотя бы одно действие
@@ -29,15 +30,15 @@ func (o *SecureOperation) ActivateResendCode(token string) (err error) {
 	// достижима клиентом: в цепочке email -> TOTP после подтверждения email текущим становится
 	// 2FA-действие, и повторная отправка по нему уже неприменима
 	if !action.Sendable() {
-		return ErrResendCodeIsNotSupported
+		return mrauth.ErrResendCodeIsNotSupported
 	}
 
 	if o.RemainingResends == 0 {
-		return ErrNoAttemptsToResendCode
+		return mrauth.ErrNoAttemptsToResendCode
 	}
 
 	if time.Now().UTC().Before(o.ResendsAt) {
-		return ErrSendingNewMessagesIsTemporarilyRestricted
+		return mrauth.ErrSendingNewMessagesIsTemporarilyRestricted
 	}
 
 	o.Token = token

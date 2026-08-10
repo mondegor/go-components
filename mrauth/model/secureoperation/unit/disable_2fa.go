@@ -69,11 +69,13 @@ func (o *Disable2FA) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 		return secureoperation.SecureOperation{}, err
 	}
 
+	factorAction := newConfirmActionBy2FA(user2FA.Action2FA)
+
 	// снятие 2FA обязательно подтверждается email-кодом, поэтому аварийный код допустим
 	// только вторым действием: комбинация "пароль/TOTP + аварийный код" отклоняется
-	user2FA.Action2FA.AllowRecovery = true
+	factorAction.AllowRecovery = true
 
-	actions = append(actions, user2FA.Action2FA)
+	actions = append(actions, factorAction)
 
 	return secureoperation.NewOperation(
 		operationToken,

@@ -10,6 +10,7 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
@@ -127,8 +128,8 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 	)
 	if err != nil {
 		// оба отказа отдаются вместе с актуальными счётчиками операции
-		if errors.Is(err, secureoperation.ErrSendingNewMessagesIsTemporarilyRestricted) ||
-			errors.Is(err, secureoperation.ErrNoAttemptsToResendCode) {
+		if errors.Is(err, mrauth.ErrSendingNewMessagesIsTemporarilyRestricted) ||
+			errors.Is(err, mrauth.ErrNoAttemptsToResendCode) {
 			return ht.sender.Send(
 				w,
 				http.StatusBadRequest,

@@ -5,6 +5,7 @@ import (
 
 	"github.com/mondegor/go-core/errors"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
@@ -12,7 +13,7 @@ import (
 // переходит к следующему действию или переводит операцию в статус Confirmed.
 func (o *SecureOperation) ConfirmAction(checkFunc func(action ConfirmAction) (ok bool, err error)) (confirmed bool, err error) {
 	if o.Status != operationstatus.Opened {
-		return false, ErrOperationAlreadyConfirmed // нет открытого действия для подтверждения
+		return false, mrauth.ErrOperationAlreadyConfirmed // нет открытого действия для подтверждения
 	}
 
 	// запрещено инвариантом (см. checkInvariants): у Opened всегда есть хотя бы одно действие
@@ -21,7 +22,7 @@ func (o *SecureOperation) ConfirmAction(checkFunc func(action ConfirmAction) (ok
 	}
 
 	if o.RemainingAttempts <= 0 {
-		return false, ErrNoAttemptsToConfirmOperation
+		return false, mrauth.ErrNoAttemptsToConfirmOperation
 	}
 
 	action := o.actions[0]
@@ -34,7 +35,7 @@ func (o *SecureOperation) ConfirmAction(checkFunc func(action ConfirmAction) (ok
 	if !ok {
 		o.RemainingAttempts--
 
-		return false, ErrConfirmCodeIsIncorrect
+		return false, mrauth.ErrConfirmCodeIsIncorrect
 	}
 
 	// переход к следующему подтверждению операции

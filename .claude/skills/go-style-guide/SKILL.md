@@ -29,7 +29,7 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
   This is pervasive (the norm here, unlike Uber which groups only related decls):
   ```go
   type (
-      // Service - описание типа ...
+      // Service - service description ...
       Service struct {
           repo Repository
       }
@@ -150,7 +150,7 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
       FOR UPDATE SKIP LOCKED ...`
   ```
 - **Avoid maps in config/input DTOs — use a slice of structs with an explicit key field.**
-  Конфиги и входные DTO не используют мапы. Вместо `KindLimits map[string]uint32` — слайс:
+  Replace `KindLimits map[string]uint32` with a slice whose element carries the key:
   ```go
   type (
       GroupLimits struct {
@@ -165,8 +165,8 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
   )
   ```
 - **Avoid nested maps (`map[K1]map[K2]V`) — use a flat map keyed by a small private struct.**
-  Двойные мапы только по согласованию. Внутренний lookup-индекс собирается в конструкторе из
-  входного слайса; ключуется приватной составной структурой:
+  Nested maps only by prior agreement. The internal lookup index is built in the constructor
+  from the input slice, keyed by a private composite struct:
   ```go
   type groupKindKey struct {
       group string
@@ -185,18 +185,11 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
 ## Comments (English or Russian godot-checked)
 
 - Exported symbols **must** have a doc comment, in **English** or **Russian**, format
-  `// Name - descript / описание.` (name, space-dash-space, then text). Doc comments
+  `// Name - description.` (name, space-dash-space, then text). Doc comments
   end with a period (`godot`). Match the existing terse style.
 - **Internal comments** (inside function/method bodies) may start with a lowercase
   letter; when they do, they **must not** end with a period. (`godot`'s scope is
   declarations only, so these aren't linter-enforced — follow the convention manually.)
-- Document constructor params with a bulleted list when non-trivial:
-  ```go
-  // NewService - создаёт Service ...
-  // Параметры:
-  //   - repo - доступ к хранилищу данных;
-  //   - handler - функция обработки результата.
-  ```
 
 ## Naming
 
@@ -292,7 +285,7 @@ Rules:
   idempotent/bulk operations (ack-deletes, enqueue, expired-row cleanup). State the
   idempotency in the doc comment so the choice is not read as an oversight.
 - Document the sentinel in the method's doc comment when callers depend on it
-  (`// … Если записи нет, возвращает errors.ErrEventStorageNoRecordFound.`).
+  (`// … If no record exists, returns errors.ErrEventStorageNoRecordFound.`).
 - **The sentinel survives the repo's `errorWrapper`, but not as the same error.**
   `NewInfraStorageWrapper` only *returns as-is* what matches `ErrEventStorageNoRecordFound`;
   `ErrEventStorageRecordsNotAffected` has no `Kind()`, so it gets wrapped into
@@ -484,12 +477,12 @@ the directory — the two always move together:
   "A | B"` reaches Swagger UI and the code generators verbatim and clients copy a value that does
   not exist. The variants and the rule for parsing them belong in `description`; `example` carries
   one concrete value, kept consistent with its neighbours (`code: "ValidateError/user_email"` next
-  to `detail: "Атрибут не может быть пустым"`). If the field has no `description` yet, add one
+  to `detail: "Attribute cannot be empty"`). If the field has no `description` yet, add one
   first, then narrow the `example` — otherwise the list of variants is lost, not moved.
 - **Don't reuse a shared field whose `description` doesn't describe your semantics.** A `$ref` pulls
   in the description too, so reuse is semantic, not just structural. `published_at` (time the item
-  was published) must not `$ref` `Api.Field.DateTimeUpdatedAt.yaml` ("Дата и время обновления
-  записи") — that puts a wrong, duplicated description next to the real `updated_at` in the bundled
+  was published) must not `$ref` `Api.Field.DateTimeUpdatedAt.yaml` ("record update date and
+  time") — that puts a wrong, duplicated description next to the real `updated_at` in the bundled
   spec. Add a component field (`Catalog.Field.DateTimePublishedAt.yaml`) instead. Reuse a shared
   field only when the shared description is the one you want verbatim.
 - **An optional request field is a pointer in Go, and it still carries `min` in the contract.**

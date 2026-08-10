@@ -10,6 +10,7 @@ import (
 	"github.com/mondegor/go-storage/mrtests/infra"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/repository"
@@ -168,7 +169,7 @@ func (ts *SecureOperationPostgresTestSuite) TestTwoFactorChainRoundTrip() {
 	confirmed, err := stored.ConfirmAction(func(_ secureoperation.ConfirmAction) (bool, error) {
 		return false, nil
 	})
-	ts.Require().ErrorIs(err, secureoperation.ErrConfirmCodeIsIncorrect)
+	ts.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	ts.Require().False(confirmed)
 	ts.Require().NoError(ts.repo.Replace(ts.ctx, token, stored))
 

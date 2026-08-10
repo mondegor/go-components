@@ -196,7 +196,7 @@ func (s *OpenSessionSuite) TestNotConfirmed() {
 	op := secureoperation.SecureOperation{Name: unit.NameConfirmCreateUser, Status: operationstatus.Opened}
 
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, op)
-	s.Require().ErrorIs(err, secureoperation.ErrOperationIsNotConfirmed)
+	s.Require().ErrorIs(err, mrauth.ErrOperationIsNotConfirmed)
 }
 
 // happy: открытых сессий нет (soft=4 не достигнут) -> сигнал на чистку не ставится, вход проходит.
@@ -342,7 +342,7 @@ func (s *OpenSessionSuite) TestOperationConsumeRace() {
 	s.storageOp.EXPECT().Delete(gomock.Any(), "op-token").Return(errors.ErrEventStorageNoRecordFound)
 
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
-	s.Require().ErrorIs(err, secureoperation.ErrOperationInvalid)
+	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
 	s.Zero(s.notifyCount, "при откате транзакции login-alert не шлётся")
 }
 
@@ -387,7 +387,7 @@ func (s *OpenSessionSuite) TestHandlerUserErrorPassesThrough() {
 	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(unit.NameConfirmCreateUser))
 	s.Require().ErrorIs(err, errors.ErrAccessForbidden)
 	s.Require().NotErrorIs(err, errors.ErrRecordNotFound)
-	s.Require().NotErrorIs(err, secureoperation.ErrOperationInvalid)
+	s.Require().NotErrorIs(err, mrauth.ErrOperationInvalid)
 	s.Zero(s.notifyCount)
 }
 

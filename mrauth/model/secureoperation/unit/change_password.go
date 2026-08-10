@@ -70,7 +70,7 @@ func (o *ChangePassword) Create(user2FA dto.User2FA, newPassword string) (secure
 	}
 
 	if user2FA.Action2FA.Method > 0 {
-		actions = append(actions, user2FA.Action2FA)
+		actions = append(actions, newConfirmActionBy2FA(user2FA.Action2FA))
 	}
 
 	return secureoperation.NewOperation(

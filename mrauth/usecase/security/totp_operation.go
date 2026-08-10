@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
@@ -34,13 +35,13 @@ func fetchConfirmedTOTPPayload(
 	}
 
 	if operationToken == "" {
-		return dto.ChangeTOTPOperation{}, secureoperation.ErrOperationInvalid
+		return dto.ChangeTOTPOperation{}, mrauth.ErrOperationInvalid
 	}
 
 	op, err := storage.FetchOne(ctx, operationToken)
 	if err != nil {
 		if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
-			return dto.ChangeTOTPOperation{}, secureoperation.ErrOperationInvalid
+			return dto.ChangeTOTPOperation{}, mrauth.ErrOperationInvalid
 		}
 
 		return dto.ChangeTOTPOperation{}, errorWrapper.Wrap(err)
@@ -57,7 +58,7 @@ func fetchConfirmedTOTPPayload(
 	}
 
 	if !op.Is(operationstatus.Confirmed) {
-		return dto.ChangeTOTPOperation{}, secureoperation.ErrOperationIsNotConfirmed
+		return dto.ChangeTOTPOperation{}, mrauth.ErrOperationIsNotConfirmed
 	}
 
 	return unit.ParseChangeTOTPPayload(op.Payload)

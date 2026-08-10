@@ -75,7 +75,7 @@ func userWith2FA() dto.User2FA {
 	return dto.User2FA{
 		ID:        uuid.New(),
 		Email:     "user@example.com",
-		Action2FA: secureoperation.ConfirmAction{Method: confirmmethod.TOTP, MaxAttempts: 3, Expiry: time.Minute},
+		Action2FA: dto.ConfirmAction2FA{Method: confirmmethod.TOTP, MaxAttempts: 3, Expiry: time.Minute},
 	}
 }
 
@@ -624,7 +624,16 @@ func (s *FactorySuite) TestAuthorizeUserByRecoveryUsesRealFactor() {
 	op, err := f.Create(user, "shop", "en")
 	s.Require().NoError(err)
 	s.Require().Len(op.Actions(), 2)
-	s.Equal(user.Action2FA, op.Actions()[0])
+	// сравнение полным значением: заодно фиксирует, что маппинг не выставил первому
+	// звену AllowRecovery (аварийный код принимается только последним звеном)
+	s.Equal(
+		secureoperation.ConfirmAction{
+			Method:      user.Action2FA.Method,
+			MaxAttempts: user.Action2FA.MaxAttempts,
+			Expiry:      user.Action2FA.Expiry,
+		},
+		op.Actions()[0],
+	)
 }
 
 // TestAuthorizeUserByRecoveryDecoyMatchesRealChain - подставная цепочка обязана совпадать
@@ -643,7 +652,7 @@ func (s *FactorySuite) TestAuthorizeUserByRecoveryDecoyMatchesRealChain() {
 		action.WithExpiry(30 * time.Minute),
 	}
 
-	real2FA, err := action.NewConfirmBy2fa(factorOpts, factorOpts).Create(auth2fatype.TOTP, "TOTPSECRET")
+	real2FA, err := action.NewConfirmBy2fa(factorOpts, factorOpts).Create(auth2fatype.TOTP)
 	s.Require().NoError(err)
 
 	f := unit.NewAuthorizeUserByRecovery(

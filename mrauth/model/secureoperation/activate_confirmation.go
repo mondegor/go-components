@@ -5,6 +5,7 @@ import (
 
 	"github.com/mondegor/go-core/errors"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
@@ -15,7 +16,7 @@ func (o *SecureOperation) ActivateConfirmation(token string) (err error) {
 	}
 
 	if o.Status != operationstatus.Opened {
-		return ErrOperationAlreadyConfirmed
+		return mrauth.ErrOperationAlreadyConfirmed
 	}
 
 	// запрещено инвариантом (см. checkInvariants): у Opened всегда есть хотя бы одно действие

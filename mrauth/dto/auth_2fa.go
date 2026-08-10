@@ -1,9 +1,11 @@
 package dto
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 
-	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 )
 
 type (
@@ -12,7 +14,15 @@ type (
 		ID        uuid.UUID
 		Email     string
 		Phone     uint64
-		Action2FA secureoperation.ConfirmAction
+		Action2FA ConfirmAction2FA
+	}
+
+	// ConfirmAction2FA - описание активного второго фактора пользователя, из которого
+	// строится действие подтверждения защищённой операции.
+	ConfirmAction2FA struct {
+		Method      confirmmethod.Enum // password, TOTP
+		MaxAttempts int16
+		Expiry      time.Duration
 	}
 
 	// TOTPGeneratorSecret - заготовка TOTP-генератора в текстовом виде: secret для ручного

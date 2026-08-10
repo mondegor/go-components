@@ -16,19 +16,22 @@ const testDecoySalt = "test-decoy-salt-0123456789abcdef"
 func TestNewDecoyFactorSelector(t *testing.T) {
 	t.Parallel()
 
+	// причина отказа проверяется по подстроке сообщения: ошибки конструктора - это
+	// валидация настроек инсталляции, сентинелов для них в пакете нет. Числа границ
+	// в подстроки не входят намеренно - иначе тест ломался бы при их правке
 	type testCase struct {
-		name        string
-		salt        []byte
-		totpPercent uint32
-		wantErr     bool
+		name            string
+		salt            []byte
+		totpPercent     uint32
+		wantErrContains string
 	}
 
 	tests := []testCase{
-		{name: "пустая соль", salt: nil, totpPercent: 50, wantErr: true},
-		{name: "короткая соль", salt: []byte(testDecoySalt[:len(testDecoySalt)-1]), totpPercent: 50, wantErr: true},
-		{name: "нулевая доля", salt: []byte(testDecoySalt), totpPercent: 0, wantErr: true},
-		{name: "полная доля", salt: []byte(testDecoySalt), totpPercent: 100, wantErr: true},
-		{name: "доля вне диапазона", salt: []byte(testDecoySalt), totpPercent: 101, wantErr: true},
+		{name: "пустая соль", salt: nil, totpPercent: 50, wantErrContains: "salt is too short"},
+		{name: "короткая соль", salt: []byte(testDecoySalt[:len(testDecoySalt)-1]), totpPercent: 50, wantErrContains: "salt is too short"},
+		{name: "нулевая доля", salt: []byte(testDecoySalt), totpPercent: 0, wantErrContains: "totpPercent is out of range"},
+		{name: "полная доля", salt: []byte(testDecoySalt), totpPercent: 100, wantErrContains: "totpPercent is out of range"},
+		{name: "доля вне диапазона", salt: []byte(testDecoySalt), totpPercent: 101, wantErrContains: "totpPercent is out of range"},
 		{name: "нижняя граница", salt: []byte(testDecoySalt), totpPercent: 1},
 		{name: "доля по умолчанию", salt: []byte(testDecoySalt), totpPercent: crypt.DefaultTOTPPercent()},
 		{name: "верхняя граница", salt: []byte(testDecoySalt), totpPercent: 99},
@@ -40,8 +43,8 @@ func TestNewDecoyFactorSelector(t *testing.T) {
 
 			selector, err := crypt.NewDecoyFactorSelector(tt.salt, tt.totpPercent)
 
-			if tt.wantErr {
-				require.Error(t, err)
+			if tt.wantErrContains != "" {
+				require.ErrorContains(t, err, tt.wantErrContains)
 				require.Nil(t, selector)
 
 				return

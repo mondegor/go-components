@@ -3,8 +3,8 @@ package action
 import (
 	"time"
 
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 type (
@@ -25,12 +25,11 @@ func NewConfirmByPassword(opts ...Option) *ConfirmByPassword {
 	}
 }
 
-// Create - создаёт действие подтверждения паролем.
-func (a *ConfirmByPassword) Create(_ string) secureoperation.ConfirmAction {
-	return secureoperation.ConfirmAction{
+// Create - создаёт описание второго фактора "пароль".
+func (a *ConfirmByPassword) Create() dto.ConfirmAction2FA {
+	return dto.ConfirmAction2FA{
 		Method:      confirmmethod.Password,
 		MaxAttempts: a.maxAttempts,
 		Expiry:      a.expiry,
-		// ConfirmCode:     hashedPassword,
 	}
 }

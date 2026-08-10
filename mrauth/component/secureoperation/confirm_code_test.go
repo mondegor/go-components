@@ -91,7 +91,7 @@ func (s *ConfirmCodeSuite) TestEmptyConfirmCodeRejected() {
 
 	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "")
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
-	s.Require().NotErrorIs(err, secureoperation_model.ErrConfirmCodeIsIncorrect)
+	s.Require().NotErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Nil(commitConfirmed)
 }
@@ -136,13 +136,13 @@ func (s *ConfirmCodeSuite) TestTOTPVerifierRejects() {
 		Return(false, nil, nil)
 
 	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "bad")
-	s.Require().ErrorIs(err, secureoperation_model.ErrConfirmCodeIsIncorrect)
+	s.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Nil(commitConfirmed)
 }
 
 func (s *ConfirmCodeSuite) TestTOTPVerifierError() {
-	wantErr := secureoperation_model.ErrOperationAlreadyExpired
+	wantErr := mrauth.ErrOperationAlreadyExpired
 
 	s.verifier.EXPECT().
 		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, false, gomock.Any()).
@@ -165,7 +165,7 @@ func (s *ConfirmCodeSuite) Test2FADisabledLooksLikeMiss() {
 		Return(false, nil, mrauth.ErrAuth2FAIsDisabled)
 
 	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "123456")
-	s.Require().ErrorIs(err, secureoperation_model.ErrConfirmCodeIsIncorrect)
+	s.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.Require().NotErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Nil(commitConfirmed)

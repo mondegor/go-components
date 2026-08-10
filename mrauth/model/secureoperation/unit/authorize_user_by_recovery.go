@@ -21,7 +21,7 @@ type (
 	}
 
 	confirmBy2faCreator interface {
-		Create(auth2fa auth2fatype.Enum, secret string) (secureoperation.ConfirmAction, error)
+		Create(auth2fa auth2fatype.Enum) (dto.ConfirmAction2FA, error)
 	}
 
 	confirmByRecoveryCreator interface {
@@ -74,7 +74,7 @@ func (o *AuthorizeUserByRecovery) Create(user2FA dto.User2FA, realm, langCode st
 	factorAction := user2FA.Action2FA
 
 	if factorAction.Method == 0 {
-		factorAction, err = o.factor2faCreator.Create(o.decoyFactorSelector.Select(user2FA.ID), "")
+		factorAction, err = o.factor2faCreator.Create(o.decoyFactorSelector.Select(user2FA.ID))
 		if err != nil {
 			return secureoperation.SecureOperation{}, err
 		}
@@ -91,14 +91,14 @@ func (o *AuthorizeUserByRecovery) Create(user2FA dto.User2FA, realm, langCode st
 	}
 
 	// звено второго фактора идёт первым, поэтому AllowRecovery у него быть не должно
-	// (инвариант checkInvariants: аварийный код принимается только последним звеном).
-	// Держится тем, что 2FA-фабрика этот признак не выставляет - выставит, и операция
-	// начнёт отклоняться в рантайме
+	// (инвариант checkInvariants: аварийный код принимается только последним звеном)
 	return secureoperation.NewOperation(
 		operationToken,
 		NameAuthorizeUser,
 		user2FA.ID,
-		[]secureoperation.ConfirmAction{factorAction, o.recoveryCreator.Create()},
+		[]secureoperation.ConfirmAction{
+			newConfirmActionBy2FA(factorAction), o.recoveryCreator.Create(),
+		},
 		payload,
 	)
 }

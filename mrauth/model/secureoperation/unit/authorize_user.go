@@ -82,11 +82,13 @@ func (o *AuthorizeUser) Create(user2FA dto.User2FA, realm, langCode string, user
 	}
 
 	if user2FA.Action2FA.Method > 0 {
+		factorAction := newConfirmActionBy2FA(user2FA.Action2FA)
+
 		// аварийный код принимается вместо второго фактора: это завершающее действие цепочки,
 		// поэтому его успех сразу означает, что комбинация доказательств принята целиком
-		user2FA.Action2FA.AllowRecovery = true
+		factorAction.AllowRecovery = true
 
-		actions = append(actions, user2FA.Action2FA)
+		actions = append(actions, factorAction)
 	}
 
 	payload, err := BuildAuthorizeUserPayload(

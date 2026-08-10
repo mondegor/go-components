@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
@@ -72,7 +73,7 @@ func WakeUp(op *SecureOperation, actions []ConfirmAction) error {
 	}
 
 	if time.Now().UTC().After(op.ExpiresAt) {
-		return ErrOperationAlreadyExpired
+		return mrauth.ErrOperationAlreadyExpired
 	}
 
 	return nil

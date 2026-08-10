@@ -116,7 +116,7 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 	}
 
 	if !op.Is(operationstatus.Confirmed) {
-		return dto.AuthTokenPair{}, secureoperation.ErrOperationIsNotConfirmed
+		return dto.AuthTokenPair{}, mrauth.ErrOperationIsNotConfirmed
 	}
 
 	userScopes, notifyAuthSuccess, err := uc.handlerAuthFlow.Execute(ctx, op)
@@ -191,7 +191,7 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 			// операция потреблена конкурентным запросом: снаружи это тот же
 			// «токен больше не действует», а не нарушение инварианта
 			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
-				return secureoperation.ErrOperationInvalid
+				return mrauth.ErrOperationInvalid
 			}
 
 			return err

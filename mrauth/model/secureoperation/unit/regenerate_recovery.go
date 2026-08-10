@@ -70,7 +70,7 @@ func (o *RegenerateRecovery) Create(user2FA dto.User2FA) (secureoperation.Secure
 
 	// AllowRecovery не выставляется ни одному действию: перевыпуск принимает единственную
 	// комбинацию "email-код + пароль/TOTP", любая с аварийным кодом отклоняется
-	actions = append(actions, user2FA.Action2FA) // 2FA включена (проверено выше) - подтверждение текущим фактором
+	actions = append(actions, newConfirmActionBy2FA(user2FA.Action2FA)) // 2FA включена (проверено выше) - подтверждение текущим фактором
 
 	return secureoperation.NewOperation(
 		operationToken,

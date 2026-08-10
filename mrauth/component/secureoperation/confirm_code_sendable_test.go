@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	secureoperation_model "github.com/mondegor/go-components/mrauth/model/secureoperation"
@@ -49,7 +50,7 @@ func (s *ConfirmCodeSuite) TestEmailWrongCodeRejected() {
 	op := s.newOpWithActions(emailConfirmAction("secret1"))
 
 	out, commit, err := s.svc.Prepare(s.ctx, op, "wrong")
-	s.Require().ErrorIs(err, secureoperation_model.ErrConfirmCodeIsIncorrect)
+	s.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Nil(commit)
 }
@@ -133,7 +134,7 @@ func (s *ConfirmCodeSuite) TestRecoveryActionWrongCodeRejected() {
 	op := s.newOpWithActions(recoveryConfirmAction())
 
 	out, commit, err := s.svc.Prepare(s.ctx, op, "ZZZZZYYYYY")
-	s.Require().ErrorIs(err, secureoperation_model.ErrConfirmCodeIsIncorrect)
+	s.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Nil(commit)
 }

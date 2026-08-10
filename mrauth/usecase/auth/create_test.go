@@ -585,7 +585,7 @@ func (s *CreateUserSuite) TestExistingUser2FAForwarded() {
 	user2FA := dto.User2FA{
 		ID:        uuid.New(),
 		Email:     "user@example.com",
-		Action2FA: secureoperation.ConfirmAction{Method: confirmmethod.TOTP},
+		Action2FA: dto.ConfirmAction2FA{Method: confirmmethod.TOTP},
 	}
 
 	s.expect2FA(user2FA, nil)

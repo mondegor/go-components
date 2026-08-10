@@ -11,7 +11,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/enum/userstatus"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 type (
@@ -33,7 +32,7 @@ type (
 	}
 
 	factoryConfirmAction2FA interface {
-		Create(auth2fa auth2fatype.Enum, secret string) (secureoperation.ConfirmAction, error)
+		Create(auth2fa auth2fatype.Enum) (dto.ConfirmAction2FA, error)
 	}
 )
 
@@ -92,7 +91,7 @@ func (sv *FactoryConfirm2FA) createUser2FA(ctx context.Context, user *entity.Use
 		return dto.User2FA{}, sv.errorWrapper.Wrap(err)
 	}
 
-	user2fa.Action2FA, err = sv.factoryAction.Create(auth2fa.Type, auth2fa.Secret)
+	user2fa.Action2FA, err = sv.factoryAction.Create(auth2fa.Type)
 	if err != nil {
 		return dto.User2FA{}, sv.errorWrapper.Wrap(err)
 	}
