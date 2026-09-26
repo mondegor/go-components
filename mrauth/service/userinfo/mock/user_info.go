@@ -15,6 +15,7 @@ import (
 
 	uuid "github.com/google/uuid"
 	entity "github.com/mondegor/go-components/mrauth/entity"
+	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -172,4 +173,43 @@ func (m *MockuserRealmFetcher) Fetch(ctx context.Context, userID uuid.UUID) ([]e
 func (mr *MockuserRealmFetcherMockRecorder) Fetch(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Fetch", reflect.TypeOf((*MockuserRealmFetcher)(nil).Fetch), ctx, userID)
+}
+
+// MockoperationFetcher is a mock of operationFetcher interface.
+type MockoperationFetcher struct {
+	ctrl     *gomock.Controller
+	recorder *MockoperationFetcherMockRecorder
+	isgomock struct{}
+}
+
+// MockoperationFetcherMockRecorder is the mock recorder for MockoperationFetcher.
+type MockoperationFetcherMockRecorder struct {
+	mock *MockoperationFetcher
+}
+
+// NewMockoperationFetcher creates a new mock instance.
+func NewMockoperationFetcher(ctrl *gomock.Controller) *MockoperationFetcher {
+	mock := &MockoperationFetcher{ctrl: ctrl}
+	mock.recorder = &MockoperationFetcherMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockoperationFetcher) EXPECT() *MockoperationFetcherMockRecorder {
+	return m.recorder
+}
+
+// FetchByUserID mocks base method.
+func (m *MockoperationFetcher) FetchByUserID(ctx context.Context, userID uuid.UUID) ([]secureoperation.SecureOperation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchByUserID", ctx, userID)
+	ret0, _ := ret[0].([]secureoperation.SecureOperation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchByUserID indicates an expected call of FetchByUserID.
+func (mr *MockoperationFetcherMockRecorder) FetchByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchByUserID", reflect.TypeOf((*MockoperationFetcher)(nil).FetchByUserID), ctx, userID)
 }

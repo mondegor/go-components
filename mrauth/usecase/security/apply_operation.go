@@ -15,6 +15,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
 type (
@@ -96,7 +97,14 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 
 		handler, ok := uc.handlerMap[op.Name]
 		if !ok {
-			return errors.NewInternalError("operation name is not supported")
+			if isAppliedByOtherMethod(op.Name) {
+				// у операции свой завершающий метод: токен предъявлен не тому методу
+				failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
+
+				return errors.ErrAccessForbidden
+			}
+
+			return errors.NewInternalError("operation name is not supported", "name", op.Name)
 		}
 
 		if !op.Is(operationstatus.Confirmed) {
@@ -109,7 +117,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		return handler.Execute(ctx, op.UserID, op.Payload)
+		return handler.Execute(ctx, actor, op.Payload)
 	})
 	if err != nil {
 		if failedLogState.isSet() {
@@ -135,4 +143,23 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 	)
 
 	return nil
+}
+
+// isAppliedByOtherMethod - сообщает, что операция компонента завершается собственным методом
+// (открытие сессии, apply-email, apply-password, apply-totp, apply-recovery-codes), а не
+// ApplyOperation. Первый шаг смены емаила сюда входит: его применение лишь открывает второй
+// шаг, а меняет емаил ApplyOperation только по операции второго шага.
+// Имя, которого нет ни здесь, ни в реестре обработчиков, - ошибка конфигурации хоста.
+func isAppliedByOtherMethod(operationName string) bool {
+	switch operationName {
+	case unit.NameAuthorizeUser,
+		unit.NameConfirmCreateUser,
+		unit.NameConfirmChangeEmailRequest,
+		unit.NameConfirmChangePassword,
+		unit.NameConfirmChangeTOTP,
+		unit.NameConfirmRegenerateRecovery:
+		return true
+	default:
+		return false
+	}
 }

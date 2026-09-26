@@ -281,3 +281,86 @@ func TestSecureOperation_ConfirmAction_NoAttemptsFails(t *testing.T) {
 func confirmOK(secureoperation.ConfirmAction) (bool, error) {
 	return true, nil
 }
+
+// emailOpWithExpiry - восстанавливает Opened-операцию с одним email-действием указанного
+// срока жизни и заданным сроком действия операции; повторная отправка кода ей уже разрешена.
+func emailOpWithExpiry(t *testing.T, expiry time.Duration, expiresAt time.Time) secureoperation.SecureOperation {
+	t.Helper()
+
+	action := emailAction("u@e", "c")
+	action.Expiry = expiry
+
+	op := secureoperation.SecureOperation{
+		Token:             "token",
+		Name:              "name1",
+		UserID:            uuid.New(),
+		RemainingAttempts: action.MaxAttempts,
+		RemainingResends:  action.MaxResends,
+		ResendsAt:         time.Now().Add(-time.Minute),
+		Status:            operationstatus.Opened,
+		ExpiresAt:         expiresAt,
+	}
+	require.NoError(t, secureoperation.WakeUp(&op, []secureoperation.ConfirmAction{action}))
+
+	return op
+}
+
+// TestSecureOperation_FixedExpiry_SetOnCreate - фиксированный срок (больше порога)
+// назначается при создании операции так же, как обычный: от момента создания.
+func TestSecureOperation_FixedExpiry_SetOnCreate(t *testing.T) {
+	t.Parallel()
+
+	action := emailAction("u@e", "c")
+	action.Expiry = 72 * time.Hour
+
+	op := openedOp(t, action)
+
+	assert.WithinDuration(t, time.Now().Add(72*time.Hour), op.ExpiresAt, 2*time.Second)
+}
+
+// TestSecureOperation_FixedExpiry_Renewal - срок действия больше порога модели фиксирован:
+// повторная отправка кода и подтверждение его не продлевают. Срок не больше порога (включая
+// ровно порог) на каждом из этих шагов отсчитывается заново.
+func TestSecureOperation_FixedExpiry_Renewal(t *testing.T) {
+	t.Parallel()
+
+	const threshold = time.Hour // порог фиксированного срока модели
+
+	type testCase struct {
+		name      string
+		expiry    time.Duration
+		wantFixed bool
+	}
+
+	tests := []testCase{
+		{name: "above threshold is fixed", expiry: 72 * time.Hour, wantFixed: true},
+		{name: "just above threshold is fixed", expiry: threshold + time.Second, wantFixed: true},
+		{name: "exactly threshold is renewed", expiry: threshold, wantFixed: false},
+		{name: "below threshold is renewed", expiry: 10 * time.Minute, wantFixed: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// исходный срок заведомо отличается от "сейчас + expiry" в каждом из случаев
+			deadline := time.Now().Add(5 * time.Minute).UTC().Round(time.Second)
+			want := deadline
+
+			if !tt.wantFixed {
+				want = time.Now().Add(tt.expiry)
+			}
+
+			resent := emailOpWithExpiry(t, tt.expiry, deadline)
+			require.NoError(t, resent.ActivateResendCode("new-token"))
+			assert.Equal(t, "new-token", resent.Token)
+			assert.WithinDuration(t, want, resent.ExpiresAt, 2*time.Second)
+
+			confirmedOp := emailOpWithExpiry(t, tt.expiry, deadline)
+			confirmed, err := confirmedOp.ConfirmAction(confirmOK)
+			require.NoError(t, err)
+			require.True(t, confirmed)
+			assert.WithinDuration(t, want, confirmedOp.ExpiresAt, 2*time.Second)
+		})
+	}
+}

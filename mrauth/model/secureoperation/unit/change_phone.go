@@ -29,16 +29,19 @@ type (
 func NewChangePhone(
 	tokenGenerator mrauth.TokenGenerator,
 	codeGenerator mrauth.CodeGenerator,
-	confirmByPhoneOpts ...action.Option,
+	confirmByEmailOpts ...action.Option,
 ) *ChangePhone {
 	return &ChangePhone{
+		actionCreator:  action.NewConfirmByEmail(confirmByEmailOpts...),
 		tokenGenerator: tokenGenerator,
 		codeGenerator:  codeGenerator,
-		actionCreator:  action.NewConfirmByPhone(confirmByPhoneOpts...),
 	}
 }
 
-// Create - создаёт операцию смены телефона для указанного пользователя.
+// Create - создаёт операцию смены телефона для указанного пользователя: код подтверждения
+// уходит на текущий емаил (операция доказывает владение аккаунтом), затем при включённой
+// 2FA - звено второго фактора. Сам новый номер кодом не проверяется: отправка кодов
+// на телефон не поддерживается.
 func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
 	if !newPhone.Is(addresstype.Phone) {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("newPhone is not a phone address")
@@ -66,7 +69,7 @@ func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone contactaddress.Contac
 
 	actions := make([]secureoperation.ConfirmAction, 1, 2)
 
-	actions[0], err = o.actionCreator.Create(newPhone, confirmCode, hashedCode)
+	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email), confirmCode, hashedCode)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}

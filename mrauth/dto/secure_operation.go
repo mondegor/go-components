@@ -3,16 +3,6 @@ package dto
 import "github.com/mondegor/go-core/mrtype"
 
 type (
-	// WaitingConfirmOperation struct {
-	// 	Token             string
-	// 	ConfirmMethod     confirmmethod.Enum
-	// 	RemainingAttempts int16
-	// 	RemainingResends  int16
-	// 	ResendsAt         time.Time
-	// 	ExpiresAt         time.Time
-	// 	DebugInfo         string
-	// }.
-
 	// CreateUserOperation - payload операции создания пользователя.
 	CreateUserOperation struct {
 		Realm        string            `json:"realm"`

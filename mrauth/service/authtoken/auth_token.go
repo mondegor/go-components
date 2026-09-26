@@ -35,7 +35,7 @@ type (
 		Insert(ctx context.Context, rows []entity.AuthToken) error
 		RevokeRefresh(ctx context.Context, refreshToken string, grace time.Duration) (row dto.UserScopes, isRetried bool, err error)
 		FetchLastEnabledPairBySessionID(ctx context.Context, userID uuid.UUID, sessionID uint32) (access, refresh entity.AuthToken, err error)
-		RevokeSessionByRefreshToken(ctx context.Context, refreshToken string) error
+		RevokeSessionByRefreshToken(ctx context.Context, userID uuid.UUID, refreshToken string) error
 	}
 
 	// Realm - сопоставление идентификатора realm с его издателем токенов (TokenIssuer).
@@ -213,11 +213,12 @@ func (sv *AuthToken) lastSessionToken(ctx context.Context, userScopes dto.UserSc
 	return token, nil
 }
 
-// Close - отзывает все действующие токены сессии по её refresh токену (logout).
-// Метод идемпотентен: неизвестный токен и уже закрытая сессия - это успех, а не ошибка.
-func (sv *AuthToken) Close(ctx context.Context, refreshToken string) error {
-	if err := sv.storage.RevokeSessionByRefreshToken(ctx, refreshToken); err != nil {
-		// если токен не найден, то это не считается ошибкой
+// Close - отзывает все действующие токены сессии пользователя по её refresh токену (logout).
+// Метод идемпотентен: неизвестный или чужой токен и уже закрытая сессия - это успех, а не ошибка.
+func (sv *AuthToken) Close(ctx context.Context, userID uuid.UUID, refreshToken string) error {
+	if err := sv.storage.RevokeSessionByRefreshToken(ctx, userID, refreshToken); err != nil {
+		// токен не найден или принадлежит другому пользователю - это не считается ошибкой:
+		// ответ не должен раскрывать, что чужой токен существует
 		if !errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
 			return sv.errorWrapper.Wrap(err)
 		}

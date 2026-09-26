@@ -76,7 +76,7 @@ func InitHttpModule(
 
 	operationLogger := produce.NewSecureOperationLogger(secureOperationLogProducer, logger)
 
-	// единая точка открытия защищённых операций всех типов (гасит прежние операции того же типа)
+	// единая точка открытия защищённых операций всех типов (гасит прежние операции того же типа или той же цепочки)
 	operationOpener := secureoperation.NewOpener(
 		dbConnManager,
 		storageSecureOperation,
@@ -140,6 +140,7 @@ func InitHttpModule(
 						requestParser,
 						responseSender,
 						userRealms,
+						auth2faConfig,
 						jwtConfig.Verifier,
 					)
 				},

@@ -57,8 +57,14 @@ type (
 		CodeLength      uint8         `yaml:"code_length"`
 		CodeMaxAttempts uint8         `yaml:"code_max_attempts"` // число попыток ввести код подтверждения операции
 		SessionExpiry   time.Duration `yaml:"session_expiry"`
-		SendByEmail     CodeSender    `yaml:"send_by_email"`
-		SendByPhone     CodeSender    `yaml:"send_by_phone"`
+
+		// NewEmailExpiry - срок жизни операции подтверждения нового емаила (второй шаг смены
+		// емаила): отсчитывается от её создания и не продлевается, если он больше порога
+		// фиксированного срока модели; 0 - срок по умолчанию.
+		NewEmailExpiry time.Duration `yaml:"new_email_expiry"`
+
+		SendByEmail CodeSender `yaml:"send_by_email"`
+		SendByPhone CodeSender `yaml:"send_by_phone"`
 	}
 
 	// CodeSender - настройки отправки кода подтверждения: лимиты попыток, повторов и интервал между ними.
@@ -78,6 +84,10 @@ type (
 		ConfirmExpiry        time.Duration `yaml:"confirm_expiry"`         // срок жизни звена подтверждения вторым фактором
 		DecoyTOTPPercent     uint8         `yaml:"decoy_totp_percent"`     // доля аккаунтов, которым достаётся подставной TOTP (остальным пароль)
 		DecoyFactorSalt      string        `yaml:"decoy_factor_salt" env:"APPX_2FA_DECOY_FACTOR_SALT" env-required:"true"`
+
+		// PasswordMinStrength - минимальная надёжность пароля, устанавливаемого как 2FA:
+		// WEAK, MIDDLE, STRONG или THE_BEST (шкала POST /v1/check/calc-password-strength).
+		PasswordMinStrength string `yaml:"password_min_strength"`
 	}
 
 	// RefreshCookie - настройки cookie с refresh токеном (web-версия).

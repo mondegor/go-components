@@ -84,15 +84,15 @@ func userWithout2FA() dto.User2FA {
 	return dto.User2FA{ID: uuid.New(), Email: "user@example.com"}
 }
 
-func (s *FactorySuite) TestChangeEmailCreate() {
+func (s *FactorySuite) TestChangeEmailRequestCreate() {
 	s.Run("without 2fa - single action", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangeEmail(s.tokenGen, s.codeGen)
+		f := unit.NewChangeEmailRequest(s.tokenGen, s.codeGen)
 
 		op, err := f.Create(userWithout2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().NoError(err)
-		s.Equal(unit.NameConfirmChangeEmail, op.Name)
+		s.Equal(unit.NameConfirmChangeEmailRequest, op.Name)
 		s.Require().Len(op.Actions(), 1)
 
 		var p dto.ChangeEmailOperation
@@ -104,7 +104,7 @@ func (s *FactorySuite) TestChangeEmailCreate() {
 	s.Run("with 2fa - appends second action", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangeEmail(s.tokenGen, s.codeGen)
+		f := unit.NewChangeEmailRequest(s.tokenGen, s.codeGen)
 
 		op, err := f.Create(userWith2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().NoError(err)
@@ -116,10 +116,67 @@ func (s *FactorySuite) TestChangeEmailCreate() {
 		s.tokenGen.EXPECT().GenToken().Return("", wantErr).AnyTimes()
 		s.codeGen.EXPECT().GenCodeWithHash().Return("123456", "hashed-code", nil).AnyTimes()
 
-		f := unit.NewChangeEmail(s.tokenGen, s.codeGen)
+		f := unit.NewChangeEmailRequest(s.tokenGen, s.codeGen)
 
 		_, err := f.Create(userWithout2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().ErrorIs(err, wantErr)
+	})
+}
+
+// TestChangeEmailCreate - второй шаг смены емаила: единственное звено - код на новый
+// адрес, без второго фактора (он предъявлен на первом шаге); срок по умолчанию больше порога
+// модели, то есть фиксирован от создания операции, а payload совпадает с первым шагом,
+// чтобы его разбирал тот же обработчик.
+func (s *FactorySuite) TestChangeEmailCreate() {
+	in := dto.ChangeEmailOperation{NewEmail: "new@example.com", Email: "user@example.com"}
+
+	s.Run("single email action to the new address", func() {
+		s.expectGenerators()
+
+		userID := uuid.New()
+		f := unit.NewChangeEmail(s.tokenGen, s.codeGen, 0, action.WithMaxAttempts(7))
+
+		op, err := f.Create(userID, in)
+		s.Require().NoError(err)
+		s.Equal(unit.NameConfirmChangeEmail, op.Name)
+		s.Equal(userID, op.UserID)
+
+		s.Require().Len(op.Actions(), 1)
+		first := op.Actions()[0]
+		s.Equal(confirmmethod.Email, first.Method)
+		s.Equal("new@example.com", first.Address)
+		s.Equal(int16(7), first.MaxAttempts)
+		s.Equal(72*time.Hour, first.Expiry) // 0 - срок по умолчанию
+		s.WithinDuration(time.Now().Add(72*time.Hour), op.ExpiresAt, 2*time.Second)
+
+		parsed, err := unit.ParseChangeEmailPayload(op.Payload)
+		s.Require().NoError(err)
+		s.Equal(in, parsed)
+	})
+
+	s.Run("expiry is not overridden by options", func() {
+		s.expectGenerators()
+
+		f := unit.NewChangeEmail(s.tokenGen, s.codeGen, 24*time.Hour, action.WithExpiry(time.Minute))
+
+		op, err := f.Create(uuid.New(), in)
+		s.Require().NoError(err)
+		s.Equal(24*time.Hour, op.Actions()[0].Expiry)
+	})
+
+	s.Run("broken payload is an invariant violation", func() {
+		s.expectGenerators()
+
+		f := unit.NewChangeEmail(s.tokenGen, s.codeGen, 0)
+
+		_, err := f.Create(uuid.New(), dto.ChangeEmailOperation{NewEmail: "not-an-email", Email: "user@example.com"})
+		s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
+
+		_, err = f.Create(uuid.New(), dto.ChangeEmailOperation{NewEmail: "new@example.com"})
+		s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
+
+		_, err = f.Create(uuid.Nil, in)
+		s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 	})
 }
 
@@ -156,6 +213,11 @@ func (s *FactorySuite) TestChangePhoneCreate() {
 	s.Require().NoError(json.Unmarshal(op.Payload, &p))
 	s.Equal(uint64(79991234567), p.NewPhone)
 	s.Equal("user@example.com", p.Email)
+
+	// код уходит на текущий емаил, а не на новый телефон: отправка на телефон не поддерживается
+	s.Require().Len(op.Actions(), 1)
+	s.Equal(confirmmethod.Email, op.Actions()[0].Method)
+	s.Equal("user@example.com", op.Actions()[0].Address)
 
 	op2fa, err := f.Create(userWith2FA(), contactaddress.NewPhone("79991234567"))
 	s.Require().NoError(err)
@@ -348,13 +410,13 @@ func (s *FactorySuite) TestAuthorizeUserCreatePhoneLoginWithOptions() {
 	s.Equal(confirmmethod.Phone, firstAction.Method)
 }
 
-// TestChangeEmailConfirmsCurrentAddress - операция смены email собирает доказательства владения
+// TestChangeEmailRequestConfirmsCurrentAddress - операция смены email собирает доказательства владения
 // аккаунтом, поэтому код подтверждения уходит на текущий адрес пользователя, а не на новый:
 // владение новым адресом подтверждается отдельным шагом сценария смены адреса.
-func (s *FactorySuite) TestChangeEmailConfirmsCurrentAddress() {
+func (s *FactorySuite) TestChangeEmailRequestConfirmsCurrentAddress() {
 	s.expectGenerators()
 
-	f := unit.NewChangeEmail(s.tokenGen, s.codeGen)
+	f := unit.NewChangeEmailRequest(s.tokenGen, s.codeGen)
 
 	op, err := f.Create(userWith2FA(), contactaddress.NewEmail("new@example.com"))
 	s.Require().NoError(err)
@@ -431,11 +493,11 @@ func (s *FactorySuite) TestRecoveryPolicy() {
 	})
 
 	// смена адреса обязательно подтверждается паролем/TOTP, поэтому "email-код + аварийный код"
-	// отклоняется; комбинацию с аварийным кодом даёт только ChangeEmailByRecovery
+	// отклоняется; комбинацию с аварийным кодом даёт только ChangeEmailRequestByRecovery
 	s.Run("change email - not allowed in the regular chain", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangeEmail(s.tokenGen, s.codeGen)
+		f := unit.NewChangeEmailRequest(s.tokenGen, s.codeGen)
 
 		op, err := f.Create(userWith2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().NoError(err)
@@ -517,11 +579,11 @@ func (s *FactorySuite) TestByRecoveryChains() {
 	s.Run("change email", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangeEmailByRecovery(s.tokenGen)
+		f := unit.NewChangeEmailRequestByRecovery(s.tokenGen)
 
 		op, err := f.Create(userWith2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().NoError(err)
-		s.Equal(unit.NameConfirmChangeEmail, op.Name) // то же имя: Opener вытесняет прежнюю смену
+		s.Equal(unit.NameConfirmChangeEmailRequest, op.Name) // то же имя: Opener вытесняет прежнюю смену
 		s.Require().Len(op.Actions(), 2)
 		s.Equal(confirmmethod.TOTP, op.Actions()[0].Method)
 		s.Equal(confirmmethod.Recovery, op.Actions()[1].Method)
@@ -536,7 +598,7 @@ func (s *FactorySuite) TestByRecoveryChains() {
 	s.Run("change email without 2fa is rejected", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangeEmailByRecovery(s.tokenGen)
+		f := unit.NewChangeEmailRequestByRecovery(s.tokenGen)
 
 		_, err := f.Create(userWithout2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
@@ -570,7 +632,7 @@ func (s *FactorySuite) TestByRecoveryActionOptions() {
 	s.Run("change email", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangeEmailByRecovery(
+		f := unit.NewChangeEmailRequestByRecovery(
 			s.tokenGen,
 			action.WithMaxAttempts(7),
 			action.WithExpiry(time.Hour),

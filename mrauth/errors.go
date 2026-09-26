@@ -21,9 +21,8 @@ var (
 	// ErrLoginNotExists - login not exists.
 	ErrLoginNotExists = errors.NewUserError("LoginNotExists", "login not exists")
 
-	// ErrSessionIDIsInvalid - идентификатор сессии не разобрался:
-	// это не 8-символьное шестнадцатеричное число.
-	ErrSessionIDIsInvalid = errors.NewUserError("SessionIDIsInvalid", "session id is invalid")
+	// ErrPasswordIsTooWeak - надёжность нового пароля ниже порога, заданного приложением.
+	ErrPasswordIsTooWeak = errors.NewUserError("PasswordIsTooWeak", "password is too weak")
 
 	// ErrEmailAlreadyExists - entity already exists.
 	ErrEmailAlreadyExists = errors.NewUserError("EmailAlreadyExists", "email already exists")

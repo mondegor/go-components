@@ -2,24 +2,9 @@ description: Некорректный токен операции или код 
 content:
   application/json;charset=UTF-8:
     schema:
-      type: object
-      required:
-        - errors
-      properties:
-        status:
-          description: Код HTTP статуса (дублируется из заголовка)
-          type: integer
-          example: 400
-        instance:
-          description: Метод и URL запроса
-          type: string
-          example: "POST /users/123456"
-        operation_state:
-          $ref: "../models/Auth.Response.Model.ConfirmOperationState.yaml"
-        errors:
-          $ref: "../../_shared/components/models/Api.Response.Model.ErrorList.yaml"
-        time:
-          description: Время возникновения ошибки с точностью до миллисекунд (UTC)
-          type: string
-          format: date-time
-          example: "2020-01-01T12:00:00.000Z"
+      allOf:
+        - $ref: "../../_shared/components/models/Api.Response.Model.Error400.yaml"
+        - type: object
+          properties:
+            operation_state:
+              $ref: "../models/Auth.Response.Model.ConfirmOperationState.yaml"

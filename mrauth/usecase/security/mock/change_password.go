@@ -55,3 +55,41 @@ func (mr *MockfactoryOperationSecret2FAMockRecorder) Create(user2FA, secret any)
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockfactoryOperationSecret2FA)(nil).Create), user2FA, secret)
 }
+
+// MockpasswordPolicy is a mock of passwordPolicy interface.
+type MockpasswordPolicy struct {
+	ctrl     *gomock.Controller
+	recorder *MockpasswordPolicyMockRecorder
+	isgomock struct{}
+}
+
+// MockpasswordPolicyMockRecorder is the mock recorder for MockpasswordPolicy.
+type MockpasswordPolicyMockRecorder struct {
+	mock *MockpasswordPolicy
+}
+
+// NewMockpasswordPolicy creates a new mock instance.
+func NewMockpasswordPolicy(ctrl *gomock.Controller) *MockpasswordPolicy {
+	mock := &MockpasswordPolicy{ctrl: ctrl}
+	mock.recorder = &MockpasswordPolicyMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockpasswordPolicy) EXPECT() *MockpasswordPolicyMockRecorder {
+	return m.recorder
+}
+
+// IsAcceptable mocks base method.
+func (m *MockpasswordPolicy) IsAcceptable(userPassword string) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsAcceptable", userPassword)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// IsAcceptable indicates an expected call of IsAcceptable.
+func (mr *MockpasswordPolicyMockRecorder) IsAcceptable(userPassword any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAcceptable", reflect.TypeOf((*MockpasswordPolicy)(nil).IsAcceptable), userPassword)
+}

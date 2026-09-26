@@ -7,6 +7,7 @@ import (
 	"time"
 
 	localecfg "github.com/mondegor/go-core/mrlocale/config"
+	"github.com/mondegor/go-core/util/crypt/password"
 	timezonecfg "github.com/mondegor/go-core/util/timezone/config"
 
 	"github.com/mondegor/go-components/mrauth/model/usergroup"
@@ -31,6 +32,21 @@ const (
 	// defaultRecoveryCodeLength - длина одного аварийного кода по умолчанию.
 	defaultRecoveryCodeLength = 17
 
+	// minRecoveryCodeLength, maxRecoveryCodeLength - границы длины аварийного кода: повторяют
+	// умолчания auth2fa.Verifier и ограничение RECOVERY в спеке (поле secret).
+	minRecoveryCodeLength = 8
+	maxRecoveryCodeLength = 32
+
+	// minConfirmCodeLength, maxConfirmCodeLength - границы длины кода подтверждения
+	// операции: ограничение EMAIL/PHONE в спеке (поле secret).
+	minConfirmCodeLength = 4
+	maxConfirmCodeLength = 8
+
+	// minNewEmailExpiry - порог срока жизни операции подтверждения нового емаила, повторяет
+	// secureoperation.fixedExpiryThreshold: срок не больше порога продлевался бы каждой
+	// повторной отправкой кода, а по спеке он отсчитывается от создания операции.
+	minNewEmailExpiry = time.Hour
+
 	// defaultRecoveryLowThreshold - остаток кодов по умолчанию, при котором слать предупреждение.
 	defaultRecoveryLowThreshold = 3
 
@@ -50,6 +66,9 @@ const (
 	// недостаточно: короткая соль перебирается, а подобравший её вычисляет ожидаемый
 	// подставной тип и по расхождению читает, включена ли у аккаунта 2FA.
 	minDecoyFactorSaltLength = 32
+
+	// defaultPasswordMinStrength - минимальная надёжность пароля 2FA по умолчанию.
+	defaultPasswordMinStrength = "STRONG"
 
 	// defaultConfirmMaxAttempts - число попыток ввода второго фактора по умолчанию.
 	defaultConfirmMaxAttempts = 5
@@ -121,12 +140,31 @@ func CorrectValuesAuth2FA(cfg Auth2FA) Auth2FA {
 		cfg.ConfirmExpiry = defaultConfirmExpiry
 	}
 
+	if cfg.PasswordMinStrength == "" {
+		cfg.PasswordMinStrength = defaultPasswordMinStrength
+	}
+
 	return cfg
+}
+
+// ParsePasswordStrength - разбирает имя уровня надёжности пароля (WEAK, MIDDLE, STRONG,
+// THE_BEST - шкала password.CalcStrength). NOT_RATED и неизвестное имя - ошибка: пароль
+// без оценки не может быть допустимым вторым фактором.
+func ParsePasswordStrength(name string) (password.PassStrength, error) {
+	for value := password.PassStrengthWeak; value <= password.PassStrengthBest; value++ {
+		if value.String() == name {
+			return value, nil
+		}
+	}
+
+	return password.PassStrengthNotRated, fmt.Errorf("password strength '%s' is unknown", name)
 }
 
 // ValidateAuth2FA - проверяет настройки 2FA, которые нельзя привести к допустимым
 // значениям подстановкой умолчаний (см. CorrectValuesAuth2FA): соль подставного второго
-// фактора - секрет инсталляции, и взять его неоткуда, поэтому короткая соль остаётся ошибкой.
+// фактора - секрет инсталляции, и взять его неоткуда, поэтому короткая соль остаётся ошибкой;
+// неизвестное имя порога надёжности пароля 2FA и длина аварийного кода вне допустимого
+// диапазона - тоже ошибки, а не повод молча взять умолчание.
 //
 // Без этой проверки короткая соль роняет старт из глубины сборки контроллера
 // (crypt.NewDecoyFactorSelector), то есть из места, где конфигурация уже считается проверенной.
@@ -144,12 +182,67 @@ func ValidateAuth2FA(cfg Auth2FA) error {
 		)
 	}
 
+	// незаданный порог допустим: его подставляет CorrectValuesAuth2FA
+	if cfg.PasswordMinStrength != "" {
+		if _, err := ParsePasswordStrength(cfg.PasswordMinStrength); err != nil {
+			return err
+		}
+	}
+
+	// незаданная длина допустима: её подставляет CorrectValuesAuth2FA
+	if cfg.RecoveryCodeLength != 0 &&
+		(cfg.RecoveryCodeLength < minRecoveryCodeLength || cfg.RecoveryCodeLength > maxRecoveryCodeLength) {
+		return fmt.Errorf(
+			"recovery code length is out of range (got %d, min=%d, max=%d)",
+			cfg.RecoveryCodeLength,
+			minRecoveryCodeLength,
+			maxRecoveryCodeLength,
+		)
+	}
+
+	return nil
+}
+
+// ValidateOperationConfirm - проверяет настройки подтверждения операций на соответствие спеке:
+// длина кода подтверждения в допустимом диапазоне и срок жизни операции подтверждения нового
+// емаила больше порога фиксированного срока (незаданный срок допустим - фабрика подставит
+// умолчание).
+//
+// Это host-only reference-валидация уровня composition-root: предполагается, что её вызывает
+// host-приложение из своего init-пути (внутри библиотеки она намеренно не вызывается). Конкретный
+// проект может использовать её как есть либо написать собственную.
+func ValidateOperationConfirm(cfg OperationConfirm) error {
+	if err := validateConfirmCodeLength(cfg.CodeLength); err != nil {
+		return err
+	}
+
+	if cfg.NewEmailExpiry != 0 && cfg.NewEmailExpiry <= minNewEmailExpiry {
+		return fmt.Errorf(
+			"new email expiry must be greater than %s (got %s)",
+			minNewEmailExpiry,
+			cfg.NewEmailExpiry,
+		)
+	}
+
+	return nil
+}
+
+func validateConfirmCodeLength(length uint8) error {
+	if length < minConfirmCodeLength || length > maxConfirmCodeLength {
+		return fmt.Errorf(
+			"confirm code length is out of range (got %d, min=%d, max=%d)",
+			length,
+			minConfirmCodeLength,
+			maxConfirmCodeLength,
+		)
+	}
+
 	return nil
 }
 
 // ValidateRealms - проверяет конфигурацию realm'ов: уникальность id и имён, корректность типов токенов,
-// TTL jwt-токенов, принадлежность ролей известному набору и допустимость имён видов пользователей
-// (без '/' - см. ограничение в описании UserRealm).
+// TTL jwt-токенов, принадлежность ролей известному набору, допустимость имён видов пользователей
+// (без '/' - см. ограничение в описании UserRealm) и длину кода подтверждения, если она задана.
 func ValidateRealms(realms []UserRealm, allRoles []string) error {
 	uniqRealms := make(map[string]bool, len(realms))
 	uniqRealmIDs := make(map[uint16]bool, len(realms))
@@ -216,6 +309,13 @@ func validateRealm(realm UserRealm, allRoles []string) error {
 
 	if !hasRegisterUser {
 		return fmt.Errorf("realm.RegisterUserKind is not found in realm.UserKinds for realm (kind='%s', realm='%s')", realm.RegisterUserKind, realm.Name)
+	}
+
+	// незаданная длина допустима: её подставляет CorrectValuesRealm
+	if realm.OperationConfirm.CodeLength != 0 {
+		if err := validateConfirmCodeLength(realm.OperationConfirm.CodeLength); err != nil {
+			return fmt.Errorf("invalid operation confirm for realm '%s': %w", realm.Name, err)
+		}
 	}
 
 	return nil

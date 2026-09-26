@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -41,15 +42,15 @@ func (m *MocktokenCloser) EXPECT() *MocktokenCloserMockRecorder {
 }
 
 // Close mocks base method.
-func (m *MocktokenCloser) Close(ctx context.Context, refreshToken string) error {
+func (m *MocktokenCloser) Close(ctx context.Context, userID uuid.UUID, refreshToken string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close", ctx, refreshToken)
+	ret := m.ctrl.Call(m, "Close", ctx, userID, refreshToken)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Close indicates an expected call of Close.
-func (mr *MocktokenCloserMockRecorder) Close(ctx, refreshToken any) *gomock.Call {
+func (mr *MocktokenCloserMockRecorder) Close(ctx, userID, refreshToken any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MocktokenCloser)(nil).Close), ctx, refreshToken)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MocktokenCloser)(nil).Close), ctx, userID, refreshToken)
 }

@@ -18,6 +18,7 @@ import (
 	dto "github.com/mondegor/go-components/mrauth/dto"
 	model "github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	contactaddress "github.com/mondegor/go-components/mrauth/model/contactaddress"
+	pendingoperation "github.com/mondegor/go-components/mrauth/model/pendingoperation"
 	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	mrtype "github.com/mondegor/go-core/mrtype"
 	mrresp "github.com/mondegor/go-webcore/mrserver/mrresp"
@@ -306,17 +307,17 @@ func (m *MockcloseSessionUseCase) EXPECT() *MockcloseSessionUseCaseMockRecorder 
 }
 
 // Execute mocks base method.
-func (m *MockcloseSessionUseCase) Execute(ctx context.Context, refreshToken string) error {
+func (m *MockcloseSessionUseCase) Execute(ctx context.Context, userID uuid.UUID, refreshToken string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", ctx, refreshToken)
+	ret := m.ctrl.Call(m, "Execute", ctx, userID, refreshToken)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockcloseSessionUseCaseMockRecorder) Execute(ctx, refreshToken any) *gomock.Call {
+func (mr *MockcloseSessionUseCaseMockRecorder) Execute(ctx, userID, refreshToken any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockcloseSessionUseCase)(nil).Execute), ctx, refreshToken)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockcloseSessionUseCase)(nil).Execute), ctx, userID, refreshToken)
 }
 
 // MockchangeSettingsUseCase is a mock of changeSettingsUseCase interface.
@@ -446,4 +447,18 @@ func (m *MockconfirmOperationResponse) NewErrorConfirmOperation(response mrresp.
 func (mr *MockconfirmOperationResponseMockRecorder) NewErrorConfirmOperation(response, operation any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewErrorConfirmOperation", reflect.TypeOf((*MockconfirmOperationResponse)(nil).NewErrorConfirmOperation), response, operation)
+}
+
+// NewPendingOperation mocks base method.
+func (m *MockconfirmOperationResponse) NewPendingOperation(item pendingoperation.PendingOperation, extraValue, expiresAt string) model.PendingOperation {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewPendingOperation", item, extraValue, expiresAt)
+	ret0, _ := ret[0].(model.PendingOperation)
+	return ret0
+}
+
+// NewPendingOperation indicates an expected call of NewPendingOperation.
+func (mr *MockconfirmOperationResponseMockRecorder) NewPendingOperation(item, extraValue, expiresAt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewPendingOperation", reflect.TypeOf((*MockconfirmOperationResponse)(nil).NewPendingOperation), item, extraValue, expiresAt)
 }

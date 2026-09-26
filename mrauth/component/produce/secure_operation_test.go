@@ -14,6 +14,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/entity"
 )
 
+//go:generate mockgen -source=secure_operation.go -destination=mock/secure_operation.go -package=mock
+
 type SecureOperationLoggerSuite struct {
 	suite.Suite
 

@@ -91,15 +91,15 @@ func (mr *MockauthTokenStorageMockRecorder) RevokeRefresh(ctx, refreshToken, gra
 }
 
 // RevokeSessionByRefreshToken mocks base method.
-func (m *MockauthTokenStorage) RevokeSessionByRefreshToken(ctx context.Context, refreshToken string) error {
+func (m *MockauthTokenStorage) RevokeSessionByRefreshToken(ctx context.Context, userID uuid.UUID, refreshToken string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RevokeSessionByRefreshToken", ctx, refreshToken)
+	ret := m.ctrl.Call(m, "RevokeSessionByRefreshToken", ctx, userID, refreshToken)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RevokeSessionByRefreshToken indicates an expected call of RevokeSessionByRefreshToken.
-func (mr *MockauthTokenStorageMockRecorder) RevokeSessionByRefreshToken(ctx, refreshToken any) *gomock.Call {
+func (mr *MockauthTokenStorageMockRecorder) RevokeSessionByRefreshToken(ctx, userID, refreshToken any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeSessionByRefreshToken", reflect.TypeOf((*MockauthTokenStorage)(nil).RevokeSessionByRefreshToken), ctx, refreshToken)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeSessionByRefreshToken", reflect.TypeOf((*MockauthTokenStorage)(nil).RevokeSessionByRefreshToken), ctx, userID, refreshToken)
 }

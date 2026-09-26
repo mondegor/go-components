@@ -12,7 +12,7 @@ const (
 )
 
 type (
-	// Option - настройка объекта MessageSender.
+	// Option - настройка фабрики действий подтверждения.
 	Option func(o *confirmOptions)
 
 	confirmOptions struct {

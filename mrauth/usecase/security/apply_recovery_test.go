@@ -21,6 +21,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
 
+//go:generate mockgen -source=apply_recovery.go -destination=mock/apply_recovery.go -package=mock
+
 func confirmedRegenerateOp(userID uuid.UUID) secureoperation.SecureOperation {
 	return secureoperation.SecureOperation{
 		Token:   "op-token",

@@ -1,8 +1,6 @@
 package secureoperation
 
 import (
-	"time"
-
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -46,7 +44,7 @@ func (o *SecureOperation) ConfirmAction(checkFunc func(action ConfirmAction) (ok
 	}
 
 	o.Status = operationstatus.Confirmed
-	o.ExpiresAt = time.Now().UTC().Add(action.Expiry).Round(1 * time.Second)
+	o.renewExpiry(&action)
 
 	return true, nil
 }

@@ -32,7 +32,7 @@ func NewChangeEmailByRecoveryProperty(
 			emailChecker,
 			factoryUser2FAConfirmAction,
 			// шаблона нет: первое звено этой цепочки - второй фактор, кода к отправке
-			// не возникает вовсе (см. unit.ChangeEmailByRecovery)
+			// не возникает вовсе (см. unit.ChangeEmailRequestByRecovery)
 			"",
 		),
 		factoryOperationEmail: factoryOperationEmail,

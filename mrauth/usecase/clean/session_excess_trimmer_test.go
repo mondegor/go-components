@@ -15,6 +15,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/usecase/clean/mock"
 )
 
+//go:generate mockgen -source=session_excess_trimmer.go -destination=mock/session_excess_trimmer.go -package=mock
+
 const testRealmID uint16 = 1
 
 // testOpenSessions - открытые сессии с указанными идентификаторами; срок действия

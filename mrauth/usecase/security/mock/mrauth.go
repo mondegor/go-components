@@ -98,15 +98,15 @@ func (m *MockOperationHandler) EXPECT() *MockOperationHandlerMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockOperationHandler) Execute(ctx context.Context, userID uuid.UUID, payload []byte) error {
+func (m *MockOperationHandler) Execute(ctx context.Context, actor dto.ActorMeta, payload []byte) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", ctx, userID, payload)
+	ret := m.ctrl.Call(m, "Execute", ctx, actor, payload)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockOperationHandlerMockRecorder) Execute(ctx, userID, payload any) *gomock.Call {
+func (mr *MockOperationHandlerMockRecorder) Execute(ctx, actor, payload any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockOperationHandler)(nil).Execute), ctx, userID, payload)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockOperationHandler)(nil).Execute), ctx, actor, payload)
 }

@@ -43,7 +43,7 @@ func (o *SecureOperation) ActivateResendCode(token string) (err error) {
 
 	o.Token = token
 	o.RemainingAttempts = action.MaxAttempts
-	o.ExpiresAt = time.Now().UTC().Add(action.Expiry).Round(1 * time.Second)
+	o.renewExpiry(action)
 
 	o.RemainingResends--
 	o.ResendsAt = time.Now().UTC().Add(action.MinResendTime).Round(1 * time.Second)

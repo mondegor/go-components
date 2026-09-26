@@ -12,7 +12,6 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/request"
 
-	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/validate"
@@ -84,23 +83,20 @@ func (ht *Session) GetList(w http.ResponseWriter, r *http.Request) error {
 	loc := ht.parser.Location(r)
 
 	for _, item := range list {
-		session := model.UserSessionResponse{
-			SessionID:  fmt.Sprintf("%08x", item.SessionID),
-			AppName:    item.AppName,
-			DeviceName: item.DeviceName,
-			LastIP:     item.LastIP,
-			Location:   item.Location,
-			CreatedAt:  formatTimeIn(item.CreatedAt, loc),
-			LastSeenAt: formatTimeIn(item.UpdatedAt, loc),
-			IsCurrent:  item.IsCurrent,
-		}
-
-		// нулевое время = срок жизни сессии не определён, поле опускается (иначе утёк бы год 0001)
-		if !item.ExpiresAt.IsZero() {
-			session.ExpiresAt = formatTimeIn(item.ExpiresAt, loc)
-		}
-
-		items = append(items, session)
+		items = append(
+			items,
+			model.UserSessionResponse{
+				SessionID:  fmt.Sprintf("%08x", item.SessionID),
+				AppName:    item.AppName,
+				DeviceName: item.DeviceName,
+				LastIP:     item.LastIP,
+				Location:   item.Location,
+				CreatedAt:  formatTimeIn(item.CreatedAt, loc),
+				LastSeenAt: formatTimeIn(item.UpdatedAt, loc),
+				ExpiresAt:  formatTimeIn(item.ExpiresAt, loc),
+				IsCurrent:  item.IsCurrent,
+			},
+		)
 	}
 
 	return ht.sender.Send(w, http.StatusOK, items)
@@ -116,10 +112,11 @@ func (ht *Session) Close(w http.ResponseWriter, r *http.Request) error {
 
 	sessionIDs := make([]uint32, 0, len(req.SessionIDs))
 	for _, sessionID := range req.SessionIDs {
-		// тег hexadecimal пропускает префикс 0x, а разбор числа - нет, поэтому ветка достижима
+		// идентификатор уже проверен тегами модели (8 hex-символов без префикса),
+		// поэтому ошибка разбора - нарушение инварианта, а не ошибка клиента
 		id, err := strconv.ParseUint(sessionID, 16, 32)
 		if err != nil {
-			return errors.WithCustomCode(mrauth.ErrSessionIDIsInvalid, "session_ids")
+			return errors.ErrInternalIncorrectInputData.WithDetails("sessionID is not a hex number", "sessionID", sessionID)
 		}
 
 		sessionIDs = append(sessionIDs, uint32(id))

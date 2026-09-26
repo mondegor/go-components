@@ -12,6 +12,7 @@ package mock
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	uuid "github.com/google/uuid"
 	dto "github.com/mondegor/go-components/mrauth/dto"
@@ -58,6 +59,45 @@ func (m *MockchangeEmailUseCase) Execute(ctx context.Context, actor dto.ActorMet
 func (mr *MockchangeEmailUseCaseMockRecorder) Execute(ctx, actor, newEmail any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockchangeEmailUseCase)(nil).Execute), ctx, actor, newEmail)
+}
+
+// MockapplyEmailUseCase is a mock of applyEmailUseCase interface.
+type MockapplyEmailUseCase struct {
+	ctrl     *gomock.Controller
+	recorder *MockapplyEmailUseCaseMockRecorder
+	isgomock struct{}
+}
+
+// MockapplyEmailUseCaseMockRecorder is the mock recorder for MockapplyEmailUseCase.
+type MockapplyEmailUseCaseMockRecorder struct {
+	mock *MockapplyEmailUseCase
+}
+
+// NewMockapplyEmailUseCase creates a new mock instance.
+func NewMockapplyEmailUseCase(ctrl *gomock.Controller) *MockapplyEmailUseCase {
+	mock := &MockapplyEmailUseCase{ctrl: ctrl}
+	mock.recorder = &MockapplyEmailUseCaseMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockapplyEmailUseCase) EXPECT() *MockapplyEmailUseCaseMockRecorder {
+	return m.recorder
+}
+
+// Execute mocks base method.
+func (m *MockapplyEmailUseCase) Execute(ctx context.Context, actor dto.ActorMeta, userLocation *time.Location, operationToken string) (secureoperation.SecureOperation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Execute", ctx, actor, userLocation, operationToken)
+	ret0, _ := ret[0].(secureoperation.SecureOperation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Execute indicates an expected call of Execute.
+func (mr *MockapplyEmailUseCaseMockRecorder) Execute(ctx, actor, userLocation, operationToken any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockapplyEmailUseCase)(nil).Execute), ctx, actor, userLocation, operationToken)
 }
 
 // MockchangePhoneUseCase is a mock of changePhoneUseCase interface.

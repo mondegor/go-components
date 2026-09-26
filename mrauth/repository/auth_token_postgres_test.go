@@ -133,7 +133,7 @@ func (ts *AuthTokenPostgresTestSuite) TestUpdateScopesSettingsSkipsRevoked() {
 	scopes := entity.AuthTokenScopes{Realm: "app/users", UserKind: "regular", LangCode: "ru-RU", TimeZone: "Europe/Moscow"}
 
 	_, refreshToken := ts.seedSessionWithScopes(userID, 1, scopes)
-	ts.Require().NoError(ts.repo.RevokeSessionByRefreshToken(ts.ctx, refreshToken))
+	ts.Require().NoError(ts.repo.RevokeSessionByRefreshToken(ts.ctx, userID, refreshToken))
 
 	ts.Require().NoError(ts.repo.UpdateScopesSettings(ts.ctx, userID, "en-US", "Asia/Tokyo"))
 
@@ -149,19 +149,34 @@ func (ts *AuthTokenPostgresTestSuite) TestRevokeSessionByRefreshToken() {
 	_, err := ts.repo.FetchOneByAccessToken(ts.ctx, accessToken)
 	ts.Require().NoError(err)
 
-	ts.Require().NoError(ts.repo.RevokeSessionByRefreshToken(ts.ctx, refreshToken))
+	ts.Require().NoError(ts.repo.RevokeSessionByRefreshToken(ts.ctx, userID, refreshToken))
 
 	// logout отзывает все токены сессии, а не только refresh
 	_, err = ts.repo.FetchOneByAccessToken(ts.ctx, accessToken)
 	ts.Require().ErrorIs(err, errors.ErrEventStorageNoRecordFound)
 
 	// повторному logout отзывать уже нечего: на этом построена идемпотентность AuthToken.Close
-	err = ts.repo.RevokeSessionByRefreshToken(ts.ctx, refreshToken)
+	err = ts.repo.RevokeSessionByRefreshToken(ts.ctx, userID, refreshToken)
 	ts.Require().ErrorIs(err, errors.ErrEventStorageRecordsNotAffected)
 
 	// неизвестный refresh токен ведёт себя так же
-	err = ts.repo.RevokeSessionByRefreshToken(ts.ctx, "refresh-unknown")
+	err = ts.repo.RevokeSessionByRefreshToken(ts.ctx, userID, "refresh-unknown")
 	ts.Require().ErrorIs(err, errors.ErrEventStorageRecordsNotAffected)
+}
+
+// TestRevokeSessionByRefreshTokenOfOtherUser - refresh токен чужой сессии ведёт себя как
+// неизвестный: сессия владельца не закрывается, а вызывающий получает тот же sentinel,
+// что и на неизвестный токен (на нём AuthToken.Close строит молчаливый 204).
+func (ts *AuthTokenPostgresTestSuite) TestRevokeSessionByRefreshTokenOfOtherUser() {
+	ownerID := uuid.New()
+	accessToken, refreshToken := ts.seedSession(ownerID, 1)
+
+	err := ts.repo.RevokeSessionByRefreshToken(ts.ctx, uuid.New(), refreshToken)
+	ts.Require().ErrorIs(err, errors.ErrEventStorageRecordsNotAffected)
+
+	// сессия владельца по-прежнему действует
+	_, err = ts.repo.FetchOneByAccessToken(ts.ctx, accessToken)
+	ts.Require().NoError(err)
 }
 
 func (ts *AuthTokenPostgresTestSuite) TestRevokeSessionByRefreshTokenKeepsOtherSessions() {
@@ -169,14 +184,14 @@ func (ts *AuthTokenPostgresTestSuite) TestRevokeSessionByRefreshTokenKeepsOtherS
 	_, refreshFirst := ts.seedSession(userID, 1)
 	_, refreshSecond := ts.seedSession(userID, 2)
 
-	ts.Require().NoError(ts.repo.RevokeSessionByRefreshToken(ts.ctx, refreshFirst))
+	ts.Require().NoError(ts.repo.RevokeSessionByRefreshToken(ts.ctx, userID, refreshFirst))
 
 	// logout закрывает только свою сессию, вторая остаётся действующей
 	count, err := ts.repo.FetchOpenSessionCount(ts.ctx, userID, 1)
 	ts.Require().NoError(err)
 	ts.Equal(1, count)
 
-	ts.Require().NoError(ts.repo.RevokeSessionByRefreshToken(ts.ctx, refreshSecond))
+	ts.Require().NoError(ts.repo.RevokeSessionByRefreshToken(ts.ctx, userID, refreshSecond))
 
 	count, err = ts.repo.FetchOpenSessionCount(ts.ctx, userID, 1)
 	ts.Require().NoError(err)

@@ -197,7 +197,6 @@ func (s *Service) registerNewUser(ctx context.Context, in dto.CreateUserOperatio
 
 	// новый аккаунт: уведомление о регистрации админам
 	s.notify(ctx, "user.was.registered", conv.Group{
-		"lang":      in.LangCode,
 		"userRealm": in.Realm,
 		"userEmail": in.Email,
 	})

@@ -33,10 +33,8 @@ import (
 //go:generate mockgen -source=create_session.go -destination=mock/create_session.go -package=mock
 //go:generate mockgen -source=create_session_by_recovery.go -destination=mock/create_session_by_recovery.go -package=mock
 //go:generate mockgen -source=create_user.go -destination=mock/create_user.go -package=mock
-//go:generate mockgen -source=user_statistic.go -destination=mock/user_statistic.go -package=mock
 //go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
 //go:generate mockgen -destination=mock/mrlock.go -package=mock github.com/mondegor/go-core/mrlock Locker
-//go:generate mockgen -destination=mock/mrnotifier.go -package=mock github.com/mondegor/go-components/mrnotifier NoteProducer
 //go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth User2FAConfirmActionCreator
 
 // testThrottleWindow - срок действия кода подтверждения, который отдаёт фабрика операции;

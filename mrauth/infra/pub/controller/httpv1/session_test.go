@@ -75,6 +75,67 @@ func TestSessionGetListRealmSource(t *testing.T) {
 	}
 }
 
+// TestSessionGetListResponse - сессия отдаётся со всеми датами в поясе запроса, включая срок
+// жизни: у открытой сессии он задан всегда, поэтому поле обязательно и не опускается.
+func TestSessionGetListResponse(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	parser := mock.NewMockRequestParser(ctrl)
+	sender := mock.NewMockResponseSender(ctrl)
+	useCase := mock.NewMocksessionUseCase(ctrl)
+
+	loc, err := time.LoadLocation("Europe/Moscow")
+	require.NoError(t, err)
+
+	base := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
+
+	parser.EXPECT().RawParamString(gomock.Any(), "realm").DoAndReturn(rawParamString)
+	parser.EXPECT().ValidateStruct(gomock.Any(), gomock.Any()).Return(nil)
+	parser.EXPECT().UserID(gomock.Any()).Return(uuid.New())
+	parser.EXPECT().Location(gomock.Any()).Return(loc)
+
+	useCase.EXPECT().
+		GetList(gomock.Any(), gomock.Any(), gomock.Any(), "").
+		Return([]dto.UserSession{{
+			SessionID:  0x1f3bc817,
+			AppName:    "Web, Firefox",
+			DeviceName: "Device 1",
+			LastIP:     "203.0.113.7",
+			CreatedAt:  base,
+			UpdatedAt:  base.Add(time.Hour),
+			ExpiresAt:  base.Add(24 * time.Hour),
+			IsCurrent:  true,
+		}}, nil)
+
+	var sent any
+
+	sender.EXPECT().
+		Send(gomock.Any(), http.StatusOK, gomock.Any()).
+		DoAndReturn(func(_ http.ResponseWriter, _ int, structure any) error {
+			sent = structure
+
+			return nil
+		})
+
+	controller := httpv1.NewSession(parser, sender, useCase)
+
+	require.NoError(
+		t,
+		controller.GetList(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/sessions", http.NoBody)),
+	)
+	assert.Equal(t, []model.UserSessionResponse{{
+		SessionID:  "1f3bc817",
+		AppName:    "Web, Firefox",
+		DeviceName: "Device 1",
+		LastIP:     "203.0.113.7",
+		CreatedAt:  "2026-09-28T15:00:00+03:00",
+		LastSeenAt: "2026-09-28T16:00:00+03:00",
+		ExpiresAt:  "2026-09-29T15:00:00+03:00",
+		IsCurrent:  true,
+	}}, sent)
+}
+
 // TestSessionGetListPassesEmptyRealmToValidator - "?realm=" это не то же самое, что отсутствующий
 // параметр: пустое значение должно доехать до валидатора (там его отсекает minLength), иначе
 // оно молча подменилось бы realm'ом текущей сессии.

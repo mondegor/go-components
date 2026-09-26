@@ -8,6 +8,7 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrnotifier"
 )
@@ -41,8 +42,8 @@ func NewChangePhone(
 }
 
 // Execute - применяет подтверждённую операцию смены телефона пользователя.
-func (uc *ChangePhone) Execute(ctx context.Context, userID uuid.UUID, payload []byte) error {
-	if userID == uuid.Nil {
+func (uc *ChangePhone) Execute(ctx context.Context, actor dto.ActorMeta, payload []byte) error {
+	if actor.VisitorID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -52,7 +53,7 @@ func (uc *ChangePhone) Execute(ctx context.Context, userID uuid.UUID, payload []
 	}
 
 	return uc.txManager.Do(ctx, func(ctx context.Context) error {
-		if err := uc.storage.UpdatePhone(ctx, userID, payloadDTO.NewPhone); err != nil {
+		if err := uc.storage.UpdatePhone(ctx, actor.VisitorID, payloadDTO.NewPhone); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

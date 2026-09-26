@@ -19,7 +19,6 @@ import (
 )
 
 //go:generate mockgen -source=user_request.go -destination=mock/user_request.go -package=mock
-//go:generate mockgen -source=secure_operation.go -destination=mock/secure_operation.go -package=mock
 //go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth RealmRegistry
 //go:generate mockgen -destination=mock/mrserver.go -package=mock github.com/mondegor/go-webcore/mrserver/request ParserUser,ParserClientIP
 

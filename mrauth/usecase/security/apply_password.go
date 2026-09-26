@@ -27,11 +27,18 @@ type (
 		txManager        mrstorage.DBTxManager
 		storage          user2faBinder
 		storageOperation operationDeleter
+		revoker          operationRevoker
 		codeGenerator    recoveryCodesGenerator
 		notifierAPI      mrnotifier.NoteProducer
 		logOperation     operationLogger
 		errorWrapper     errors.Wrapper
 		recoveryCount    int
+	}
+
+	// operationRevoker - отзывает все незавершённые операции пользователя (их цепочки
+	// подтверждения стали недействительными, например после смены состояния 2FA).
+	operationRevoker interface {
+		RevokeAll(ctx context.Context, actor dto.ActorMeta, reason logreason.Enum) error
 	}
 )
 
@@ -40,6 +47,7 @@ func NewApplyPassword(
 	txManager mrstorage.DBTxManager,
 	storage user2faBinder,
 	storageOperation operationDeleter,
+	revoker operationRevoker,
 	codeGenerator recoveryCodesGenerator,
 	notifierAPI mrnotifier.NoteProducer,
 	logOperation operationLogger,
@@ -51,6 +59,7 @@ func NewApplyPassword(
 		txManager:        txManager,
 		storage:          storage,
 		storageOperation: storageOperation,
+		revoker:          revoker,
 		codeGenerator:    codeGenerator,
 		notifierAPI:      notifierAPI,
 		logOperation:     logOperation,
@@ -60,8 +69,8 @@ func NewApplyPassword(
 }
 
 // Execute - проверяет, что операция смены пароля подтверждена, и в одной транзакции
-// привязывает пароль как 2FA, удаляет операцию, отправляет уведомление и возвращает
-// новые аварийные коды в открытом виде (показываются один раз).
+// привязывает пароль как 2FA, удаляет операцию, отзывает незавершённые операции пользователя, отправляет
+// уведомление и возвращает новые аварийные коды в открытом виде (показываются один раз).
 // Если к моменту применения 2FA уже включена (её успели включить другим способом после
 // создания операции), возвращает mrauth.ErrAuth2FAMustBeDisabledFirst.
 func (uc *ApplyPassword) Execute(
@@ -147,6 +156,12 @@ func (uc *ApplyPassword) Execute(
 		}
 
 		if err = uc.storageOperation.Delete(ctx, op.Token); err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
+
+		// включение 2FA делает недействительными цепочки подтверждения всех прочих
+		// незавершённых операций пользователя: они построены без второго фактора
+		if err = uc.revoker.RevokeAll(ctx, actor, logreason.Auth2FAStateChanged); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

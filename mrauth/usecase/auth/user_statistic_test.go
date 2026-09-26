@@ -19,6 +19,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/usecase/auth/mock"
 )
 
+//go:generate mockgen -source=user_statistic.go -destination=mock/user_statistic.go -package=mock
+
 // warnCountingLogger - считает вызовы Warn; остальные методы остаются no-op от вложенного логгера.
 //
 // Это не мок коллаборатора, а зонд для проверки сигнала о деградации: мок mrlog.Logger

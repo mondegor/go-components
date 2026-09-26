@@ -1,0 +1,68 @@
+description: |-
+  Защищённая операция пользователя, ожидающая подтверждения либо применения.
+  Токеном операции она подтверждается (`PATCH /v1/operation/confirm`), при необходимости
+  переотправляет код (`PATCH /v1/operation/resend`), отзывается (`PATCH /v1/operation/revoke`)
+  и применяется завершающим методом (`POST /v1/security/apply-*`).
+
+  У операции, ожидающей подтверждения (`status` = `OPENED`), отдаются также метод текущего
+  звена (`confirm_method`) и счётчики (`remaining_attempts`, `remaining_resends`, `resends_in`) —
+  те же, что в `WaitingConfirmOperation`.
+  У подтверждённой операции (`CONFIRMED`) подтверждать нечего, и этих полей нет.
+type: object
+required:
+  - token
+  - type
+  - expires_at
+  - status
+properties:
+  token:
+    description: |-
+      Токен операции — токен **последнего** звена цепочки подтверждений: именно им операция
+      подтверждается, переотправляет код, отзывается и применяется
+    type: string
+    maxLength: 128
+    example: "b1d50cb1f3bc817f2be3a4b357929cee70402fb5463db25b91568a1801dc0974"
+  type:
+    $ref: "../enums/Auth.Enum.OperationType.yaml"
+  extra_value:
+    description: |-
+      Значение операции, отображаемое пользователю: новый емаил у операций смены адреса
+      (`CHANGE_EMAIL`, `CHANGE_EMAIL_CONFIRM`) и новый телефон у `CHANGE_PHONE`; у остальных
+      операций поле отсутствует
+    type: string
+    maxLength: 128
+    example: "new-user-email@example.com"
+  expires_at:
+    description: |-
+      Дата и время, когда операция перестанет действовать.
+    type: string
+    format: date-time
+    example: "2020-01-01T15:00:00+03:00"
+  status:
+    $ref: "../enums/Auth.Enum.OperationStatus.yaml"
+  confirm_method:
+    description: Метод подтверждения текущего звена. Отдаётся только при `status` = `OPENED`
+    allOf:
+      - $ref: "../enums/Auth.Enum.ConfirmMethod.yaml"
+  remaining_attempts:
+    description: Оставшееся количество попыток ввода кода подтверждения
+    type: integer
+    minimum: 0
+    example: 2
+  remaining_resends:
+    description: |-
+      Оставшееся количество повторных отправок кода подтверждения; 0 означает,
+      что отправки исчерпаны. Отсутствует вместе с resends_in, если повторные отправки
+      не применимы (`PASSWORD`, `TOTP`, `RECOVERY`)
+    type: integer
+    minimum: 0
+    example: 1
+  resends_in:
+    description: |-
+      Количество оставшихся секунд по истечении которых можно сделать повторную отправку
+      кода подтверждения; 0 означает, что её можно сделать прямо сейчас.
+      Отсутствует вместе с remaining_resends, если повторные отправки не применимы
+      (`PASSWORD`, `TOTP`, `RECOVERY`)
+    type: integer
+    minimum: 0
+    example: 0

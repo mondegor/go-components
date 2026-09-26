@@ -3,6 +3,7 @@ package httpv1
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
@@ -21,6 +22,7 @@ import (
 const (
 	securityEmailURL               = "/v1/security/email"
 	securityEmailRecoveryURL       = "/v1/security/email/recovery"
+	securityApplyEmailURL          = "/v1/security/apply-email"
 	securityPhoneURL               = "/v1/security/phone"
 	securityApplyOperation         = "/v1/security/apply-operation"
 	securityPasswordURL            = "/v1/security/password"
@@ -41,6 +43,7 @@ type (
 		sender                               mrserver.FileResponseSender
 		useCaseChangeEmailProperty           changeEmailUseCase
 		useCaseChangeEmailByRecoveryProperty changeEmailUseCase
+		useCaseApplyEmail                    applyEmailUseCase
 		useCaseChangePhoneProperty           changePhoneUseCase
 		useCaseApplyOperation                applyOperationUseCase
 		useCaseChangePasswordProperty        changePasswordUseCase
@@ -57,6 +60,15 @@ type (
 
 	changeEmailUseCase interface {
 		Execute(ctx context.Context, actor dto.ActorMeta, newEmail contactaddress.ContactAddress) (secureoperation.SecureOperation, error)
+	}
+
+	applyEmailUseCase interface {
+		Execute(
+			ctx context.Context,
+			actor dto.ActorMeta,
+			userLocation *time.Location,
+			operationToken string,
+		) (secureoperation.SecureOperation, error)
 	}
 
 	changePhoneUseCase interface {
@@ -110,6 +122,7 @@ func NewSecurity(
 	sender mrserver.FileResponseSender,
 	useCaseChangeEmailProperty changeEmailUseCase,
 	useCaseChangeEmailByRecoveryProperty changeEmailUseCase,
+	useCaseApplyEmail applyEmailUseCase,
 	useCaseChangePhoneProperty changePhoneUseCase,
 	useCaseApplyOperation applyOperationUseCase,
 	useCaseChangePasswordProperty changePasswordUseCase,
@@ -128,6 +141,7 @@ func NewSecurity(
 		sender:                               sender,
 		useCaseChangeEmailProperty:           useCaseChangeEmailProperty,
 		useCaseChangeEmailByRecoveryProperty: useCaseChangeEmailByRecoveryProperty,
+		useCaseApplyEmail:                    useCaseApplyEmail,
 		useCaseChangePhoneProperty:           useCaseChangePhoneProperty,
 		useCaseApplyOperation:                useCaseApplyOperation,
 		useCaseChangePasswordProperty:        useCaseChangePasswordProperty,
@@ -148,6 +162,7 @@ func (ht *Security) Handlers() []mrserver.HttpHandler {
 	return []mrserver.HttpHandler{
 		{Method: http.MethodPost, URL: securityEmailURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangeEmail},
 		{Method: http.MethodPost, URL: securityEmailRecoveryURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangeEmailByRecovery},
+		{Method: http.MethodPost, URL: securityApplyEmailURL, Permission: mraccess.PermissionAnyUser, Func: ht.ApplyEmail},
 		{Method: http.MethodPost, URL: securityPhoneURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangePhone},
 		{Method: http.MethodPost, URL: securityApplyOperation, Permission: mraccess.PermissionAnyUser, Func: ht.ApplyOperation},
 		{Method: http.MethodPost, URL: securityPasswordURL, Permission: mraccess.PermissionAnyUser, Func: ht.ChangePassword},
@@ -215,6 +230,32 @@ func (ht *Security) changeEmail(
 	)
 }
 
+// ApplyEmail - применяет подтверждённую операцию первого шага смены email: email пока
+// не меняется, вместо этого открывается операция подтверждения владения новым адресом (код
+// уходит на новый адрес) и возвращается клиенту. Занятый за время подтверждения адрес -
+// ошибка без привязки к полю: в запросе передаётся только токен.
+func (ht *Security) ApplyEmail(w http.ResponseWriter, r *http.Request) error {
+	req := model.ApplyEmailRequest{}
+
+	if err := ht.parser.Validate(r, &req); err != nil {
+		return err
+	}
+
+	op, err := ht.useCaseApplyEmail.Execute(r.Context(), ht.userActor(r), ht.parser.Location(r), req.Token)
+	if err != nil {
+		return wrapOperationError(err, "token")
+	}
+
+	return ht.sender.Send(
+		w,
+		http.StatusOK,
+		ht.operationResponse.NewConfirmOperation(
+			op,
+			ht.parser.Localizer(r).Translate("Confirm your new email by code"),
+		),
+	)
+}
+
 // ChangePhone - создаёт операцию на установку/изменение телефона пользователя.
 func (ht *Security) ChangePhone(w http.ResponseWriter, r *http.Request) error {
 	req := model.ChangePhoneRequest{}
@@ -267,6 +308,10 @@ func (ht *Security) ChangePassword(w http.ResponseWriter, r *http.Request) error
 
 	op, err := ht.useCaseChangePasswordProperty.Execute(r.Context(), ht.userActor(r), req.NewPassword)
 	if err != nil {
+		if errors.Is(err, mrauth.ErrPasswordIsTooWeak) {
+			return errors.WithCustomCode(err, "new_password")
+		}
+
 		return err
 	}
 

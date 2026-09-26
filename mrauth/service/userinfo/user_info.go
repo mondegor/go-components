@@ -10,6 +10,9 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/model/pendingoperation"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
 type (
@@ -20,6 +23,7 @@ type (
 		storageUser2FA   user2faFetcher
 		storageUserStat  userActivityStatFetcher
 		storageUserRealm userRealmFetcher
+		storageOperation operationFetcher
 		locationResolver mrauth.LocationResolver
 		errorWrapper     errors.Wrapper
 	}
@@ -39,6 +43,10 @@ type (
 	userRealmFetcher interface {
 		Fetch(ctx context.Context, userID uuid.UUID) ([]entity.UserRealm, error)
 	}
+
+	operationFetcher interface {
+		FetchByUserID(ctx context.Context, userID uuid.UUID) (rows []secureoperation.SecureOperation, err error)
+	}
 )
 
 // New - создаёт объект UserInfo.
@@ -48,6 +56,7 @@ func New(
 	storageUser2FA user2faFetcher,
 	storageUserStat userActivityStatFetcher,
 	storageUserRealm userRealmFetcher,
+	storageOperation operationFetcher,
 	locationResolver mrauth.LocationResolver,
 ) *UserInfo {
 	if locationResolver == nil {
@@ -60,19 +69,22 @@ func New(
 		storageUser2FA:   storageUser2FA,
 		storageUserStat:  storageUserStat,
 		storageUserRealm: storageUserRealm,
+		storageOperation: storageOperation,
 		locationResolver: locationResolver,
 		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
-// Get - возвращает сводную информацию о пользователе вместе со статистикой входа по каждому realm'у.
+// Get - возвращает сводную информацию о пользователе вместе со статистикой входа по каждому realm'у
+// и его действующими операциями личного кабинета.
 func (sv *UserInfo) Get(ctx context.Context, userID uuid.UUID) (dto.UserInfo, error) {
 	var (
-		user    entity.User
-		auth2FA entity.Auth2FA
-		stats   []entity.UserActivityStat
-		realms  []entity.UserRealm
-		err     error
+		user       entity.User
+		auth2FA    entity.Auth2FA
+		stats      []entity.UserActivityStat
+		realms     []entity.UserRealm
+		operations []secureoperation.SecureOperation
+		err        error
 	)
 
 	err = sv.txManager.Do(ctx, func(ctx context.Context) error {
@@ -94,16 +106,26 @@ func (sv *UserInfo) Get(ctx context.Context, userID uuid.UUID) (dto.UserInfo, er
 			return sv.errorWrapper.Wrap(err)
 		}
 
+		if operations, err = sv.storageOperation.FetchByUserID(ctx, userID); err != nil {
+			return sv.errorWrapper.Wrap(err)
+		}
+
 		return nil
 	})
 	if err != nil {
 		return dto.UserInfo{}, err
 	}
 
+	pending, err := buildPendingOperations(operations)
+	if err != nil {
+		return dto.UserInfo{}, err
+	}
+
 	return dto.UserInfo{
-		User:    user,
-		Auth2FA: auth2FA,
-		Realms:  sv.buildRealms(realms, stats),
+		User:              user,
+		Auth2FA:           auth2FA,
+		Realms:            sv.buildRealms(realms, stats),
+		PendingOperations: pending,
 	}, nil
 }
 
@@ -137,4 +159,23 @@ func (sv *UserInfo) buildRealms(realms []entity.UserRealm, stats []entity.UserAc
 	}
 
 	return list
+}
+
+// buildPendingOperations - оставляет операции личного кабинета и строит по ним проекции для показа
+// в порядке, отданном хранилищем (по сроку истечения).
+func buildPendingOperations(operations []secureoperation.SecureOperation) ([]pendingoperation.PendingOperation, error) {
+	items := make([]pendingoperation.PendingOperation, 0, len(operations))
+
+	for _, op := range operations {
+		item, ok, err := unit.NewPendingOperation(op)
+		if err != nil {
+			return nil, err
+		}
+
+		if ok {
+			items = append(items, item)
+		}
+	}
+
+	return items, nil
 }

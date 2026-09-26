@@ -24,18 +24,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
 
-//go:generate mockgen -source=apply_totp.go -destination=mock/apply_totp.go -package=mock
-//go:generate mockgen -source=apply_operation.go -destination=mock/apply_operation.go -package=mock
-//go:generate mockgen -source=apply_recovery.go -destination=mock/apply_recovery.go -package=mock
-//go:generate mockgen -source=totp_operation.go -destination=mock/totp_operation.go -package=mock
-//go:generate mockgen -source=render_totp_qr.go -destination=mock/render_totp_qr.go -package=mock
-//go:generate mockgen -source=get_totp_secret.go -destination=mock/get_totp_secret.go -package=mock
-//go:generate mockgen -source=change_email.go -destination=mock/change_email.go -package=mock
-//go:generate mockgen -source=change_phone.go -destination=mock/change_phone.go -package=mock
-//go:generate mockgen -source=change_totp.go -destination=mock/change_totp.go -package=mock
 //go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
-//go:generate mockgen -destination=mock/mrnotifier.go -package=mock github.com/mondegor/go-components/mrnotifier NoteProducer
-//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth User2FAConfirmActionCreator,OperationHandler
 
 // testTotpSecret - валидный base32 TOTP-secret, используемый в тестах verify_totp.
 const testTotpSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
@@ -97,9 +86,14 @@ type ApplyTOTPSuite struct {
 
 	binder   *mock.Mockuser2faBinder
 	verifier *mock.MockoperationDeleter
+	revoker  *mock.MockoperationRevoker
 	saved    entity.Auth2FA
 	deleted  string
 	bindErr  error // ошибка, которую вернёт привязка 2FA (по умолчанию привязка успешна)
+
+	revokedFor   uuid.UUID      // пользователь, чьи операции отозваны (uuid.Nil - не отзывали)
+	revokeReason logreason.Enum // причина отзыва
+	revokeErr    error          // ошибка, которую вернёт отзыв операций
 }
 
 func TestApplyTOTPSuite(t *testing.T) {
@@ -113,9 +107,23 @@ func (s *ApplyTOTPSuite) SetupTest() {
 
 	s.binder = mock.NewMockuser2faBinder(s.ctrl)
 	s.verifier = mock.NewMockoperationDeleter(s.ctrl)
+	s.revoker = mock.NewMockoperationRevoker(s.ctrl)
 	s.saved = entity.Auth2FA{}
 	s.deleted = ""
 	s.bindErr = nil
+	s.revokedFor = uuid.Nil
+	s.revokeReason = logreason.Unspecified
+	s.revokeErr = nil
+
+	s.revoker.EXPECT().
+		RevokeAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, actor dto.ActorMeta, reason logreason.Enum) error {
+			s.revokedFor = actor.VisitorID
+			s.revokeReason = reason
+
+			return s.revokeErr
+		}).
+		AnyTimes()
 
 	s.binder.EXPECT().
 		Insert(gomock.Any(), gomock.Any()).
@@ -148,7 +156,7 @@ func (s *ApplyTOTPSuite) TestValidCodeBindsAndReturnsCodes() {
 
 	auth := totp.NewAuthenticator("TestIssuer", 20)
 	uc := security.NewApplyTOTPGenerator(
-		s.txManager, s.binder, s.verifier,
+		s.txManager, s.binder, s.verifier, s.revoker,
 		crypt.NewSecretGenerator(10), auth, s.notifierAPI, s.logOperation, 10,
 	)
 
@@ -164,6 +172,9 @@ func (s *ApplyTOTPSuite) TestValidCodeBindsAndReturnsCodes() {
 	s.NotEqual(codes, s.saved.RecoveryCodes) // хранятся хеши, возвращается plaintext
 	s.Equal("op-token", s.deleted)
 	s.True(s.notified)
+	// включение 2FA отзывает все незавершённые операции пользователя
+	s.Equal(userID, s.revokedFor)
+	s.Equal(logreason.Auth2FAStateChanged, s.revokeReason)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
 	s.Equal(unit.NameConfirmChangeTOTP, s.logEntries[0].OperationName)
@@ -181,7 +192,7 @@ func (s *ApplyTOTPSuite) TestActive2FAConflictNoApply() {
 
 	auth := totp.NewAuthenticator("TestIssuer", 20)
 	uc := security.NewApplyTOTPGenerator(
-		s.txManager, s.binder, s.verifier,
+		s.txManager, s.binder, s.verifier, s.revoker,
 		crypt.NewSecretGenerator(10), auth, s.notifierAPI, s.logOperation, 10,
 	)
 
@@ -193,6 +204,7 @@ func (s *ApplyTOTPSuite) TestActive2FAConflictNoApply() {
 	s.Nil(codes)
 	s.Equal(entity.Auth2FA{}, s.saved, "второй фактор не должен привязываться")
 	s.Empty(s.deleted, "операция не должна применяться")
+	s.Equal(uuid.Nil, s.revokedFor, "операции не отзываются: 2FA не включилась")
 	s.False(s.notified)
 	// гонка с включением 2FA другим способом фиксируется в журнале как блокировка
 	s.Require().Len(s.logEntries, 1)
@@ -207,7 +219,7 @@ func (s *ApplyTOTPSuite) TestInvalidCodeNoBind() {
 	s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
 
 	uc := security.NewApplyTOTPGenerator(
-		s.txManager, s.binder, s.verifier,
+		s.txManager, s.binder, s.verifier, s.revoker,
 		crypt.NewSecretGenerator(10), totp.NewAuthenticator("TestIssuer", 20),
 		s.notifierAPI, s.logOperation, 10,
 	)

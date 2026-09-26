@@ -190,6 +190,19 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
 - **Internal comments** (inside function/method bodies) may start with a lowercase
   letter; when they do, they **must not** end with a period. (`godot`'s scope is
   declarations only, so these aren't linter-enforced — follow the convention manually.)
+- **Don't comment what the code already says.** A doc comment carries meaning that isn't
+  visible from the declaration. Don't write "X is absent when empty" next to an `omitempty` tag,
+  and don't restate a type, a pointer or a tag. Don't copy a behavioural rule onto a model when
+  the function that implements it already documents it. Keep one source of truth, where the
+  logic lives. Conditions that the declaration can't show still belong in the comment (e.g.
+  "only when 2FA is enabled"), as do contracts that differ from sibling methods (e.g. "returns an
+  empty slice, not ErrEventStorageNoRecordFound").
+- **Don't restate a constant's value in comments.** Refer to a default or threshold by its
+  meaning ("0 means the default", "longer than the model's fixed-expiry threshold"), not by its
+  current value ("72 hours", "STRONG"). The value lives in the constant and can change there
+  without anyone noticing the comment has gone stale. This covers doc comments, config field
+  comments, test comments and the contract. Tests assert the value itself where it matters, and
+  listing an enum's domain values is fine.
 
 ## Naming
 
@@ -418,11 +431,17 @@ identifier names its own sentinels the same way.
   `EXPECT()`. Do **not** hand-write mocks or use any other mocking library.
 - **Put the `//go:generate mockgen ...` directives in the `_test.go` file that consumes
   the mocks, not in the production source.** Mocks are test-only tooling, so the
-  directives belong with the tests; place them right after the import block of the
-  package's test file. `go generate` runs per-directory, so `-source=foo.go` (and the
-  `-destination=mock/...` paths) still resolve correctly from the test file. When one
-  directory has several source files generating mocks, group all their directives in the
-  single package test file (e.g. the package's main `<pkg>_test.go`).
+  directives belong with the tests. `go generate` runs per-directory, so `-source=foo.go`
+  (and the `-destination=mock/...` paths) still resolve correctly from any test file of the
+  package. Which test file gets a directive depends on who uses the mock it generates:
+  - **one test file uses it** — put the directive in that file, right after its import block;
+  - **several test files use it** — put the directive in the package's `<pkg>_test.go`,
+    and create that file if it doesn't exist; it may contain nothing but the package clause
+    and directives;
+  - **no test uses it** — delete both the directive and the generated mock file.
+  "Uses" means the test file references `mock.NewMockXxx(` or `*mock.MockXxx` for any type in
+  that mock file. A mock file with no directive producing it is an error as well: add the
+  directive by the same rule. Don't pile a package's directives into one arbitrary test file.
 - **Always generate mocks into a nested `mock/` directory next to the consuming package**
   (`package mock`, e.g. `service/item/mock/`), one `mock/` per package that owns/consumes
   the interfaces — never into `*_mock_test.go` in the test package. The external `_test`
@@ -472,6 +491,16 @@ the directory — the two always move together:
 
 `<kind>` is `fields` / `enums` / `models` / `responses` / `parameters` / `headers`.
 
+- **No `allOf` (nor `oneOf`/`anyOf`) in contracts.** Every schema is a plain object or a plain
+  `$ref`. When two models share fields, repeat them inline with identical descriptions rather than
+  composing. When a property needs a description different from the one its `$ref` target carries,
+  don't wrap the `$ref` in `allOf` to attach it. Put the note in the enclosing model's
+  `description`, or add a dedicated component. Composition makes the bundled spec and the generated
+  clients harder to read, and it is not worth it for the few fields it saves.
+- **`allOf` yes, `oneOf`/`anyOf` no.** Use `allOf` to compose a model from a shared one (e.g.
+  `WaitingConfirmOperation` = `ConfirmOperationState` + its own fields) or to attach a
+  `description` on top of a `$ref`. Never use `oneOf`/`anyOf`: a response or request has one
+  fixed shape, and any variants are explained in `description`.
 - **`example` is one valid value, never a description of the alternatives.** OpenAPI 3.0.x has no
   `examples` map inside a schema (it exists only at media-type/parameter level), so `example:
   "A | B"` reaches Swagger UI and the code generators verbatim and clients copy a value that does
