@@ -9,6 +9,7 @@ import (
 	"github.com/mondegor/go-core/mrtype"
 
 	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/model/pendingoperation"
 )
 
 type (
@@ -52,9 +53,10 @@ type (
 
 	// UserInfo - сгруппированная информация о пользователе.
 	UserInfo struct {
-		User    entity.User
-		Auth2FA entity.Auth2FA
-		Realms  []UserRealmInfo
+		User              entity.User
+		Auth2FA           entity.Auth2FA
+		Realms            []UserRealmInfo
+		PendingOperations []pendingoperation.PendingOperation
 	}
 
 	// UserRealmInfo - привязка пользователя к realm'у вместе со статистикой последнего входа.

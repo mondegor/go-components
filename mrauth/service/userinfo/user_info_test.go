@@ -13,7 +13,12 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/service/userinfo"
 	"github.com/mondegor/go-components/mrauth/service/userinfo/mock"
 )
@@ -31,12 +36,17 @@ type UserInfoSuite struct {
 	auth2faFetch *mock.Mockuser2faFetcher
 	statFetcher  *mock.MockuserActivityStatFetcher
 	realmFetcher *mock.MockuserRealmFetcher
+	opFetcher    *mock.MockoperationFetcher
 }
 
 func TestUserInfoSuite(t *testing.T) {
 	t.Parallel()
 
 	suite.Run(t, new(UserInfoSuite))
+}
+
+func (s *UserInfoSuite) SetupSubTest() {
+	s.SetupTest()
 }
 
 func (s *UserInfoSuite) SetupTest() {
@@ -47,6 +57,7 @@ func (s *UserInfoSuite) SetupTest() {
 	s.auth2faFetch = mock.NewMockuser2faFetcher(s.ctrl)
 	s.statFetcher = mock.NewMockuserActivityStatFetcher(s.ctrl)
 	s.realmFetcher = mock.NewMockuserRealmFetcher(s.ctrl)
+	s.opFetcher = mock.NewMockoperationFetcher(s.ctrl)
 
 	// транзакция выполняет переданное задание как есть
 	s.txManager.EXPECT().
@@ -81,12 +92,14 @@ func (s *UserInfoSuite) TestGet() {
 			{RealmID: 2, Kind: "standard", CreatedAt: base, UpdatedAt: base},
 		}, nil)
 
-	sv := userinfo.New(
-		s.txManager,
-		s.userFetcher,
-		s.auth2faFetch,
-		s.statFetcher,
-		s.realmFetcher,
+	// операции личного кабинета попадают в сводку в порядке хранилища, вход - нет
+	s.opFetcher.EXPECT().FetchByUserID(gomock.Any(), userID).Return([]secureoperation.SecureOperation{
+		s.confirmedOperation(unit.NameAuthorizeUser, nil),
+		s.confirmedOperation(unit.NameConfirmChangeEmail, s.emailPayload()),
+		s.confirmedOperation(unit.NameConfirmDisable2FA, nil),
+	}, nil)
+
+	sv := s.newService(
 		// статистика входа запрашивается только в режиме LocationOrIP
 		func(ip netip.Addr, result mrauth.LocationMode) string {
 			if result != mrauth.LocationOrIP {
@@ -117,4 +130,77 @@ func (s *UserInfoSuite) TestGet() {
 	s.Equal(uint16(2), info.Realms[1].RealmID)
 	s.Empty(info.Realms[1].LastLocation)
 	s.True(info.Realms[1].LastLoggedAt.IsZero())
+
+	s.Require().Len(info.PendingOperations, 2)
+	s.Equal(operationtype.ChangeEmailConfirm, info.PendingOperations[0].Type)
+	s.Equal("new@example.com", info.PendingOperations[0].NewEmail)
+	s.Equal(operationtype.Disable2FA, info.PendingOperations[1].Type)
+}
+
+// TestGetOperationsError - ошибка чтения операций и нечитаемый payload операции не маскируются
+// неполной сводкой.
+func (s *UserInfoSuite) TestGetOperationsError() {
+	tests := []struct {
+		name       string
+		operations []secureoperation.SecureOperation
+		fetchErr   error
+	}{
+		{name: "storage error", fetchErr: errors.New("db is down")},
+		{name: "broken payload", operations: []secureoperation.SecureOperation{
+			s.confirmedOperation(unit.NameConfirmChangeEmail, []byte(`{"new_email":""}`)),
+		}},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			userID := uuid.New()
+
+			s.userFetcher.EXPECT().FetchOne(gomock.Any(), userID).Return(entity.User{ID: userID}, nil)
+			s.auth2faFetch.EXPECT().FetchOne(gomock.Any(), userID).Return(entity.Auth2FA{}, nil)
+			s.statFetcher.EXPECT().Fetch(gomock.Any(), userID).Return(nil, nil)
+			s.realmFetcher.EXPECT().Fetch(gomock.Any(), userID).Return(nil, nil)
+			s.opFetcher.EXPECT().FetchByUserID(gomock.Any(), userID).Return(tt.operations, tt.fetchErr)
+
+			_, err := s.newService(nil).Get(s.ctx, userID)
+			s.Require().Error(err)
+		})
+	}
+}
+
+// confirmedOperation - подтверждённая операция указанного типа с указанным payload.
+func (s *UserInfoSuite) confirmedOperation(name string, payload []byte) secureoperation.SecureOperation {
+	s.T().Helper()
+
+	op := secureoperation.SecureOperation{
+		Token:     "token-" + name,
+		Name:      name,
+		Payload:   payload,
+		Status:    operationstatus.Confirmed,
+		ExpiresAt: time.Now().UTC().Add(time.Hour),
+	}
+	s.Require().NoError(secureoperation.WakeUp(&op, nil))
+
+	return op
+}
+
+func (s *UserInfoSuite) emailPayload() []byte {
+	s.T().Helper()
+
+	raw, err := unit.BuildChangeEmailPayload(dto.ChangeEmailOperation{NewEmail: "new@example.com", Email: "user@example.com"})
+	s.Require().NoError(err)
+
+	return raw
+}
+
+// newService - собирает сервис на моках набора с указанным резолвером местоположения.
+func (s *UserInfoSuite) newService(locationResolver mrauth.LocationResolver) *userinfo.UserInfo {
+	return userinfo.New(
+		s.txManager,
+		s.userFetcher,
+		s.auth2faFetch,
+		s.statFetcher,
+		s.realmFetcher,
+		s.opFetcher,
+		locationResolver,
+	)
 }

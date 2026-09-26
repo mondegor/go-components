@@ -14,6 +14,8 @@ import (
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
+	dto "github.com/mondegor/go-components/mrauth/dto"
+	logreason "github.com/mondegor/go-components/mrauth/enum/logreason"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -53,4 +55,42 @@ func (m *Mockuser2faDisabler) Delete(ctx context.Context, userID uuid.UUID) erro
 func (mr *Mockuser2faDisablerMockRecorder) Delete(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*Mockuser2faDisabler)(nil).Delete), ctx, userID)
+}
+
+// MockoperationRevoker is a mock of operationRevoker interface.
+type MockoperationRevoker struct {
+	ctrl     *gomock.Controller
+	recorder *MockoperationRevokerMockRecorder
+	isgomock struct{}
+}
+
+// MockoperationRevokerMockRecorder is the mock recorder for MockoperationRevoker.
+type MockoperationRevokerMockRecorder struct {
+	mock *MockoperationRevoker
+}
+
+// NewMockoperationRevoker creates a new mock instance.
+func NewMockoperationRevoker(ctrl *gomock.Controller) *MockoperationRevoker {
+	mock := &MockoperationRevoker{ctrl: ctrl}
+	mock.recorder = &MockoperationRevokerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockoperationRevoker) EXPECT() *MockoperationRevokerMockRecorder {
+	return m.recorder
+}
+
+// RevokeAll mocks base method.
+func (m *MockoperationRevoker) RevokeAll(ctx context.Context, actor dto.ActorMeta, reason logreason.Enum) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevokeAll", ctx, actor, reason)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RevokeAll indicates an expected call of RevokeAll.
+func (mr *MockoperationRevokerMockRecorder) RevokeAll(ctx, actor, reason any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeAll", reflect.TypeOf((*MockoperationRevoker)(nil).RevokeAll), ctx, actor, reason)
 }

@@ -36,8 +36,8 @@ type (
 	}
 
 	passwordService interface {
-		CalcStrength(userPassword string) (strength string)
-		Generate() (strength string)
+		CalcStrength(userPassword string) (strength string, acceptable bool)
+		Generate() (userPassword string, err error)
 	}
 )
 
@@ -94,7 +94,8 @@ func (ht *Check) CheckLogin(w http.ResponseWriter, r *http.Request) error {
 	return ht.sender.SendNoContent(w)
 }
 
-// CalcPasswordStrength - оценивает надёжность переданного пароля.
+// CalcPasswordStrength - оценивает надёжность переданного пароля и сообщает,
+// проходит ли он порог надёжности пароля 2FA.
 func (ht *Check) CalcPasswordStrength(w http.ResponseWriter, r *http.Request) error {
 	req := model.CalcPasswordStrengthRequest{}
 
@@ -102,22 +103,30 @@ func (ht *Check) CalcPasswordStrength(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
+	strength, acceptable := ht.servicePassword.CalcStrength(req.Password)
+
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
 		model.CalcPasswordStrengthResponse{
-			Strength: ht.servicePassword.CalcStrength(req.Password),
+			Strength:   strength,
+			Acceptable: acceptable,
 		},
 	)
 }
 
 // GeneratePassword - генерирует случайный пароль.
 func (ht *Check) GeneratePassword(w http.ResponseWriter, _ *http.Request) error {
+	userPassword, err := ht.servicePassword.Generate()
+	if err != nil {
+		return err
+	}
+
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
 		model.GeneratedPasswordResponse{
-			Password: ht.servicePassword.Generate(),
+			Password: userPassword,
 		},
 	)
 }

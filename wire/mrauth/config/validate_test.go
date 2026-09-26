@@ -9,6 +9,7 @@ import (
 	"time"
 	_ "time/tzdata"
 
+	"github.com/mondegor/go-core/util/crypt/password"
 	"github.com/stretchr/testify/require"
 
 	"github.com/mondegor/go-components/wire/mrauth/config"
@@ -249,4 +250,166 @@ func TestCorrectValuesAuth2FAConfirmExpiry(t *testing.T) {
 			require.Equal(t, tc.want, got.ConfirmExpiry)
 		})
 	}
+}
+
+// TestParsePasswordStrength - порог надёжности пароля 2FA задаётся именем уровня из той же
+// шкалы, что отдаёт POST /v1/check/calc-password-strength. NOT_RATED порогом быть не может:
+// пароль без оценки недопустим как второй фактор, поэтому такое имя - ошибка конфигурации.
+func TestParsePasswordStrength(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		in      string
+		want    password.PassStrength
+		wantErr bool
+	}{
+		{name: "weak", in: "WEAK", want: password.PassStrengthWeak},
+		{name: "middle", in: "MIDDLE", want: password.PassStrengthMedium},
+		{name: "strong", in: "STRONG", want: password.PassStrengthStrong},
+		{name: "the best", in: "THE_BEST", want: password.PassStrengthBest},
+		{name: "not rated", in: "NOT_RATED", wantErr: true},
+		{name: "lowercase", in: "strong", wantErr: true},
+		{name: "empty", in: "", wantErr: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := config.ParsePasswordStrength(tc.in)
+
+			if tc.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// TestCorrectValuesAuth2FAPasswordMinStrength - незаданный порог заменяется умолчанием,
+// заданный сохраняется как есть (его допустимость проверяет ValidateAuth2FA).
+func TestCorrectValuesAuth2FAPasswordMinStrength(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "STRONG", config.CorrectValuesAuth2FA(config.Auth2FA{}).PasswordMinStrength)
+	require.Equal(t, "MIDDLE", config.CorrectValuesAuth2FA(config.Auth2FA{PasswordMinStrength: "MIDDLE"}).PasswordMinStrength)
+}
+
+// TestValidateAuth2FAPasswordMinStrength - неизвестное имя порога роняет старт, а не молча
+// заменяется умолчанием; незаданный порог допустим (его подставит CorrectValuesAuth2FA).
+func TestValidateAuth2FAPasswordMinStrength(t *testing.T) {
+	t.Parallel()
+
+	salt := strings.Repeat("s", 32)
+
+	require.NoError(t, config.ValidateAuth2FA(config.Auth2FA{DecoyFactorSalt: salt}))
+	require.NoError(t, config.ValidateAuth2FA(config.Auth2FA{DecoyFactorSalt: salt, PasswordMinStrength: "THE_BEST"}))
+	require.Error(t, config.ValidateAuth2FA(config.Auth2FA{DecoyFactorSalt: salt, PasswordMinStrength: "NOT_RATED"}))
+	require.Error(t, config.ValidateAuth2FA(config.Auth2FA{DecoyFactorSalt: salt, PasswordMinStrength: "HARD"}))
+}
+
+// TestValidateAuth2FARecoveryCodeLength - длина аварийного кода вне диапазона, который принимает
+// auth2fa.Verifier (и задаёт спека), роняет старт; незаданная длина допустима
+// (её подставит CorrectValuesAuth2FA).
+func TestValidateAuth2FARecoveryCodeLength(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		length  uint8
+		wantErr bool
+	}{
+		{name: "not set", length: 0, wantErr: false},
+		{name: "below min", length: 7, wantErr: true},
+		{name: "exactly min", length: 8, wantErr: false},
+		{name: "exactly max", length: 32, wantErr: false},
+		{name: "above max", length: 33, wantErr: true},
+	}
+
+	salt := strings.Repeat("s", 32)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := config.ValidateAuth2FA(config.Auth2FA{DecoyFactorSalt: salt, RecoveryCodeLength: tc.length})
+
+			if tc.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestValidateOperationConfirm - длина кода подтверждения ограничена диапазоном из спеки,
+// а срок операции подтверждения нового емаила должен быть больше порога
+// фиксированного срока: иначе повторная отправка кода продлевала бы его.
+func TestValidateOperationConfirm(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		cfg     config.OperationConfirm
+		wantErr bool
+	}{
+		{name: "code length not set", cfg: config.OperationConfirm{}, wantErr: true},
+		{name: "code length below min", cfg: config.OperationConfirm{CodeLength: 3}, wantErr: true},
+		{name: "code length exactly min", cfg: config.OperationConfirm{CodeLength: 4}, wantErr: false},
+		{name: "code length exactly max", cfg: config.OperationConfirm{CodeLength: 8}, wantErr: false},
+		{name: "code length above max", cfg: config.OperationConfirm{CodeLength: 9}, wantErr: true},
+		{name: "new email expiry not set", cfg: config.OperationConfirm{CodeLength: 6}, wantErr: false},
+		{name: "new email expiry below threshold", cfg: config.OperationConfirm{CodeLength: 6, NewEmailExpiry: 30 * time.Minute}, wantErr: true},
+		{name: "new email expiry equals threshold", cfg: config.OperationConfirm{CodeLength: 6, NewEmailExpiry: time.Hour}, wantErr: true},
+		{name: "new email expiry above threshold", cfg: config.OperationConfirm{CodeLength: 6, NewEmailExpiry: 72 * time.Hour}, wantErr: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := config.ValidateOperationConfirm(tc.cfg)
+
+			if tc.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestValidateRealmsConfirmCodeLength - заданная длина кода подтверждения realm'а проверяется
+// так же, как у настроек по умолчанию; незаданная допустима (её подставит CorrectValuesRealm).
+func TestValidateRealmsConfirmCodeLength(t *testing.T) {
+	t.Parallel()
+
+	makeRealms := func(codeLength uint8) []config.UserRealm {
+		return []config.UserRealm{
+			{
+				ID:               1,
+				Name:             "site",
+				RegisterUserKind: "user",
+				AuthToken:        config.Token{AccessType: "jwt"},
+				OperationConfirm: config.OperationConfirm{CodeLength: codeLength},
+				UserKinds: []config.UserKind{
+					{Name: "user", Roles: []string{"guests"}},
+				},
+			},
+		}
+	}
+
+	require.NoError(t, config.ValidateRealms(makeRealms(0), []string{"guests"}))
+	require.NoError(t, config.ValidateRealms(makeRealms(6), []string{"guests"}))
+	require.ErrorContains(t, config.ValidateRealms(makeRealms(9), []string{"guests"}), "confirm code length is out of range")
 }

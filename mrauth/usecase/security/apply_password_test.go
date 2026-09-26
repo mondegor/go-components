@@ -38,9 +38,14 @@ type ApplyPasswordSuite struct {
 
 	binder   *mock.Mockuser2faBinder
 	verifier *mock.MockoperationDeleter
+	revoker  *mock.MockoperationRevoker
 	saved    entity.Auth2FA
 	deleted  string
 	bindErr  error // ошибка, которую вернёт привязка 2FA (по умолчанию привязка успешна)
+
+	revokedFor   uuid.UUID      // пользователь, чьи операции отозваны (uuid.Nil - не отзывали)
+	revokeReason logreason.Enum // причина отзыва
+	revokeErr    error          // ошибка, которую вернёт отзыв операций
 }
 
 func TestApplyPasswordSuite(t *testing.T) {
@@ -54,9 +59,23 @@ func (s *ApplyPasswordSuite) SetupTest() {
 
 	s.binder = mock.NewMockuser2faBinder(s.ctrl)
 	s.verifier = mock.NewMockoperationDeleter(s.ctrl)
+	s.revoker = mock.NewMockoperationRevoker(s.ctrl)
 	s.saved = entity.Auth2FA{}
 	s.deleted = ""
 	s.bindErr = nil
+	s.revokedFor = uuid.Nil
+	s.revokeReason = logreason.Unspecified
+	s.revokeErr = nil
+
+	s.revoker.EXPECT().
+		RevokeAll(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, actor dto.ActorMeta, reason logreason.Enum) error {
+			s.revokedFor = actor.VisitorID
+			s.revokeReason = reason
+
+			return s.revokeErr
+		}).
+		AnyTimes()
 
 	s.binder.EXPECT().
 		Insert(gomock.Any(), gomock.Any()).
@@ -83,7 +102,7 @@ func (s *ApplyPasswordSuite) SetupTest() {
 
 func (s *ApplyPasswordSuite) newUseCase() *security.ApplyPassword {
 	return security.NewApplyPassword(
-		s.txManager, s.binder, s.verifier,
+		s.txManager, s.binder, s.verifier, s.revoker,
 		crypt.NewSecretGenerator(10), s.notifierAPI, s.logOperation, 8,
 	)
 }
@@ -104,6 +123,9 @@ func (s *ApplyPasswordSuite) TestConfirmedBindsAndReturnsCodes() {
 	s.NotEqual(codes, s.saved.RecoveryCodes) // хранятся хеши, возвращается plaintext
 	s.Equal("op-token", s.deleted)
 	s.True(s.notified)
+	// включение 2FA отзывает все незавершённые операции пользователя
+	s.Equal(userID, s.revokedFor)
+	s.Equal(logreason.Auth2FAStateChanged, s.revokeReason)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
 	s.Equal(unit.NameConfirmChangePassword, s.logEntries[0].OperationName)
@@ -160,6 +182,7 @@ func (s *ApplyPasswordSuite) TestActive2FAConflictNoApply() {
 	s.Nil(codes)
 	s.Equal(entity.Auth2FA{}, s.saved, "второй фактор не должен привязываться")
 	s.Empty(s.deleted, "операция не должна применяться")
+	s.Equal(uuid.Nil, s.revokedFor, "операции не отзываются: 2FA не включилась")
 	s.False(s.notified)
 	// гонка с включением 2FA другим способом фиксируется в журнале как блокировка
 	s.Require().Len(s.logEntries, 1)
@@ -183,4 +206,21 @@ func (s *ApplyPasswordSuite) TestWrongOperationNameNoBind() {
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
 	s.Equal(logreason.AccessForbidden, s.logEntries[0].Reason)
+}
+
+// TestRevokeError - отзыв операций входит в применение: его ошибка отменяет применение
+// целиком (транзакция откатывается, уведомление не отправляется), иначе 2FA включилась бы
+// при живых операциях, построенных без второго фактора.
+func (s *ApplyPasswordSuite) TestRevokeError() {
+	userID := uuid.New()
+	s.revokeErr = errors.ErrInternalStorageQueryFailed.New()
+
+	s.verifier.EXPECT().
+		FetchOneForUpdate(gomock.Any(), gomock.Any()).
+		Return(confirmedPasswordOp(userID, `{"new_password":"hashed-pwd","email":"u@e"}`), nil)
+
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	s.Require().Error(err)
+	s.Nil(codes)
+	s.False(s.notified)
 }

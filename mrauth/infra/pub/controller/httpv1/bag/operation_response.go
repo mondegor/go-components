@@ -5,6 +5,7 @@ import (
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
+	"github.com/mondegor/go-components/mrauth/model/pendingoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -68,6 +69,41 @@ func (ro *OperationResponse) NewErrorConfirmOperation(
 			DebugInfo:         ro.debugFunc(operation),
 		},
 	}
+}
+
+// NewPendingOperation - формирует элемент списка действующих операций пользователя.
+// extraValue - уже подготовленное к показу значение операции (новый емаил или телефон),
+// expiresAt - срок действия, уже отформатированный в часовом поясе пользователя.
+func (ro *OperationResponse) NewPendingOperation(
+	item pendingoperation.PendingOperation,
+	extraValue string,
+	expiresAt string,
+) model.PendingOperation {
+	response := model.PendingOperation{
+		Token:      item.Token,
+		Type:       item.Type,
+		ExtraValue: extraValue,
+		ExpiresAt:  expiresAt,
+		Status:     item.Status,
+	}
+
+	action := item.CurrentAction
+	if action == nil {
+		return response
+	}
+
+	remainingAttempts := action.RemainingAttempts
+
+	response.ConfirmMethod = action.Method
+	response.RemainingAttempts = &remainingAttempts
+	response.RemainingResends = action.RemainingResends
+
+	if action.ResendsAt != nil {
+		resendsIn := xtime.TimeLeftInSec(*action.ResendsAt)
+		response.ResendsIn = &resendsIn
+	}
+
+	return response
 }
 
 // resendsInfo - счётчики повторных отправок кода подтверждения текущим действием операции:

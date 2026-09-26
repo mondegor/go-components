@@ -108,7 +108,7 @@ func (ks *keySet) JWKS() ([]byte, error) {
 	return json.Marshal(set)
 }
 
-// publicJWK - строит JWK по публичному ключу; ok=false для неэкспортируемых (HMAC) ключей.
+// publicJWK - строит JWK по публичному ключу; ok=false, если ключ не публикуется в JWKS.
 func publicJWK(key Key) (jwk, bool) {
 	switch public := key.Public().(type) {
 	case *rsa.PublicKey:
@@ -121,6 +121,11 @@ func publicJWK(key Key) (jwk, bool) {
 			E:   base64.RawURLEncoding.EncodeToString(big.NewInt(int64(public.E)).Bytes()),
 		}, true
 	case *ecdsa.PublicKey:
+		raw, err := public.Bytes() // несжатая форма: 0x04 || X || Y
+		if err != nil {
+			return jwk{}, false
+		}
+
 		size := (public.Curve.Params().BitSize + 7) / 8
 
 		return jwk{
@@ -129,8 +134,8 @@ func publicJWK(key Key) (jwk, bool) {
 			Kid: key.KID(),
 			Alg: key.Method().Alg(),
 			Crv: public.Curve.Params().Name,
-			X:   base64.RawURLEncoding.EncodeToString(public.X.FillBytes(make([]byte, size))),
-			Y:   base64.RawURLEncoding.EncodeToString(public.Y.FillBytes(make([]byte, size))),
+			X:   base64.RawURLEncoding.EncodeToString(raw[1 : 1+size]),
+			Y:   base64.RawURLEncoding.EncodeToString(raw[1+size:]),
 		}, true
 	default:
 		return jwk{}, false

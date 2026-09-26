@@ -19,10 +19,7 @@ type (
 	}
 
 	// WaitingConfirmOperationResponse - информация для подтверждения операции.
-	// RemainingResends и ResendsIn отдаются вместе и только когда повторные отправки
-	// применимы (емаил и телефон); для пароля и TOTP их в ответе нет. Ноль в них -
-	// значение, а не отсутствие: RemainingResends=0 - отправки исчерпаны,
-	// ResendsIn=0 - повторную отправку можно сделать прямо сейчас.
+	// Также см. ConfirmOperationState.
 	WaitingConfirmOperationResponse struct {
 		Token             string             `json:"token"`
 		ConfirmMethod     confirmmethod.Enum `json:"confirm_method"`

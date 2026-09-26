@@ -1,0 +1,95 @@
+package unit
+
+import (
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/model/pendingoperation"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+)
+
+// NewPendingOperation - строит проекцию операции для списка личного кабинета. ok == false -
+// операция в список не входит (белый список - pendingOperationType): вход и регистрация не
+// отдаются, токен чужой попытки входа нельзя показывать другой сессии. Нечитаемый payload -
+// нарушение инварианта, а не повод пропустить операцию: возвращается ошибка.
+func NewPendingOperation(op secureoperation.SecureOperation) (item pendingoperation.PendingOperation, ok bool, err error) {
+	opType, ok := pendingOperationType(op.Name)
+	if !ok {
+		return pendingoperation.PendingOperation{}, false, nil
+	}
+
+	item = pendingoperation.PendingOperation{
+		Token:         op.Token,
+		Type:          opType,
+		Status:        op.Status,
+		ExpiresAt:     op.ExpiresAt,
+		CurrentAction: pendingAction(&op),
+	}
+
+	switch opType {
+	case operationtype.ChangeEmail, operationtype.ChangeEmailConfirm:
+		payload, err := ParseChangeEmailPayload(op.Payload)
+		if err != nil {
+			return pendingoperation.PendingOperation{}, false, err
+		}
+
+		item.NewEmail = payload.NewEmail
+	case operationtype.ChangePhone:
+		payload, err := ParseChangePhonePayload(op.Payload)
+		if err != nil {
+			return pendingoperation.PendingOperation{}, false, err
+		}
+
+		item.NewPhone = payload.NewPhone
+	default:
+	}
+
+	return item, true, nil
+}
+
+// pendingAction - текущее звено операции для показа клиенту; nil - у подтверждённой операции
+// подтверждать нечего. Счётчики повторной отправки задаются, только если звено её допускает.
+func pendingAction(op *secureoperation.SecureOperation) *pendingoperation.PendingAction {
+	if !op.Is(operationstatus.Opened) {
+		return nil
+	}
+
+	action, _ := op.FirstAction()
+
+	pending := pendingoperation.PendingAction{
+		Method:            action.Method,
+		RemainingAttempts: op.RemainingAttempts,
+	}
+
+	if action.Sendable() {
+		remainingResends := op.RemainingResends
+		resendsAt := op.ResendsAt
+
+		pending.RemainingResends = &remainingResends
+		pending.ResendsAt = &resendsAt
+	}
+
+	return &pending
+}
+
+// pendingOperationType - сопоставляет имя операции типу, отдаваемому клиенту; false - операция
+// в список личного кабинета не входит.
+func pendingOperationType(operationName string) (operationtype.Enum, bool) {
+	switch operationName {
+	case NameConfirmChangeEmailRequest:
+		return operationtype.ChangeEmail, true
+	case NameConfirmChangeEmail:
+		return operationtype.ChangeEmailConfirm, true
+	case NameConfirmChangePhone:
+		return operationtype.ChangePhone, true
+	case NameConfirmChangePassword:
+		return operationtype.ChangePassword, true
+	case NameConfirmChangeTOTP:
+		return operationtype.ChangeTOTP, true
+	case NameConfirmRegenerateRecovery:
+		return operationtype.RegenerateRecovery, true
+	case NameConfirmDisable2FA:
+		return operationtype.Disable2FA, true
+	default:
+		return 0, false
+	}
+}

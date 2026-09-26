@@ -22,7 +22,6 @@ import (
 )
 
 //go:generate mockgen -source=verifier.go -destination=mock/verifier.go -package=mock
-//go:generate mockgen -destination=mock/mrnotifier.go -package=mock github.com/mondegor/go-components/mrnotifier NoteProducer
 
 const testTOTPSecret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
 

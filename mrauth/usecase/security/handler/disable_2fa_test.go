@@ -11,14 +11,13 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/security/handler"
 	"github.com/mondegor/go-components/mrauth/usecase/security/handler/mock"
 )
 
 //go:generate mockgen -source=disable_2fa.go -destination=mock/disable_2fa.go -package=mock
-//go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
-//go:generate mockgen -destination=mock/mrnotifier.go -package=mock github.com/mondegor/go-components/mrnotifier NoteProducer
 
 type Disable2FASuite struct {
 	suite.Suite
@@ -27,6 +26,7 @@ type Disable2FASuite struct {
 	ctx         context.Context
 	txManager   *mock.MockDBTxManager
 	storage     *mock.Mockuser2faDisabler
+	revoker     *mock.MockoperationRevoker
 	notifierAPI *mock.MockNoteProducer
 	uc          *handler.Disable2FA
 }
@@ -42,6 +42,7 @@ func (s *Disable2FASuite) SetupTest() {
 	s.ctx = context.Background()
 	s.txManager = mock.NewMockDBTxManager(s.ctrl)
 	s.storage = mock.NewMockuser2faDisabler(s.ctrl)
+	s.revoker = mock.NewMockoperationRevoker(s.ctrl)
 	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
 
 	// транзакция выполняет переданное задание как есть
@@ -52,7 +53,7 @@ func (s *Disable2FASuite) SetupTest() {
 		}).
 		AnyTimes()
 
-	s.uc = handler.NewDisable2FA(s.txManager, s.storage, s.notifierAPI)
+	s.uc = handler.NewDisable2FA(s.txManager, s.storage, s.revoker, s.notifierAPI)
 }
 
 func (s *Disable2FASuite) payload() []byte {
@@ -64,31 +65,46 @@ func (s *Disable2FASuite) payload() []byte {
 	return raw
 }
 
-// 2FA отключается, пользователю уходит уведомление.
+// 2FA отключается, все незавершённые операции пользователя отзываются (их цепочки построены
+// при включённой 2FA), пользователю уходит уведомление.
 func (s *Disable2FASuite) TestExecute() {
+	userID := uuid.New()
+	actor := dto.ActorMeta{VisitorID: userID}
+
+	s.storage.EXPECT().Delete(gomock.Any(), userID).Return(nil)
+	s.revoker.EXPECT().RevokeAll(gomock.Any(), actor, logreason.Auth2FAStateChanged).Return(nil)
+	s.notifierAPI.EXPECT().Send(gomock.Any(), "user.2fa.disabled", gomock.Any()).Return(nil)
+
+	s.Require().NoError(s.uc.Execute(s.ctx, actor, s.payload()))
+}
+
+// ошибка отзыва операций отменяет применение: уведомление не отправляется
+// (мок Send без EXPECT: любой вызов провалит тест), транзакция откатывается целиком.
+func (s *Disable2FASuite) TestExecuteRevokeError() {
 	userID := uuid.New()
 
 	s.storage.EXPECT().Delete(gomock.Any(), userID).Return(nil)
-	s.notifierAPI.EXPECT().Send(gomock.Any(), "user.2fa.disabled", gomock.Any()).Return(nil)
+	s.revoker.EXPECT().RevokeAll(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("storage is down"))
 
-	s.Require().NoError(s.uc.Execute(s.ctx, userID, s.payload()))
+	s.Require().Error(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, s.payload()))
 }
 
 // повторное применение подтверждённой операции застаёт 2FA уже отключённой: отсутствие
 // записи не является ошибкой, но и уведомление повторно не отправляется - оно ушло при
-// первом применении (мок Send без EXPECT: любой вызов провалит тест).
+// первом применении. Операции не отзываются: 2FA снята раньше, и операции, начатые после
+// этого, построены при текущем состоянии и действуют (моки Send и RevokeAll без EXPECT).
 func (s *Disable2FASuite) TestExecuteAlreadyDisabled() {
 	userID := uuid.New()
 
 	s.storage.EXPECT().Delete(gomock.Any(), userID).Return(errors.ErrEventStorageNoRecordFound)
 
-	s.Require().NoError(s.uc.Execute(s.ctx, userID, s.payload()))
+	s.Require().NoError(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, s.payload()))
 }
 
 // владелец операции известен на момент её применения,
 // поэтому пустой userID - ошибка проводки (мок Delete без EXPECT: любой вызов провалит тест).
 func (s *Disable2FASuite) TestExecuteEmptyUserID() {
-	err := s.uc.Execute(s.ctx, uuid.Nil, s.payload())
+	err := s.uc.Execute(s.ctx, dto.ActorMeta{}, s.payload())
 	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
 }
 
@@ -99,5 +115,5 @@ func (s *Disable2FASuite) TestExecuteStorageError() {
 
 	s.storage.EXPECT().Delete(gomock.Any(), userID).Return(errStorage)
 
-	s.Require().Error(s.uc.Execute(s.ctx, userID, s.payload()))
+	s.Require().Error(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, s.payload()))
 }

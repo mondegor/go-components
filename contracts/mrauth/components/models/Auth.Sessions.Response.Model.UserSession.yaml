@@ -6,6 +6,7 @@ required:
   - last_ip
   - created_at
   - last_seen_at
+  - expires_at
   - is_current
 properties:
   session_id:
@@ -23,7 +24,7 @@ properties:
   last_ip:
     description: IP адрес последнего посещения
     type: string
-    example: "95.165.01.01"
+    example: "95.165.1.1"
   location:
     description: Местоположение (только если было вычислено)
     type: string

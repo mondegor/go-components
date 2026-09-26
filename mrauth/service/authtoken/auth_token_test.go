@@ -38,6 +38,7 @@ type AuthTokenSuite struct {
 	storage *mock.MockauthTokenStorage
 	issuer  *mock.MockTokenIssuer
 	sv      *authtoken.AuthToken
+	userID  uuid.UUID
 }
 
 func TestAuthTokenSuite(t *testing.T) {
@@ -52,6 +53,7 @@ func (s *AuthTokenSuite) SetupTest() {
 	s.tx = mock.NewMockDBTxManager(s.ctrl)
 	s.storage = mock.NewMockauthTokenStorage(s.ctrl)
 	s.issuer = mock.NewMockTokenIssuer(s.ctrl)
+	s.userID = uuid.New()
 	s.sv = authtoken.New(
 		s.tx,
 		s.storage,
@@ -225,23 +227,23 @@ func (s *AuthTokenSuite) TestRecreate_IssuesNewPair() {
 }
 
 func (s *AuthTokenSuite) TestClose_Success() {
-	s.storage.EXPECT().RevokeSessionByRefreshToken(gomock.Any(), "rt").Return(nil)
+	s.storage.EXPECT().RevokeSessionByRefreshToken(gomock.Any(), s.userID, "rt").Return(nil)
 
-	s.Require().NoError(s.sv.Close(s.ctx, "rt"))
+	s.Require().NoError(s.sv.Close(s.ctx, s.userID, "rt"))
 }
 
 // отзывать нечего (токен неизвестен либо сессия уже отозвана): logout идемпотентен,
 // поэтому sentinel хранилища гасится здесь и наружу уходит успех.
 func (s *AuthTokenSuite) TestClose_NothingToRevokeIsNoOp() {
-	s.storage.EXPECT().RevokeSessionByRefreshToken(gomock.Any(), "rt").
+	s.storage.EXPECT().RevokeSessionByRefreshToken(gomock.Any(), s.userID, "rt").
 		Return(sysmesserrors.ErrEventStorageRecordsNotAffected)
 
-	s.Require().NoError(s.sv.Close(s.ctx, "rt"))
+	s.Require().NoError(s.sv.Close(s.ctx, s.userID, "rt"))
 }
 
 func (s *AuthTokenSuite) TestClose_Error() {
-	s.storage.EXPECT().RevokeSessionByRefreshToken(gomock.Any(), "rt").
+	s.storage.EXPECT().RevokeSessionByRefreshToken(gomock.Any(), s.userID, "rt").
 		Return(sysmesserrors.ErrEventStorageNoRecordFound)
 
-	s.Require().Error(s.sv.Close(s.ctx, "rt"))
+	s.Require().Error(s.sv.Close(s.ctx, s.userID, "rt"))
 }

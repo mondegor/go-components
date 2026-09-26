@@ -15,6 +15,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
@@ -75,7 +76,7 @@ func (s *ApplyOperationSuite) TestSuccess() {
 	op := confirmedOp(userID, "{}")
 
 	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
-	s.handler.EXPECT().Execute(gomock.Any(), userID, gomock.Any()).Return(nil)
+	s.handler.EXPECT().Execute(gomock.Any(), dto.ActorMeta{VisitorID: userID}, gomock.Any()).Return(nil)
 
 	uc := s.newUseCase(map[string]mrauth.OperationHandler{"confirm.change.totp": s.handler})
 
@@ -123,13 +124,50 @@ func (s *ApplyOperationSuite) TestNotConfirmed() {
 
 func (s *ApplyOperationSuite) TestUnknownName() {
 	userID := uuid.New()
+	op := confirmedOp(userID, "{}")
+	op.Name = "confirm.host.custom"
 
-	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(confirmedOp(userID, "{}"), nil)
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
 
 	uc := s.newUseCase(map[string]mrauth.OperationHandler{})
 
-	s.Require().Error(uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token"))
+	err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	s.Require().Error(err)
+	s.Require().NotErrorIs(err, errors.ErrAccessForbidden)
 
 	// незарегистрированный обработчик - ошибка конфигурации, а не событие безопасности
 	s.Empty(s.logEntries)
+}
+
+// TestOperationOfOtherMethod - операция, у которой свой завершающий метод, предъявленная
+// ApplyOperation, отклоняется как чужая (403), а не как ошибка конфигурации (500).
+func (s *ApplyOperationSuite) TestOperationOfOtherMethod() {
+	names := []string{
+		unit.NameAuthorizeUser,
+		unit.NameConfirmCreateUser,
+		unit.NameConfirmChangeEmailRequest,
+		unit.NameConfirmChangePassword,
+		unit.NameConfirmChangeTOTP,
+		unit.NameConfirmRegenerateRecovery,
+	}
+
+	for _, name := range names {
+		s.Run(name, func() {
+			userID := uuid.New()
+			op := confirmedOp(userID, "{}")
+			op.Name = name
+
+			s.logEntries = nil
+			s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
+
+			uc := s.newUseCase(map[string]mrauth.OperationHandler{"confirm.change.phone": s.handler})
+
+			err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+			s.Require().ErrorIs(err, errors.ErrAccessForbidden)
+			s.Empty(s.deleted)
+			s.Require().Len(s.logEntries, 1)
+			s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+			s.Equal(logreason.AccessForbidden, s.logEntries[0].Reason)
+		})
+	}
 }

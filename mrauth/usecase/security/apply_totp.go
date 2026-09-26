@@ -33,6 +33,7 @@ type (
 		txManager        mrstorage.DBTxManager
 		storage          user2faBinder
 		storageOperation operationDeleter
+		revoker          operationRevoker
 		codeGenerator    recoveryCodesGenerator
 		totpValidator    totpValidator
 		notifierAPI      mrnotifier.NoteProducer
@@ -59,6 +60,7 @@ func NewApplyTOTPGenerator(
 	txManager mrstorage.DBTxManager,
 	storage user2faBinder,
 	storageOperation operationDeleter,
+	revoker operationRevoker,
 	codeGenerator recoveryCodesGenerator,
 	totpValidator totpValidator,
 	notifierAPI mrnotifier.NoteProducer,
@@ -71,6 +73,7 @@ func NewApplyTOTPGenerator(
 		txManager:        txManager,
 		storage:          storage,
 		storageOperation: storageOperation,
+		revoker:          revoker,
 		codeGenerator:    codeGenerator,
 		totpValidator:    totpValidator,
 		notifierAPI:      notifierAPI,
@@ -81,8 +84,8 @@ func NewApplyTOTPGenerator(
 }
 
 // Execute - проверяет TOTP-код, введённый пользователем, против секрета операции
-// и при успехе в одной транзакции привязывает TOTP-генератор, удаляет операцию,
-// отправляет уведомление и возвращает аварийные коды в открытом виде (показываются один раз).
+// и при успехе в одной транзакции привязывает TOTP-генератор, удаляет операцию, отзывает
+// все незавершённые операции пользователя, отправляет уведомление и возвращает аварийные коды в открытом виде (показываются один раз).
 // Если к моменту применения 2FA уже включена (её успели включить другим способом после
 // создания операции), возвращает mrauth.ErrAuth2FAMustBeDisabledFirst.
 func (uc *ApplyTOTPGenerator) Execute(
@@ -186,6 +189,12 @@ func (uc *ApplyTOTPGenerator) Execute(
 		}
 
 		if err = uc.storageOperation.Delete(ctx, op.Token); err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
+
+		// включение 2FA делает недействительными цепочки подтверждения всех прочих
+		// незавершённых операций пользователя: они построены без второго фактора
+		if err = uc.revoker.RevokeAll(ctx, actor, logreason.Auth2FAStateChanged); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

@@ -6,6 +6,12 @@ type (
 		NewEmail string `json:"new_email" validate:"required,min=7,max=64,tag_email"`
 	}
 
+	// ApplyEmailRequest - запрос на применение подтверждённой операции первого шага смены
+	// емаила (открытие операции подтверждения владения новым адресом).
+	ApplyEmailRequest struct {
+		Token string `json:"token" validate:"required,min=64,max=128"`
+	}
+
 	// ChangePhoneRequest - запрос на установку/изменение телефона пользователя.
 	ChangePhoneRequest struct {
 		NewPhone string `json:"new_phone" validate:"required,min=10,max=32,tag_phone"`

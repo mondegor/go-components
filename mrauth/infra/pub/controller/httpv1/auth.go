@@ -19,6 +19,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
+	"github.com/mondegor/go-components/mrauth/model/pendingoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
 )
@@ -90,7 +91,7 @@ type (
 	}
 
 	closeSessionUseCase interface {
-		Execute(ctx context.Context, refreshToken string) error
+		Execute(ctx context.Context, userID uuid.UUID, refreshToken string) error
 	}
 
 	changeSettingsUseCase interface {
@@ -104,6 +105,7 @@ type (
 	confirmOperationResponse interface {
 		NewConfirmOperation(operation secureoperation.SecureOperation, message string) model.WaitingConfirmOperationResponse
 		NewErrorConfirmOperation(response mrresp.Error400Response, operation secureoperation.SecureOperation) model.ErrorConfirmOperationResponse
+		NewPendingOperation(item pendingoperation.PendingOperation, extraValue, expiresAt string) model.PendingOperation
 	}
 )
 
@@ -404,7 +406,7 @@ func (ht *Auth) CloseSession(w http.ResponseWriter, r *http.Request) error {
 		refreshToken = req.RefreshToken
 	}
 
-	if err := ht.useCaseCloseSession.Execute(r.Context(), refreshToken); err != nil {
+	if err := ht.useCaseCloseSession.Execute(r.Context(), ht.parser.UserID(r), refreshToken); err != nil {
 		return err
 	}
 
@@ -416,7 +418,8 @@ func (ht *Auth) CloseSession(w http.ResponseWriter, r *http.Request) error {
 	return ht.sender.SendNoContent(w)
 }
 
-// UserInfo - возвращает информацию о текущем пользователе.
+// UserInfo - возвращает информацию о текущем пользователе вместе с его действующими
+// операциями личного кабинета.
 func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 	info, err := ht.serviceUserInfo.Get(r.Context(), ht.parser.UserID(r))
 	if err != nil {
@@ -448,14 +451,34 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 		realms = append(realms, item)
 	}
 
+	var pendingOperations []model.PendingOperation
+
+	// срез создаётся если только он реально нужен
+	if len(info.PendingOperations) > 0 {
+		pendingOperations = make([]model.PendingOperation, 0, len(info.PendingOperations))
+
+		for _, item := range info.PendingOperations {
+			extraValue := item.NewEmail
+			if item.NewPhone > 0 {
+				extraValue = casttype.UintToPhone(item.NewPhone)
+			}
+
+			pendingOperations = append(
+				pendingOperations,
+				ht.operationResponse.NewPendingOperation(item, extraValue, formatTimeIn(item.ExpiresAt, loc)),
+			)
+		}
+	}
+
 	response := model.UserInfoResponse{
-		Email:       info.User.Email,
-		Phone:       casttype.UintToPhone(info.User.Phone),
-		LangCode:    info.User.LangCode,
-		TimeZone:    info.User.TimeZone,
-		Auth2FAType: info.Auth2FA.Type,
-		Realms:      realms,
-		Status:      info.User.Status,
+		Email:             info.User.Email,
+		Phone:             casttype.UintToPhone(info.User.Phone),
+		LangCode:          info.User.LangCode,
+		TimeZone:          info.User.TimeZone,
+		Auth2FAType:       info.Auth2FA.Type,
+		Realms:            realms,
+		PendingOperations: pendingOperations,
+		Status:            info.User.Status,
 	}
 
 	// кол-во оставшихся аварийных кодов отдаётся только при включённой 2FA

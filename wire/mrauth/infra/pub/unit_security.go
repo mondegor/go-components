@@ -49,6 +49,9 @@ func initSecurityController(
 
 	totpAuthenticator := totp.NewAuthenticator(auth2faConfig.TOTPIssuer, 64)
 
+	// отзыв незавершённых операций пользователя при смене состояния 2FA
+	operationRevoker := secureoperation.NewRevoker(storageSecureOperation, operationLogger)
+
 	confirm2faOpts := []action.Option{
 		action.WithMaxAttempts(int16(auth2faConfig.ConfirmMaxAttempts)),
 		action.WithExpiry(auth2faConfig.ConfirmExpiry),
@@ -64,7 +67,7 @@ func initSecurityController(
 		operationOpener,
 		checkUserService,
 		factoryConfirm2FA,
-		unit.NewChangeEmail(
+		unit.NewChangeEmailRequest(
 			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
 			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
@@ -78,10 +81,25 @@ func initSecurityController(
 		factoryConfirm2FA,
 		// аварийный код предъявляется вместо кода с текущего адреса, поэтому его звено
 		// настраивается наравне со вторым фактором, а не остаётся на умолчаниях
-		unit.NewChangeEmailByRecovery(
+		unit.NewChangeEmailRequestByRecovery(
 			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
 			confirm2faOpts...,
 		),
+	)
+
+	useCaseApplyEmail := security.NewApplyEmail(
+		dbConnManager,
+		storageSecureOperation,
+		checkUserService,
+		unit.NewChangeEmail(
+			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
+			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
+			operationConfig.NewEmailExpiry,
+			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
+		),
+		operationOpener,
+		notifierAPI,
+		operationLogger,
 	)
 
 	useCaseChangePhoneProperty := security.NewChangePhoneProperty(
@@ -96,6 +114,11 @@ func initSecurityController(
 		),
 	)
 
+	passwordService, err := initPasswordService(auth2faConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	useCaseChangePasswordProperty := security.NewChangePasswordProperty(
 		operationOpener,
 		factoryConfirm2FA,
@@ -105,6 +128,7 @@ func initSecurityController(
 			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
 			action.WithExpiry(operationConfig.SessionExpiry),
 		),
+		passwordService,
 	)
 
 	useCaseChangeTOTPProperty := security.NewChangeTOTPGeneratorProperty(
@@ -148,6 +172,7 @@ func initSecurityController(
 			unit.NameConfirmDisable2FA: handler.NewDisable2FA(
 				dbConnManager,
 				storageAuth2fa,
+				operationRevoker,
 				notifierAPI,
 			),
 		},
@@ -167,6 +192,7 @@ func initSecurityController(
 		dbConnManager,
 		storageAuth2fa,
 		storageSecureOperation,
+		operationRevoker,
 		crypt.NewSecretGenerator(int(auth2faConfig.RecoveryCodeLength)),
 		totpAuthenticator,
 		notifierAPI,
@@ -178,6 +204,7 @@ func initSecurityController(
 		dbConnManager,
 		storageAuth2fa,
 		storageSecureOperation,
+		operationRevoker,
 		crypt.NewSecretGenerator(int(auth2faConfig.RecoveryCodeLength)),
 		notifierAPI,
 		operationLogger,
@@ -210,6 +237,7 @@ func initSecurityController(
 		responseFileSender,
 		useCaseChangeEmailProperty,
 		useCaseChangeEmailByRecoveryProperty,
+		useCaseApplyEmail,
 		useCaseChangePhoneProperty,
 		useCaseApplyOperation,
 		useCaseChangePasswordProperty,

@@ -560,6 +560,7 @@ type CloseSessionSuite struct {
 	ctrl   *gomock.Controller
 	ctx    context.Context
 	closer *mock.MocktokenCloser
+	userID uuid.UUID
 	uc     *session.CloseSession
 }
 
@@ -573,6 +574,7 @@ func (s *CloseSessionSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 	s.ctx = context.Background()
 	s.closer = mock.NewMocktokenCloser(s.ctrl)
+	s.userID = uuid.New()
 	s.uc = session.NewCloseSession(s.closer)
 }
 
@@ -581,19 +583,28 @@ func (s *CloseSessionSuite) SetupTest() {
 // заведомо нечего, поэтому запрос вниз не идёт вовсе: отсутствие EXPECT на Close пиннит,
 // что гард в usecase не даёт уйти бессмысленному запросу в БД.
 func (s *CloseSessionSuite) TestEmptyToken() {
-	s.Require().NoError(s.uc.Execute(s.ctx, ""))
+	s.Require().NoError(s.uc.Execute(s.ctx, s.userID, ""))
 }
 
-func (s *CloseSessionSuite) TestSuccess() {
-	s.closer.EXPECT().Close(gomock.Any(), "rt").Return(nil)
+// TestEmptyUserID - метод доступен только авторизованному, поэтому пустой пользователь -
+// нарушение инварианта: без него токен нельзя сверить с владельцем, и запрос вниз не идёт.
+func (s *CloseSessionSuite) TestEmptyUserID() {
+	err := s.uc.Execute(s.ctx, uuid.Nil, "rt")
+	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
+}
 
-	s.Require().NoError(s.uc.Execute(s.ctx, "rt"))
+// TestSuccess - токен отзывается от имени вызывающего: владельца сверяет хранилище,
+// поэтому userID обязан дойти до него без изменений.
+func (s *CloseSessionSuite) TestSuccess() {
+	s.closer.EXPECT().Close(gomock.Any(), s.userID, "rt").Return(nil)
+
+	s.Require().NoError(s.uc.Execute(s.ctx, s.userID, "rt"))
 }
 
 func (s *CloseSessionSuite) TestOtherError() {
-	s.closer.EXPECT().Close(gomock.Any(), "rt").Return(errors.New("db down"))
+	s.closer.EXPECT().Close(gomock.Any(), s.userID, "rt").Return(errors.New("db down"))
 
-	err := s.uc.Execute(s.ctx, "rt")
+	err := s.uc.Execute(s.ctx, s.userID, "rt")
 	s.Require().Error(err)
 	s.NotErrorIs(err, mrauth.ErrTokenNotFoundOrExpired)
 }

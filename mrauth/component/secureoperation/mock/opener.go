@@ -43,18 +43,19 @@ func (m *MockoperationOpenerStorage) EXPECT() *MockoperationOpenerStorageMockRec
 	return m.recorder
 }
 
-// DeleteByUserIDAndName mocks base method.
-func (m *MockoperationOpenerStorage) DeleteByUserIDAndName(ctx context.Context, userID uuid.UUID, name string) error {
+// DeleteByUserIDAndNames mocks base method.
+func (m *MockoperationOpenerStorage) DeleteByUserIDAndNames(ctx context.Context, userID uuid.UUID, names []string) ([]string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteByUserIDAndName", ctx, userID, name)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "DeleteByUserIDAndNames", ctx, userID, names)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// DeleteByUserIDAndName indicates an expected call of DeleteByUserIDAndName.
-func (mr *MockoperationOpenerStorageMockRecorder) DeleteByUserIDAndName(ctx, userID, name any) *gomock.Call {
+// DeleteByUserIDAndNames indicates an expected call of DeleteByUserIDAndNames.
+func (mr *MockoperationOpenerStorageMockRecorder) DeleteByUserIDAndNames(ctx, userID, names any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByUserIDAndName", reflect.TypeOf((*MockoperationOpenerStorage)(nil).DeleteByUserIDAndName), ctx, userID, name)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByUserIDAndNames", reflect.TypeOf((*MockoperationOpenerStorage)(nil).DeleteByUserIDAndNames), ctx, userID, names)
 }
 
 // Insert mocks base method.

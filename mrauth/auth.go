@@ -22,7 +22,7 @@ type (
 
 	// OperationHandler - обработчик прикладной логики, привязанной к защищённой операции.
 	OperationHandler interface {
-		Execute(ctx context.Context, userID uuid.UUID, payload []byte) error
+		Execute(ctx context.Context, actor dto.ActorMeta, payload []byte) error
 	}
 
 	// User2FAConfirmActionCreator - создаёт данные 2FA-подтверждения пользователя по его логину или идентификатору.

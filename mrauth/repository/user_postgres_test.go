@@ -79,6 +79,19 @@ func (ts *UserPostgresTestSuite) seedUser(langCode, timeZone string) uuid.UUID {
 	return userID
 }
 
+// TestUpdateEmailDuplicate - адрес, занятый другим пользователем, не присваивается: уникальность
+// держит индекс, и repo отдаёт ErrInternalStorageDuplicateKeyViolation. На этом сентинеле
+// обработчик смены емаила строит ответ EmailAlreadyExists, поэтому контракт пиннится здесь.
+func (ts *UserPostgresTestSuite) TestUpdateEmailDuplicate() {
+	takenID := ts.seedUser("ru-RU", "Europe/Moscow")
+	userID := ts.seedUser("ru-RU", "Europe/Moscow")
+
+	err := ts.repo.UpdateEmail(ts.ctx, userID, takenID.String()+"@localhost")
+	ts.Require().ErrorIs(err, errors.ErrInternalStorageDuplicateKeyViolation)
+
+	ts.Require().NoError(ts.repo.UpdateEmail(ts.ctx, userID, "free-"+userID.String()+"@localhost"))
+}
+
 // TestUpdateSettings - обновляет язык и часовой пояс одним запросом и сдвигает updated_at.
 func (ts *UserPostgresTestSuite) TestUpdateSettings() {
 	userID := ts.seedUser("ru-RU", "Europe/Moscow")

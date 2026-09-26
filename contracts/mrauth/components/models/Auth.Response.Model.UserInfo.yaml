@@ -49,5 +49,13 @@ properties:
     type: array
     items:
       $ref: "./Auth.Response.Model.UserRealm.yaml"
+  pending_operations:
+    description: |-
+      Действующие операции личного кабинета пользователя, ожидающие его подтверждения либо
+      применения, в порядке их истечения. Отсутствует, если таких операций нет. Операции входа
+      и регистрации сюда не попадают.
+    type: array
+    items:
+      $ref: "./Auth.Response.Model.PendingOperation.yaml"
   status:
     $ref: "../enums/Auth.Enum.UserStatus.yaml"

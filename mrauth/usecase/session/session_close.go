@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 )
 
@@ -14,7 +15,7 @@ type (
 	}
 
 	tokenCloser interface {
-		Close(ctx context.Context, refreshToken string) error
+		Close(ctx context.Context, userID uuid.UUID, refreshToken string) error
 	}
 )
 
@@ -28,14 +29,19 @@ func NewCloseSession(
 	}
 }
 
-// Execute - отзывает все действующие токены сессии по её refresh токену
-// (идемпотентно: пустой и неизвестный токен, как и уже закрытая сессия - это успех, а не ошибка).
-func (uc *CloseSession) Execute(ctx context.Context, refreshToken string) error {
+// Execute - отзывает все действующие токены сессии пользователя по её refresh токену
+// (идемпотентно: пустой, неизвестный и чужой токен, как и уже закрытая сессия - это успех,
+// а не ошибка; чужая сессия при этом не закрывается).
+func (uc *CloseSession) Execute(ctx context.Context, userID uuid.UUID, refreshToken string) error {
+	if userID == uuid.Nil {
+		return errors.ErrInternalIncorrectInputData.WithDetails("userID is empty")
+	}
+
 	if refreshToken == "" {
 		return nil
 	}
 
-	if err := uc.tokenCloser.Close(ctx, refreshToken); err != nil {
+	if err := uc.tokenCloser.Close(ctx, userID, refreshToken); err != nil {
 		return uc.errorWrapper.Wrap(err)
 	}
 

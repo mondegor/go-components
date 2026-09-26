@@ -12,8 +12,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/mock"
 )
 
-//go:generate mockgen -destination=mock/mrserver.go -package=mock github.com/mondegor/go-webcore/mrserver ResponseSender
-
 type CheckSuite struct {
 	suite.Suite
 

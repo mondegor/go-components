@@ -181,6 +181,7 @@ func initUnitAuthController(
 		storageAuth2fa,
 		storageUserActivityStat,
 		storageUserRealm,
+		storageSecureOperation,
 		locationResolver,
 	)
 

@@ -1,0 +1,10 @@
+description: |-
+  Текущий статус защищённой операции:
+  - OPENED - открыта, ожидает подтверждения (`PATCH /v1/operation/confirm`);
+  - CONFIRMED - подтверждена, ожидает применения завершающим методом операции
+    (`POST /v1/security/apply-*`);
+type: string
+enum:
+  - OPENED
+  - CONFIRMED
+example: "OPENED"

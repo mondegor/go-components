@@ -12,6 +12,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/service/auth2fa/mock"
 )
 
+//go:generate mockgen -destination=mock/mrnotifier.go -package=mock github.com/mondegor/go-components/mrnotifier NoteProducer
+
 type RecoveryAlerterSuite struct {
 	suite.Suite
 

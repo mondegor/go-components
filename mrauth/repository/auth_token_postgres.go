@@ -488,11 +488,11 @@ func (re *AuthTokenPostgres) fetchActiveToken(
 	return row, nil
 }
 
-// RevokeSessionByRefreshToken - отзывает все действующие токены сессии,
+// RevokeSessionByRefreshToken - отзывает все действующие токены сессии указанного пользователя,
 // которой принадлежит указанный refresh токен (logout).
-// Если отзывать нечего (токен не найден либо сессия уже отозвана),
-// возвращает errors.ErrEventStorageRecordsNotAffected.
-func (re *AuthTokenPostgres) RevokeSessionByRefreshToken(ctx context.Context, refreshToken string) error {
+// Если отзывать нечего (токен не найден, принадлежит другому пользователю либо сессия уже
+// отозвана), возвращает errors.ErrEventStorageRecordsNotAffected.
+func (re *AuthTokenPostgres) RevokeSessionByRefreshToken(ctx context.Context, userID uuid.UUID, refreshToken string) error {
 	sql := `
         UPDATE
             ` + re.tableName + ` t
@@ -503,7 +503,7 @@ func (re *AuthTokenPostgres) RevokeSessionByRefreshToken(ctx context.Context, re
 			(
 				SELECT user_id, session_id
 				FROM ` + re.tableName + `
-				WHERE auth_token = $1 AND token_type = $2
+				WHERE auth_token = $1 AND token_type = $2 AND user_id = $5
 				LIMIT 1
 			) s
         WHERE
@@ -516,6 +516,7 @@ func (re *AuthTokenPostgres) RevokeSessionByRefreshToken(ctx context.Context, re
 		authtokentype.Refresh,
 		authtokenstatus.Enabled,
 		authtokenstatus.Revoked,
+		userID,
 	)
 	if err != nil {
 		return re.errorWrapper.Wrap(err)

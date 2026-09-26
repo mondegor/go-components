@@ -22,6 +22,10 @@ import (
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
 
+//go:generate mockgen -source=change_phone.go -destination=mock/change_phone.go -package=mock
+//go:generate mockgen -source=change_totp.go -destination=mock/change_totp.go -package=mock
+//go:generate mockgen -source=change_password.go -destination=mock/change_password.go -package=mock
+
 // openedEmailOp - sendable-операция Email, при Notify отправляющая код через notifier.
 func openedEmailOp(t *testing.T) secureoperation.SecureOperation {
 	t.Helper()
@@ -61,6 +65,11 @@ func userWith2FA(method confirmmethod.Enum) dto.User2FA {
 		Action2FA: dto.ConfirmAction2FA{Method: method},
 	}
 }
+
+const (
+	// strongPassword - пароль максимальной надёжности: проходит порог по умолчанию.
+	strongPassword = "L$QI.qA6eu7zG%7w"
+)
 
 type ChangeSecuritySuite struct {
 	baseSuite
@@ -150,7 +159,15 @@ func (s *ChangeSecuritySuite) newChangeEmailByRecovery() *security.ChangeEmailBy
 }
 
 func (s *ChangeSecuritySuite) newChangePassword() *security.ChangePasswordProperty {
-	return security.NewChangePasswordProperty(s.opener, s.factory2FA, s.secretFactory)
+	return security.NewChangePasswordProperty(s.opener, s.factory2FA, s.secretFactory, s.passwordPolicy(true))
+}
+
+// passwordPolicy - порог надёжности пароля, который пропускает либо отклоняет любой пароль.
+func (s *ChangeSecuritySuite) passwordPolicy(acceptable bool) *mock.MockpasswordPolicy {
+	policy := mock.NewMockpasswordPolicy(s.ctrl)
+	policy.EXPECT().IsAcceptable(gomock.Any()).Return(acceptable).AnyTimes()
+
+	return policy
 }
 
 func (s *ChangeSecuritySuite) newChangePhone() *security.ChangePhoneProperty {
@@ -184,11 +201,11 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertySuccess() {
 	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
 	s.Require().NoError(err)
 	s.True(s.opened)
-	s.Equal("confirm.change.email", s.openedNote)
+	s.Equal("confirm.change.email.request", s.openedNote)
 }
 
 // TestChangeEmailByRecoveryPropertySuccess - смена адреса при утрате доступа к нему идёт
-// отдельным юзкейсом со своей фабрикой (unit.ChangeEmailByRecovery), но тем же конвейером: проверка
+// отдельным юзкейсом со своей фабрикой (unit.ChangeEmailRequestByRecovery), но тем же конвейером: проверка
 // доступности нового адреса и открытие операции обязаны остаться. Шаблон уведомления при этом
 // не передаётся вовсе: первое звено цепочки не sendable, кода к отправке не возникает.
 func (s *ChangeSecuritySuite) TestChangeEmailByRecoveryPropertySuccess() {
@@ -249,7 +266,7 @@ func (s *ChangeSecuritySuite) TestChangePasswordPropertyNilUserID() {
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectValueFactory(secureoperation.SecureOperation{}, nil)
 
-	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{}, "new-password")
+	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{}, strongPassword)
 	s.Require().Error(err)
 }
 
@@ -258,7 +275,7 @@ func (s *ChangeSecuritySuite) TestChangePasswordPropertySuccess() {
 	s.expect2FA(userWithEmail(), nil)
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 
-	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
+	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, strongPassword)
 	s.Require().NoError(err)
 	s.True(s.opened)
 	s.Equal("confirm.change.password", s.openedNote)
@@ -269,7 +286,7 @@ func (s *ChangeSecuritySuite) TestChangePasswordPropertyFactoryError() {
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectValueFactory(secureoperation.SecureOperation{}, errors.New("factory failed"))
 
-	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
+	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, strongPassword)
 	s.Require().Error(err)
 }
 
@@ -282,11 +299,25 @@ func (s *ChangeSecuritySuite) TestChangePasswordPropertyRejectedWhen2FAActive() 
 			s.expect2FA(userWith2FA(method), nil)
 			s.expectValueFactory(openedEmailOp(s.T()), nil)
 
-			_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
+			_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, strongPassword)
 			s.Require().ErrorIs(err, mrauth.ErrAuth2FAMustBeDisabledFirst)
 			s.False(s.opened)
 		})
 	}
+}
+
+// TestChangePasswordPropertyTooWeak - пароль, не прошедший порог надёжности, не становится
+// вторым фактором: операция не создаётся, код подтверждения не отправляется.
+func (s *ChangeSecuritySuite) TestChangePasswordPropertyTooWeak() {
+	s.expectOpen(nil)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectValueFactory(openedEmailOp(s.T()), nil)
+
+	uc := security.NewChangePasswordProperty(s.opener, s.factory2FA, s.secretFactory, s.passwordPolicy(false))
+
+	_, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, strongPassword)
+	s.Require().ErrorIs(err, mrauth.ErrPasswordIsTooWeak)
+	s.False(s.opened)
 }
 
 // новое значение свойства провалидировано на границе ввода,
@@ -460,7 +491,7 @@ func (s *ChangeSecuritySuite) TestUserRowIsMissingIsInternal() {
 		{
 			name: "change password",
 			call: func() error {
-				_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "new-password")
+				_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, strongPassword)
 
 				return err
 			},

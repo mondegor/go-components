@@ -19,7 +19,6 @@ import (
 )
 
 //go:generate mockgen -source=confirm_code.go -destination=mock/confirm_code.go -package=mock
-//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenGenerator,CodeGenerator
 
 // ConfirmCodeSuite - общий набор для тестов ConfirmCode; методы объявлены также
 // в confirm_code_sendable_test.go (проверка подтверждения по контактному адресу).

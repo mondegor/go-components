@@ -8,8 +8,9 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 )
 
-// BuildChangeEmailPayload - собирает payload операции смены email пользователя,
-// предварительно проверив его инварианты.
+// BuildChangeEmailPayload - собирает payload операций смены емаила пользователя (он общий
+// у обоих шагов: NameConfirmChangeEmailRequest и NameConfirmChangeEmail), предварительно
+// проверив его инварианты.
 func BuildChangeEmailPayload(in dto.ChangeEmailOperation) ([]byte, error) {
 	if err := validateChangeEmailPayload(in); err != nil {
 		return nil, err

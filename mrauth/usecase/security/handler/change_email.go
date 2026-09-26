@@ -8,12 +8,15 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
+	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
-	// ChangeEmail - обработчик смены email пользователя.
+	// ChangeEmail - обработчик смены email пользователя: применяет операцию второго шага
+	// (unit.NameConfirmChangeEmail), когда владение новым адресом уже подтверждено.
 	ChangeEmail struct {
 		txManager    mrstorage.DBTxManager
 		storage      userEmailChanger
@@ -40,9 +43,12 @@ func NewChangeEmail(
 	}
 }
 
-// Execute - применяет подтверждённую операцию смены email пользователя.
-func (uc *ChangeEmail) Execute(ctx context.Context, userID uuid.UUID, payload []byte) error {
-	if userID == uuid.Nil {
+// Execute - меняет email пользователя на новый и отправляет на прежний адрес уведомление
+// о состоявшейся смене. Если новый адрес успели занять за время жизни операции, возвращает
+// mrauth.ErrEmailAlreadyExists: уникальность адреса держит индекс, поэтому гонка с другим
+// пользователем проявляется нарушением уникальности при обновлении.
+func (uc *ChangeEmail) Execute(ctx context.Context, actor dto.ActorMeta, payload []byte) error {
+	if actor.VisitorID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -52,7 +58,11 @@ func (uc *ChangeEmail) Execute(ctx context.Context, userID uuid.UUID, payload []
 	}
 
 	return uc.txManager.Do(ctx, func(ctx context.Context) error {
-		if err := uc.storage.UpdateEmail(ctx, userID, payloadDTO.NewEmail); err != nil {
+		if err := uc.storage.UpdateEmail(ctx, actor.VisitorID, payloadDTO.NewEmail); err != nil {
+			if errors.Is(err, errors.ErrInternalStorageDuplicateKeyViolation) {
+				return mrauth.ErrEmailAlreadyExists
+			}
+
 			return uc.errorWrapper.Wrap(err)
 		}
 

@@ -48,7 +48,7 @@ func NewChangeEmailProperty(
 	factoryOperationEmail factoryOperationAddress2FA,
 ) *ChangeEmailProperty {
 	return &ChangeEmailProperty{
-		flow:                  newChangeEmailFlow(opener, emailChecker, factoryUser2FAConfirmAction, "confirm.change.email"),
+		flow:                  newChangeEmailFlow(opener, emailChecker, factoryUser2FAConfirmAction, "confirm.change.email.request"),
 		factoryOperationEmail: factoryOperationEmail,
 	}
 }

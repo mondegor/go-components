@@ -13,8 +13,10 @@ type (
 	}
 
 	// CalcPasswordStrengthResponse - информация о надёжности пароля.
+	// Acceptable - проходит ли пароль порог надёжности пароля 2FA.
 	CalcPasswordStrengthResponse struct {
-		Strength string `json:"strength"`
+		Strength   string `json:"strength"`
+		Acceptable bool   `json:"acceptable"`
 	}
 
 	// GeneratedPasswordResponse - сгенерированный пароль.

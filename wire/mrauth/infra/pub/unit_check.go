@@ -18,8 +18,14 @@ func initCheckController(
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 	userRealms []authcfg.UserRealm,
+	auth2faConfig authcfg.Auth2FA,
 	jwtKeys crypt.KeySet, // OPTIONAL
 ) (mrserver.HttpController, error) {
+	passwordService, err := initPasswordService(auth2faConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	userLoginService := check.NewUserLogin(
 		storageCheckUser,
 		storageUserRealm,
@@ -43,9 +49,21 @@ func initCheckController(
 		requestParser,
 		responseSender,
 		userLoginService,
-		check.NewPassword(16), // TODO: в настройки
+		passwordService,
 		jwksJSONBody,
 	)
 
 	return controller, nil
+}
+
+// initPasswordService - создаёт сервис оценки и генерации паролей с порогом надёжности пароля 2FA.
+// Один и тот же порог используют оценка для клиента (Check) и проверка при установке пароля (Security).
+func initPasswordService(auth2faConfig authcfg.Auth2FA) (*check.Password, error) {
+	// порог уже подставлен CorrectValuesAuth2FA, поэтому ошибка здесь - неизвестное имя уровня
+	minStrength, err := authcfg.ParsePasswordStrength(auth2faConfig.PasswordMinStrength)
+	if err != nil {
+		return nil, err
+	}
+
+	return check.NewPassword(16, check.WithMinStrength(minStrength)), nil // TODO: длину в настройки
 }

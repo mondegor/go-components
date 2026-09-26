@@ -20,7 +20,9 @@ properties:
     type: integer
     example: 1800
   refresh_token:
-    description: RefreshToken возвращается в этом поле отсутствии в заголовке куки с типом RTID иначе он возвращается в заголовке Set-Cookie
+    description: |-
+      Refresh токен. Возвращается в этом поле, только если он не передаётся кукой RTID
+      в заголовке Set-Cookie (см. описание метода)
     type: string
     example: "02fb5463db25b91568a1801dc0974b1d50cb1f3bc817f2be3a4b357929cee704"
   message:

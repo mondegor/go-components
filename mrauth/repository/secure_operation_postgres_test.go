@@ -12,6 +12,7 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/tests"
@@ -130,6 +131,50 @@ func (ts *SecureOperationPostgresTestSuite) TestRecoveryChainRoundTrip() {
 	ts.True(reread.Actions()[0].AllowRecovery)
 }
 
+// TestFixedExpiryRoundTrip - фиксированный срок (срок звена больше порога модели),
+// назначенный при создании, переживает запись, чтение,
+// повторную отправку кода и перезапись операции под новым токеном: срок звена живёт
+// в jsonb-колонке confirm_actions, и по нему после чтения решается, продлевать ли срок.
+func (ts *SecureOperationPostgresTestSuite) TestFixedExpiryRoundTrip() {
+	token := "token-" + uuid.NewString()
+
+	op, err := secureoperation.NewOperation(
+		token,
+		"confirm.change.email",
+		uuid.New(),
+		[]secureoperation.ConfirmAction{
+			{
+				Method:      confirmmethod.Email,
+				MaxAttempts: 3,
+				MaxResends:  5,
+				Expiry:      72 * time.Hour,
+				Address:     "new@example.com",
+				ConfirmCode: "hash",
+			},
+		},
+		nil,
+	)
+	ts.Require().NoError(err)
+	ts.Require().NoError(ts.repo.Insert(ts.ctx, op))
+
+	stored, err := ts.repo.FetchOne(ts.ctx, token)
+	ts.Require().NoError(err)
+	ts.Require().Len(stored.Actions(), 1)
+	ts.Equal(72*time.Hour, stored.Actions()[0].Expiry)
+	ts.WithinDuration(op.ExpiresAt, stored.ExpiresAt, time.Second)
+
+	// пауза между отправками к сроку операции отношения не имеет - считаем её истёкшей
+	stored.ResendsAt = time.Now().UTC().Add(-time.Minute)
+
+	newToken := "token-" + uuid.NewString()
+	ts.Require().NoError(stored.ActivateResendCode(newToken))
+	ts.Require().NoError(ts.repo.Replace(ts.ctx, token, stored))
+
+	reread, err := ts.repo.FetchOne(ts.ctx, newToken)
+	ts.Require().NoError(err)
+	ts.WithinDuration(op.ExpiresAt, reread.ExpiresAt, time.Second)
+}
+
 // TestTwoFactorChainRoundTrip - цепочка "второй фактор -> аварийный код" обязана пережить
 // запись, чтение и перезапись операции целиком: оба звена не-sendable, кода подтверждения
 // в них нет, и потерянное при сериализации звено превратило бы двухшаговую операцию
@@ -180,27 +225,132 @@ func (ts *SecureOperationPostgresTestSuite) TestTwoFactorChainRoundTrip() {
 	ts.Equal(int16(2), reread.RemainingAttempts)
 }
 
-func (ts *SecureOperationPostgresTestSuite) TestDeleteByUserIDAndName() {
+// TestDeleteByUserIDAndNames - вытесняет все операции указанных типов пользователя, возвращает
+// их типы (по одному на операцию) и не трогает ни операции других типов, ни операции тех же
+// типов другого пользователя. Когда вытеснять нечего - пустой срез без ошибки.
+func (ts *SecureOperationPostgresTestSuite) TestDeleteByUserIDAndNames() {
 	userID := uuid.New()
 	otherUserID := uuid.New()
+	names := []string{"confirm.change.email.request", "confirm.change.email"}
 
-	// две операции одного типа одного пользователя: обе подлежат вытеснению
-	ts.seedOperation(userID, "confirm.disable.2fa")
-	ts.seedOperation(userID, "confirm.disable.2fa")
+	// операции обоих типов цепочки, одна из них в двух экземплярах: все подлежат вытеснению
+	firstToken := ts.seedOperation(userID, "confirm.change.email.request")
+	secondToken := ts.seedOperation(userID, "confirm.change.email.request")
+	thirdToken := ts.seedOperation(userID, "confirm.change.email")
 
-	// операция другого типа того же пользователя и операция другого пользователя - не трогаются
-	otherNameToken := ts.seedOperation(userID, "confirm.change.email")
-	otherUserToken := ts.seedOperation(otherUserID, "confirm.disable.2fa")
+	otherNameToken := ts.seedOperation(userID, "confirm.disable.2fa")
+	otherUserToken := ts.seedOperation(otherUserID, "confirm.change.email")
 
-	ts.Require().NoError(ts.repo.DeleteByUserIDAndName(ts.ctx, userID, "confirm.disable.2fa"))
+	deleted, err := ts.repo.DeleteByUserIDAndNames(ts.ctx, userID, names)
+	ts.Require().NoError(err)
+	ts.ElementsMatch(
+		[]string{"confirm.change.email.request", "confirm.change.email.request", "confirm.change.email"},
+		deleted,
+	)
 
-	_, err := ts.repo.FetchOne(ts.ctx, otherNameToken)
+	for _, token := range []string{firstToken, secondToken, thirdToken} {
+		_, err = ts.repo.FetchOne(ts.ctx, token)
+		ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
+	}
+
+	_, err = ts.repo.FetchOne(ts.ctx, otherNameToken)
 	ts.Require().NoError(err, "операция другого типа того же пользователя остаётся")
 
 	_, err = ts.repo.FetchOne(ts.ctx, otherUserToken)
 	ts.Require().NoError(err, "операция того же типа другого пользователя остаётся")
 
-	// вытеснять больше нечего: на этом построена ветка "первая операция такого типа"
-	err = ts.repo.DeleteByUserIDAndName(ts.ctx, userID, "confirm.disable.2fa")
-	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageRecordsNotAffected)
+	deleted, err = ts.repo.DeleteByUserIDAndNames(ts.ctx, userID, names)
+	ts.Require().NoError(err)
+	ts.Empty(deleted)
+}
+
+// TestDeleteByUserID - удаляет все операции пользователя любого типа и в любом статусе, включая
+// подтверждённые, ждущие применения (иначе такую операцию можно было бы применить после отзыва),
+// и возвращает их типы (по одному на операцию); операции другого пользователя не трогает.
+// У пользователя без операций - пустой срез без ошибки: отзывать нечего - штатный случай.
+func (ts *SecureOperationPostgresTestSuite) TestDeleteByUserID() {
+	userID := uuid.New()
+	otherUserID := uuid.New()
+
+	loginToken := ts.seedOperation(userID, "confirm.authorize.user")
+	phoneToken := ts.seedOperation(userID, "confirm.change.phone")
+	confirmedToken := ts.seedOperation(userID, "confirm.change.phone")
+
+	// подтверждённая операция: звенья пройдены, ждёт применения
+	confirmed, err := ts.repo.FetchOne(ts.ctx, confirmedToken)
+	ts.Require().NoError(err)
+	isConfirmed, err := confirmed.ConfirmAction(func(secureoperation.ConfirmAction) (bool, error) { return true, nil })
+	ts.Require().NoError(err)
+	ts.Require().True(isConfirmed)
+	ts.Require().NoError(ts.repo.Replace(ts.ctx, confirmedToken, confirmed))
+
+	otherUserToken := ts.seedOperation(otherUserID, "confirm.change.phone")
+
+	names, err := ts.repo.DeleteByUserID(ts.ctx, userID)
+	ts.Require().NoError(err)
+	ts.ElementsMatch([]string{"confirm.authorize.user", "confirm.change.phone", "confirm.change.phone"}, names)
+
+	_, err = ts.repo.FetchOne(ts.ctx, loginToken)
+	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
+
+	_, err = ts.repo.FetchOne(ts.ctx, phoneToken)
+	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
+
+	_, err = ts.repo.FetchOne(ts.ctx, confirmedToken)
+	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
+
+	_, err = ts.repo.FetchOne(ts.ctx, otherUserToken)
+	ts.Require().NoError(err, "операция другого пользователя остаётся")
+
+	names, err = ts.repo.DeleteByUserID(ts.ctx, userID)
+	ts.Require().NoError(err)
+	ts.Empty(names)
+}
+
+// TestFetchByUserID - отдаёт действующие операции пользователя в любом статусе (в т.ч.
+// подтверждённые, ждущие применения), не отдаёт истёкшие и операции другого пользователя;
+// у пользователя без операций - пустой срез без ошибки.
+func (ts *SecureOperationPostgresTestSuite) TestFetchByUserID() {
+	userID := uuid.New()
+
+	openedToken := ts.seedOperation(userID, "confirm.change.phone")
+	confirmedToken := ts.seedOperation(userID, "confirm.change.email")
+	expiredToken := ts.seedOperation(userID, "confirm.disable.2fa")
+	ts.seedOperation(uuid.New(), "confirm.change.phone")
+
+	// подтверждённая операция: звенья пройдены, ждёт применения
+	confirmed, err := ts.repo.FetchOne(ts.ctx, confirmedToken)
+	ts.Require().NoError(err)
+	isConfirmed, err := confirmed.ConfirmAction(func(secureoperation.ConfirmAction) (bool, error) { return true, nil })
+	ts.Require().NoError(err)
+	ts.Require().True(isConfirmed)
+	ts.Require().NoError(ts.repo.Replace(ts.ctx, confirmedToken, confirmed))
+
+	// истёкшая операция
+	ts.Require().NoError(ts.pgt.ConnManager().Conn(ts.ctx).Exec(
+		ts.ctx,
+		`UPDATE `+secureOperationsTableName+` SET expires_at = NOW() - INTERVAL '1 minute' WHERE operation_token = $1;`,
+		expiredToken,
+	))
+
+	rows, err := ts.repo.FetchByUserID(ts.ctx, userID)
+	ts.Require().NoError(err)
+
+	tokens := make(map[string]secureoperation.SecureOperation, len(rows))
+	for _, row := range rows {
+		tokens[row.Token] = row
+	}
+
+	ts.Require().Len(tokens, 2)
+	ts.Require().Contains(tokens, openedToken)
+	ts.Require().Contains(tokens, confirmedToken)
+	opened, confirmedRow := tokens[openedToken], tokens[confirmedToken]
+	ts.True(opened.Is(operationstatus.Opened))
+	ts.Equal(userID, opened.UserID)
+	ts.Require().Len(opened.Actions(), 1)
+	ts.True(confirmedRow.Is(operationstatus.Confirmed))
+
+	rows, err = ts.repo.FetchByUserID(ts.ctx, uuid.New())
+	ts.Require().NoError(err)
+	ts.Empty(rows)
 }

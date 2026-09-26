@@ -9,6 +9,15 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 )
 
+const (
+	// fixedExpiryThreshold - порог срока жизни действия. Короткий срок (не больше порога)
+	// продлевается на каждом шаге - активации, повторной отправке кода, подтверждении, -
+	// чтобы пользователь успел завершить операцию. Срок больше порога выставляется осознанно,
+	// с запасом на завершение операции, поэтому назначается один раз, при её создании,
+	// и дальше не продлевается (подтверждённая операция живёт до того же срока).
+	fixedExpiryThreshold = time.Hour
+)
+
 // ActivateConfirmation - активирует подтверждение операции под указанный токен.
 func (o *SecureOperation) ActivateConfirmation(token string) (err error) {
 	if token == "" {
@@ -33,7 +42,17 @@ func (o *SecureOperation) ActivateConfirmation(token string) (err error) {
 
 	o.Token = token
 	o.RemainingAttempts = action.MaxAttempts
-	o.ExpiresAt = time.Now().UTC().Add(action.Expiry).Round(1 * time.Second)
+	o.renewExpiry(action)
 
 	return nil
+}
+
+// renewExpiry - назначает операции срок действия по указанному действию; фиксированный срок
+// (больше fixedExpiryThreshold) назначается только однажды, пока он ещё не задан.
+func (o *SecureOperation) renewExpiry(action *ConfirmAction) {
+	if action.Expiry > fixedExpiryThreshold && !o.ExpiresAt.IsZero() {
+		return
+	}
+
+	o.ExpiresAt = time.Now().UTC().Add(action.Expiry).Round(1 * time.Second)
 }

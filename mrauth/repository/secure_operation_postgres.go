@@ -7,8 +7,24 @@ import (
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrstorage"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+)
+
+const (
+	// secureOperationColumns - колонки выборки операции в порядке разбора scanSecureOperation.
+	secureOperationColumns = `
+			operation_token,
+			operation_name,
+			user_id,
+			confirm_actions,
+			remaining_attempts,
+			remaining_resends,
+			resends_at,
+			operation_payload,
+			operation_status,
+			expires_at`
 )
 
 type (
@@ -46,15 +62,7 @@ func (re *SecureOperationPostgres) FetchOneForUpdate(ctx context.Context, token 
 func (re *SecureOperationPostgres) fetchOne(ctx context.Context, token string, forUpdate bool) (row secureoperation.SecureOperation, err error) {
 	sql := `
 		SELECT
-			operation_name,
-			user_id,
-			confirm_actions,
-			remaining_attempts,
-			remaining_resends,
-			resends_at,
-			operation_payload,
-			operation_status,
-			expires_at
+			` + secureOperationColumns + `
 		FROM
 			` + re.tableName + `
 		WHERE
@@ -67,46 +75,95 @@ func (re *SecureOperationPostgres) fetchOne(ctx context.Context, token string, f
 
 	sql += `;`
 
+	row, err = scanSecureOperation(re.client.Conn(ctx).QueryRow(ctx, sql, token))
+	if err != nil {
+		return secureoperation.SecureOperation{}, re.errorWrapper.Wrap(err)
+	}
+
+	return row, nil
+}
+
+// FetchByUserID - возвращает действующие (не истёкшие) операции указанного пользователя в любом
+// статусе, упорядоченные по сроку действия. Если операций нет, возвращает пустой срез.
+func (re *SecureOperationPostgres) FetchByUserID(ctx context.Context, userID uuid.UUID) (rows []secureoperation.SecureOperation, err error) {
+	sql := `
+		SELECT
+			` + secureOperationColumns + `
+		FROM
+			` + re.tableName + `
+		WHERE
+			user_id = $1 AND expires_at > NOW()
+		ORDER BY
+			expires_at, operation_token;`
+
+	cursor, err := re.client.Conn(ctx).Query(ctx, sql, userID)
+	if err != nil {
+		return nil, re.errorWrapper.Wrap(err)
+	}
+
+	defer cursor.Close()
+
+	rows = make([]secureoperation.SecureOperation, 0)
+
+	for cursor.Next() {
+		row, err := scanSecureOperation(cursor)
+		if err != nil {
+			// операция истекла между отбором и разбором строки - её уже нет среди действующих
+			if errors.Is(err, mrauth.ErrOperationAlreadyExpired) {
+				continue
+			}
+
+			return nil, re.errorWrapper.Wrap(err)
+		}
+
+		rows = append(rows, row)
+	}
+
+	if err = cursor.Err(); err != nil {
+		return nil, re.errorWrapper.Wrap(err)
+	}
+
+	return rows, nil
+}
+
+// scanSecureOperation - разбирает строку выборки с колонками secureOperationColumns
+// и восстанавливает по ней операцию (secureoperation.WakeUp проверяет инварианты и срок).
+func scanSecureOperation(row interface{ Scan(dest ...any) error }) (op secureoperation.SecureOperation, err error) {
 	var (
 		userID  *uuid.UUID
 		actions []secureoperation.ConfirmAction
 	)
 
-	row.Token = token
-
-	err = re.client.Conn(ctx).QueryRow(
-		ctx,
-		sql,
-		token,
-	).Scan(
-		&row.Name,
+	err = row.Scan(
+		&op.Token,
+		&op.Name,
 		&userID,
 		&actions,
-		&row.RemainingAttempts,
-		&row.RemainingResends,
-		&row.ResendsAt,
-		&row.Payload,
-		&row.Status,
-		&row.ExpiresAt,
+		&op.RemainingAttempts,
+		&op.RemainingResends,
+		&op.ResendsAt,
+		&op.Payload,
+		&op.Status,
+		&op.ExpiresAt,
 	)
 	if err != nil {
-		return secureoperation.SecureOperation{}, re.errorWrapper.Wrap(err)
+		return secureoperation.SecureOperation{}, err
 	}
 
 	// from nullable user_id field
 	if userID != nil {
-		row.UserID = *userID
+		op.UserID = *userID
 	}
 
 	// системное время: домен всегда оперирует UTC независимо от зоны сессии БД
-	row.ResendsAt = row.ResendsAt.UTC()
-	row.ExpiresAt = row.ExpiresAt.UTC()
+	op.ResendsAt = op.ResendsAt.UTC()
+	op.ExpiresAt = op.ExpiresAt.UTC()
 
-	if err = secureoperation.WakeUp(&row, actions); err != nil {
-		return secureoperation.SecureOperation{}, re.errorWrapper.Wrap(err)
+	if err = secureoperation.WakeUp(&op, actions); err != nil {
+		return secureoperation.SecureOperation{}, err
 	}
 
-	return row, nil
+	return op, nil
 }
 
 // Insert - добавляет новую защищённую операцию.
@@ -219,21 +276,85 @@ func (re *SecureOperationPostgres) UpdateFailedAttempt(ctx context.Context, toke
 	return attempts, nil
 }
 
-// DeleteByUserIDAndName - удаляет незавершённые операции указанного типа указанного
-// пользователя (вытеснение при открытии новой операции). Если вытеснять было нечего,
-// возвращает errors.ErrEventStorageRecordsNotAffected.
-func (re *SecureOperationPostgres) DeleteByUserIDAndName(ctx context.Context, userID uuid.UUID, name string) error {
+// DeleteByUserID - удаляет все операции указанного пользователя в любом статусе и возвращает
+// их типы (по одному на удалённую операцию, возможны повторы). Если удалять было нечего,
+// возвращает пустой срез без ошибки.
+func (re *SecureOperationPostgres) DeleteByUserID(ctx context.Context, userID uuid.UUID) (names []string, err error) {
 	sql := `
         DELETE FROM
             ` + re.tableName + `
         WHERE
-            user_id = $1 AND operation_name = $2;`
+            user_id = $1
+        RETURNING
+            operation_name;`
 
-	if err := re.client.Conn(ctx).Exec(ctx, sql, userID, name); err != nil {
-		return re.errorWrapper.Wrap(err)
+	cursor, err := re.client.Conn(ctx).Query(ctx, sql, userID)
+	if err != nil {
+		return nil, re.errorWrapper.Wrap(err)
 	}
 
-	return nil
+	defer cursor.Close()
+
+	names = make([]string, 0)
+
+	for cursor.Next() {
+		var name string
+
+		if err = cursor.Scan(&name); err != nil {
+			return nil, re.errorWrapper.Wrap(err)
+		}
+
+		names = append(names, name)
+	}
+
+	if err = cursor.Err(); err != nil {
+		return nil, re.errorWrapper.Wrap(err)
+	}
+
+	return names, nil
+}
+
+// DeleteByUserIDAndNames - удаляет операции указанных типов указанного пользователя в любом
+// статусе (вытеснение прежних операций при открытии новой) и возвращает их типы (по одному
+// на удалённую операцию, возможны повторы). Если удалять было нечего, возвращает пустой срез
+// без ошибки.
+func (re *SecureOperationPostgres) DeleteByUserIDAndNames(
+	ctx context.Context,
+	userID uuid.UUID,
+	names []string,
+) (deletedNames []string, err error) {
+	sql := `
+        DELETE FROM
+            ` + re.tableName + `
+        WHERE
+            user_id = $1 AND operation_name = ANY($2)
+        RETURNING
+            operation_name;`
+
+	cursor, err := re.client.Conn(ctx).Query(ctx, sql, userID, names)
+	if err != nil {
+		return nil, re.errorWrapper.Wrap(err)
+	}
+
+	defer cursor.Close()
+
+	deletedNames = make([]string, 0)
+
+	for cursor.Next() {
+		var name string
+
+		if err = cursor.Scan(&name); err != nil {
+			return nil, re.errorWrapper.Wrap(err)
+		}
+
+		deletedNames = append(deletedNames, name)
+	}
+
+	if err = cursor.Err(); err != nil {
+		return nil, re.errorWrapper.Wrap(err)
+	}
+
+	return deletedNames, nil
 }
 
 // Delete - удаляет защищённую операцию по её токену. Если операции уже нет

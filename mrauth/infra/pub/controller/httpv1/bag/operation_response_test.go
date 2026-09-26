@@ -12,7 +12,10 @@ import (
 
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
+	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
+	"github.com/mondegor/go-components/mrauth/model/pendingoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -153,6 +156,82 @@ func TestOperationResponse_ResendsJSON(t *testing.T) {
 }
 
 // wokenOp - восстанавливает операцию с явно заданными счётчиками повторных отправок.
+// TestOperationResponse_NewPendingOperation - у неподтверждённой операции отдаются поля текущего
+// звена (у звена без повторной отправки - без её счётчиков), у подтверждённой - только общие
+// поля. Значение и срок операции передаются уже подготовленными к показу.
+func TestOperationResponse_NewPendingOperation(t *testing.T) {
+	t.Parallel()
+
+	response := bag.NewOperationResponse(nil)
+
+	t.Run("opened, email action", func(t *testing.T) {
+		t.Parallel()
+
+		resendsAt := time.Now().UTC().Add(-time.Minute)
+		item := pendingoperation.PendingOperation{
+			Token:  "token",
+			Type:   operationtype.ChangeEmailConfirm,
+			Status: operationstatus.Opened,
+			CurrentAction: &pendingoperation.PendingAction{
+				Method:            confirmmethod.Email,
+				RemainingAttempts: 3,
+				RemainingResends:  ptr(int16(2)),
+				ResendsAt:         &resendsAt,
+			},
+		}
+
+		got := response.NewPendingOperation(item, "new@example.com", "2026-09-28T15:00:00+03:00")
+		assert.Equal(t, model.PendingOperation{
+			Token:             "token",
+			Type:              operationtype.ChangeEmailConfirm,
+			ExtraValue:        "new@example.com",
+			ExpiresAt:         "2026-09-28T15:00:00+03:00",
+			Status:            operationstatus.Opened,
+			ConfirmMethod:     confirmmethod.Email,
+			RemainingAttempts: ptr(int16(3)),
+			RemainingResends:  ptr(int16(2)),
+			ResendsIn:         ptr(int64(0)),
+		}, got)
+	})
+
+	t.Run("opened, totp action", func(t *testing.T) {
+		t.Parallel()
+
+		item := pendingoperation.PendingOperation{
+			Type:          operationtype.Disable2FA,
+			Status:        operationstatus.Opened,
+			CurrentAction: &pendingoperation.PendingAction{Method: confirmmethod.TOTP, RemainingAttempts: 3},
+		}
+
+		got := response.NewPendingOperation(item, "", "x")
+		assert.Equal(t, confirmmethod.TOTP, got.ConfirmMethod)
+		assert.Equal(t, ptr(int16(3)), got.RemainingAttempts)
+		assert.Nil(t, got.RemainingResends)
+		assert.Nil(t, got.ResendsIn)
+	})
+
+	t.Run("confirmed", func(t *testing.T) {
+		t.Parallel()
+
+		item := pendingoperation.PendingOperation{Token: "token", Type: operationtype.ChangePhone, Status: operationstatus.Confirmed}
+
+		got := response.NewPendingOperation(item, "+79991234567", "x")
+		assert.Equal(t, model.PendingOperation{
+			Token:      "token",
+			Type:       operationtype.ChangePhone,
+			ExtraValue: "+79991234567",
+			ExpiresAt:  "x",
+			Status:     operationstatus.Confirmed,
+		}, got)
+
+		// поля звена отсутствуют в JSON, а не отдаются нулями
+		data, err := json.Marshal(got)
+		require.NoError(t, err)
+		assert.NotContains(t, string(data), "confirm_method")
+		assert.NotContains(t, string(data), "remaining_attempts")
+	})
+}
+
 func wokenOp(t *testing.T, action secureoperation.ConfirmAction, resendsAt time.Time, remainingResends int16) secureoperation.SecureOperation {
 	t.Helper()
 
