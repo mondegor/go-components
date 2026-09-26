@@ -23,7 +23,7 @@ import (
 
 //go:generate mockgen -source=auth_user.go -destination=mock/auth_user.go -package=mock
 //go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
-//go:generate mockgen -destination=mock/mrnotifier.go -package=mock github.com/mondegor/go-components/mrnotifier NoteProducer
+//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth Notifier
 
 type AuthUserSuite struct {
 	suite.Suite
@@ -33,7 +33,7 @@ type AuthUserSuite struct {
 	txManager        *mock.MockDBTxManager
 	storageUser      *mock.MockuserStorage
 	storageUserRealm *mock.MockuserRealmStorage
-	notifierAPI      *mock.MockNoteProducer
+	notifierAPI      *mock.MockNotifier
 	svc              *authuser.Service
 }
 
@@ -49,7 +49,7 @@ func (s *AuthUserSuite) SetupTest() {
 	s.txManager = mock.NewMockDBTxManager(s.ctrl)
 	s.storageUser = mock.NewMockuserStorage(s.ctrl)
 	s.storageUserRealm = mock.NewMockuserRealmStorage(s.ctrl)
-	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
+	s.notifierAPI = mock.NewMockNotifier(s.ctrl)
 
 	// транзакция выполняет переданное задание как есть
 	s.txManager.EXPECT().

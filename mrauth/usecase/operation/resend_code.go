@@ -12,7 +12,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
@@ -20,7 +19,7 @@ type (
 	ResendCode struct {
 		txManager         mrstorage.DBTxManager
 		storageOperation  operationResender
-		notifierAPI       mrnotifier.NoteProducer
+		notifierAPI       mrauth.Notifier
 		operationPreparer resendOperationPreparer
 		logOperation      operationLogger
 		errorWrapper      errors.Wrapper
@@ -40,7 +39,7 @@ type (
 func NewResendCode(
 	txManager mrstorage.DBTxManager,
 	storageOperation operationResender,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 	operationPreparer resendOperationPreparer,
 	logOperation operationLogger,
 ) *ResendCode {

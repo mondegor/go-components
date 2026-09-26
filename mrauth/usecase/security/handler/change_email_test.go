@@ -26,7 +26,7 @@ type ChangeEmailSuite struct {
 	ctx         context.Context
 	txManager   *mock.MockDBTxManager
 	storage     *mock.MockuserEmailChanger
-	notifierAPI *mock.MockNoteProducer
+	notifierAPI *mock.MockNotifier
 	uc          *handler.ChangeEmail
 }
 
@@ -41,7 +41,7 @@ func (s *ChangeEmailSuite) SetupTest() {
 	s.ctx = context.Background()
 	s.txManager = mock.NewMockDBTxManager(s.ctrl)
 	s.storage = mock.NewMockuserEmailChanger(s.ctrl)
-	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
+	s.notifierAPI = mock.NewMockNotifier(s.ctrl)
 
 	// транзакция выполняет переданное задание как есть
 	s.txManager.EXPECT().

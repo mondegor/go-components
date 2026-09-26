@@ -17,7 +17,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 const (
@@ -36,7 +35,7 @@ type (
 		revoker          operationRevoker
 		codeGenerator    recoveryCodesGenerator
 		totpValidator    totpValidator
-		notifierAPI      mrnotifier.NoteProducer
+		notifierAPI      mrauth.Notifier
 		logOperation     operationLogger
 		errorWrapper     errors.Wrapper
 		recoveryCount    int
@@ -63,7 +62,7 @@ func NewApplyTOTPGenerator(
 	revoker operationRevoker,
 	codeGenerator recoveryCodesGenerator,
 	totpValidator totpValidator,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 	logOperation operationLogger,
 	recoveryCount int,
 ) *ApplyTOTPGenerator {

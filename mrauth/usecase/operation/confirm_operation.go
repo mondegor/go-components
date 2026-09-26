@@ -15,7 +15,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
@@ -24,7 +23,7 @@ type (
 	ConfirmOperation struct {
 		txManager         mrstorage.DBTxManager
 		storageOperation  operationConfirmer
-		notifierAPI       mrnotifier.NoteProducer
+		notifierAPI       mrauth.Notifier
 		operationPreparer confirmOperationPreparer
 		logOperation      operationLogger
 		errorWrapper      errors.Wrapper
@@ -54,7 +53,7 @@ type (
 func NewConfirmOperation(
 	txManager mrstorage.DBTxManager,
 	storageOperation operationConfirmer,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 	operationPreparer confirmOperationPreparer,
 	logOperation operationLogger,
 ) *ConfirmOperation {

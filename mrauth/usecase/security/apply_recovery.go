@@ -15,7 +15,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
@@ -26,7 +25,7 @@ type (
 		storage          recoveryCodesUpdater
 		storageOperation operationDeleter
 		codeGenerator    recoveryCodesGenerator
-		notifierAPI      mrnotifier.NoteProducer
+		notifierAPI      mrauth.Notifier
 		logOperation     operationLogger
 		errorWrapper     errors.Wrapper
 		recoveryCount    int
@@ -43,7 +42,7 @@ func NewApplyRecovery(
 	storage recoveryCodesUpdater,
 	storageOperation operationDeleter,
 	codeGenerator recoveryCodesGenerator,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 	logOperation operationLogger,
 	recoveryCount int,
 ) *ApplyRecovery {

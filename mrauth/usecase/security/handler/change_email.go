@@ -11,7 +11,6 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
@@ -20,7 +19,7 @@ type (
 	ChangeEmail struct {
 		txManager    mrstorage.DBTxManager
 		storage      userEmailChanger
-		notifierAPI  mrnotifier.NoteProducer
+		notifierAPI  mrauth.Notifier
 		errorWrapper errors.Wrapper
 	}
 
@@ -33,7 +32,7 @@ type (
 func NewChangeEmail(
 	txManager mrstorage.DBTxManager,
 	storage userEmailChanger,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 ) *ChangeEmail {
 	return &ChangeEmail{
 		txManager:    txManager,

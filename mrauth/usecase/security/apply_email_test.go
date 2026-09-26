@@ -52,7 +52,7 @@ type (
 		checker   *mock.MockuserEmailChecker
 		factory   *mock.MockchangeEmailCreator
 		opener    *mock.MockoperationOpener
-		notes     *mock.MockNoteProducer
+		notes     *mock.MockNotifier
 		userID    uuid.UUID
 		confirmOp secureoperation.SecureOperation
 		deleted   string
@@ -75,7 +75,7 @@ func (s *ApplyEmailSuite) SetupTest() {
 	s.checker = mock.NewMockuserEmailChecker(s.ctrl)
 	s.factory = mock.NewMockchangeEmailCreator(s.ctrl)
 	s.opener = mock.NewMockoperationOpener(s.ctrl)
-	s.notes = mock.NewMockNoteProducer(s.ctrl)
+	s.notes = mock.NewMockNotifier(s.ctrl)
 	s.userID = uuid.New()
 	s.confirmOp = secureoperation.SecureOperation{
 		Token:     "new-op-token",

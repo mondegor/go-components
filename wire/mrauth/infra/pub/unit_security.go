@@ -19,7 +19,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/handler"
 	"github.com/mondegor/go-components/mrauth/validate"
-	"github.com/mondegor/go-components/mrnotifier"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 	"github.com/mondegor/go-components/wire/mrauth/mapping"
 )
@@ -35,7 +34,7 @@ func initSecurityController(
 	operationLogger *produce.SecureOperationLogger,
 	requestParser *validate.Parser,
 	responseFileSender mrserver.FileResponseSender,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 	userRealms []authcfg.UserRealm,
 	operationConfig authcfg.OperationConfirm,
 	auth2faConfig authcfg.Auth2FA,

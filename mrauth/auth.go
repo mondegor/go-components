@@ -56,6 +56,12 @@ type (
 		CreateTokenPair(userScopes dto.UserScopes) (token dto.AuthTokenPair, err error)
 	}
 
+	// Notifier - ставит уведомление по ключу события в отправку; получатель передаётся
+	// в props["to"] адресом (ID пользователя заменяется на email декоратором notify.UserEmailNotifier).
+	Notifier interface {
+		Send(ctx context.Context, key string, props map[string]any) error
+	}
+
 	// SessionUseCase - управление открытыми сессиями текущего пользователя.
 	SessionUseCase interface {
 		GetList(ctx context.Context, userID uuid.UUID, currentAccessToken, realm string) ([]dto.UserSession, error)

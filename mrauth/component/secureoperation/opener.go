@@ -9,6 +9,7 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
@@ -16,7 +17,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
@@ -26,7 +26,7 @@ type (
 	Opener struct {
 		txManager    mrstorage.DBTxManager
 		storage      operationOpenerStorage
-		notifierAPI  mrnotifier.NoteProducer
+		notifierAPI  mrauth.Notifier
 		logOperation operationLogger
 		errorWrapper errors.Wrapper
 	}
@@ -46,7 +46,7 @@ type (
 func NewOpener(
 	txManager mrstorage.DBTxManager,
 	storage operationOpenerStorage,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 	logOperation operationLogger,
 ) *Opener {
 	return &Opener{
