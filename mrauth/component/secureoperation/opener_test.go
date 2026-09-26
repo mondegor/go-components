@@ -25,7 +25,6 @@ import (
 )
 
 //go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
-//go:generate mockgen -destination=mock/mrnotifier.go -package=mock github.com/mondegor/go-components/mrnotifier NoteProducer
 
 type OpenerSuite struct {
 	suite.Suite
@@ -34,7 +33,7 @@ type OpenerSuite struct {
 	ctx          context.Context
 	txManager    *mock.MockDBTxManager
 	storage      *mock.MockoperationOpenerStorage
-	notifierAPI  *mock.MockNoteProducer
+	notifierAPI  *mock.MockNotifier
 	logOperation *mock.MockoperationLogger
 	logEntries   []entity.SecureOperationLog
 	svc          *secureoperation.Opener
@@ -51,7 +50,7 @@ func (s *OpenerSuite) SetupTest() {
 	s.ctx = context.Background()
 	s.txManager = mock.NewMockDBTxManager(s.ctrl)
 	s.storage = mock.NewMockoperationOpenerStorage(s.ctrl)
-	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
+	s.notifierAPI = mock.NewMockNotifier(s.ctrl)
 	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
 	s.logEntries = nil
 

@@ -18,7 +18,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
@@ -32,7 +31,7 @@ type (
 		emailChecker     userEmailChecker
 		factoryConfirm   changeEmailCreator
 		opener           operationOpener
-		notifierAPI      mrnotifier.NoteProducer
+		notifierAPI      mrauth.Notifier
 		logOperation     operationLogger
 		errorWrapper     errors.Wrapper
 	}
@@ -50,7 +49,7 @@ func NewApplyEmail(
 	emailChecker userEmailChecker,
 	factoryConfirm changeEmailCreator,
 	opener operationOpener,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 	logOperation operationLogger,
 ) *ApplyEmail {
 	return &ApplyEmail{

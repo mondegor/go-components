@@ -11,12 +11,11 @@ import (
 	"github.com/mondegor/go-webcore/mrcore/initing"
 	"github.com/mondegor/go-webcore/mrserver"
 
-	module "github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/component/produce"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/validate"
-	"github.com/mondegor/go-components/mrnotifier"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 )
 
@@ -37,7 +36,7 @@ func InitHttpModule(
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 	responseFileSender mrserver.FileResponseSender,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 	secureOperationLogProducer SecureOperationLogProducer,
 	userRealms []authcfg.UserRealm,
 	operationConfig authcfg.OperationConfirm,
@@ -46,8 +45,8 @@ func InitHttpModule(
 	cookieConfig authcfg.RefreshCookie,
 	sessionSoftThreshold, sessionHardThreshold int8,
 	sessionLimitRetryAfter time.Duration,
-	appResolver module.AppResolver, // OPTIONAL
-	locationResolver module.LocationResolver, // OPTIONAL
+	appResolver mrauth.AppResolver, // OPTIONAL
+	locationResolver mrauth.LocationResolver, // OPTIONAL
 	authTokensTableName,
 	secureOperationTableName,
 	// secureOperationLogTableName,
@@ -88,6 +87,7 @@ func InitHttpModule(
 		dbConnManager,
 		storageSecureOperation,
 		storageAuth2fa,
+		storageUser,
 		notifierAPI,
 		operationLogger,
 		operationConfig,
@@ -95,8 +95,8 @@ func InitHttpModule(
 	)
 
 	return initing.HttpModule{
-		Caption:    module.Name,
-		Permission: module.Permission,
+		Caption:    mrauth.Name,
+		Permission: mrauth.Permission,
 		Controllers: []initing.HttpController{
 			{
 				Create: func() (mrserver.HttpController, error) {

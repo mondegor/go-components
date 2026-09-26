@@ -37,7 +37,7 @@ type baseSuite struct {
 	ctrl         *gomock.Controller
 	ctx          context.Context
 	txManager    *mock.MockDBTxManager
-	notifierAPI  *mock.MockNoteProducer
+	notifierAPI  *mock.MockNotifier
 	logOperation *mock.MockoperationLogger
 	logEntries   []entity.SecureOperationLog
 	notified     bool
@@ -47,7 +47,7 @@ func (s *baseSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 	s.ctx = context.Background()
 	s.txManager = mock.NewMockDBTxManager(s.ctrl)
-	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
+	s.notifierAPI = mock.NewMockNotifier(s.ctrl)
 	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
 	s.logEntries = nil
 	s.notified = false

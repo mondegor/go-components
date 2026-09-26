@@ -30,7 +30,7 @@ import (
 //go:generate mockgen -source=revoke_operation.go -destination=mock/revoke_operation.go -package=mock
 //go:generate mockgen -source=operation_statistic.go -destination=mock/operation_statistic.go -package=mock
 //go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
-//go:generate mockgen -destination=mock/mrnotifier.go -package=mock github.com/mondegor/go-components/mrnotifier NoteProducer
+//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth Notifier
 
 // expectPassThroughTx - транзакция выполняет переданное задание как есть.
 func expectPassThroughTx(txManager *mock.MockDBTxManager) {
@@ -90,7 +90,7 @@ type ConfirmOperationSuite struct {
 	ctx          context.Context
 	txManager    *mock.MockDBTxManager
 	storage      *mock.MockoperationConfirmer
-	notifierAPI  *mock.MockNoteProducer
+	notifierAPI  *mock.MockNotifier
 	preparer     *mock.MockconfirmOperationPreparer
 	logOperation *mock.MockoperationLogger
 	logEntries   []entity.SecureOperationLog
@@ -108,7 +108,7 @@ func (s *ConfirmOperationSuite) SetupTest() {
 	s.ctx = context.Background()
 	s.txManager = mock.NewMockDBTxManager(s.ctrl)
 	s.storage = mock.NewMockoperationConfirmer(s.ctrl)
-	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
+	s.notifierAPI = mock.NewMockNotifier(s.ctrl)
 	s.preparer = mock.NewMockconfirmOperationPreparer(s.ctrl)
 	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
 	s.logEntries = nil
@@ -377,7 +377,7 @@ type ResendCodeSuite struct {
 	ctx          context.Context
 	txManager    *mock.MockDBTxManager
 	storage      *mock.MockoperationResender
-	notifierAPI  *mock.MockNoteProducer
+	notifierAPI  *mock.MockNotifier
 	preparer     *mock.MockresendOperationPreparer
 	logOperation *mock.MockoperationLogger
 	logEntries   []entity.SecureOperationLog
@@ -395,7 +395,7 @@ func (s *ResendCodeSuite) SetupTest() {
 	s.ctx = context.Background()
 	s.txManager = mock.NewMockDBTxManager(s.ctrl)
 	s.storage = mock.NewMockoperationResender(s.ctrl)
-	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
+	s.notifierAPI = mock.NewMockNotifier(s.ctrl)
 	s.preparer = mock.NewMockresendOperationPreparer(s.ctrl)
 	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
 	s.logEntries = nil

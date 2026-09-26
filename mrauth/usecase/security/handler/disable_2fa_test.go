@@ -27,7 +27,7 @@ type Disable2FASuite struct {
 	txManager   *mock.MockDBTxManager
 	storage     *mock.Mockuser2faDisabler
 	revoker     *mock.MockoperationRevoker
-	notifierAPI *mock.MockNoteProducer
+	notifierAPI *mock.MockNotifier
 	uc          *handler.Disable2FA
 }
 
@@ -43,7 +43,7 @@ func (s *Disable2FASuite) SetupTest() {
 	s.txManager = mock.NewMockDBTxManager(s.ctrl)
 	s.storage = mock.NewMockuser2faDisabler(s.ctrl)
 	s.revoker = mock.NewMockoperationRevoker(s.ctrl)
-	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
+	s.notifierAPI = mock.NewMockNotifier(s.ctrl)
 
 	// транзакция выполняет переданное задание как есть
 	s.txManager.EXPECT().

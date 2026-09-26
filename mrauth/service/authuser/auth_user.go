@@ -15,7 +15,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/userstatus"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 // errUserAlreadyInRealm - внутренний маркер повторной привязки пользователя к realm
@@ -45,7 +44,7 @@ type (
 		storageUser      userStorage
 		storageUserRealm userRealmStorage
 		realmRegistry    mrauth.RealmRegistry
-		notifierAPI      mrnotifier.NoteProducer
+		notifierAPI      mrauth.Notifier
 		errorWrapper     errors.Wrapper
 		logger           mrlog.Logger
 	}
@@ -68,7 +67,7 @@ func New(
 	storageUser userStorage,
 	storageUserRealm userRealmStorage,
 	realmRegistry mrauth.RealmRegistry,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 	logger mrlog.Logger,
 ) *Service {
 	return &Service{

@@ -29,7 +29,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/usecase/session/handler"
 	usecaseuser "github.com/mondegor/go-components/mrauth/usecase/user"
 	"github.com/mondegor/go-components/mrauth/validate"
-	"github.com/mondegor/go-components/mrnotifier"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 	"github.com/mondegor/go-components/wire/mrauth/mapping"
 )
@@ -53,7 +52,7 @@ func initUnitAuthController(
 	locker mrlock.Locker,
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 	userRealms []authcfg.UserRealm,
 	auth2faConfig authcfg.Auth2FA,
 	jwtConfig authcfg.JWT,

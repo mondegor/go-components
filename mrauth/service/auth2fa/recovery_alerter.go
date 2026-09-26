@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/util/conv"
 
-	"github.com/mondegor/go-components/mrnotifier"
+	"github.com/mondegor/go-components/mrauth"
 )
 
 const (
@@ -16,16 +16,15 @@ const (
 
 type (
 	// RecoveryAlerter - отправляет пользователю уведомление о низком остатке аварийных
-	// кодов через notifierAPI (получатель резолвится хостом по userID). Уведомление шлётся,
-	// только когда остаток упал до threshold и ниже.
+	// кодов через notifierAPI. Уведомление шлётся, только когда остаток упал до threshold и ниже.
 	RecoveryAlerter struct {
-		notifierAPI mrnotifier.NoteProducer
+		notifierAPI mrauth.Notifier
 		threshold   int
 	}
 )
 
 // NewRecoveryAlerter - создаёт объект RecoveryAlerter.
-func NewRecoveryAlerter(notifierAPI mrnotifier.NoteProducer, threshold int) *RecoveryAlerter {
+func NewRecoveryAlerter(notifierAPI mrauth.Notifier, threshold int) *RecoveryAlerter {
 	return &RecoveryAlerter{
 		notifierAPI: notifierAPI,
 		threshold:   threshold,

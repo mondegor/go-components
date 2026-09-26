@@ -8,10 +8,10 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
@@ -20,7 +20,7 @@ type (
 		txManager    mrstorage.DBTxManager
 		storage      user2faDisabler
 		revoker      operationRevoker
-		notifierAPI  mrnotifier.NoteProducer
+		notifierAPI  mrauth.Notifier
 		errorWrapper errors.Wrapper
 	}
 
@@ -39,7 +39,7 @@ func NewDisable2FA(
 	txManager mrstorage.DBTxManager,
 	storage user2faDisabler,
 	revoker operationRevoker,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 ) *Disable2FA {
 	return &Disable2FA{
 		txManager:    txManager,

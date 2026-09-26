@@ -17,7 +17,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
-	"github.com/mondegor/go-components/mrnotifier"
 )
 
 type (
@@ -29,7 +28,7 @@ type (
 		storageOperation operationDeleter
 		revoker          operationRevoker
 		codeGenerator    recoveryCodesGenerator
-		notifierAPI      mrnotifier.NoteProducer
+		notifierAPI      mrauth.Notifier
 		logOperation     operationLogger
 		errorWrapper     errors.Wrapper
 		recoveryCount    int
@@ -49,7 +48,7 @@ func NewApplyPassword(
 	storageOperation operationDeleter,
 	revoker operationRevoker,
 	codeGenerator recoveryCodesGenerator,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 	logOperation operationLogger,
 	recoveryCount int,
 ) *ApplyPassword {

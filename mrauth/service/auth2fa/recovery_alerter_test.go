@@ -12,14 +12,14 @@ import (
 	"github.com/mondegor/go-components/mrauth/service/auth2fa/mock"
 )
 
-//go:generate mockgen -destination=mock/mrnotifier.go -package=mock github.com/mondegor/go-components/mrnotifier NoteProducer
+//go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth Notifier
 
 type RecoveryAlerterSuite struct {
 	suite.Suite
 
 	ctrl        *gomock.Controller
 	ctx         context.Context
-	notifierAPI *mock.MockNoteProducer
+	notifierAPI *mock.MockNotifier
 	svc         *auth2fa.RecoveryAlerter
 }
 
@@ -32,7 +32,7 @@ func TestRecoveryAlerterSuite(t *testing.T) {
 func (s *RecoveryAlerterSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 	s.ctx = context.Background()
-	s.notifierAPI = mock.NewMockNoteProducer(s.ctrl)
+	s.notifierAPI = mock.NewMockNotifier(s.ctrl)
 	s.svc = auth2fa.NewRecoveryAlerter(s.notifierAPI, 2)
 }
 
@@ -42,7 +42,7 @@ func (s *RecoveryAlerterSuite) TestAtThresholdSends() {
 	s.notifierAPI.EXPECT().
 		Send(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, _ string, props map[string]any) error {
-			s.Equal(userID, props["to"]) // получатель резолвится хостом по userID
+			s.Equal(userID, props["to"]) // ID пользователя заменяется на email декоратором notifierAPI
 			s.Equal(2, props["remaining"])
 
 			return nil

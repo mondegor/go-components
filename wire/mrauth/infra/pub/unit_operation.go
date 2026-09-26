@@ -4,6 +4,7 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-webcore/mrserver"
 
+	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/component/produce"
 	"github.com/mondegor/go-components/mrauth/component/secureoperation"
@@ -12,7 +13,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/usecase/operation"
 	"github.com/mondegor/go-components/mrauth/validate"
-	"github.com/mondegor/go-components/mrnotifier"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 )
 
@@ -23,7 +23,7 @@ func initOperationController(
 	operationLogger *produce.SecureOperationLogger,
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
-	notifierAPI mrnotifier.NoteProducer,
+	notifierAPI mrauth.Notifier,
 	operationConfig authcfg.OperationConfirm,
 	debugFunc func(value any) string,
 ) (mrserver.HttpController, error) {
