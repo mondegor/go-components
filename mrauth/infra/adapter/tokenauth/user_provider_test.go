@@ -1,4 +1,4 @@
-package get_test
+package tokenauth_test
 
 import (
 	"context"
@@ -11,9 +11,9 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/component/get"
-	"github.com/mondegor/go-components/mrauth/component/get/mock"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/infra/adapter/tokenauth"
+	"github.com/mondegor/go-components/mrauth/infra/adapter/tokenauth/mock"
 )
 
 //go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth AuthTokenFetcher
@@ -28,7 +28,7 @@ type UserProviderSuite struct {
 	ctx     context.Context
 	storage *mock.MockAuthTokenFetcher
 	rights  *mock.MockRightsGetter
-	co      *get.UserProvider
+	co      *tokenauth.UserProvider
 }
 
 func TestUserProviderSuite(t *testing.T) {
@@ -42,7 +42,7 @@ func (s *UserProviderSuite) SetupTest() {
 	s.ctx = context.Background()
 	s.storage = mock.NewMockAuthTokenFetcher(s.ctrl)
 	s.rights = mock.NewMockRightsGetter(s.ctrl)
-	s.co = get.New(s.storage, s.rights, []string{allowedRealm})
+	s.co = tokenauth.New(s.storage, s.rights, []string{allowedRealm})
 }
 
 func (s *UserProviderSuite) TestEmptyToken() {

@@ -1,4 +1,4 @@
-package provider
+package senderrouter
 
 import (
 	"github.com/mondegor/go-core/mrtrace"
@@ -7,11 +7,11 @@ import (
 )
 
 type (
-	// Option - настройка объекта SenderProvider.
+	// Option - настройка объекта Router.
 	Option func(o *options)
 
 	options struct {
-		sender *messageSender
+		router *Router
 		tracer mrtrace.Tracer
 	}
 )
@@ -19,21 +19,21 @@ type (
 // WithClientMail - устанавливает клиента, для возможности отправки электронных писем на почтовые сервисы.
 func WithClientMail(value mrmailer.MessageSender) Option {
 	return func(o *options) {
-		o.sender.clientMail = value
+		o.router.clientMail = value
 	}
 }
 
 // WithClientMessenger - устанавливает клиента, для возможности отправки сообщений в Messenger сервис.
 func WithClientMessenger(value mrmailer.MessageSender) Option {
 	return func(o *options) {
-		o.sender.clientMessenger = value
+		o.router.clientMessenger = value
 	}
 }
 
 // WithClientSMS - устанавливает клиента, для возможности отправки SMS сообщений на телефон.
 func WithClientSMS(value mrmailer.MessageSender) Option {
 	return func(o *options) {
-		o.sender.clientSMS = value
+		o.router.clientSMS = value
 	}
 }
 

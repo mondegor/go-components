@@ -1,4 +1,4 @@
-package produce_test
+package collect_test
 
 import (
 	"context"
@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
-	"github.com/mondegor/go-components/mrauth/component/produce"
-	"github.com/mondegor/go-components/mrauth/component/produce/mock"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/infra/adapter/collect"
+	"github.com/mondegor/go-components/mrauth/infra/adapter/collect/mock"
 )
 
 //go:generate mockgen -source=user_request.go -destination=mock/user_request.go -package=mock
@@ -95,7 +95,7 @@ func (s *UserRequestSuite) expectRealms(ids map[string]uint16) {
 }
 
 func (s *UserRequestSuite) emit(logger mrlog.Logger) {
-	rs := produce.NewUserRequest(s.producer, logger, s.parserIP, s.parserUser, s.registry)
+	rs := collect.NewUserRequest(s.producer, logger, s.parserIP, s.parserUser, s.registry)
 	rs.Emit(httptest.NewRequest(http.MethodGet, "/x", http.NoBody), nil, 0, nil, 0, 0, http.StatusOK)
 }
 
@@ -138,7 +138,7 @@ func (s *UserRequestSuite) TestEmitErrorsOnceOnUnknownRealm() {
 	s.expectUser(uuid.New(), "unknown/kind", "")
 	s.expectRealms(map[string]uint16{})
 
-	rs := produce.NewUserRequest(s.producer, logger, s.parserIP, s.parserUser, s.registry)
+	rs := collect.NewUserRequest(s.producer, logger, s.parserIP, s.parserUser, s.registry)
 
 	for range 3 {
 		rs.Emit(httptest.NewRequest(http.MethodGet, "/x", http.NoBody), nil, 0, nil, 0, 0, http.StatusOK)

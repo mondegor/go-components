@@ -1,4 +1,4 @@
-package sendmessage
+package sender
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 )
 
 type (
-	// nopSender - заглушка реализующая интерфейс отправителя сообщений.
+	// nopSender - заглушка отправителя сообщений, ничего не отправляет.
 	nopSender struct{}
 )
 

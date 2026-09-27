@@ -1,4 +1,4 @@
-package adapter
+package sender
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 )
 
 type (
-	// Sender - провайдер для отправки сообщений через заданный мессенджер.
+	// mailSender - отправляет сообщения на электронную почту через почтовый клиент.
 	mailSender struct {
 		clientAPI        mrclient.MailSender
 		defaultFrom      string
@@ -22,8 +22,8 @@ type (
 )
 
 // NewMailSender - создаёт объект mailSender.
-// В переменной defaultFromEmail обязателен для заполнения
-// и в ней должен находиться электронный адрес отправителя, в том числе и расширенный.
+// Параметр defaultFromEmail обязателен и должен содержать электронный адрес отправителя,
+// в том числе расширенный (с именем).
 func NewMailSender(
 	clientAPI mrclient.MailSender,
 	defaultFromEmail string,

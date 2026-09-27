@@ -7,20 +7,20 @@ import (
 	"github.com/mondegor/go-core/mrtrace"
 
 	"github.com/mondegor/go-components/mrmailer/repository"
-	"github.com/mondegor/go-components/mrmailer/service/produce"
+	"github.com/mondegor/go-components/mrmailer/service"
 	queuerepository "github.com/mondegor/go-components/mrqueue/repository"
 	queueproduce "github.com/mondegor/go-components/mrqueue/service/produce"
 )
 
-// InitService - создаёт отправителя персонализированных уведомлений получателям.
+// InitService - создаёт отправителя сообщений получателям.
 func InitService(
 	client mrstorage.DBConnManager,
 	traceManager mrtrace.ContextManager,
 	messageTable mrsql.DBTableInfo,
 	queueTable mrsql.DBTableInfo,
-	opts ...produce.Option,
-) *produce.MessageProducer {
-	return produce.New(
+	opts ...service.Option,
+) *service.MessageProducer {
+	return service.New(
 		client,
 		sequence.NewGenerator(client, mrsql.SequenceName(queueTable)),
 		repository.NewMessagePostgres(client, messageTable),

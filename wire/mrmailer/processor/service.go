@@ -11,9 +11,9 @@ import (
 	"github.com/mondegor/go-core/mrtrace"
 
 	"github.com/mondegor/go-components/mrmailer/entity"
+	"github.com/mondegor/go-components/mrmailer/infra/adapter/senderrouter"
 	"github.com/mondegor/go-components/mrmailer/infra/handler"
 	"github.com/mondegor/go-components/mrmailer/repository"
-	"github.com/mondegor/go-components/mrmailer/sendmessage/provider"
 	queuerepository "github.com/mondegor/go-components/mrqueue/repository"
 	queueconsume "github.com/mondegor/go-components/mrqueue/service/consume"
 )
@@ -49,7 +49,7 @@ func InitService(
 			consume.WithQueueSize[entity.Message](defaultQueueSize),
 			consume.WithWorkersCount[entity.Message](defaultWorkersCount),
 		},
-		providerOpts: nil,
+		routerOpts: nil,
 	}
 
 	for _, opt := range opts {
@@ -88,7 +88,7 @@ func InitService(
 	return consume.NewMessageProcessor[entity.Message](
 		messageConsumer,
 		handler.NewSendMessage(
-			provider.New(o.providerOpts...),
+			senderrouter.New(o.routerOpts...),
 		),
 		errorHandler,
 		logger,

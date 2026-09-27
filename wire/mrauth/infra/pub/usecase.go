@@ -6,7 +6,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
-	"github.com/mondegor/go-components/mrauth/component/produce"
+	"github.com/mondegor/go-components/mrauth/infra/adapter/collect"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service/auth2fa"
 	"github.com/mondegor/go-components/mrauth/service/notify"
@@ -21,7 +21,7 @@ func initConfirmOperationUseCase(
 	storageAuth2fa *repository.Auth2FAPostgres,
 	storageUser *repository.UserPostgres,
 	notifierAPI mrauth.Notifier,
-	operationLogger *produce.SecureOperationLogger,
+	operationLogger *collect.SecureOperationLogger,
 	operationConfig authcfg.OperationConfirm,
 	auth2faConfig authcfg.Auth2FA,
 ) *operation.ConfirmOperation {

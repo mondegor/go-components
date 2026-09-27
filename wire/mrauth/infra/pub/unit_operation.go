@@ -6,7 +6,7 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
-	"github.com/mondegor/go-components/mrauth/component/produce"
+	"github.com/mondegor/go-components/mrauth/infra/adapter/collect"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
 	"github.com/mondegor/go-components/mrauth/repository"
@@ -20,7 +20,7 @@ func initOperationController(
 	dbConnManager mrstorage.DBConnManager,
 	storageSecureOperation *repository.SecureOperationPostgres,
 	useCaseConfirmOperation *operation.ConfirmOperation,
-	operationLogger *produce.SecureOperationLogger,
+	operationLogger *collect.SecureOperationLogger,
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 	notifierAPI mrauth.Notifier,

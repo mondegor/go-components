@@ -1,4 +1,4 @@
-package produce
+package service
 
 type (
 	// Option - настройка объекта NoteProducer.

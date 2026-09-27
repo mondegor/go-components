@@ -1,4 +1,4 @@
-package produce
+package service
 
 import (
 	"context"
@@ -63,7 +63,7 @@ func New(
 	return o.producer
 }
 
-// Send - отправляет уведомление, ключ которой должен быть зарегистрирован в БД компонента mrnotifier.template.
+// Send - отправляет уведомление, ключ которого должен быть зарегистрирован в БД компонента mrnotifier.template.
 // В props можно указывать следующие служебные поля:
 //   - header.lang (mrnotifier.HeaderLang) - язык уведомления (если не указан, то будет выбран автоматически);
 //   - config.delayTime (mrnotifier.ConfigDelayTime) - абсолютное время (RFC3339), по истечению которого следует отправить уведомление

@@ -4,7 +4,7 @@ import (
 	"github.com/mondegor/go-core/mrprocess/consume"
 
 	"github.com/mondegor/go-components/mrmailer/entity"
-	"github.com/mondegor/go-components/mrmailer/sendmessage/provider"
+	"github.com/mondegor/go-components/mrmailer/infra/adapter/senderrouter"
 )
 
 type (
@@ -13,7 +13,7 @@ type (
 
 	options struct {
 		processorOpts []consume.Option[entity.Message]
-		providerOpts  []provider.Option
+		routerOpts    []senderrouter.Option
 	}
 )
 
@@ -24,9 +24,9 @@ func WithMessageProcessorOpts(value ...consume.Option[entity.Message]) Option {
 	}
 }
 
-// WithSenderProviderOpts - устанавливает опцию providerOpts для consume.MessageProcessor.
-func WithSenderProviderOpts(value ...provider.Option) Option {
+// WithSenderRouterOpts - устанавливает опции маршрутизатора отправителей сообщений.
+func WithSenderRouterOpts(value ...senderrouter.Option) Option {
 	return func(o *options) {
-		o.providerOpts = append(o.providerOpts, value...)
+		o.routerOpts = append(o.routerOpts, value...)
 	}
 }

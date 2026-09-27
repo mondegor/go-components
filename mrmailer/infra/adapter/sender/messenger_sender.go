@@ -1,4 +1,4 @@
-package adapter
+package sender
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 )
 
 type (
-	// messengerSender - провайдер для отправки сообщений через заданный мессенджер.
+	// messengerSender - отправляет сообщения в чат мессенджера через его клиент.
 	messengerSender struct {
 		clientAPI mrclient.MessengerSender
 	}
