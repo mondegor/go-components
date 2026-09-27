@@ -9,12 +9,12 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
-	"github.com/mondegor/go-components/mrauth/component/secureoperation"
-	"github.com/mondegor/go-components/mrauth/component/secureoperation/mock"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
+	"github.com/mondegor/go-components/mrauth/service/secureoperation"
+	"github.com/mondegor/go-components/mrauth/service/secureoperation/mock"
 )
 
 //go:generate mockgen -source=revoker.go -destination=mock/revoker.go -package=mock
