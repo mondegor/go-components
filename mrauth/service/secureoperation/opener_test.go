@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
-	"github.com/mondegor/go-components/mrauth/component/secureoperation"
-	"github.com/mondegor/go-components/mrauth/component/secureoperation/mock"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
@@ -22,6 +20,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	secureoperation_model "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
+	"github.com/mondegor/go-components/mrauth/service/secureoperation"
+	"github.com/mondegor/go-components/mrauth/service/secureoperation/mock"
 )
 
 //go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager

@@ -10,11 +10,11 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/component/secureoperation"
-	"github.com/mondegor/go-components/mrauth/component/secureoperation/mock"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	secureoperation_model "github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/service/secureoperation"
+	"github.com/mondegor/go-components/mrauth/service/secureoperation/mock"
 )
 
 type ResendCodeSuite struct {

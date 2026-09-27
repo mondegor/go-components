@@ -7,10 +7,10 @@ import (
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
 	"github.com/mondegor/go-components/mrauth/component/produce"
-	"github.com/mondegor/go-components/mrauth/component/secureoperation"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service/auth2fa"
 	"github.com/mondegor/go-components/mrauth/service/notify"
+	"github.com/mondegor/go-components/mrauth/service/secureoperation"
 	"github.com/mondegor/go-components/mrauth/usecase/operation"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 )
