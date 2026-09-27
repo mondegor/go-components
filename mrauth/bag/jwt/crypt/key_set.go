@@ -50,7 +50,7 @@ type (
 		Kty string `json:"kty"`
 		Use string `json:"use"`
 		Kid string `json:"kid,omitempty"`
-		Alg string `json:"alg,omitempty"`
+		Alg string `json:"alg"`
 		N   string `json:"n,omitempty"`   // RSA: модуль
 		E   string `json:"e,omitempty"`   // RSA: публичная экспонента
 		Crv string `json:"crv,omitempty"` // EC: кривая

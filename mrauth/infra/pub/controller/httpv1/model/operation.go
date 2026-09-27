@@ -27,7 +27,7 @@ type (
 		RemainingResends  *int16             `json:"remaining_resends,omitempty"`
 		ResendsIn         *int64             `json:"resends_in,omitempty"`
 		ExpiresIn         int64              `json:"expires_in"`
-		Message           string             `json:"message,omitempty"`
+		Message           string             `json:"message"`
 		DebugInfo         string             `json:"debug_info,omitempty"`
 	}
 

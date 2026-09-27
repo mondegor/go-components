@@ -4,6 +4,7 @@ allOf:
     required:
       - token
       - confirm_method
+      - message
     properties:
       token:
         description: |-

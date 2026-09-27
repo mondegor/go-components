@@ -58,7 +58,6 @@ type (
 		AccessToken  string `json:"access_token"`
 		ExpiresIn    uint32 `json:"expires_in"`
 		RefreshToken string `json:"refresh_token,omitempty"` // can be in cookie
-		Message      string `json:"message,omitempty"`       // OPTIONAL
 	}
 
 	// UserInfoResponse - ответ со сводной информацией о текущем пользователе.
