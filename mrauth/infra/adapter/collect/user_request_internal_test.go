@@ -1,4 +1,4 @@
-package produce
+package collect
 
 import (
 	"testing"

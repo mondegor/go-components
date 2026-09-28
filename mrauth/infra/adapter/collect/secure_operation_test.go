@@ -1,4 +1,4 @@
-package produce_test
+package collect_test
 
 import (
 	"context"
@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
-	"github.com/mondegor/go-components/mrauth/component/produce"
-	"github.com/mondegor/go-components/mrauth/component/produce/mock"
 	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/infra/adapter/collect"
+	"github.com/mondegor/go-components/mrauth/infra/adapter/collect/mock"
 )
 
 //go:generate mockgen -source=secure_operation.go -destination=mock/secure_operation.go -package=mock
@@ -64,7 +64,7 @@ func (s *SecureOperationLoggerSuite) expectBlocked() {
 func (s *SecureOperationLoggerSuite) TestLogPushesToCollector() {
 	s.expectAccepts()
 
-	logger := produce.NewSecureOperationLogger(s.producer, mrlog.NopLogger())
+	logger := collect.NewSecureOperationLogger(s.producer, mrlog.NopLogger())
 	logger.Log(context.Background(), entity.SecureOperationLog{OperationName: "confirm.authorize.user"})
 
 	s.Require().Len(s.entries, 1)
@@ -76,7 +76,7 @@ func (s *SecureOperationLoggerSuite) TestLogPushesToCollector() {
 func (s *SecureOperationLoggerSuite) TestLogOverflowDoesNotBlockLong() {
 	s.expectBlocked()
 
-	logger := produce.NewSecureOperationLogger(s.producer, mrlog.NopLogger())
+	logger := collect.NewSecureOperationLogger(s.producer, mrlog.NopLogger())
 
 	start := time.Now()
 
@@ -88,7 +88,7 @@ func (s *SecureOperationLoggerSuite) TestLogOverflowDoesNotBlockLong() {
 // TestLogNilProducerDisabledNoPanic - хост может не поднимать коллектор журнала:
 // вместо паники на nil-продюсере журнал молча отключается.
 func (s *SecureOperationLoggerSuite) TestLogNilProducerDisabledNoPanic() {
-	logger := produce.NewSecureOperationLogger(nil, mrlog.NopLogger())
+	logger := collect.NewSecureOperationLogger(nil, mrlog.NopLogger())
 
 	s.NotPanics(func() {
 		logger.Log(context.Background(), entity.SecureOperationLog{OperationName: "confirm.authorize.user"})
@@ -100,7 +100,7 @@ func (s *SecureOperationLoggerSuite) TestLogNilProducerDisabledNoPanic() {
 func (s *SecureOperationLoggerSuite) TestLogCanceledRequestStillLogs() {
 	s.expectAccepts()
 
-	logger := produce.NewSecureOperationLogger(s.producer, mrlog.NopLogger())
+	logger := collect.NewSecureOperationLogger(s.producer, mrlog.NopLogger())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

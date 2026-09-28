@@ -8,27 +8,31 @@ import (
 
 	"github.com/mondegor/go-components/mrmailer"
 	"github.com/mondegor/go-components/mrmailer/entity"
-	"github.com/mondegor/go-components/mrmailer/sendmessage"
 )
 
 type (
 	// SendMessage - обработчик сообщений с целью их отправки конечному получателю.
 	SendMessage struct {
-		senderProvider sendmessage.SenderProvider
+		senderProvider senderProvider
+	}
+
+	// senderProvider - возвращает отправителя, соответствующего данным сообщения.
+	senderProvider interface {
+		Sender(data entity.MessageData) (mrmailer.MessageSender, error)
 	}
 )
 
 // NewSendMessage - создаёт объект SendMessage.
 func NewSendMessage(
-	senderProvider sendmessage.SenderProvider,
+	senderProvider senderProvider,
 ) *SendMessage {
 	return &SendMessage{
 		senderProvider: senderProvider,
 	}
 }
 
-// Execute - подбирает провайдера, для конкретного сообщения
-// и через него отправляет его конечному получателю.
+// Execute - подбирает отправителя для конкретного сообщения
+// и через него отправляет сообщение конечному получателю.
 func (h *SendMessage) Execute(_ context.Context, message entity.Message) (commit func(ctx context.Context) error, err error) {
 	sender, err := h.senderProvider.Sender(message.Data)
 	if err != nil {

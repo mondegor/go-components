@@ -1,24 +1,23 @@
-package provider
+package senderrouter
 
 import (
 	"github.com/mondegor/go-components/mrmailer"
 	"github.com/mondegor/go-components/mrmailer/entity"
-	"github.com/mondegor/go-components/mrmailer/sendmessage"
 )
 
 type (
-	// SenderProvider - обработчик сообщений с целью их отправки конечному получателю.
-	messageSender struct {
+	// Router - выбирает отправителя по типу данных сообщения (mail, messenger, sms).
+	Router struct {
 		clientMail      mrmailer.MessageSender
 		clientMessenger mrmailer.MessageSender
 		clientSMS       mrmailer.MessageSender
 	}
 )
 
-// New - создаёт объект messageSender.
-func New(opts ...Option) sendmessage.SenderProvider {
+// New - создаёт объект Router.
+func New(opts ...Option) *Router {
 	o := options{
-		sender: &messageSender{},
+		router: &Router{},
 	}
 
 	for _, opt := range opts {
@@ -26,24 +25,24 @@ func New(opts ...Option) sendmessage.SenderProvider {
 	}
 
 	if o.tracer != nil {
-		if o.sender.clientMail != nil {
-			o.sender.clientMail = newTraceWrapper(o.tracer, "clientMail", o.sender.clientMail)
+		if o.router.clientMail != nil {
+			o.router.clientMail = newTraceWrapper(o.tracer, "clientMail", o.router.clientMail)
 		}
 
-		if o.sender.clientMessenger != nil {
-			o.sender.clientMessenger = newTraceWrapper(o.tracer, "clientMessenger", o.sender.clientMessenger)
+		if o.router.clientMessenger != nil {
+			o.router.clientMessenger = newTraceWrapper(o.tracer, "clientMessenger", o.router.clientMessenger)
 		}
 
-		if o.sender.clientSMS != nil {
-			o.sender.clientSMS = newTraceWrapper(o.tracer, "clientSMS", o.sender.clientSMS)
+		if o.router.clientSMS != nil {
+			o.router.clientSMS = newTraceWrapper(o.tracer, "clientSMS", o.router.clientSMS)
 		}
 	}
 
-	return o.sender
+	return o.router
 }
 
-// Sender - возвращает провайдера для отправки сообщений.
-func (p *messageSender) Sender(data entity.MessageData) (mrmailer.MessageSender, error) {
+// Sender - возвращает отправителя, соответствующего каналу сообщения.
+func (p *Router) Sender(data entity.MessageData) (mrmailer.MessageSender, error) {
 	if data.Mail != nil {
 		if p.clientMail == nil {
 			return nil, mrmailer.ErrInternalProviderClientNotSpecified.New(

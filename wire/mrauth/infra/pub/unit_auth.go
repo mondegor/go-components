@@ -11,7 +11,7 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
-	"github.com/mondegor/go-components/mrauth/component/produce"
+	"github.com/mondegor/go-components/mrauth/infra/adapter/collect"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
@@ -48,7 +48,7 @@ func initUnitAuthController(
 	storageSessionExcessQueue *repository.SessionExcessQueuePostgres,
 	storageSecureOperation *repository.SecureOperationPostgres,
 	useCaseConfirmOperation *operation.ConfirmOperation,
-	operationLogger *produce.SecureOperationLogger,
+	operationLogger *collect.SecureOperationLogger,
 	locker mrlock.Locker,
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,

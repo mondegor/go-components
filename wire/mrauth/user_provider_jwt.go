@@ -4,17 +4,17 @@ import (
 	"github.com/mondegor/go-core/mraccess"
 
 	"github.com/mondegor/go-components/mrauth/bag/jwt/crypt"
-	"github.com/mondegor/go-components/mrauth/component/get"
+	"github.com/mondegor/go-components/mrauth/infra/adapter/tokenauth"
 	"github.com/mondegor/go-components/mrauth/repository"
 )
 
-// NewUserProviderJWT - создаёт получателя произвольных настроек из БД.
+// NewUserProviderJWT - создаёт провайдер пользователя по access токену в формате JWT.
 func NewUserProviderJWT(
 	userGroupRights mraccess.RightsGetter,
 	jwtKeys crypt.KeySet,
 	allowedRealms []string,
-) *get.UserProvider {
-	return get.New(
+) *tokenauth.UserProvider {
+	return tokenauth.New(
 		repository.NewAuthTokenJWT(jwtKeys),
 		userGroupRights,
 		allowedRealms,

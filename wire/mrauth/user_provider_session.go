@@ -4,18 +4,18 @@ import (
 	"github.com/mondegor/go-core/mraccess"
 	"github.com/mondegor/go-core/mrstorage"
 
-	"github.com/mondegor/go-components/mrauth/component/get"
+	"github.com/mondegor/go-components/mrauth/infra/adapter/tokenauth"
 	"github.com/mondegor/go-components/mrauth/repository"
 )
 
-// NewUserProviderSession - создаёт получателя произвольных настроек из БД.
+// NewUserProviderSession - создаёт провайдер пользователя по сессионному access токену, хранимому в БД.
 func NewUserProviderSession(
 	client mrstorage.DBConnManager,
 	userGroupRights mraccess.RightsGetter,
 	tableName string,
 	allowedRealms []string,
-) *get.UserProvider {
-	return get.New(
+) *tokenauth.UserProvider {
+	return tokenauth.New(
 		repository.NewAuthTokenPostgres(
 			client,
 			tableName,

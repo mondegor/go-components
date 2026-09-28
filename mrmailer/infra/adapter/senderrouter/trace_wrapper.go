@@ -1,4 +1,4 @@
-package provider
+package senderrouter
 
 import (
 	"context"
@@ -29,7 +29,7 @@ func newTraceWrapper(
 	}
 }
 
-// Send - эмулирует отправку сообщения.
+// Send - трассирует и отправляет сообщение через обёрнутого отправителя.
 func (p *traceWrapper) Send(ctx context.Context, message entity.Message) error {
 	p.tracer.Trace(
 		ctx,

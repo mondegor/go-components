@@ -6,7 +6,7 @@ import (
 	"github.com/mondegor/go-core/mraccess"
 )
 
-// NewUserProvider - создаёт получателя произвольных настроек из БД.
+// NewUserProvider - создаёт провайдер пользователя, выбирающий JWT или сессионный провайдер по формату токена.
 func NewUserProvider(providers ...mraccess.TypedUserProvider) mraccess.UserProvider {
 	return mraccess.NewUserProviderGroup(
 		providers,

@@ -73,7 +73,7 @@ type (
 
 	// UserActivityLogMessage - информация об активности пользователя.
 	// RealmID = 0 - сентинел "realm не определён" (реестр realm'ов разошёлся с провайдерами
-	// пользователей, см. produce.UserRequest.Emit): сессия и журнал обрабатываются как обычно,
+	// пользователей, см. collect.UserRequest.Emit): сессия и журнал обрабатываются как обычно,
 	// per-realm статистика для такого сообщения не ведётся. В конфиге realm id = 0 запрещён
 	// (config.ValidateRealms), поэтому с настоящим realm'ом сентинел не пересекается.
 	UserActivityLogMessage struct {

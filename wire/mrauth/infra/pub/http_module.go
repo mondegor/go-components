@@ -12,8 +12,8 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth"
-	"github.com/mondegor/go-components/mrauth/component/produce"
 	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/infra/adapter/collect"
 	"github.com/mondegor/go-components/mrauth/service/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
@@ -73,7 +73,7 @@ func InitHttpModule(
 
 	auth2faConfig = authcfg.CorrectValuesAuth2FA(auth2faConfig)
 
-	operationLogger := produce.NewSecureOperationLogger(secureOperationLogProducer, logger)
+	operationLogger := collect.NewSecureOperationLogger(secureOperationLogProducer, logger)
 
 	// единая точка открытия защищённых операций всех типов (гасит прежние операции того же типа или той же цепочки)
 	operationOpener := secureoperation.NewOpener(

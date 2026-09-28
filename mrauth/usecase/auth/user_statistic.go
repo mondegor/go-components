@@ -153,7 +153,7 @@ func (uc *UserStatistic) sessionsLastActivity(messages []dto.UserActivityLogMess
 			UserID:    msg.UserID,
 			SessionID: msg.SessionID,
 			// инвариант: real IP в сообщении всегда задан (источник RemoteAddr,
-			// см. produce.UserRequest.Emit), поэтому запись в sessions.last_ip (NOT NULL)
+			// см. collect.UserRequest.Emit), поэтому запись в sessions.last_ip (NOT NULL)
 			// безопасна и проверки IsValid не требует
 			LastIP:        msg.UserIP.Real,
 			LastVisitedAt: msg.VisitedAt,

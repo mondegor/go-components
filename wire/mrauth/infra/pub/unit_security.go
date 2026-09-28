@@ -7,7 +7,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
-	"github.com/mondegor/go-components/mrauth/component/produce"
+	"github.com/mondegor/go-components/mrauth/infra/adapter/collect"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
@@ -31,7 +31,7 @@ func initSecurityController(
 	storageUserRealm *repository.UserRealmPostgres,
 	storageAuth2fa *repository.Auth2FAPostgres,
 	storageSecureOperation *repository.SecureOperationPostgres,
-	operationLogger *produce.SecureOperationLogger,
+	operationLogger *collect.SecureOperationLogger,
 	requestParser *validate.Parser,
 	responseFileSender mrserver.FileResponseSender,
 	notifierAPI mrauth.Notifier,
