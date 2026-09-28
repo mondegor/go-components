@@ -8,9 +8,10 @@ import (
 )
 
 // NewPendingOperation - строит проекцию операции для списка личного кабинета. ok == false -
-// операция в список не входит (белый список - pendingOperationType): вход и регистрация не
-// отдаются, токен чужой попытки входа нельзя показывать другой сессии. Нечитаемый payload -
-// нарушение инварианта, а не повод пропустить операцию: возвращается ошибка.
+// операция в список не входит (белый список - pendingOperationType): в список попадают только
+// операции, в которых может быть применён аварийный код, и долгоживущие операции; вход в аккаунт
+// не отдаётся, токен чужой попытки входа нельзя показывать другой сессии.
+// Нечитаемый payload - нарушение инварианта, а не повод пропустить операцию: возвращается ошибка.
 func NewPendingOperation(op secureoperation.SecureOperation) (item pendingoperation.PendingOperation, ok bool, err error) {
 	opType, ok := pendingOperationType(op.Name)
 	if !ok {
@@ -25,22 +26,13 @@ func NewPendingOperation(op secureoperation.SecureOperation) (item pendingoperat
 		CurrentAction: pendingAction(&op),
 	}
 
-	switch opType {
-	case operationtype.ChangeEmail, operationtype.ChangeEmailConfirm:
+	if opType == operationtype.ChangeEmail || opType == operationtype.ChangeEmailConfirm {
 		payload, err := ParseChangeEmailPayload(op.Payload)
 		if err != nil {
 			return pendingoperation.PendingOperation{}, false, err
 		}
 
 		item.NewEmail = payload.NewEmail
-	case operationtype.ChangePhone:
-		payload, err := ParseChangePhonePayload(op.Payload)
-		if err != nil {
-			return pendingoperation.PendingOperation{}, false, err
-		}
-
-		item.NewPhone = payload.NewPhone
-	default:
 	}
 
 	return item, true, nil
@@ -79,14 +71,6 @@ func pendingOperationType(operationName string) (operationtype.Enum, bool) {
 		return operationtype.ChangeEmail, true
 	case NameConfirmChangeEmail:
 		return operationtype.ChangeEmailConfirm, true
-	case NameConfirmChangePhone:
-		return operationtype.ChangePhone, true
-	case NameConfirmChangePassword:
-		return operationtype.ChangePassword, true
-	case NameConfirmChangeTOTP:
-		return operationtype.ChangeTOTP, true
-	case NameConfirmRegenerateRecovery:
-		return operationtype.RegenerateRecovery, true
 	case NameConfirmDisable2FA:
 		return operationtype.Disable2FA, true
 	default:

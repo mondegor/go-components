@@ -161,8 +161,9 @@ func (sv *UserInfo) buildRealms(realms []entity.UserRealm, stats []entity.UserAc
 	return list
 }
 
-// buildPendingOperations - оставляет операции личного кабинета и строит по ним проекции для показа
-// в порядке, отданном хранилищем (по сроку истечения).
+// buildPendingOperations - оставляет операции личного кабинета, входящие в список (см.
+// unit.NewPendingOperation), и строит по ним проекции для показа в порядке, отданном хранилищем
+// (по сроку истечения).
 func buildPendingOperations(operations []secureoperation.SecureOperation) ([]pendingoperation.PendingOperation, error) {
 	items := make([]pendingoperation.PendingOperation, 0, len(operations))
 

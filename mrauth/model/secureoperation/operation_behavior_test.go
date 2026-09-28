@@ -324,7 +324,7 @@ func TestSecureOperation_FixedExpiry_SetOnCreate(t *testing.T) {
 func TestSecureOperation_FixedExpiry_Renewal(t *testing.T) {
 	t.Parallel()
 
-	const threshold = time.Hour // порог фиксированного срока модели
+	const threshold = 30 * time.Minute // порог продления срока модели
 
 	type testCase struct {
 		name      string

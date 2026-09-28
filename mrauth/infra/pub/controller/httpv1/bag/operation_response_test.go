@@ -155,10 +155,9 @@ func TestOperationResponse_ResendsJSON(t *testing.T) {
 	}
 }
 
-// wokenOp - восстанавливает операцию с явно заданными счётчиками повторных отправок.
 // TestOperationResponse_NewPendingOperation - у неподтверждённой операции отдаются поля текущего
 // звена (у звена без повторной отправки - без её счётчиков), у подтверждённой - только общие
-// поля. Значение и срок операции передаются уже подготовленными к показу.
+// поля. Значением операции отдаётся новый емаил, срок передаётся уже подготовленным к показу.
 func TestOperationResponse_NewPendingOperation(t *testing.T) {
 	t.Parallel()
 
@@ -169,9 +168,10 @@ func TestOperationResponse_NewPendingOperation(t *testing.T) {
 
 		resendsAt := time.Now().UTC().Add(-time.Minute)
 		item := pendingoperation.PendingOperation{
-			Token:  "token",
-			Type:   operationtype.ChangeEmailConfirm,
-			Status: operationstatus.Opened,
+			Token:    "token",
+			Type:     operationtype.ChangeEmailConfirm,
+			Status:   operationstatus.Opened,
+			NewEmail: "new@example.com",
 			CurrentAction: &pendingoperation.PendingAction{
 				Method:            confirmmethod.Email,
 				RemainingAttempts: 3,
@@ -180,7 +180,7 @@ func TestOperationResponse_NewPendingOperation(t *testing.T) {
 			},
 		}
 
-		got := response.NewPendingOperation(item, "new@example.com", "2026-09-28T15:00:00+03:00")
+		got := response.NewPendingOperation(item, "2026-09-28T15:00:00+03:00")
 		assert.Equal(t, model.PendingOperation{
 			Token:             "token",
 			Type:              operationtype.ChangeEmailConfirm,
@@ -203,7 +203,7 @@ func TestOperationResponse_NewPendingOperation(t *testing.T) {
 			CurrentAction: &pendingoperation.PendingAction{Method: confirmmethod.TOTP, RemainingAttempts: 3},
 		}
 
-		got := response.NewPendingOperation(item, "", "x")
+		got := response.NewPendingOperation(item, "x")
 		assert.Equal(t, confirmmethod.TOTP, got.ConfirmMethod)
 		assert.Equal(t, ptr(int16(3)), got.RemainingAttempts)
 		assert.Nil(t, got.RemainingResends)
@@ -213,15 +213,14 @@ func TestOperationResponse_NewPendingOperation(t *testing.T) {
 	t.Run("confirmed", func(t *testing.T) {
 		t.Parallel()
 
-		item := pendingoperation.PendingOperation{Token: "token", Type: operationtype.ChangePhone, Status: operationstatus.Confirmed}
+		item := pendingoperation.PendingOperation{Token: "token", Type: operationtype.Disable2FA, Status: operationstatus.Confirmed}
 
-		got := response.NewPendingOperation(item, "+79991234567", "x")
+		got := response.NewPendingOperation(item, "x")
 		assert.Equal(t, model.PendingOperation{
-			Token:      "token",
-			Type:       operationtype.ChangePhone,
-			ExtraValue: "+79991234567",
-			ExpiresAt:  "x",
-			Status:     operationstatus.Confirmed,
+			Token:     "token",
+			Type:      operationtype.Disable2FA,
+			ExpiresAt: "x",
+			Status:    operationstatus.Confirmed,
 		}, got)
 
 		// поля звена отсутствуют в JSON, а не отдаются нулями
@@ -232,6 +231,7 @@ func TestOperationResponse_NewPendingOperation(t *testing.T) {
 	})
 }
 
+// wokenOp - восстанавливает операцию с явно заданными счётчиками повторных отправок.
 func wokenOp(t *testing.T, action secureoperation.ConfirmAction, resendsAt time.Time, remainingResends int16) secureoperation.SecureOperation {
 	t.Helper()
 

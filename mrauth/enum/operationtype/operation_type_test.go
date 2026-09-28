@@ -20,10 +20,6 @@ func TestParseStringRoundTrip(t *testing.T) {
 	}{
 		{"ChangeEmail", operationtype.ChangeEmail, "CHANGE_EMAIL"},
 		{"ChangeEmailConfirm", operationtype.ChangeEmailConfirm, "CHANGE_EMAIL_CONFIRM"},
-		{"ChangePhone", operationtype.ChangePhone, "CHANGE_PHONE"},
-		{"ChangePassword", operationtype.ChangePassword, "CHANGE_PASSWORD"},
-		{"ChangeTOTP", operationtype.ChangeTOTP, "CHANGE_TOTP"},
-		{"RegenerateRecovery", operationtype.RegenerateRecovery, "REGENERATE_RECOVERY"},
 		{"Disable2FA", operationtype.Disable2FA, "DISABLE_2FA"},
 	}
 

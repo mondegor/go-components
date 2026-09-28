@@ -608,8 +608,7 @@ func (s *AuthSuite) TestUserInfo() {
 }
 
 // TestUserInfoPendingOperations - действующие операции из сводки доезжают до ответа в исходном
-// порядке: значение операции подготовлено к показу (телефон - в формате номера, как телефон
-// пользователя), срок - в поясе запроса; саму сборку элемента делает operationResponse.
+// порядке, срок - в поясе запроса; саму сборку элемента делает operationResponse.
 func (s *AuthSuite) TestUserInfoPendingOperations() {
 	userID := uuid.New()
 	expiresAt := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
@@ -620,11 +619,10 @@ func (s *AuthSuite) TestUserInfoPendingOperations() {
 		ExpiresAt: expiresAt,
 		NewEmail:  "new@example.com",
 	}
-	phoneItem := pendingoperation.PendingOperation{Token: "token-phone", Type: operationtype.ChangePhone, ExpiresAt: expiresAt, NewPhone: 79991234567}
 	disableItem := pendingoperation.PendingOperation{Token: "token-2fa", Type: operationtype.Disable2FA, ExpiresAt: expiresAt}
 
 	info := okUserInfo()
-	info.PendingOperations = []pendingoperation.PendingOperation{emailItem, phoneItem, disableItem}
+	info.PendingOperations = []pendingoperation.PendingOperation{emailItem, disableItem}
 
 	s.parser.EXPECT().UserID(gomock.Any()).Return(userID)
 	s.parser.EXPECT().Location(gomock.Any()).Return(s.mustLoadLocation(responseTimeZone))
@@ -633,13 +631,10 @@ func (s *AuthSuite) TestUserInfoPendingOperations() {
 
 	gomock.InOrder(
 		s.operationResponse.EXPECT().
-			NewPendingOperation(emailItem, "new@example.com", "2026-09-28T15:00:00+03:00").
+			NewPendingOperation(emailItem, "2026-09-28T15:00:00+03:00").
 			Return(model.PendingOperation{Token: "token-email"}),
 		s.operationResponse.EXPECT().
-			NewPendingOperation(phoneItem, "+79991234567", "2026-09-28T15:00:00+03:00").
-			Return(model.PendingOperation{Token: "token-phone"}),
-		s.operationResponse.EXPECT().
-			NewPendingOperation(disableItem, "", "2026-09-28T15:00:00+03:00").
+			NewPendingOperation(disableItem, "2026-09-28T15:00:00+03:00").
 			Return(model.PendingOperation{Token: "token-2fa"}),
 	)
 
@@ -647,7 +642,7 @@ func (s *AuthSuite) TestUserInfoPendingOperations() {
 
 	response, ok := s.sent.(model.UserInfoResponse)
 	s.Require().True(ok)
-	s.Equal([]model.PendingOperation{{Token: "token-email"}, {Token: "token-phone"}, {Token: "token-2fa"}}, response.PendingOperations)
+	s.Equal([]model.PendingOperation{{Token: "token-email"}, {Token: "token-2fa"}}, response.PendingOperations)
 }
 
 // TestUserInfoRecoveryCodesLeft - остаток аварийных кодов отдаётся только при включённой 2FA.

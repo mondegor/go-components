@@ -223,9 +223,8 @@ func TestValidateAuth2FADecoyFactorSalt(t *testing.T) {
 	}
 }
 
-// TestCorrectValuesAuth2FAConfirmExpiry - срок жизни звена второго фактора ограничен сверху:
-// SecureOperation.ActivateConfirmation переставляет ExpiresAt от текущего звена на каждом шаге,
-// поэтому сроки звеньев складываются, и без потолка операция жила бы сколь угодно долго.
+// TestCorrectValuesAuth2FAConfirmExpiry - незаданный срок жизни звена второго фактора заменяется
+// умолчанием, заданный сохраняется как есть (превышение потолка проверяет ValidateAuth2FA).
 func TestCorrectValuesAuth2FAConfirmExpiry(t *testing.T) {
 	t.Parallel()
 
@@ -237,8 +236,7 @@ func TestCorrectValuesAuth2FAConfirmExpiry(t *testing.T) {
 		{name: "not set - default", in: 0, want: 30 * time.Minute},
 		{name: "negative - default", in: -time.Minute, want: 30 * time.Minute},
 		{name: "value in range is kept", in: 5 * time.Minute, want: 5 * time.Minute},
-		{name: "upper bound is kept", in: time.Hour, want: time.Hour},
-		{name: "above upper bound - default", in: 24 * time.Hour, want: 30 * time.Minute},
+		{name: "above upper bound is kept", in: time.Hour, want: time.Hour},
 	}
 
 	for _, tc := range cases {
@@ -350,9 +348,44 @@ func TestValidateAuth2FARecoveryCodeLength(t *testing.T) {
 	}
 }
 
+// TestValidateAuth2FAConfirmExpiry - срок жизни звена второго фактора выше потолка роняет старт:
+// звено длиннее порога продления получило бы лишь остаток срока предыдущего звена; незаданный
+// срок допустим (его подставит CorrectValuesAuth2FA).
+func TestValidateAuth2FAConfirmExpiry(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		expiry  time.Duration
+		wantErr bool
+	}{
+		{name: "not set", expiry: 0, wantErr: false},
+		{name: "equals threshold", expiry: 30 * time.Minute, wantErr: false},
+		{name: "above threshold", expiry: 31 * time.Minute, wantErr: true},
+	}
+
+	salt := strings.Repeat("s", 32)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := config.ValidateAuth2FA(config.Auth2FA{DecoyFactorSalt: salt, ConfirmExpiry: tc.expiry})
+
+			if tc.wantErr {
+				require.Error(t, err)
+
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
 // TestValidateOperationConfirm - длина кода подтверждения ограничена диапазоном из спеки,
-// а срок операции подтверждения нового емаила должен быть больше порога
-// фиксированного срока: иначе повторная отправка кода продлевала бы его.
+// а срок звена подтверждения кодом не больше порога продления: звено длиннее порога получило бы
+// лишь остаток срока предыдущего звена.
 func TestValidateOperationConfirm(t *testing.T) {
 	t.Parallel()
 
@@ -366,10 +399,9 @@ func TestValidateOperationConfirm(t *testing.T) {
 		{name: "code length exactly min", cfg: config.OperationConfirm{CodeLength: 4}, wantErr: false},
 		{name: "code length exactly max", cfg: config.OperationConfirm{CodeLength: 8}, wantErr: false},
 		{name: "code length above max", cfg: config.OperationConfirm{CodeLength: 9}, wantErr: true},
-		{name: "new email expiry not set", cfg: config.OperationConfirm{CodeLength: 6}, wantErr: false},
-		{name: "new email expiry below threshold", cfg: config.OperationConfirm{CodeLength: 6, NewEmailExpiry: 30 * time.Minute}, wantErr: true},
-		{name: "new email expiry equals threshold", cfg: config.OperationConfirm{CodeLength: 6, NewEmailExpiry: time.Hour}, wantErr: true},
-		{name: "new email expiry above threshold", cfg: config.OperationConfirm{CodeLength: 6, NewEmailExpiry: 72 * time.Hour}, wantErr: false},
+		{name: "session expiry not set", cfg: config.OperationConfirm{CodeLength: 6}, wantErr: false},
+		{name: "session expiry equals threshold", cfg: config.OperationConfirm{CodeLength: 6, SessionExpiry: 30 * time.Minute}, wantErr: false},
+		{name: "session expiry above threshold", cfg: config.OperationConfirm{CodeLength: 6, SessionExpiry: 31 * time.Minute}, wantErr: true},
 	}
 
 	for _, tc := range cases {
@@ -412,4 +444,29 @@ func TestValidateRealmsConfirmCodeLength(t *testing.T) {
 	require.NoError(t, config.ValidateRealms(makeRealms(0), []string{"guests"}))
 	require.NoError(t, config.ValidateRealms(makeRealms(6), []string{"guests"}))
 	require.ErrorContains(t, config.ValidateRealms(makeRealms(9), []string{"guests"}), "confirm code length is out of range")
+}
+
+// TestValidateRealmsSessionExpiry - заданный срок жизни звена подтверждения кодом realm'а
+// проверяется так же, как у настроек по умолчанию; незаданный допустим (его подставит CorrectValuesRealm).
+func TestValidateRealmsSessionExpiry(t *testing.T) {
+	t.Parallel()
+
+	makeRealms := func(expiry time.Duration) []config.UserRealm {
+		return []config.UserRealm{
+			{
+				ID:               1,
+				Name:             "site",
+				RegisterUserKind: "user",
+				AuthToken:        config.Token{AccessType: "jwt"},
+				OperationConfirm: config.OperationConfirm{SessionExpiry: expiry},
+				UserKinds: []config.UserKind{
+					{Name: "user", Roles: []string{"guests"}},
+				},
+			},
+		}
+	}
+
+	require.NoError(t, config.ValidateRealms(makeRealms(0), []string{"guests"}))
+	require.NoError(t, config.ValidateRealms(makeRealms(30*time.Minute), []string{"guests"}))
+	require.ErrorContains(t, config.ValidateRealms(makeRealms(31*time.Minute), []string{"guests"}), "session expiry must not be greater than")
 }

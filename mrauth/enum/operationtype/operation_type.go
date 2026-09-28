@@ -5,15 +5,11 @@ import (
 	"fmt"
 )
 
-// Типы защищённых операций личного кабинета, отдаваемые клиенту
-// (операции входа и регистрации сюда не входят).
+// Типы защищённых операций личного кабинета, отдаваемые клиенту: операции,
+// в которых может быть применён аварийный код, и все долгоживущие операции.
 const (
 	ChangeEmail        Enum = iota + 1 // смена емаила, шаг 1: подтверждение владения аккаунтом
 	ChangeEmailConfirm                 // смена емаила, шаг 2: подтверждение владения новым адресом
-	ChangePhone                        // смена телефона
-	ChangePassword                     // установка пароля (2FA)
-	ChangeTOTP                         // установка TOTP генератора (2FA)
-	RegenerateRecovery                 // перевыпуск одноразовых аварийных кодов
 	Disable2FA                         // отключение 2FA
 )
 
@@ -31,20 +27,12 @@ var (
 	enumKeys = map[Enum]string{
 		ChangeEmail:        "CHANGE_EMAIL",
 		ChangeEmailConfirm: "CHANGE_EMAIL_CONFIRM",
-		ChangePhone:        "CHANGE_PHONE",
-		ChangePassword:     "CHANGE_PASSWORD",
-		ChangeTOTP:         "CHANGE_TOTP",
-		RegenerateRecovery: "REGENERATE_RECOVERY",
 		Disable2FA:         "DISABLE_2FA",
 	}
 
 	enumValues = map[string]Enum{
 		"CHANGE_EMAIL":         ChangeEmail,
 		"CHANGE_EMAIL_CONFIRM": ChangeEmailConfirm,
-		"CHANGE_PHONE":         ChangePhone,
-		"CHANGE_PASSWORD":      ChangePassword,
-		"CHANGE_TOTP":          ChangeTOTP,
-		"REGENERATE_RECOVERY":  RegenerateRecovery,
 		"DISABLE_2FA":          Disable2FA,
 	}
 )

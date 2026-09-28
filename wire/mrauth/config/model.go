@@ -56,11 +56,11 @@ type (
 		TokenLength     uint16        `yaml:"token_length"`
 		CodeLength      uint8         `yaml:"code_length"`
 		CodeMaxAttempts uint8         `yaml:"code_max_attempts"` // число попыток ввести код подтверждения операции
-		SessionExpiry   time.Duration `yaml:"session_expiry"`
+		SessionExpiry   time.Duration `yaml:"session_expiry"`    // срок жизни звена подтверждения кодом, не больше порога продления модели
 
-		// NewEmailExpiry - срок жизни операции подтверждения нового емаила (второй шаг смены
-		// емаила): отсчитывается от её создания и не продлевается, если он больше порога
-		// фиксированного срока модели; 0 - срок по умолчанию.
+		// NewEmailExpiry - срок жизни операции подтверждения нового емаила (второй шаг смены емаила):
+		// срок больше порога продления модели фиксирован от создания операции, более
+		// короткий продлевается, как у остальных операций; 0 - срок по умолчанию.
 		NewEmailExpiry time.Duration `yaml:"new_email_expiry"`
 
 		SendByEmail CodeSender `yaml:"send_by_email"`
