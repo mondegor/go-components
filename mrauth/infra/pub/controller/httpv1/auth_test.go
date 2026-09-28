@@ -28,7 +28,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/mock"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
-	"github.com/mondegor/go-components/mrauth/model/pendingoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -613,16 +612,16 @@ func (s *AuthSuite) TestUserInfoPendingOperations() {
 	userID := uuid.New()
 	expiresAt := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
 
-	emailItem := pendingoperation.PendingOperation{
+	emailItem := dto.PendingOperation{
 		Token:     "token-email",
 		Type:      operationtype.ChangeEmailConfirm,
 		ExpiresAt: expiresAt,
 		NewEmail:  "new@example.com",
 	}
-	disableItem := pendingoperation.PendingOperation{Token: "token-2fa", Type: operationtype.Disable2FA, ExpiresAt: expiresAt}
+	disableItem := dto.PendingOperation{Token: "token-2fa", Type: operationtype.Disable2FA, ExpiresAt: expiresAt}
 
 	info := okUserInfo()
-	info.PendingOperations = []pendingoperation.PendingOperation{emailItem, disableItem}
+	info.PendingOperations = []dto.PendingOperation{emailItem, disableItem}
 
 	s.parser.EXPECT().UserID(gomock.Any()).Return(userID)
 	s.parser.EXPECT().Location(gomock.Any()).Return(s.mustLoadLocation(responseTimeZone))

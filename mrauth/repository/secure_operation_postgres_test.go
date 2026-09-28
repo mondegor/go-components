@@ -307,15 +307,17 @@ func (ts *SecureOperationPostgresTestSuite) TestDeleteByUserID() {
 	ts.Empty(names)
 }
 
-// TestFetchByUserID - отдаёт действующие операции пользователя в любом статусе (в т.ч.
-// подтверждённые, ждущие применения), не отдаёт истёкшие и операции другого пользователя;
-// у пользователя без операций - пустой срез без ошибки.
-func (ts *SecureOperationPostgresTestSuite) TestFetchByUserID() {
+// TestFetchByUserIDAndNames - отдаёт действующие операции пользователя указанных типов в любом
+// статусе (в т.ч. подтверждённые, ждущие применения), не отдаёт операции других типов, истёкшие
+// и операции другого пользователя; у пользователя без операций - пустой срез без ошибки.
+func (ts *SecureOperationPostgresTestSuite) TestFetchByUserIDAndNames() {
 	userID := uuid.New()
+	names := []string{"confirm.change.phone", "confirm.change.email", "confirm.disable.2fa"}
 
 	openedToken := ts.seedOperation(userID, "confirm.change.phone")
 	confirmedToken := ts.seedOperation(userID, "confirm.change.email")
 	expiredToken := ts.seedOperation(userID, "confirm.disable.2fa")
+	ts.seedOperation(userID, "confirm.change.password")
 	ts.seedOperation(uuid.New(), "confirm.change.phone")
 
 	// подтверждённая операция: звенья пройдены, ждёт применения
@@ -333,7 +335,7 @@ func (ts *SecureOperationPostgresTestSuite) TestFetchByUserID() {
 		expiredToken,
 	))
 
-	rows, err := ts.repo.FetchByUserID(ts.ctx, userID)
+	rows, err := ts.repo.FetchByUserIDAndNames(ts.ctx, userID, names)
 	ts.Require().NoError(err)
 
 	tokens := make(map[string]secureoperation.SecureOperation, len(rows))
@@ -350,7 +352,7 @@ func (ts *SecureOperationPostgresTestSuite) TestFetchByUserID() {
 	ts.Require().Len(opened.Actions(), 1)
 	ts.True(confirmedRow.Is(operationstatus.Confirmed))
 
-	rows, err = ts.repo.FetchByUserID(ts.ctx, uuid.New())
+	rows, err = ts.repo.FetchByUserIDAndNames(ts.ctx, uuid.New(), names)
 	ts.Require().NoError(err)
 	ts.Empty(rows)
 }

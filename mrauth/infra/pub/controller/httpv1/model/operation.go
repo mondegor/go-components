@@ -19,16 +19,12 @@ type (
 	}
 
 	// WaitingConfirmOperationResponse - информация для подтверждения операции.
-	// Также см. ConfirmOperationState.
 	WaitingConfirmOperationResponse struct {
-		Token             string             `json:"token"`
-		ConfirmMethod     confirmmethod.Enum `json:"confirm_method"`
-		RemainingAttempts int16              `json:"remaining_attempts"`
-		RemainingResends  *int16             `json:"remaining_resends,omitempty"`
-		ResendsIn         *int64             `json:"resends_in,omitempty"`
-		ExpiresIn         int64              `json:"expires_in"`
-		Message           string             `json:"message"`
-		DebugInfo         string             `json:"debug_info,omitempty"`
+		ConfirmOperationState
+
+		Token         string             `json:"token"`
+		ConfirmMethod confirmmethod.Enum `json:"confirm_method"`
+		Message       string             `json:"message"`
 	}
 
 	// ErrorConfirmOperationResponse - ответ с ошибкой подтверждения операции и её текущим состоянием.

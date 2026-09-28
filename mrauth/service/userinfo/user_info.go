@@ -10,7 +10,6 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
-	"github.com/mondegor/go-components/mrauth/model/pendingoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
@@ -45,7 +44,7 @@ type (
 	}
 
 	operationFetcher interface {
-		FetchByUserID(ctx context.Context, userID uuid.UUID) (rows []secureoperation.SecureOperation, err error)
+		FetchByUserIDAndNames(ctx context.Context, userID uuid.UUID, names []string) (rows []secureoperation.SecureOperation, err error)
 	}
 )
 
@@ -106,7 +105,7 @@ func (sv *UserInfo) Get(ctx context.Context, userID uuid.UUID) (dto.UserInfo, er
 			return sv.errorWrapper.Wrap(err)
 		}
 
-		if operations, err = sv.storageOperation.FetchByUserID(ctx, userID); err != nil {
+		if operations, err = sv.storageOperation.FetchByUserIDAndNames(ctx, userID, unit.PendingOperationNames()); err != nil {
 			return sv.errorWrapper.Wrap(err)
 		}
 
@@ -161,11 +160,10 @@ func (sv *UserInfo) buildRealms(realms []entity.UserRealm, stats []entity.UserAc
 	return list
 }
 
-// buildPendingOperations - оставляет операции личного кабинета, входящие в список (см.
-// unit.NewPendingOperation), и строит по ним проекции для показа в порядке, отданном хранилищем
-// (по сроку истечения).
-func buildPendingOperations(operations []secureoperation.SecureOperation) ([]pendingoperation.PendingOperation, error) {
-	items := make([]pendingoperation.PendingOperation, 0, len(operations))
+// buildPendingOperations - строит проекции операций личного кабинета для показа в порядке,
+// отданном хранилищем (по сроку истечения).
+func buildPendingOperations(operations []secureoperation.SecureOperation) ([]dto.PendingOperation, error) {
+	items := make([]dto.PendingOperation, 0, len(operations))
 
 	for _, op := range operations {
 		item, ok, err := unit.NewPendingOperation(op)

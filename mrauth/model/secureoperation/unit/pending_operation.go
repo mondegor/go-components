@@ -1,9 +1,9 @@
 package unit
 
 import (
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
-	"github.com/mondegor/go-components/mrauth/model/pendingoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -12,13 +12,13 @@ import (
 // операции, в которых может быть применён аварийный код, и долгоживущие операции; вход в аккаунт
 // не отдаётся, токен чужой попытки входа нельзя показывать другой сессии.
 // Нечитаемый payload - нарушение инварианта, а не повод пропустить операцию: возвращается ошибка.
-func NewPendingOperation(op secureoperation.SecureOperation) (item pendingoperation.PendingOperation, ok bool, err error) {
+func NewPendingOperation(op secureoperation.SecureOperation) (item dto.PendingOperation, ok bool, err error) {
 	opType, ok := pendingOperationType(op.Name)
 	if !ok {
-		return pendingoperation.PendingOperation{}, false, nil
+		return dto.PendingOperation{}, false, nil
 	}
 
-	item = pendingoperation.PendingOperation{
+	item = dto.PendingOperation{
 		Token:         op.Token,
 		Type:          opType,
 		Status:        op.Status,
@@ -29,7 +29,7 @@ func NewPendingOperation(op secureoperation.SecureOperation) (item pendingoperat
 	if opType == operationtype.ChangeEmail || opType == operationtype.ChangeEmailConfirm {
 		payload, err := ParseChangeEmailPayload(op.Payload)
 		if err != nil {
-			return pendingoperation.PendingOperation{}, false, err
+			return dto.PendingOperation{}, false, err
 		}
 
 		item.NewEmail = payload.NewEmail
@@ -40,14 +40,14 @@ func NewPendingOperation(op secureoperation.SecureOperation) (item pendingoperat
 
 // pendingAction - текущее звено операции для показа клиенту; nil - у подтверждённой операции
 // подтверждать нечего. Счётчики повторной отправки задаются, только если звено её допускает.
-func pendingAction(op *secureoperation.SecureOperation) *pendingoperation.PendingAction {
+func pendingAction(op *secureoperation.SecureOperation) *dto.PendingAction {
 	if !op.Is(operationstatus.Opened) {
 		return nil
 	}
 
 	action, _ := op.FirstAction()
 
-	pending := pendingoperation.PendingAction{
+	pending := dto.PendingAction{
 		Method:            action.Method,
 		RemainingAttempts: op.RemainingAttempts,
 	}
@@ -63,8 +63,18 @@ func pendingAction(op *secureoperation.SecureOperation) *pendingoperation.Pendin
 	return &pending
 }
 
+// PendingOperationNames - возвращает имена операций, входящих в список личного кабинета, для
+// отбора в хранилище. Должен совпадать с набором имён, известных pendingOperationType.
+func PendingOperationNames() []string {
+	return []string{
+		NameConfirmChangeEmailRequest,
+		NameConfirmChangeEmail,
+		NameConfirmDisable2FA,
+	}
+}
+
 // pendingOperationType - сопоставляет имя операции типу, отдаваемому клиенту; false - операция
-// в список личного кабинета не входит.
+// в список личного кабинета не входит. Набор имён должен совпадать с PendingOperationNames.
 func pendingOperationType(operationName string) (operationtype.Enum, bool) {
 	switch operationName {
 	case NameConfirmChangeEmailRequest:

@@ -12,7 +12,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
-	"github.com/mondegor/go-components/mrauth/model/pendingoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
@@ -62,6 +61,17 @@ func TestNewPendingOperationTypes(t *testing.T) {
 		{name: unit.NameConfirmDisable2FA, wantOK: true, wantType: operationtype.Disable2FA},
 	}
 
+	// имена для отбора в хранилище совпадают с входящими в список
+	wantNames := make([]string, 0, len(tests))
+
+	for _, tt := range tests {
+		if tt.wantOK {
+			wantNames = append(wantNames, tt.name)
+		}
+	}
+
+	assert.ElementsMatch(t, wantNames, unit.PendingOperationNames())
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -76,7 +86,7 @@ func TestNewPendingOperationTypes(t *testing.T) {
 				return
 			}
 
-			assert.Equal(t, pendingoperation.PendingOperation{
+			assert.Equal(t, dto.PendingOperation{
 				Token:     op.Token,
 				Type:      tt.wantType,
 				Status:    operationstatus.Confirmed,
@@ -121,7 +131,7 @@ func TestNewPendingOperationCurrentAction(t *testing.T) {
 		require.True(t, ok)
 
 		remainingResends := int16(2)
-		assert.Equal(t, &pendingoperation.PendingAction{
+		assert.Equal(t, &dto.PendingAction{
 			Method:            confirmmethod.Email,
 			RemainingAttempts: 3,
 			RemainingResends:  &remainingResends,
@@ -146,7 +156,7 @@ func TestNewPendingOperationCurrentAction(t *testing.T) {
 		item, ok, err := unit.NewPendingOperation(op)
 		require.NoError(t, err)
 		require.True(t, ok)
-		assert.Equal(t, &pendingoperation.PendingAction{Method: confirmmethod.TOTP, RemainingAttempts: 5}, item.CurrentAction)
+		assert.Equal(t, &dto.PendingAction{Method: confirmmethod.TOTP, RemainingAttempts: 5}, item.CurrentAction)
 	})
 }
 

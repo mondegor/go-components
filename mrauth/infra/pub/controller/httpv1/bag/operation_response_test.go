@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
-	"github.com/mondegor/go-components/mrauth/model/pendingoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -167,12 +167,12 @@ func TestOperationResponse_NewPendingOperation(t *testing.T) {
 		t.Parallel()
 
 		resendsAt := time.Now().UTC().Add(-time.Minute)
-		item := pendingoperation.PendingOperation{
+		item := dto.PendingOperation{
 			Token:    "token",
 			Type:     operationtype.ChangeEmailConfirm,
 			Status:   operationstatus.Opened,
 			NewEmail: "new@example.com",
-			CurrentAction: &pendingoperation.PendingAction{
+			CurrentAction: &dto.PendingAction{
 				Method:            confirmmethod.Email,
 				RemainingAttempts: 3,
 				RemainingResends:  ptr(int16(2)),
@@ -197,10 +197,10 @@ func TestOperationResponse_NewPendingOperation(t *testing.T) {
 	t.Run("opened, totp action", func(t *testing.T) {
 		t.Parallel()
 
-		item := pendingoperation.PendingOperation{
+		item := dto.PendingOperation{
 			Type:          operationtype.Disable2FA,
 			Status:        operationstatus.Opened,
-			CurrentAction: &pendingoperation.PendingAction{Method: confirmmethod.TOTP, RemainingAttempts: 3},
+			CurrentAction: &dto.PendingAction{Method: confirmmethod.TOTP, RemainingAttempts: 3},
 		}
 
 		got := response.NewPendingOperation(item, "x")
@@ -213,7 +213,7 @@ func TestOperationResponse_NewPendingOperation(t *testing.T) {
 	t.Run("confirmed", func(t *testing.T) {
 		t.Parallel()
 
-		item := pendingoperation.PendingOperation{Token: "token", Type: operationtype.Disable2FA, Status: operationstatus.Confirmed}
+		item := dto.PendingOperation{Token: "token", Type: operationtype.Disable2FA, Status: operationstatus.Confirmed}
 
 		got := response.NewPendingOperation(item, "x")
 		assert.Equal(t, model.PendingOperation{

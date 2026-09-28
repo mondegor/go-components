@@ -18,7 +18,6 @@ import (
 	dto "github.com/mondegor/go-components/mrauth/dto"
 	model "github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	contactaddress "github.com/mondegor/go-components/mrauth/model/contactaddress"
-	pendingoperation "github.com/mondegor/go-components/mrauth/model/pendingoperation"
 	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	mrtype "github.com/mondegor/go-core/mrtype"
 	mrresp "github.com/mondegor/go-webcore/mrserver/mrresp"
@@ -450,7 +449,7 @@ func (mr *MockconfirmOperationResponseMockRecorder) NewErrorConfirmOperation(res
 }
 
 // NewPendingOperation mocks base method.
-func (m *MockconfirmOperationResponse) NewPendingOperation(item pendingoperation.PendingOperation, expiresAt string) model.PendingOperation {
+func (m *MockconfirmOperationResponse) NewPendingOperation(item dto.PendingOperation, expiresAt string) model.PendingOperation {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NewPendingOperation", item, expiresAt)
 	ret0, _ := ret[0].(model.PendingOperation)
