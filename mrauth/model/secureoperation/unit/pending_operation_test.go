@@ -33,15 +33,13 @@ func confirmedOperation(t *testing.T, name string, payload []byte) secureoperati
 	return op
 }
 
-// TestNewPendingOperationTypes - операции личного кабинета сопоставлены типам контракта, у смены
-// емаила (оба шага) и телефона разобраны новые адреса; вход и регистрация в список не входят.
+// TestNewPendingOperationTypes - в список входят только операции, в которых может быть применён
+// аварийный код, и долгоживущие операции, у смены емаила (оба шага) разобран новый адрес;
+// короткоживущие операции без аварийного кода, вход и регистрация в список не входят.
 func TestNewPendingOperationTypes(t *testing.T) {
 	t.Parallel()
 
 	emailPayload, err := unit.BuildChangeEmailPayload(dto.ChangeEmailOperation{NewEmail: "new@example.com", Email: "user@example.com"})
-	require.NoError(t, err)
-
-	phonePayload, err := unit.BuildChangePhonePayload(dto.ChangePhoneOperation{NewPhone: 79991234567, Email: "user@example.com"})
 	require.NoError(t, err)
 
 	type testCase struct {
@@ -50,7 +48,6 @@ func TestNewPendingOperationTypes(t *testing.T) {
 		wantOK       bool
 		wantType     operationtype.Enum
 		wantNewEmail string
-		wantNewPhone uint64
 	}
 
 	tests := []testCase{
@@ -58,10 +55,10 @@ func TestNewPendingOperationTypes(t *testing.T) {
 		{name: unit.NameConfirmCreateUser},
 		{name: unit.NameConfirmChangeEmailRequest, payload: emailPayload, wantOK: true, wantType: operationtype.ChangeEmail, wantNewEmail: "new@example.com"},
 		{name: unit.NameConfirmChangeEmail, payload: emailPayload, wantOK: true, wantType: operationtype.ChangeEmailConfirm, wantNewEmail: "new@example.com"},
-		{name: unit.NameConfirmChangePhone, payload: phonePayload, wantOK: true, wantType: operationtype.ChangePhone, wantNewPhone: 79991234567},
-		{name: unit.NameConfirmChangePassword, wantOK: true, wantType: operationtype.ChangePassword},
-		{name: unit.NameConfirmChangeTOTP, wantOK: true, wantType: operationtype.ChangeTOTP},
-		{name: unit.NameConfirmRegenerateRecovery, wantOK: true, wantType: operationtype.RegenerateRecovery},
+		{name: unit.NameConfirmChangePhone},
+		{name: unit.NameConfirmChangePassword},
+		{name: unit.NameConfirmChangeTOTP},
+		{name: unit.NameConfirmRegenerateRecovery},
 		{name: unit.NameConfirmDisable2FA, wantOK: true, wantType: operationtype.Disable2FA},
 	}
 
@@ -85,7 +82,6 @@ func TestNewPendingOperationTypes(t *testing.T) {
 				Status:    operationstatus.Confirmed,
 				ExpiresAt: op.ExpiresAt,
 				NewEmail:  tt.wantNewEmail,
-				NewPhone:  tt.wantNewPhone,
 			}, item)
 		})
 	}

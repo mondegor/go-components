@@ -1,5 +1,7 @@
 description: |-
   Защищённая операция пользователя, ожидающая подтверждения либо применения.
+  В список входят только операции, в которых может быть применён аварийный код,
+  и все долгоживущие операции.
   Токеном операции она подтверждается (`PATCH /v1/operation/confirm`), при необходимости
   переотправляет код (`PATCH /v1/operation/resend`), отзывается (`PATCH /v1/operation/revoke`)
   и применяется завершающим методом (`POST /v1/security/apply-*`).
@@ -27,8 +29,7 @@ properties:
   extra_value:
     description: |-
       Значение операции, отображаемое пользователю: новый емаил у операций смены адреса
-      (`CHANGE_EMAIL`, `CHANGE_EMAIL_CONFIRM`) и новый телефон у `CHANGE_PHONE`; у остальных
-      операций поле отсутствует
+      (`CHANGE_EMAIL`, `CHANGE_EMAIL_CONFIRM`); у остальных операций поле отсутствует
     type: string
     maxLength: 128
     example: "new-user-email@example.com"

@@ -450,15 +450,15 @@ func (mr *MockconfirmOperationResponseMockRecorder) NewErrorConfirmOperation(res
 }
 
 // NewPendingOperation mocks base method.
-func (m *MockconfirmOperationResponse) NewPendingOperation(item pendingoperation.PendingOperation, extraValue, expiresAt string) model.PendingOperation {
+func (m *MockconfirmOperationResponse) NewPendingOperation(item pendingoperation.PendingOperation, expiresAt string) model.PendingOperation {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NewPendingOperation", item, extraValue, expiresAt)
+	ret := m.ctrl.Call(m, "NewPendingOperation", item, expiresAt)
 	ret0, _ := ret[0].(model.PendingOperation)
 	return ret0
 }
 
 // NewPendingOperation indicates an expected call of NewPendingOperation.
-func (mr *MockconfirmOperationResponseMockRecorder) NewPendingOperation(item, extraValue, expiresAt any) *gomock.Call {
+func (mr *MockconfirmOperationResponseMockRecorder) NewPendingOperation(item, expiresAt any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewPendingOperation", reflect.TypeOf((*MockconfirmOperationResponse)(nil).NewPendingOperation), item, extraValue, expiresAt)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewPendingOperation", reflect.TypeOf((*MockconfirmOperationResponse)(nil).NewPendingOperation), item, expiresAt)
 }

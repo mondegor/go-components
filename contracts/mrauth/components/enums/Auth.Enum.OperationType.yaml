@@ -2,18 +2,10 @@ description: |-
   Тип защищённой операции личного кабинета, ожидающей подтверждения либо применения:
   - CHANGE_EMAIL - смена емаила, шаг 1: подтверждение владения аккаунтом;
   - CHANGE_EMAIL_CONFIRM - смена емаила, шаг 2: подтверждение владения новым адресом;
-  - CHANGE_PHONE - смена телефона;
-  - CHANGE_PASSWORD - установка пароля (2FA);
-  - CHANGE_TOTP - установка TOTP генератора (2FA);
-  - REGENERATE_RECOVERY - перевыпуск одноразовых аварийных кодов;
   - DISABLE_2FA - отключение 2FA;
 type: string
 enum:
   - CHANGE_EMAIL
   - CHANGE_EMAIL_CONFIRM
-  - CHANGE_PHONE
-  - CHANGE_PASSWORD
-  - CHANGE_TOTP
-  - REGENERATE_RECOVERY
   - DISABLE_2FA
 example: "CHANGE_EMAIL_CONFIRM"

@@ -105,7 +105,7 @@ type (
 	confirmOperationResponse interface {
 		NewConfirmOperation(operation secureoperation.SecureOperation, message string) model.WaitingConfirmOperationResponse
 		NewErrorConfirmOperation(response mrresp.Error400Response, operation secureoperation.SecureOperation) model.ErrorConfirmOperationResponse
-		NewPendingOperation(item pendingoperation.PendingOperation, extraValue, expiresAt string) model.PendingOperation
+		NewPendingOperation(item pendingoperation.PendingOperation, expiresAt string) model.PendingOperation
 	}
 )
 
@@ -458,14 +458,9 @@ func (ht *Auth) UserInfo(w http.ResponseWriter, r *http.Request) error {
 		pendingOperations = make([]model.PendingOperation, 0, len(info.PendingOperations))
 
 		for _, item := range info.PendingOperations {
-			extraValue := item.NewEmail
-			if item.NewPhone > 0 {
-				extraValue = casttype.UintToPhone(item.NewPhone)
-			}
-
 			pendingOperations = append(
 				pendingOperations,
-				ht.operationResponse.NewPendingOperation(item, extraValue, formatTimeIn(item.ExpiresAt, loc)),
+				ht.operationResponse.NewPendingOperation(item, formatTimeIn(item.ExpiresAt, loc)),
 			)
 		}
 	}

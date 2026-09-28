@@ -72,17 +72,12 @@ func (ro *OperationResponse) NewErrorConfirmOperation(
 }
 
 // NewPendingOperation - формирует элемент списка действующих операций пользователя.
-// extraValue - уже подготовленное к показу значение операции (новый емаил или телефон),
 // expiresAt - срок действия, уже отформатированный в часовом поясе пользователя.
-func (ro *OperationResponse) NewPendingOperation(
-	item pendingoperation.PendingOperation,
-	extraValue string,
-	expiresAt string,
-) model.PendingOperation {
+func (ro *OperationResponse) NewPendingOperation(item pendingoperation.PendingOperation, expiresAt string) model.PendingOperation {
 	response := model.PendingOperation{
 		Token:      item.Token,
 		Type:       item.Type,
-		ExtraValue: extraValue,
+		ExtraValue: item.NewEmail,
 		ExpiresAt:  expiresAt,
 		Status:     item.Status,
 	}

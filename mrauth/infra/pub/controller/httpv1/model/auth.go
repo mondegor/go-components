@@ -75,7 +75,7 @@ type (
 	}
 
 	// PendingOperation - действующая операция личного кабинета, ожидающая подтверждения либо
-	// применения. ExtraValue - новый емаил или телефон у операций их смены.
+	// применения. ExtraValue - новый емаил у операций смены емаила.
 	PendingOperation struct {
 		Token             string               `json:"token"`
 		Type              operationtype.Enum   `json:"type"`

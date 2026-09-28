@@ -10,15 +10,14 @@ import (
 
 type (
 	// PendingOperation - действующая операция личного кабинета пользователя, ожидающая
-	// подтверждения либо применения. NewEmail - у операций смены емаила (оба шага), NewPhone -
-	// у смены телефона; CurrentAction - только у неподтверждённой операции.
+	// подтверждения либо применения. NewEmail - у операций смены емаила (оба шага);
+	// CurrentAction - только у неподтверждённой операции.
 	PendingOperation struct {
 		Token         string
 		Type          operationtype.Enum
 		Status        operationstatus.Enum
 		ExpiresAt     time.Time
 		NewEmail      string
-		NewPhone      uint64
 		CurrentAction *PendingAction
 	}
 

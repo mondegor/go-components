@@ -42,10 +42,13 @@ const (
 	minConfirmCodeLength = 4
 	maxConfirmCodeLength = 8
 
-	// minNewEmailExpiry - порог срока жизни операции подтверждения нового емаила, повторяет
-	// secureoperation.fixedExpiryThreshold: срок не больше порога продлевался бы каждой
-	// повторной отправкой кода, а по спеке он отсчитывается от создания операции.
-	minNewEmailExpiry = time.Hour
+	// maxActionExpiry - потолок срока жизни звеньев подтверждения, к которым операция переходит
+	// по цепочке (кодом - SessionExpiry, вторым фактором - ConfirmExpiry), повторяет
+	// secureoperation.fixedExpiryThreshold: звено длиннее порога не продлевается при переходе
+	// к нему и получает лишь остаток срока предыдущего звена, так что пользователь мог бы не успеть
+	// его пройти. NewEmailExpiry потолком не ограничен: это единственное звено своей операции,
+	// и его срок назначается при её создании.
+	maxActionExpiry = 30 * time.Minute
 
 	// defaultRecoveryLowThreshold - остаток кодов по умолчанию, при котором слать предупреждение.
 	defaultRecoveryLowThreshold = 3
@@ -75,9 +78,6 @@ const (
 
 	// defaultConfirmExpiry - срок жизни звена подтверждения вторым фактором по умолчанию.
 	defaultConfirmExpiry = 30 * time.Minute
-
-	// maxConfirmExpiry - потолок срока жизни звена подтверждения вторым фактором.
-	maxConfirmExpiry = time.Hour
 
 	// minSessionThreshold - нижняя граница soft/hard отклонения от лимита сессий
 	// (зеркалит клампинг domain-слоя correctThresholds).
@@ -135,8 +135,7 @@ func CorrectValuesAuth2FA(cfg Auth2FA) Auth2FA {
 		cfg.ConfirmMaxAttempts = defaultConfirmMaxAttempts
 	}
 
-	// потолок задан затем, что сроки звеньев складываются (см. maxConfirmExpiry)
-	if cfg.ConfirmExpiry < 1 || cfg.ConfirmExpiry > maxConfirmExpiry {
+	if cfg.ConfirmExpiry < 1 {
 		cfg.ConfirmExpiry = defaultConfirmExpiry
 	}
 
@@ -163,8 +162,9 @@ func ParsePasswordStrength(name string) (password.PassStrength, error) {
 // ValidateAuth2FA - проверяет настройки 2FA, которые нельзя привести к допустимым
 // значениям подстановкой умолчаний (см. CorrectValuesAuth2FA): соль подставного второго
 // фактора - секрет инсталляции, и взять его неоткуда, поэтому короткая соль остаётся ошибкой;
-// неизвестное имя порога надёжности пароля 2FA и длина аварийного кода вне допустимого
-// диапазона - тоже ошибки, а не повод молча взять умолчание.
+// неизвестное имя порога надёжности пароля 2FA, длина аварийного кода вне допустимого
+// диапазона и срок жизни звена подтверждения вторым фактором выше потолка (см. maxActionExpiry) -
+// тоже ошибки, а не повод молча взять умолчание.
 //
 // Без этой проверки короткая соль роняет старт из глубины сборки контроллера
 // (crypt.NewDecoyFactorSelector), то есть из места, где конфигурация уже считается проверенной.
@@ -200,13 +200,13 @@ func ValidateAuth2FA(cfg Auth2FA) error {
 		)
 	}
 
-	return nil
+	return validateActionExpiry("confirm expiry", cfg.ConfirmExpiry)
 }
 
 // ValidateOperationConfirm - проверяет настройки подтверждения операций на соответствие спеке:
-// длина кода подтверждения в допустимом диапазоне и срок жизни операции подтверждения нового
-// емаила больше порога фиксированного срока (незаданный срок допустим - фабрика подставит
-// умолчание).
+// длина кода подтверждения в допустимом диапазоне, а срок жизни звена подтверждения кодом
+// не больше порога продления, чтобы пользователь гарантированно успевал пройти звено
+// (незаданный срок допустим).
 //
 // Это host-only reference-валидация уровня composition-root: предполагается, что её вызывает
 // host-приложение из своего init-пути (внутри библиотеки она намеренно не вызывается). Конкретный
@@ -216,12 +216,14 @@ func ValidateOperationConfirm(cfg OperationConfirm) error {
 		return err
 	}
 
-	if cfg.NewEmailExpiry != 0 && cfg.NewEmailExpiry <= minNewEmailExpiry {
-		return fmt.Errorf(
-			"new email expiry must be greater than %s (got %s)",
-			minNewEmailExpiry,
-			cfg.NewEmailExpiry,
-		)
+	return validateActionExpiry("session expiry", cfg.SessionExpiry)
+}
+
+// validateActionExpiry - проверяет, что срок жизни звена подтверждения не выше потолка
+// maxActionExpiry (незаданный срок допустим).
+func validateActionExpiry(name string, expiry time.Duration) error {
+	if expiry > maxActionExpiry {
+		return fmt.Errorf("%s must not be greater than %s (got %s)", name, maxActionExpiry, expiry)
 	}
 
 	return nil
@@ -316,6 +318,10 @@ func validateRealm(realm UserRealm, allRoles []string) error {
 		if err := validateConfirmCodeLength(realm.OperationConfirm.CodeLength); err != nil {
 			return fmt.Errorf("invalid operation confirm for realm '%s': %w", realm.Name, err)
 		}
+	}
+
+	if err := validateActionExpiry("session expiry", realm.OperationConfirm.SessionExpiry); err != nil {
+		return fmt.Errorf("invalid operation confirm for realm '%s': %w", realm.Name, err)
 	}
 
 	return nil
