@@ -4,8 +4,8 @@ import (
 	"github.com/mondegor/go-core/util/xtime"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
 
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
-	"github.com/mondegor/go-components/mrauth/model/pendingoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -37,17 +37,12 @@ func (ro *OperationResponse) NewConfirmOperation(
 	message string,
 ) model.WaitingConfirmOperationResponse {
 	action, _ := operation.FirstAction()
-	remainingResends, resendsIn := resendsInfo(&operation, action)
 
 	return model.WaitingConfirmOperationResponse{
-		Token:             operation.Token,
-		ConfirmMethod:     action.Method,
-		RemainingAttempts: operation.RemainingAttempts,
-		RemainingResends:  remainingResends,
-		ResendsIn:         resendsIn,
-		ExpiresIn:         xtime.TimeLeftInSec(operation.ExpiresAt),
-		Message:           message,
-		DebugInfo:         ro.debugFunc(operation),
+		ConfirmOperationState: ro.operationState(&operation, action),
+		Token:                 operation.Token,
+		ConfirmMethod:         action.Method,
+		Message:               message,
 	}
 }
 
@@ -57,23 +52,16 @@ func (ro *OperationResponse) NewErrorConfirmOperation(
 	operation secureoperation.SecureOperation,
 ) model.ErrorConfirmOperationResponse {
 	action, _ := operation.FirstAction()
-	remainingResends, resendsIn := resendsInfo(&operation, action)
 
 	return model.ErrorConfirmOperationResponse{
 		Error400Response: response,
-		OperationState: model.ConfirmOperationState{
-			RemainingAttempts: operation.RemainingAttempts,
-			RemainingResends:  remainingResends,
-			ResendsIn:         resendsIn,
-			ExpiresIn:         xtime.TimeLeftInSec(operation.ExpiresAt),
-			DebugInfo:         ro.debugFunc(operation),
-		},
+		OperationState:   ro.operationState(&operation, action),
 	}
 }
 
 // NewPendingOperation - формирует элемент списка действующих операций пользователя.
 // expiresAt - срок действия, уже отформатированный в часовом поясе пользователя.
-func (ro *OperationResponse) NewPendingOperation(item pendingoperation.PendingOperation, expiresAt string) model.PendingOperation {
+func (ro *OperationResponse) NewPendingOperation(item dto.PendingOperation, expiresAt string) model.PendingOperation {
 	response := model.PendingOperation{
 		Token:      item.Token,
 		Type:       item.Type,
@@ -99,6 +87,23 @@ func (ro *OperationResponse) NewPendingOperation(item pendingoperation.PendingOp
 	}
 
 	return response
+}
+
+// operationState - текущее состояние операции подтверждения: оставшиеся попытки,
+// повторные отправки текущего действия action и время действия операции.
+func (ro *OperationResponse) operationState(
+	operation *secureoperation.SecureOperation,
+	action secureoperation.ConfirmAction,
+) model.ConfirmOperationState {
+	remainingResends, resendsIn := resendsInfo(operation, action)
+
+	return model.ConfirmOperationState{
+		RemainingAttempts: operation.RemainingAttempts,
+		RemainingResends:  remainingResends,
+		ResendsIn:         resendsIn,
+		ExpiresIn:         xtime.TimeLeftInSec(operation.ExpiresAt),
+		DebugInfo:         ro.debugFunc(*operation),
+	}
 }
 
 // resendsInfo - счётчики повторных отправок кода подтверждения текущим действием операции:

@@ -19,7 +19,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
-	"github.com/mondegor/go-components/mrauth/model/pendingoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
 )
@@ -105,7 +104,7 @@ type (
 	confirmOperationResponse interface {
 		NewConfirmOperation(operation secureoperation.SecureOperation, message string) model.WaitingConfirmOperationResponse
 		NewErrorConfirmOperation(response mrresp.Error400Response, operation secureoperation.SecureOperation) model.ErrorConfirmOperationResponse
-		NewPendingOperation(item pendingoperation.PendingOperation, expiresAt string) model.PendingOperation
+		NewPendingOperation(item dto.PendingOperation, expiresAt string) model.PendingOperation
 	}
 )
 

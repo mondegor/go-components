@@ -199,17 +199,17 @@ func (m *MockoperationFetcher) EXPECT() *MockoperationFetcherMockRecorder {
 	return m.recorder
 }
 
-// FetchByUserID mocks base method.
-func (m *MockoperationFetcher) FetchByUserID(ctx context.Context, userID uuid.UUID) ([]secureoperation.SecureOperation, error) {
+// FetchByUserIDAndNames mocks base method.
+func (m *MockoperationFetcher) FetchByUserIDAndNames(ctx context.Context, userID uuid.UUID, names []string) ([]secureoperation.SecureOperation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchByUserID", ctx, userID)
+	ret := m.ctrl.Call(m, "FetchByUserIDAndNames", ctx, userID, names)
 	ret0, _ := ret[0].([]secureoperation.SecureOperation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FetchByUserID indicates an expected call of FetchByUserID.
-func (mr *MockoperationFetcherMockRecorder) FetchByUserID(ctx, userID any) *gomock.Call {
+// FetchByUserIDAndNames indicates an expected call of FetchByUserIDAndNames.
+func (mr *MockoperationFetcherMockRecorder) FetchByUserIDAndNames(ctx, userID, names any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchByUserID", reflect.TypeOf((*MockoperationFetcher)(nil).FetchByUserID), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchByUserIDAndNames", reflect.TypeOf((*MockoperationFetcher)(nil).FetchByUserIDAndNames), ctx, userID, names)
 }

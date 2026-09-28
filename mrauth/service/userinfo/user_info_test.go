@@ -93,7 +93,7 @@ func (s *UserInfoSuite) TestGet() {
 		}, nil)
 
 	// операции личного кабинета попадают в сводку в порядке хранилища, вход - нет
-	s.opFetcher.EXPECT().FetchByUserID(gomock.Any(), userID).Return([]secureoperation.SecureOperation{
+	s.opFetcher.EXPECT().FetchByUserIDAndNames(gomock.Any(), userID, unit.PendingOperationNames()).Return([]secureoperation.SecureOperation{
 		s.confirmedOperation(unit.NameAuthorizeUser, nil),
 		s.confirmedOperation(unit.NameConfirmChangeEmail, s.emailPayload()),
 		s.confirmedOperation(unit.NameConfirmDisable2FA, nil),
@@ -159,7 +159,7 @@ func (s *UserInfoSuite) TestGetOperationsError() {
 			s.auth2faFetch.EXPECT().FetchOne(gomock.Any(), userID).Return(entity.Auth2FA{}, nil)
 			s.statFetcher.EXPECT().Fetch(gomock.Any(), userID).Return(nil, nil)
 			s.realmFetcher.EXPECT().Fetch(gomock.Any(), userID).Return(nil, nil)
-			s.opFetcher.EXPECT().FetchByUserID(gomock.Any(), userID).Return(tt.operations, tt.fetchErr)
+			s.opFetcher.EXPECT().FetchByUserIDAndNames(gomock.Any(), userID, unit.PendingOperationNames()).Return(tt.operations, tt.fetchErr)
 
 			_, err := s.newService(nil).Get(s.ctx, userID)
 			s.Require().Error(err)

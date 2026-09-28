@@ -12,21 +12,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
-const (
-	// secureOperationColumns - колонки выборки операции в порядке разбора scanSecureOperation.
-	secureOperationColumns = `
-			operation_token,
-			operation_name,
-			user_id,
-			confirm_actions,
-			remaining_attempts,
-			remaining_resends,
-			resends_at,
-			operation_payload,
-			operation_status,
-			expires_at`
-)
-
 type (
 	// SecureOperationPostgres - реализация хранилища защищённых операций в PostgreSQL.
 	SecureOperationPostgres struct {
@@ -62,7 +47,16 @@ func (re *SecureOperationPostgres) FetchOneForUpdate(ctx context.Context, token 
 func (re *SecureOperationPostgres) fetchOne(ctx context.Context, token string, forUpdate bool) (row secureoperation.SecureOperation, err error) {
 	sql := `
 		SELECT
-			` + secureOperationColumns + `
+			operation_token,
+			operation_name,
+			user_id,
+			confirm_actions,
+			remaining_attempts,
+			remaining_resends,
+			resends_at,
+			operation_payload,
+			operation_status,
+			expires_at
 		FROM
 			` + re.tableName + `
 		WHERE
@@ -75,28 +69,70 @@ func (re *SecureOperationPostgres) fetchOne(ctx context.Context, token string, f
 
 	sql += `;`
 
-	row, err = scanSecureOperation(re.client.Conn(ctx).QueryRow(ctx, sql, token))
+	var (
+		userID  *uuid.UUID
+		actions []secureoperation.ConfirmAction
+	)
+
+	err = re.client.Conn(ctx).QueryRow(ctx, sql, token).Scan(
+		&row.Token,
+		&row.Name,
+		&userID,
+		&actions,
+		&row.RemainingAttempts,
+		&row.RemainingResends,
+		&row.ResendsAt,
+		&row.Payload,
+		&row.Status,
+		&row.ExpiresAt,
+	)
 	if err != nil {
+		return secureoperation.SecureOperation{}, re.errorWrapper.Wrap(err)
+	}
+
+	// from nullable user_id field
+	if userID != nil {
+		row.UserID = *userID
+	}
+
+	// системное время: домен всегда оперирует UTC независимо от зоны сессии БД
+	row.ResendsAt = row.ResendsAt.UTC()
+	row.ExpiresAt = row.ExpiresAt.UTC()
+
+	if err = secureoperation.WakeUp(&row, actions); err != nil {
 		return secureoperation.SecureOperation{}, re.errorWrapper.Wrap(err)
 	}
 
 	return row, nil
 }
 
-// FetchByUserID - возвращает действующие (не истёкшие) операции указанного пользователя в любом
-// статусе, упорядоченные по сроку действия. Если операций нет, возвращает пустой срез.
-func (re *SecureOperationPostgres) FetchByUserID(ctx context.Context, userID uuid.UUID) (rows []secureoperation.SecureOperation, err error) {
+// FetchByUserIDAndNames - возвращает действующие (не истёкшие) операции указанных типов
+// указанного пользователя в любом статусе, упорядоченные по сроку действия. Если операций нет,
+// возвращает пустой срез.
+func (re *SecureOperationPostgres) FetchByUserIDAndNames(
+	ctx context.Context,
+	userID uuid.UUID,
+	names []string,
+) (rows []secureoperation.SecureOperation, err error) {
 	sql := `
 		SELECT
-			` + secureOperationColumns + `
+			operation_token,
+			operation_name,
+			confirm_actions,
+			remaining_attempts,
+			remaining_resends,
+			resends_at,
+			operation_payload,
+			operation_status,
+			expires_at
 		FROM
 			` + re.tableName + `
 		WHERE
-			user_id = $1 AND expires_at > NOW()
+			user_id = $1 AND operation_name = ANY($2) AND expires_at > NOW()
 		ORDER BY
 			expires_at, operation_token;`
 
-	cursor, err := re.client.Conn(ctx).Query(ctx, sql, userID)
+	cursor, err := re.client.Conn(ctx).Query(ctx, sql, userID, names)
 	if err != nil {
 		return nil, re.errorWrapper.Wrap(err)
 	}
@@ -106,8 +142,31 @@ func (re *SecureOperationPostgres) FetchByUserID(ctx context.Context, userID uui
 	rows = make([]secureoperation.SecureOperation, 0)
 
 	for cursor.Next() {
-		row, err := scanSecureOperation(cursor)
+		var (
+			row     = secureoperation.SecureOperation{UserID: userID}
+			actions []secureoperation.ConfirmAction
+		)
+
+		err = cursor.Scan(
+			&row.Token,
+			&row.Name,
+			&actions,
+			&row.RemainingAttempts,
+			&row.RemainingResends,
+			&row.ResendsAt,
+			&row.Payload,
+			&row.Status,
+			&row.ExpiresAt,
+		)
 		if err != nil {
+			return nil, re.errorWrapper.Wrap(err)
+		}
+
+		// системное время: домен всегда оперирует UTC независимо от зоны сессии БД
+		row.ResendsAt = row.ResendsAt.UTC()
+		row.ExpiresAt = row.ExpiresAt.UTC()
+
+		if err = secureoperation.WakeUp(&row, actions); err != nil {
 			// операция истекла между отбором и разбором строки - её уже нет среди действующих
 			if errors.Is(err, mrauth.ErrOperationAlreadyExpired) {
 				continue
@@ -124,46 +183,6 @@ func (re *SecureOperationPostgres) FetchByUserID(ctx context.Context, userID uui
 	}
 
 	return rows, nil
-}
-
-// scanSecureOperation - разбирает строку выборки с колонками secureOperationColumns
-// и восстанавливает по ней операцию (secureoperation.WakeUp проверяет инварианты и срок).
-func scanSecureOperation(row interface{ Scan(dest ...any) error }) (op secureoperation.SecureOperation, err error) {
-	var (
-		userID  *uuid.UUID
-		actions []secureoperation.ConfirmAction
-	)
-
-	err = row.Scan(
-		&op.Token,
-		&op.Name,
-		&userID,
-		&actions,
-		&op.RemainingAttempts,
-		&op.RemainingResends,
-		&op.ResendsAt,
-		&op.Payload,
-		&op.Status,
-		&op.ExpiresAt,
-	)
-	if err != nil {
-		return secureoperation.SecureOperation{}, err
-	}
-
-	// from nullable user_id field
-	if userID != nil {
-		op.UserID = *userID
-	}
-
-	// системное время: домен всегда оперирует UTC независимо от зоны сессии БД
-	op.ResendsAt = op.ResendsAt.UTC()
-	op.ExpiresAt = op.ExpiresAt.UTC()
-
-	if err = secureoperation.WakeUp(&op, actions); err != nil {
-		return secureoperation.SecureOperation{}, err
-	}
-
-	return op, nil
 }
 
 // Insert - добавляет новую защищённую операцию.
