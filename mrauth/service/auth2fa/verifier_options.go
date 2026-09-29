@@ -18,8 +18,7 @@ func WithRecoveryCodeLength(minLength, maxLength int) Option {
 	}
 }
 
-// WithRecoveryAlerter - подключает уведомление об остатке аварийных кодов после расхода
-// (порог, при котором реально слать уведомление, определяет сам alerter).
+// WithRecoveryAlerter - подключает оповещение о каждом расходе аварийного кода с остатком.
 func WithRecoveryAlerter(alerter recoveryAlerter) Option {
 	return func(o *options) {
 		o.verifier.recoveryAlerter = alerter

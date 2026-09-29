@@ -10,13 +10,14 @@ import (
 )
 
 const (
-	// notifyKeyRecoveryCodesLow - ключ уведомления о низком остатке аварийных кодов.
-	notifyKeyRecoveryCodesLow = "user.recovery_codes.low"
+	// notifyKeyRecoveryCodeUsed - ключ уведомления об использовании аварийного кода.
+	notifyKeyRecoveryCodeUsed = "user.recovery_codes.used"
 )
 
 type (
-	// RecoveryAlerter - отправляет пользователю уведомление о низком остатке аварийных
-	// кодов через notifierAPI. Уведомление шлётся, только когда остаток упал до threshold и ниже.
+	// RecoveryAlerter - оповещает пользователя через notifierAPI о каждом использовании
+	// аварийного кода: сообщает остаток и признак low - остаток не выше threshold, при котором
+	// в письме предлагается перевыпустить список.
 	RecoveryAlerter struct {
 		notifierAPI mrauth.Notifier
 		threshold   int
@@ -31,19 +32,15 @@ func NewRecoveryAlerter(notifierAPI mrauth.Notifier, threshold int) *RecoveryAle
 	}
 }
 
-// SendAlert - уведомляет пользователя о низком остатке аварийных кодов, если остаток
-// не превышает порог; иначе ничего не делает.
+// SendAlert - оповещает пользователя об использовании аварийного кода и остатке кодов.
 func (uc *RecoveryAlerter) SendAlert(ctx context.Context, userID uuid.UUID, codeRemaining int) error {
-	if codeRemaining > uc.threshold {
-		return nil
-	}
-
 	return uc.notifierAPI.Send(
 		ctx,
-		notifyKeyRecoveryCodesLow,
+		notifyKeyRecoveryCodeUsed,
 		conv.Group{
 			"to":        userID,
 			"remaining": codeRemaining,
+			"low":       codeRemaining <= uc.threshold,
 		},
 	)
 }

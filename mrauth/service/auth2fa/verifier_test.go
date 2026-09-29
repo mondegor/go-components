@@ -365,7 +365,7 @@ func (s *VerifierSuite) TestRecoveryConsumedCallsAlerter() {
 		Secret:        testTOTPSecret,
 		RecoveryCodes: []string{h1},
 	})
-	// Verifier всегда сообщает остаток alerter'у; решение о пороге - на стороне alerter.
+	// Verifier сообщает alerter'у остаток на каждый израсходованный код.
 	// Обе фиксации происходят только после commit, поэтому порядок задан явно.
 	gomock.InOrder(
 		s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, h1).Return(1, nil),

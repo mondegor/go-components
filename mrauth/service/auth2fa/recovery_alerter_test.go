@@ -36,23 +36,34 @@ func (s *RecoveryAlerterSuite) SetupTest() {
 	s.svc = auth2fa.NewRecoveryAlerter(s.notifierAPI, 2)
 }
 
-func (s *RecoveryAlerterSuite) TestAtThresholdSends() {
-	userID := uuid.New()
+// TestNotifiesEveryUse - уведомление уходит на каждое использование кода, а признак low
+// выставляется, только когда остаток не выше порога.
+func (s *RecoveryAlerterSuite) TestNotifiesEveryUse() {
+	tests := []struct {
+		name      string
+		remaining int
+		wantLow   bool
+	}{
+		{name: "above threshold", remaining: 3, wantLow: false},
+		{name: "at threshold", remaining: 2, wantLow: true},
+		{name: "none left", remaining: 0, wantLow: true},
+	}
 
-	s.notifierAPI.EXPECT().
-		Send(gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, _ string, props map[string]any) error {
-			s.Equal(userID, props["to"]) // ID пользователя заменяется на email декоратором notifierAPI
-			s.Equal(2, props["remaining"])
+	for _, tc := range tests {
+		s.Run(tc.name, func() {
+			userID := uuid.New()
 
-			return nil
+			s.notifierAPI.EXPECT().
+				Send(gomock.Any(), "user.recovery_codes.used", gomock.Any()).
+				DoAndReturn(func(_ context.Context, _ string, props map[string]any) error {
+					s.Equal(userID, props["to"]) // ID пользователя заменяется на email декоратором notifierAPI
+					s.Equal(tc.remaining, props["remaining"])
+					s.Equal(tc.wantLow, props["low"])
+
+					return nil
+				})
+
+			s.Require().NoError(s.svc.SendAlert(s.ctx, userID, tc.remaining))
 		})
-
-	s.Require().NoError(s.svc.SendAlert(s.ctx, userID, 2)) // остаток == порога
-}
-
-func (s *RecoveryAlerterSuite) TestAboveThresholdSkips() {
-	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
-
-	s.Require().NoError(s.svc.SendAlert(s.ctx, uuid.New(), 3)) // остаток > порога
+	}
 }
