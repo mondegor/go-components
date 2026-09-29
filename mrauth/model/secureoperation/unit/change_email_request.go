@@ -6,15 +6,10 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
-)
-
-const (
-	// NameConfirmChangeEmailRequest - название операции запроса смены емаила пользователя
-	// (первый шаг смены емаила: доказательство владения аккаунтом).
-	NameConfirmChangeEmailRequest = "confirm.change.email.request"
 )
 
 type (
@@ -41,7 +36,7 @@ func NewChangeEmailRequest(
 }
 
 // Create - создаёт операцию запроса смены емаила для указанного пользователя; сам емаил
-// меняет операция второго шага (NameConfirmChangeEmail), которую открывает применение этой.
+// меняет операция второго шага (operationtype.ChangeEmailConfirm), которую открывает применение этой.
 // Утратившему доступ к почте предназначена фабрика ChangeEmailRequestByRecovery.
 func (o *ChangeEmailRequest) Create(user2FA dto.User2FA, newEmail contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
 	if !newEmail.Is(addresstype.Email) {
@@ -84,7 +79,7 @@ func (o *ChangeEmailRequest) Create(user2FA dto.User2FA, newEmail contactaddress
 
 	return secureoperation.NewOperation(
 		operationToken,
-		NameConfirmChangeEmailRequest,
+		operationtype.ChangeEmail,
 		user2FA.ID,
 		actions,
 		payload,

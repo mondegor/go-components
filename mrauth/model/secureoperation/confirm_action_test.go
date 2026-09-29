@@ -9,6 +9,7 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -19,7 +20,7 @@ func newOpWithSingleTOTPAction(t *testing.T) secureoperation.SecureOperation {
 
 	op, err := secureoperation.NewOperation(
 		"token",
-		"name1",
+		operationtype.ChangePhone,
 		uuid.Nil,
 		[]secureoperation.ConfirmAction{
 			{

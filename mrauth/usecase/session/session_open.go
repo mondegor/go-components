@@ -15,8 +15,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
 type (
@@ -111,7 +111,7 @@ func NewOpenSession(
 // Execute - открывает новую сессию: сохраняет строку сессии (с генерацией её идентификатора),
 // выпускает пару токенов и фиксирует активность пользователя.
 func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op secureoperation.SecureOperation) (authToken dto.AuthTokenPair, err error) {
-	if op.Name != unit.NameConfirmCreateUser && op.Name != unit.NameAuthorizeUser {
+	if op.Type != operationtype.CreateUser && op.Type != operationtype.AuthorizeUser {
 		return dto.AuthTokenPair{}, errors.ErrAccessForbidden
 	}
 
@@ -139,7 +139,7 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 				entity.NewSecureOperationLog(
 					userScopes.UserID,
 					meta.ClientIP,
-					op.Name,
+					op.Type.String(),
 					op.FirstActionMethod(),
 					logstatus.Blocked,
 					logreason.SessionLimit,
@@ -211,7 +211,7 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 		entity.NewSecureOperationLog(
 			userScopes.UserID,
 			meta.ClientIP,
-			op.Name,
+			op.Type.String(),
 			op.FirstActionMethod(),
 			logstatus.SessionOpened,
 			logreason.Unspecified,

@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
@@ -42,8 +43,8 @@ func (uc *AuthFlow) Execute(
 ) (scopes dto.UserScopes, notifyAuthSuccess func(context.Context), err error) {
 	var authIn dto.AuthorizeUserOperation
 
-	switch op.Name {
-	case unit.NameConfirmCreateUser:
+	switch op.Type {
+	case operationtype.CreateUser:
 		var createIn dto.CreateUserOperation
 
 		if createIn, err = unit.ParseCreateUserPayload(op.Payload); err != nil {
@@ -59,12 +60,12 @@ func (uc *AuthFlow) Execute(
 			Realm:    createIn.Realm,
 			LangCode: createIn.LangCode,
 		}
-	case unit.NameAuthorizeUser:
+	case operationtype.AuthorizeUser:
 		if authIn, err = unit.ParseAuthorizeUserPayload(op.Payload); err != nil {
 			return dto.UserScopes{}, nil, err
 		}
 	default:
-		return dto.UserScopes{}, nil, errors.ErrInternalIncorrectInputData.WithDetails("operation name is incorrect", "name", op.Name)
+		return dto.UserScopes{}, nil, errors.ErrInternalIncorrectInputData.WithDetails("operation type is incorrect", "type", op.Type)
 	}
 
 	return uc.service.PrepareAuthorization(ctx, op.UserID, authIn)

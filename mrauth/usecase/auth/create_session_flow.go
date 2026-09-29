@@ -11,21 +11,22 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
 type (
-	// operationNamer - общее у фабрик обоих маршрутов входа: имя создаваемой операции,
+	// operationTyper - общее у фабрик обоих маршрутов входа: тип создаваемой операции,
 	// нужное журналу ещё до её создания (pre-op).
-	operationNamer interface {
-		Name() string
+	operationTyper interface {
+		Type() operationtype.Enum
 	}
 
 	// createSessionFlow - общий конвейер создания операции входа для юзкейсов, различающихся
 	// только цепочкой подтверждения: обычный вход (CreateSession) и вход пользователя,
 	// утратившего доступ к почте (CreateSessionByRecovery).
-	createSessionFlow[T operationNamer] struct {
+	createSessionFlow[T operationTyper] struct {
 		opener                      operationOpener
 		userChecker                 userLoginChecker
 		factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator
@@ -39,7 +40,7 @@ type (
 // newCreateSessionFlow - создаёт объект createSessionFlow.
 // noteName - имя шаблона уведомления с кодом подтверждения; пустое значение означает,
 // что первое звено цепочки не sendable и отправлять нечего.
-func newCreateSessionFlow[T operationNamer](
+func newCreateSessionFlow[T operationTyper](
 	opener operationOpener,
 	userChecker userLoginChecker,
 	factoryUser2FAConfirmAction mrauth.User2FAConfirmActionCreator,
@@ -87,7 +88,7 @@ func (f createSessionFlow[T]) execute(
 		f.logOperation.Log(
 			ctx,
 			actor.NewOperationLog(
-				opCreator.Name(), confirmmethod.Unspecified, logstatus.Blocked, logreason.LoginNotExists,
+				opCreator.Type().String(), confirmmethod.Unspecified, logstatus.Blocked, logreason.LoginNotExists,
 			),
 		)
 

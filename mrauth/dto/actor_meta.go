@@ -36,10 +36,10 @@ func (m ActorMeta) WithVisitor(userID uuid.UUID) ActorMeta {
 // (подставляет VisitorID и ClientIP), фиксируя остальные поля события.
 // TODO: скорее всего нужно сделать хелпер функцию, а не метод.
 func (m ActorMeta) NewOperationLog(
-	operationName string,
+	sourceName string,
 	method confirmmethod.Enum,
 	status logstatus.Enum,
 	reason logreason.Enum,
 ) entity.SecureOperationLog {
-	return entity.NewSecureOperationLog(m.VisitorID, m.ClientIP, operationName, method, status, reason)
+	return entity.NewSecureOperationLog(m.VisitorID, m.ClientIP, sourceName, method, status, reason)
 }

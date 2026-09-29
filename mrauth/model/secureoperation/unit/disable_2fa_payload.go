@@ -6,6 +6,7 @@ import (
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 )
 
 // BuildDisable2FAPayload - собирает payload операции отключения 2FA пользователя,
@@ -18,7 +19,7 @@ func BuildDisable2FAPayload(in dto.Disable2FAOperation) ([]byte, error) {
 	value, err := json.Marshal(in)
 	if err != nil {
 		return nil, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not built", "operation_name", NameConfirmDisable2FA)
+			WithError(err, "payload is not built", "operation_type", operationtype.Disable2FA)
 	}
 
 	return value, nil
@@ -31,7 +32,7 @@ func ParseDisable2FAPayload(payload []byte) (dto.Disable2FAOperation, error) {
 
 	if err := json.Unmarshal(payload, &parsed); err != nil {
 		return dto.Disable2FAOperation{}, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not parsed", "operation_name", NameConfirmDisable2FA)
+			WithError(err, "payload is not parsed", "operation_type", operationtype.Disable2FA)
 	}
 
 	if err := validateDisable2FAPayload(parsed); err != nil {
@@ -45,7 +46,7 @@ func ParseDisable2FAPayload(payload []byte) (dto.Disable2FAOperation, error) {
 func validateDisable2FAPayload(in dto.Disable2FAOperation) error {
 	if in.Email == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: email is empty", "operation_name", NameConfirmDisable2FA)
+			WithDetails("payload: email is empty", "operation_type", operationtype.Disable2FA)
 	}
 
 	return nil

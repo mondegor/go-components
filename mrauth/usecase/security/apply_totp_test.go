@@ -19,7 +19,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
@@ -177,7 +177,7 @@ func (s *ApplyTOTPSuite) TestValidCodeBindsAndReturnsCodes() {
 	s.Equal(logreason.Auth2FAStateChanged, s.revokeReason)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
-	s.Equal(unit.NameConfirmChangeTOTP, s.logEntries[0].OperationName)
+	s.Equal(operationtype.ChangeTOTP.String(), s.logEntries[0].SourceName)
 }
 
 // TestActive2FAConflictNoApply - 2FA включили другим способом между созданием операции

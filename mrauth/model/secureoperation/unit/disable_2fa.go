@@ -3,14 +3,10 @@ package unit
 import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
-)
-
-const (
-	// NameConfirmDisable2FA - название операции подтверждения отключения 2FA пользователя.
-	NameConfirmDisable2FA = "confirm.disable.2fa"
 )
 
 type (
@@ -79,7 +75,7 @@ func (o *Disable2FA) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 
 	return secureoperation.NewOperation(
 		operationToken,
-		NameConfirmDisable2FA,
+		operationtype.Disable2FA,
 		user2FA.ID,
 		actions,
 		payload,

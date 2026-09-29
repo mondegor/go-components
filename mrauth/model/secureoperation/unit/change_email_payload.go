@@ -6,10 +6,11 @@ import (
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 )
 
 // BuildChangeEmailPayload - собирает payload операций смены емаила пользователя (он общий
-// у обоих шагов: NameConfirmChangeEmailRequest и NameConfirmChangeEmail), предварительно
+// у обоих шагов: operationtype.ChangeEmail и operationtype.ChangeEmailConfirm), предварительно
 // проверив его инварианты.
 func BuildChangeEmailPayload(in dto.ChangeEmailOperation) ([]byte, error) {
 	if err := validateChangeEmailPayload(in); err != nil {
@@ -19,7 +20,7 @@ func BuildChangeEmailPayload(in dto.ChangeEmailOperation) ([]byte, error) {
 	value, err := json.Marshal(in)
 	if err != nil {
 		return nil, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not built", "operation_name", NameConfirmChangeEmail)
+			WithError(err, "payload is not built", "operation_type", operationtype.ChangeEmailConfirm)
 	}
 
 	return value, nil
@@ -32,7 +33,7 @@ func ParseChangeEmailPayload(payload []byte) (dto.ChangeEmailOperation, error) {
 
 	if err := json.Unmarshal(payload, &parsed); err != nil {
 		return dto.ChangeEmailOperation{}, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not parsed", "operation_name", NameConfirmChangeEmail)
+			WithError(err, "payload is not parsed", "operation_type", operationtype.ChangeEmailConfirm)
 	}
 
 	if err := validateChangeEmailPayload(parsed); err != nil {
@@ -46,12 +47,12 @@ func ParseChangeEmailPayload(payload []byte) (dto.ChangeEmailOperation, error) {
 func validateChangeEmailPayload(in dto.ChangeEmailOperation) error {
 	if in.NewEmail == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: newEmail is empty", "operation_name", NameConfirmChangeEmail)
+			WithDetails("payload: newEmail is empty", "operation_type", operationtype.ChangeEmailConfirm)
 	}
 
 	if in.Email == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: email is empty", "operation_name", NameConfirmChangeEmail)
+			WithDetails("payload: email is empty", "operation_type", operationtype.ChangeEmailConfirm)
 	}
 
 	return nil

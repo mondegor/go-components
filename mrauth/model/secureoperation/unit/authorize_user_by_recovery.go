@@ -6,6 +6,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 )
@@ -53,9 +54,9 @@ func NewAuthorizeUserByRecovery(
 	}
 }
 
-// Name - возвращает название создаваемой операции: то же самое, что и у AuthorizeUser.
-func (o *AuthorizeUserByRecovery) Name() string {
-	return NameAuthorizeUser
+// Type - возвращает тип создаваемой операции: то же самое, что и у AuthorizeUser.
+func (o *AuthorizeUserByRecovery) Type() operationtype.Enum {
+	return operationtype.AuthorizeUser
 }
 
 // Create - создаёт операцию авторизации пользователя, утратившего доступ к почте:
@@ -94,7 +95,7 @@ func (o *AuthorizeUserByRecovery) Create(user2FA dto.User2FA, realm, langCode st
 	// (инвариант checkInvariants: аварийный код принимается только последним звеном)
 	return secureoperation.NewOperation(
 		operationToken,
-		NameAuthorizeUser,
+		operationtype.AuthorizeUser,
 		user2FA.ID,
 		[]secureoperation.ConfirmAction{
 			newConfirmActionBy2FA(factorAction), o.recoveryCreator.Create(),

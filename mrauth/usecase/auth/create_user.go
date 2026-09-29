@@ -16,6 +16,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
@@ -43,9 +44,9 @@ type (
 	}
 
 	createUserOperation interface {
-		// Name - имя создаваемой операции; используется для событий журнала, возникающих
-		// до её создания (pre-op), чтобы они не разъезжались с именем самой операции.
-		Name() string
+		// Type - тип создаваемой операции; используется для событий журнала, возникающих
+		// до её создания (pre-op), чтобы они не разъезжались с типом самой операции.
+		Type() operationtype.Enum
 
 		// Expiry - срок действия отправляемого кода подтверждения; по нему выставляется окно
 		// троттла повторной регистрации, чтобы оно не разъезжалось с настройкой самой операции.
@@ -139,7 +140,7 @@ func (co *CreateUser) Execute(
 				entity.NewSecureOperationLog(
 					uuid.Nil,
 					registeredIP,
-					opCreator.Name(),
+					opCreator.Type().String(),
 					confirmmethod.Unspecified,
 					logstatus.Blocked,
 					logreason.Throttled,

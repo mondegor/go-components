@@ -16,6 +16,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
@@ -105,7 +106,7 @@ func (uc *ApplyTOTPGenerator) Execute(
 	}
 
 	var (
-		operationName  string
+		operationType  operationtype.Enum
 		actionMethod   confirmmethod.Enum
 		failedLogState logState
 	)
@@ -120,7 +121,7 @@ func (uc *ApplyTOTPGenerator) Execute(
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		operationName = op.Name
+		operationType = op.Type
 		actionMethod = op.FirstActionMethod()
 
 		if actor.VisitorID != op.UserID {
@@ -131,7 +132,7 @@ func (uc *ApplyTOTPGenerator) Execute(
 
 		// TODO: проверить, что пользователь не заблокирован
 
-		if op.Name != unit.NameConfirmChangeTOTP {
+		if op.Type != operationtype.ChangeTOTP {
 			failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
 
 			return errors.ErrAccessForbidden
@@ -207,7 +208,7 @@ func (uc *ApplyTOTPGenerator) Execute(
 			uc.logOperation.Log(
 				ctx,
 				actor.NewOperationLog(
-					operationName, actionMethod, failedLogState.status, failedLogState.reason,
+					operationType.String(), actionMethod, failedLogState.status, failedLogState.reason,
 				),
 			)
 		}
@@ -219,7 +220,7 @@ func (uc *ApplyTOTPGenerator) Execute(
 	uc.logOperation.Log(
 		ctx,
 		actor.NewOperationLog(
-			operationName, actionMethod, logstatus.Applied, logreason.Unspecified,
+			operationType.String(), actionMethod, logstatus.Applied, logreason.Unspecified,
 		),
 	)
 

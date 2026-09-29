@@ -12,6 +12,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	secureoperation_model "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/service/secureoperation"
 	"github.com/mondegor/go-components/mrauth/service/secureoperation/mock"
@@ -46,7 +47,7 @@ func (s *ResendCodeSuite) SetupTest() {
 func (s *ResendCodeSuite) openedEmailOp() secureoperation_model.SecureOperation {
 	op := secureoperation_model.SecureOperation{
 		Token:             "token",
-		Name:              "name1",
+		Type:              operationtype.ChangePhone,
 		UserID:            uuid.New(),
 		RemainingAttempts: 3,
 		RemainingResends:  5,
@@ -91,7 +92,7 @@ func (s *ResendCodeSuite) TestPrepareTokenGeneratorError() {
 // TestPrepareBusinessErrorsKeepOperation - временный троттл и окончательно израсходованные
 // отправки - бизнес-результат, а не сбой: вызывающий отдаёт клиенту актуальные счётчики
 // операции вместе с ошибкой, поэтому операция обязана вернуться непустой. Нулевая операция
-// здесь стоила бы клиенту пустого operation_state, а журналу - пустого имени операции.
+// здесь стоила бы клиенту пустого operation_state, а журналу - пустого типа операции.
 func (s *ResendCodeSuite) TestPrepareBusinessErrorsKeepOperation() {
 	for _, tt := range []struct {
 		name    string
@@ -122,7 +123,7 @@ func (s *ResendCodeSuite) TestPrepareBusinessErrorsKeepOperation() {
 			out, err := s.svc.Prepare(op)
 			s.Require().ErrorIs(err, tt.wantErr)
 			s.Equal(op.Token, out.Token, "операция должна вернуться вместе с ошибкой")
-			s.Equal(op.Name, out.Name)
+			s.Equal(op.Type, out.Type)
 		})
 	}
 }
@@ -148,7 +149,7 @@ func (s *ResendCodeSuite) TestPrepareNonSendableActionFails() {
 
 			op := secureoperation_model.SecureOperation{
 				Token:             "token",
-				Name:              "name1",
+				Type:              operationtype.ChangePhone,
 				UserID:            uuid.New(),
 				RemainingAttempts: 3,
 				Status:            operationstatus.Opened,
@@ -174,7 +175,7 @@ func (s *ResendCodeSuite) TestPrepareNotOpenedFails() {
 
 	confirmed := secureoperation_model.SecureOperation{
 		Token:     "token",
-		Name:      "name1",
+		Type:      operationtype.ChangePhone,
 		UserID:    uuid.New(),
 		Status:    operationstatus.Confirmed,
 		ExpiresAt: time.Now().Add(10 * time.Minute),

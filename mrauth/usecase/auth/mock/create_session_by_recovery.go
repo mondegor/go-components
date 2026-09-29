@@ -13,6 +13,7 @@ import (
 	reflect "reflect"
 
 	dto "github.com/mondegor/go-components/mrauth/dto"
+	operationtype "github.com/mondegor/go-components/mrauth/enum/operationtype"
 	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -56,16 +57,16 @@ func (mr *MockcreateSessionByRecoveryOperationMockRecorder) Create(user2FA, real
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockcreateSessionByRecoveryOperation)(nil).Create), user2FA, realm, langCode)
 }
 
-// Name mocks base method.
-func (m *MockcreateSessionByRecoveryOperation) Name() string {
+// Type mocks base method.
+func (m *MockcreateSessionByRecoveryOperation) Type() operationtype.Enum {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Name")
-	ret0, _ := ret[0].(string)
+	ret := m.ctrl.Call(m, "Type")
+	ret0, _ := ret[0].(operationtype.Enum)
 	return ret0
 }
 
-// Name indicates an expected call of Name.
-func (mr *MockcreateSessionByRecoveryOperationMockRecorder) Name() *gomock.Call {
+// Type indicates an expected call of Type.
+func (mr *MockcreateSessionByRecoveryOperationMockRecorder) Type() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Name", reflect.TypeOf((*MockcreateSessionByRecoveryOperation)(nil).Name))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Type", reflect.TypeOf((*MockcreateSessionByRecoveryOperation)(nil).Type))
 }

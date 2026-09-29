@@ -16,6 +16,7 @@ import (
 
 	dto "github.com/mondegor/go-components/mrauth/dto"
 	entity "github.com/mondegor/go-components/mrauth/entity"
+	operationtype "github.com/mondegor/go-components/mrauth/enum/operationtype"
 	contactaddress "github.com/mondegor/go-components/mrauth/model/contactaddress"
 	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	mrtype "github.com/mondegor/go-core/mrtype"
@@ -75,18 +76,18 @@ func (mr *MockcreateUserOperationMockRecorder) Expiry() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Expiry", reflect.TypeOf((*MockcreateUserOperation)(nil).Expiry))
 }
 
-// Name mocks base method.
-func (m *MockcreateUserOperation) Name() string {
+// Type mocks base method.
+func (m *MockcreateUserOperation) Type() operationtype.Enum {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Name")
-	ret0, _ := ret[0].(string)
+	ret := m.ctrl.Call(m, "Type")
+	ret0, _ := ret[0].(operationtype.Enum)
 	return ret0
 }
 
-// Name indicates an expected call of Name.
-func (mr *MockcreateUserOperationMockRecorder) Name() *gomock.Call {
+// Type indicates an expected call of Type.
+func (mr *MockcreateUserOperationMockRecorder) Type() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Name", reflect.TypeOf((*MockcreateUserOperation)(nil).Name))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Type", reflect.TypeOf((*MockcreateUserOperation)(nil).Type))
 }
 
 // Mockuser2faActionCreator is a mock of user2faActionCreator interface.

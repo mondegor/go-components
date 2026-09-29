@@ -10,6 +10,7 @@ import (
 
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -19,22 +20,22 @@ func Test_NewOperationWithError(t *testing.T) {
 	tests := []struct {
 		name           string
 		token          string
-		operationName  string
+		operationType  operationtype.Enum
 		actions        []secureoperation.ConfirmAction
 		wantErrMessage string
 	}{
 		{
 			name:           "test1",
-			wantErrMessage: "name is empty",
+			wantErrMessage: "type is empty",
 		},
 		{
 			name:           "test2",
-			operationName:  "name1",
+			operationType:  operationtype.ChangePhone,
 			wantErrMessage: "operation is opened, but len(actions) == 0",
 		},
 		{
 			name:          "test3",
-			operationName: "name1",
+			operationType: operationtype.ChangePhone,
 			actions: []secureoperation.ConfirmAction{
 				{
 					Method: 0,
@@ -44,7 +45,7 @@ func Test_NewOperationWithError(t *testing.T) {
 		},
 		{
 			name:          "test4",
-			operationName: "name1",
+			operationType: operationtype.ChangePhone,
 			actions: []secureoperation.ConfirmAction{
 				{
 					Method: confirmmethod.Email,
@@ -56,7 +57,7 @@ func Test_NewOperationWithError(t *testing.T) {
 			// код подтверждения генерится при переходе к следующему звену, поэтому
 			// sendable-звено после не-sendable недостижимо
 			name:          "sendable action after non-sendable",
-			operationName: "name1",
+			operationType: operationtype.ChangePhone,
 			actions: []secureoperation.ConfirmAction{
 				{Method: confirmmethod.TOTP},
 				{Method: confirmmethod.Email},
@@ -66,7 +67,7 @@ func Test_NewOperationWithError(t *testing.T) {
 		{
 			// иначе аварийный код гасился бы до того, как комбинация принята целиком
 			name:          "allow recovery on non-last action",
-			operationName: "name1",
+			operationType: operationtype.ChangePhone,
 			actions: []secureoperation.ConfirmAction{
 				{Method: confirmmethod.Email, AllowRecovery: true},
 				{Method: confirmmethod.TOTP},
@@ -75,7 +76,7 @@ func Test_NewOperationWithError(t *testing.T) {
 		},
 		{
 			name:          "recovery action is not the last",
-			operationName: "name1",
+			operationType: operationtype.ChangePhone,
 			actions: []secureoperation.ConfirmAction{
 				{Method: confirmmethod.Recovery},
 				{Method: confirmmethod.TOTP},
@@ -87,7 +88,7 @@ func Test_NewOperationWithError(t *testing.T) {
 			// такого звена сверяет сама операция, а не верификатор: признак там ничего не значит
 			// и молча маскировал бы неверно собранную цепочку
 			name:          "allow recovery on sendable action",
-			operationName: "name1",
+			operationType: operationtype.ChangePhone,
 			actions: []secureoperation.ConfirmAction{
 				{Method: confirmmethod.Email, AllowRecovery: true},
 			},
@@ -99,7 +100,7 @@ func Test_NewOperationWithError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := secureoperation.NewOperation(tt.token, tt.operationName, uuid.Nil, tt.actions, nil)
+			_, err := secureoperation.NewOperation(tt.token, tt.operationType, uuid.Nil, tt.actions, nil)
 			assert.ErrorContains(t, err, tt.wantErrMessage)
 		})
 	}
@@ -113,7 +114,7 @@ func Test_NewOperationRecoveryChain(t *testing.T) {
 
 	op, err := secureoperation.NewOperation(
 		"token",
-		"name1",
+		operationtype.ChangePhone,
 		uuid.Nil,
 		[]secureoperation.ConfirmAction{
 			{Method: confirmmethod.TOTP, MaxAttempts: 3, Expiry: time.Minute},
@@ -138,7 +139,7 @@ func Test_WakeUpOperationWithError(t *testing.T) {
 	tests := []struct {
 		name           string
 		token          string
-		operationName  string
+		operationType  operationtype.Enum
 		actions        []secureoperation.ConfirmAction
 		status         operationstatus.Enum
 		wantErrMessage string
@@ -150,18 +151,18 @@ func Test_WakeUpOperationWithError(t *testing.T) {
 		{
 			name:           "test2",
 			token:          "token",
-			wantErrMessage: "name is empty",
+			wantErrMessage: "type is empty",
 		},
 		{
 			name:           "test3",
 			token:          "token",
-			operationName:  "name1",
+			operationType:  operationtype.ChangePhone,
 			wantErrMessage: "operation status is unknown",
 		},
 		{
 			name:          "test4",
 			token:         "token",
-			operationName: "name1",
+			operationType: operationtype.ChangePhone,
 			actions: []secureoperation.ConfirmAction{
 				{
 					Method: 0,
@@ -173,7 +174,7 @@ func Test_WakeUpOperationWithError(t *testing.T) {
 		{
 			name:          "test5",
 			token:         "token",
-			operationName: "name1",
+			operationType: operationtype.ChangePhone,
 			actions: []secureoperation.ConfirmAction{
 				{},
 			},
@@ -188,7 +189,7 @@ func Test_WakeUpOperationWithError(t *testing.T) {
 
 			op := secureoperation.SecureOperation{
 				Token:             tt.token,
-				Name:              tt.operationName,
+				Type:              tt.operationType,
 				UserID:            uuid.Nil,
 				RemainingAttempts: 0,
 				RemainingResends:  0,

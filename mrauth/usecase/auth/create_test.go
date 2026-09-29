@@ -23,9 +23,9 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/auth"
 	"github.com/mondegor/go-components/mrauth/usecase/auth/mock"
 )
@@ -66,7 +66,7 @@ func newOpenedEmailOp(t *testing.T) secureoperation.SecureOperation {
 
 	op, err := secureoperation.NewOperation(
 		"op-token",
-		"confirm.create",
+		operationtype.CreateUser,
 		uuid.New(),
 		[]secureoperation.ConfirmAction{
 			{
@@ -124,8 +124,8 @@ func (s *CreateSessionSuite) SetupTest() {
 
 	expectPassThroughTx(s.txManager)
 
-	s.opFactory.EXPECT().Name().Return(unit.NameAuthorizeUser).AnyTimes()
-	s.opRecFactory.EXPECT().Name().Return(unit.NameAuthorizeUser).AnyTimes()
+	s.opFactory.EXPECT().Type().Return(operationtype.AuthorizeUser).AnyTimes()
+	s.opRecFactory.EXPECT().Type().Return(operationtype.AuthorizeUser).AnyTimes()
 	s.factory2FA.EXPECT().CreateByUserLogin(gomock.Any(), gomock.Any()).Return(dto.User2FA{}, nil).AnyTimes()
 	s.factory2FA.EXPECT().CreateByUserID(gomock.Any(), gomock.Any()).Return(dto.User2FA{}, nil).AnyTimes()
 	s.logOperation.EXPECT().
@@ -214,7 +214,7 @@ func (s *CreateSessionSuite) TestLoginDoesNotExist() {
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
 	s.Equal(logreason.LoginNotExists, s.logEntries[0].Reason)
-	s.Equal(unit.NameAuthorizeUser, s.logEntries[0].OperationName)
+	s.Equal(operationtype.AuthorizeUser.String(), s.logEntries[0].SourceName)
 }
 
 func (s *CreateSessionSuite) TestSuccess() {
@@ -339,7 +339,7 @@ func (s *CreateUserSuite) SetupTest() {
 
 	expectPassThroughTx(s.txManager)
 
-	s.opFactory.EXPECT().Name().Return(unit.NameConfirmCreateUser).AnyTimes()
+	s.opFactory.EXPECT().Type().Return(operationtype.CreateUser).AnyTimes()
 	s.opFactory.EXPECT().Expiry().Return(testThrottleWindow).AnyTimes()
 	s.logOperation.EXPECT().
 		Log(gomock.Any(), gomock.Any()).
@@ -496,7 +496,7 @@ func (s *CreateUserSuite) TestLockNotObtained() {
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
 	s.Equal(logreason.Throttled, s.logEntries[0].Reason)
-	s.Equal(unit.NameConfirmCreateUser, s.logEntries[0].OperationName)
+	s.Equal(operationtype.CreateUser.String(), s.logEntries[0].SourceName)
 }
 
 func (s *CreateUserSuite) TestSuccess() {

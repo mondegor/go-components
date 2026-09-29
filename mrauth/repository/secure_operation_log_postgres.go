@@ -40,7 +40,7 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 	}
 
 	ids := make([]uuid.UUID, 0, len(rows))
-	operations := make([]string, 0, len(rows))
+	sources := make([]string, 0, len(rows))
 	methods := make([]int16, 0, len(rows))
 	statuses := make([]int16, 0, len(rows))
 	reasons := make([]int16, 0, len(rows))
@@ -57,7 +57,7 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 		}
 
 		ids = append(ids, row.VisitorID)
-		operations = append(operations, row.OperationName)
+		sources = append(sources, row.SourceName)
 		methods = append(methods, int16(row.ConfirmMethod))
 		statuses = append(statuses, int16(row.LogStatus))
 		reasons = append(reasons, int16(row.Reason))
@@ -70,7 +70,7 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 		INSERT INTO ` + re.tableName + `
 			(
 				visitor_id,
-				operation_name,
+				source_name,
 				confirm_method,
 				log_status,
 				reason,
@@ -81,13 +81,13 @@ func (re *SecureOperationLogPostgres) Insert(ctx context.Context, rows []entity.
 		SELECT *
 		FROM
 			UNNEST($1::uuid[], $2::text[], $3::int2[], $4::int2[], $5::int2[], $6::inet[], $7::inet[], $8::timestamptz[])
-			as t(visitor_id, operation_name, confirm_method, log_status, reason, client_ip, client_proxy_ip, created_at);`
+			as t(visitor_id, source_name, confirm_method, log_status, reason, client_ip, client_proxy_ip, created_at);`
 
 	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		ids,
-		operations,
+		sources,
 		methods,
 		statuses,
 		reasons,

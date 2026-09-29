@@ -16,10 +16,9 @@ import (
 )
 
 const (
-	// operationNameContinue - имя потока продления сессии для журнала. В этом потоке защищённой
-	// операции нет вообще (перевыпуск идёт по refresh-токену), поэтому имя не у кого спросить
-	// и оно задаётся константой.
-	operationNameContinue = "session.continue"
+	// sourceNameContinue - источник событий продления сессии для журнала. В этом потоке защищённой
+	// операции нет вообще (перевыпуск идёт по refresh-токену), поэтому источник задаётся константой.
+	sourceNameContinue = "SESSION_CONTINUE"
 )
 
 type (
@@ -81,7 +80,7 @@ func (uc *ContinueSession) Execute(ctx context.Context, actor dto.ActorMeta, _, 
 			uc.logOperation.Log(
 				ctx,
 				actor.WithVisitor(tokenErr.UserID).NewOperationLog(
-					operationNameContinue, confirmmethod.Unspecified, logstatus.Blocked, logreason.TokenReuse,
+					sourceNameContinue, confirmmethod.Unspecified, logstatus.Blocked, logreason.TokenReuse,
 				),
 			)
 

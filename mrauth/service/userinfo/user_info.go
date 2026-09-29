@@ -10,6 +10,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
@@ -44,7 +45,7 @@ type (
 	}
 
 	operationFetcher interface {
-		FetchByUserIDAndNames(ctx context.Context, userID uuid.UUID, names []string) (rows []secureoperation.SecureOperation, err error)
+		FetchByUserIDAndTypes(ctx context.Context, userID uuid.UUID, types []operationtype.Enum) (rows []secureoperation.SecureOperation, err error)
 	}
 )
 
@@ -105,7 +106,7 @@ func (sv *UserInfo) Get(ctx context.Context, userID uuid.UUID) (dto.UserInfo, er
 			return sv.errorWrapper.Wrap(err)
 		}
 
-		if operations, err = sv.storageOperation.FetchByUserIDAndNames(ctx, userID, unit.PendingOperationNames()); err != nil {
+		if operations, err = sv.storageOperation.FetchByUserIDAndTypes(ctx, userID, unit.PendingOperationTypes()); err != nil {
 			return sv.errorWrapper.Wrap(err)
 		}
 

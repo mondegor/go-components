@@ -9,6 +9,7 @@ import (
 
 	"github.com/mondegor/go-components/mrauth/bag/totp"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
@@ -18,7 +19,7 @@ import (
 func confirmedOp(userID uuid.UUID, payload string) secureoperation.SecureOperation {
 	return secureoperation.SecureOperation{
 		Token:   "op-token",
-		Name:    "confirm.change.totp",
+		Type:    operationtype.ChangeTOTP,
 		UserID:  userID,
 		Payload: []byte(payload),
 		Status:  operationstatus.Confirmed,

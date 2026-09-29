@@ -6,6 +6,7 @@ import (
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 )
 
 // BuildChangeTOTPPayload - собирает payload операции смены TOTP пользователя,
@@ -18,7 +19,7 @@ func BuildChangeTOTPPayload(in dto.ChangeTOTPOperation) ([]byte, error) {
 	value, err := json.Marshal(in) //nolint:gosec // G117: TOTP-secret намеренно сериализуется в payload операции для последующей привязки.
 	if err != nil {
 		return nil, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not built", "operation_name", NameConfirmChangeTOTP)
+			WithError(err, "payload is not built", "operation_type", operationtype.ChangeTOTP)
 	}
 
 	return value, nil
@@ -31,7 +32,7 @@ func ParseChangeTOTPPayload(payload []byte) (dto.ChangeTOTPOperation, error) {
 
 	if err := json.Unmarshal(payload, &parsed); err != nil {
 		return dto.ChangeTOTPOperation{}, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not parsed", "operation_name", NameConfirmChangeTOTP)
+			WithError(err, "payload is not parsed", "operation_type", operationtype.ChangeTOTP)
 	}
 
 	if err := validateChangeTOTPPayload(parsed); err != nil {
@@ -45,12 +46,12 @@ func ParseChangeTOTPPayload(payload []byte) (dto.ChangeTOTPOperation, error) {
 func validateChangeTOTPPayload(in dto.ChangeTOTPOperation) error {
 	if in.Secret == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: secret is empty", "operation_name", NameConfirmChangeTOTP)
+			WithDetails("payload: secret is empty", "operation_type", operationtype.ChangeTOTP)
 	}
 
 	if in.Email == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: email is empty", "operation_name", NameConfirmChangeTOTP)
+			WithDetails("payload: email is empty", "operation_type", operationtype.ChangeTOTP)
 	}
 
 	return nil

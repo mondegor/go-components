@@ -18,6 +18,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
@@ -92,7 +93,7 @@ func (s *FactorySuite) TestChangeEmailRequestCreate() {
 
 		op, err := f.Create(userWithout2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().NoError(err)
-		s.Equal(unit.NameConfirmChangeEmailRequest, op.Name)
+		s.Equal(operationtype.ChangeEmail, op.Type)
 		s.Require().Len(op.Actions(), 1)
 
 		var p dto.ChangeEmailOperation
@@ -138,7 +139,7 @@ func (s *FactorySuite) TestChangeEmailCreate() {
 
 		op, err := f.Create(userID, in)
 		s.Require().NoError(err)
-		s.Equal(unit.NameConfirmChangeEmail, op.Name)
+		s.Equal(operationtype.ChangeEmailConfirm, op.Type)
 		s.Equal(userID, op.UserID)
 
 		s.Require().Len(op.Actions(), 1)
@@ -188,7 +189,7 @@ func (s *FactorySuite) TestChangePasswordCreate() {
 
 	op, err := f.Create(userWithout2FA(), "new-password")
 	s.Require().NoError(err)
-	s.Equal(unit.NameConfirmChangePassword, op.Name)
+	s.Equal(operationtype.ChangePassword, op.Type)
 
 	var p dto.ChangePasswordOperation
 	s.Require().NoError(json.Unmarshal(op.Payload, &p))
@@ -207,7 +208,7 @@ func (s *FactorySuite) TestChangePhoneCreate() {
 
 	op, err := f.Create(userWithout2FA(), contactaddress.NewPhone("79991234567"))
 	s.Require().NoError(err)
-	s.Equal(unit.NameConfirmChangePhone, op.Name)
+	s.Equal(operationtype.ChangePhone, op.Type)
 
 	var p dto.ChangePhoneOperation
 	s.Require().NoError(json.Unmarshal(op.Payload, &p))
@@ -245,7 +246,7 @@ func (s *FactorySuite) TestChangeTOTPCreate() {
 
 	op, err := f.Create(userWithout2FA())
 	s.Require().NoError(err)
-	s.Equal(unit.NameConfirmChangeTOTP, op.Name)
+	s.Equal(operationtype.ChangeTOTP, op.Type)
 
 	var p dto.ChangeTOTPOperation
 	s.Require().NoError(json.Unmarshal(op.Payload, &p))
@@ -268,7 +269,7 @@ func (s *FactorySuite) TestCreateUserCreate() {
 		// для нового email usecase передаёт пустой User2FA
 		op, err := f.Create(dto.User2FA{}, "en", "Europe/Moscow", contactaddress.NewEmail("user@example.com"), registeredIP)
 		s.Require().NoError(err)
-		s.Equal(unit.NameConfirmCreateUser, op.Name)
+		s.Equal(operationtype.CreateUser, op.Type)
 		s.Equal(uuid.Nil, op.UserID)
 		s.Require().Len(op.Actions(), 1)
 
@@ -317,7 +318,7 @@ func (s *FactorySuite) TestDisable2FACreate() {
 
 		op, err := f.Create(userWith2FA())
 		s.Require().NoError(err)
-		s.Equal(unit.NameConfirmDisable2FA, op.Name)
+		s.Equal(operationtype.Disable2FA, op.Type)
 		s.Require().Len(op.Actions(), 2)
 
 		var p dto.Disable2FAOperation
@@ -343,7 +344,7 @@ func (s *FactorySuite) TestRegenerateRecoveryCreate() {
 
 		op, err := f.Create(userWith2FA())
 		s.Require().NoError(err)
-		s.Equal(unit.NameConfirmRegenerateRecovery, op.Name)
+		s.Equal(operationtype.RegenerateRecovery, op.Type)
 		s.Require().Len(op.Actions(), 2) // email + текущий 2FA
 
 		var p dto.OperationWithUserEmail
@@ -368,7 +369,7 @@ func (s *FactorySuite) TestAuthorizeUserCreate() {
 
 	op, err := f.Create(userWithout2FA(), "shop", "en", contactaddress.NewEmail("login@example.com"))
 	s.Require().NoError(err)
-	s.Equal(unit.NameAuthorizeUser, op.Name)
+	s.Equal(operationtype.AuthorizeUser, op.Type)
 
 	var p dto.AuthorizeUserOperation
 	s.Require().NoError(json.Unmarshal(op.Payload, &p))
@@ -569,7 +570,7 @@ func (s *FactorySuite) TestByRecoveryChains() {
 
 		op, err := f.Create(userWith2FA(), "shop", "en")
 		s.Require().NoError(err)
-		s.Equal(unit.NameAuthorizeUser, op.Name) // то же имя: Opener вытесняет прежний вход
+		s.Equal(operationtype.AuthorizeUser, op.Type) // то же имя: Opener вытесняет прежний вход
 		s.Require().Len(op.Actions(), 2)
 		s.Equal(confirmmethod.TOTP, op.Actions()[0].Method)
 		s.Equal(confirmmethod.Recovery, op.Actions()[1].Method)
@@ -583,7 +584,7 @@ func (s *FactorySuite) TestByRecoveryChains() {
 
 		op, err := f.Create(userWith2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().NoError(err)
-		s.Equal(unit.NameConfirmChangeEmailRequest, op.Name) // то же имя: Opener вытесняет прежнюю смену
+		s.Equal(operationtype.ChangeEmail, op.Type) // то же имя: Opener вытесняет прежнюю смену
 		s.Require().Len(op.Actions(), 2)
 		s.Equal(confirmmethod.TOTP, op.Actions()[0].Method)
 		s.Equal(confirmmethod.Recovery, op.Actions()[1].Method)

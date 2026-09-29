@@ -20,6 +20,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/usecase/operation"
 	"github.com/mondegor/go-components/mrauth/usecase/operation/mock"
@@ -47,7 +48,7 @@ func openedEmailOp(t *testing.T) secureoperation.SecureOperation {
 
 	op, err := secureoperation.NewOperation(
 		"token",
-		"op.name",
+		operationtype.ChangePhone,
 		uuid.New(),
 		[]secureoperation.ConfirmAction{
 			{
@@ -73,7 +74,7 @@ func confirmedOp(t *testing.T) secureoperation.SecureOperation {
 
 	op := secureoperation.SecureOperation{
 		Token:     "token",
-		Name:      "op.name",
+		Type:      operationtype.ChangePhone,
 		UserID:    uuid.New(),
 		Status:    operationstatus.Confirmed,
 		ExpiresAt: time.Now().Add(10 * time.Minute),
@@ -554,7 +555,7 @@ func (s *RevokeOperationSuite) TestSuccess() {
 	// операция читается перед удалением, поэтому в журнал попадает, что именно отозвано
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Revoked, s.logEntries[0].LogStatus)
-	s.Equal(op.Name, s.logEntries[0].OperationName)
+	s.Equal(op.Type.String(), s.logEntries[0].SourceName)
 	s.Equal(confirmmethod.Email, s.logEntries[0].ConfirmMethod)
 	s.Equal(op.UserID, s.logEntries[0].VisitorID)
 }

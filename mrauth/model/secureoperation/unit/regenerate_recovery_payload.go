@@ -6,6 +6,7 @@ import (
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 )
 
 // BuildRegenerateRecoveryPayload - собирает payload операции перевыпуска аварийных кодов
@@ -18,7 +19,7 @@ func BuildRegenerateRecoveryPayload(in dto.OperationWithUserEmail) ([]byte, erro
 	value, err := json.Marshal(in)
 	if err != nil {
 		return nil, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not built", "operation_name", NameConfirmRegenerateRecovery)
+			WithError(err, "payload is not built", "operation_type", operationtype.RegenerateRecovery)
 	}
 
 	return value, nil
@@ -32,7 +33,7 @@ func ParseRegenerateRecoveryPayload(payload []byte) (dto.OperationWithUserEmail,
 
 	if err := json.Unmarshal(payload, &parsed); err != nil {
 		return dto.OperationWithUserEmail{}, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not parsed", "operation_name", NameConfirmRegenerateRecovery)
+			WithError(err, "payload is not parsed", "operation_type", operationtype.RegenerateRecovery)
 	}
 
 	if err := validateRegenerateRecoveryPayload(parsed); err != nil {
@@ -47,7 +48,7 @@ func ParseRegenerateRecoveryPayload(payload []byte) (dto.OperationWithUserEmail,
 func validateRegenerateRecoveryPayload(in dto.OperationWithUserEmail) error {
 	if in.Email == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: email is empty", "operation_name", NameConfirmRegenerateRecovery)
+			WithDetails("payload: email is empty", "operation_type", operationtype.RegenerateRecovery)
 	}
 
 	return nil

@@ -9,6 +9,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 )
 
 type (
@@ -16,7 +17,7 @@ type (
 	// от него подтверждения своей личности каким-либо способом.
 	SecureOperation struct {
 		Token             string
-		Name              string
+		Type              operationtype.Enum
 		UserID            uuid.UUID
 		actions           []ConfirmAction
 		RemainingAttempts int16     // кол-во оставшихся попыток подтверждения текущего экшена операции
@@ -31,13 +32,13 @@ type (
 // NewOperation - создаёт объект SecureOperation.
 func NewOperation(
 	token string,
-	name string,
+	opType operationtype.Enum,
 	userID uuid.UUID,
 	actions []ConfirmAction,
 	payload []byte,
 ) (SecureOperation, error) {
 	op := SecureOperation{
-		Name:    name,
+		Type:    opType,
 		UserID:  userID,
 		actions: actions,
 		Payload: payload,
@@ -86,8 +87,8 @@ func WakeUp(op *SecureOperation, actions []ConfirmAction) error {
 // 4. Аварийный код принимается только последним действием цепочки (см. ниже).
 // 5. Признак приёма аварийного кода не совместим с sendable-действием.
 func (o *SecureOperation) checkInvariants() error {
-	if o.Name == "" {
-		return errors.ErrInternalIncorrectInputData.WithDetails("name is empty")
+	if o.Type == 0 {
+		return errors.ErrInternalIncorrectInputData.WithDetails("type is empty")
 	}
 
 	if o.Status == operationstatus.Confirmed {

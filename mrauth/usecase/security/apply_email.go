@@ -15,6 +15,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
@@ -86,7 +87,7 @@ func (uc *ApplyEmail) Execute(
 	}
 
 	var (
-		operationName  string
+		operationType  operationtype.Enum
 		actionMethod   confirmmethod.Enum
 		failedLogState logState
 		confirmOp      secureoperation.SecureOperation
@@ -102,7 +103,7 @@ func (uc *ApplyEmail) Execute(
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		operationName = op.Name
+		operationType = op.Type
 		actionMethod = op.FirstActionMethod()
 
 		if actor.VisitorID != op.UserID {
@@ -111,7 +112,7 @@ func (uc *ApplyEmail) Execute(
 			return errors.ErrAccessForbidden
 		}
 
-		if op.Name != unit.NameConfirmChangeEmailRequest {
+		if op.Type != operationtype.ChangeEmail {
 			failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
 
 			return errors.ErrAccessForbidden
@@ -165,7 +166,7 @@ func (uc *ApplyEmail) Execute(
 			uc.logOperation.Log(
 				ctx,
 				actor.NewOperationLog(
-					operationName, actionMethod, failedLogState.status, failedLogState.reason,
+					operationType.String(), actionMethod, failedLogState.status, failedLogState.reason,
 				),
 			)
 		}
@@ -177,7 +178,7 @@ func (uc *ApplyEmail) Execute(
 	uc.logOperation.Log(
 		ctx,
 		actor.NewOperationLog(
-			operationName, actionMethod, logstatus.Applied, logreason.Unspecified,
+			operationType.String(), actionMethod, logstatus.Applied, logreason.Unspecified,
 		),
 	)
 

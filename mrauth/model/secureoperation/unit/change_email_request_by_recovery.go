@@ -6,6 +6,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
@@ -14,7 +15,7 @@ import (
 type (
 	// ChangeEmailRequestByRecovery - фабрика операции запроса смены емаила пользователем, утратившим доступ
 	// к текущему адресу: цепочка "пароль/TOTP -> аварийный код". Создаёт ту же операцию,
-	// что и ChangeEmailRequest (NameConfirmChangeEmailRequest), отличается только составом доказательств,
+	// что и ChangeEmailRequest (operationtype.ChangeEmail), отличается только составом доказательств,
 	// поэтому Opener вытесняет прежнюю смену адреса независимо от выбранной цепочки.
 	ChangeEmailRequestByRecovery struct {
 		recoveryCreator confirmByRecoveryCreator
@@ -67,7 +68,7 @@ func (o *ChangeEmailRequestByRecovery) Create(user2FA dto.User2FA, newEmail cont
 
 	return secureoperation.NewOperation(
 		operationToken,
-		NameConfirmChangeEmailRequest,
+		operationtype.ChangeEmail,
 		user2FA.ID,
 		[]secureoperation.ConfirmAction{
 			newConfirmActionBy2FA(user2FA.Action2FA), o.recoveryCreator.Create(),

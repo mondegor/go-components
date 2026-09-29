@@ -6,6 +6,7 @@ import (
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 )
 
 // BuildChangePasswordPayload - собирает payload операции смены пароля пользователя,
@@ -19,7 +20,7 @@ func BuildChangePasswordPayload(in dto.ChangePasswordOperation) ([]byte, error) 
 	value, err := json.Marshal(in)
 	if err != nil {
 		return nil, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not built", "operation_name", NameConfirmChangePassword)
+			WithError(err, "payload is not built", "operation_type", operationtype.ChangePassword)
 	}
 
 	return value, nil
@@ -32,7 +33,7 @@ func ParseChangePasswordPayload(payload []byte) (dto.ChangePasswordOperation, er
 
 	if err := json.Unmarshal(payload, &parsed); err != nil {
 		return dto.ChangePasswordOperation{}, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not parsed", "operation_name", NameConfirmChangePassword)
+			WithError(err, "payload is not parsed", "operation_type", operationtype.ChangePassword)
 	}
 
 	if err := validateChangePasswordPayload(parsed); err != nil {
@@ -46,12 +47,12 @@ func ParseChangePasswordPayload(payload []byte) (dto.ChangePasswordOperation, er
 func validateChangePasswordPayload(in dto.ChangePasswordOperation) error {
 	if in.NewPassword == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: newPassword is empty", "operation_name", NameConfirmChangePassword)
+			WithDetails("payload: newPassword is empty", "operation_type", operationtype.ChangePassword)
 	}
 
 	if in.Email == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: email is empty", "operation_name", NameConfirmChangePassword)
+			WithDetails("payload: email is empty", "operation_type", operationtype.ChangePassword)
 	}
 
 	return nil

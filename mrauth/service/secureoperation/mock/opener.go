@@ -15,6 +15,7 @@ import (
 
 	uuid "github.com/google/uuid"
 	entity "github.com/mondegor/go-components/mrauth/entity"
+	operationtype "github.com/mondegor/go-components/mrauth/enum/operationtype"
 	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -43,19 +44,19 @@ func (m *MockoperationOpenerStorage) EXPECT() *MockoperationOpenerStorageMockRec
 	return m.recorder
 }
 
-// DeleteByUserIDAndNames mocks base method.
-func (m *MockoperationOpenerStorage) DeleteByUserIDAndNames(ctx context.Context, userID uuid.UUID, names []string) ([]string, error) {
+// DeleteByUserIDAndTypes mocks base method.
+func (m *MockoperationOpenerStorage) DeleteByUserIDAndTypes(ctx context.Context, userID uuid.UUID, types []operationtype.Enum) ([]operationtype.Enum, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteByUserIDAndNames", ctx, userID, names)
-	ret0, _ := ret[0].([]string)
+	ret := m.ctrl.Call(m, "DeleteByUserIDAndTypes", ctx, userID, types)
+	ret0, _ := ret[0].([]operationtype.Enum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// DeleteByUserIDAndNames indicates an expected call of DeleteByUserIDAndNames.
-func (mr *MockoperationOpenerStorageMockRecorder) DeleteByUserIDAndNames(ctx, userID, names any) *gomock.Call {
+// DeleteByUserIDAndTypes indicates an expected call of DeleteByUserIDAndTypes.
+func (mr *MockoperationOpenerStorageMockRecorder) DeleteByUserIDAndTypes(ctx, userID, types any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByUserIDAndNames", reflect.TypeOf((*MockoperationOpenerStorage)(nil).DeleteByUserIDAndNames), ctx, userID, names)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteByUserIDAndTypes", reflect.TypeOf((*MockoperationOpenerStorage)(nil).DeleteByUserIDAndTypes), ctx, userID, types)
 }
 
 // Insert mocks base method.

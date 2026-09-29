@@ -24,7 +24,7 @@ const secureOperationsLogTableName = "sample_schema.secure_operations_log"
 // logRow - строка журнала, считанная сырым SELECT для проверки записи (репозиторий read-метода не имеет).
 type logRow struct {
 	VisitorID     uuid.UUID
-	OperationName string
+	SourceName    string
 	ConfirmMethod int16
 	LogStatus     int16
 	Reason        int16
@@ -66,7 +66,7 @@ func (ts *SecureOperationLogPostgresTestSuite) SetupTest() {
 func (ts *SecureOperationLogPostgresTestSuite) fetchAll() []logRow {
 	rows, err := ts.pgt.ConnManager().Conn(ts.ctx).Query(
 		ts.ctx,
-		`SELECT visitor_id, operation_name, confirm_method, log_status, reason, client_ip, client_proxy_ip, created_at
+		`SELECT visitor_id, source_name, confirm_method, log_status, reason, client_ip, client_proxy_ip, created_at
 		 FROM `+secureOperationsLogTableName+`
 		 ORDER BY record_id`,
 	)
@@ -80,7 +80,7 @@ func (ts *SecureOperationLogPostgresTestSuite) fetchAll() []logRow {
 		var r logRow
 
 		ts.Require().NoError(rows.Scan(
-			&r.VisitorID, &r.OperationName, &r.ConfirmMethod, &r.LogStatus, &r.Reason,
+			&r.VisitorID, &r.SourceName, &r.ConfirmMethod, &r.LogStatus, &r.Reason,
 			&r.ClientIP, &r.ClientProxyIP, &r.CreatedAt,
 		))
 
@@ -108,7 +108,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertRoundTrip() {
 	rows := []entity.SecureOperationLog{
 		{
 			VisitorID:     visitor,
-			OperationName: "confirm.authorize.user",
+			SourceName:    "AUTHORIZE_USER",
 			ConfirmMethod: confirmmethod.Email,
 			LogStatus:     logstatus.Confirmed,
 			Reason:        logreason.Unspecified,
@@ -117,7 +117,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertRoundTrip() {
 		},
 		{
 			VisitorID:     uuid.Nil, // анонимный поток
-			OperationName: "session.continue",
+			SourceName:    "SESSION_CONTINUE",
 			ConfirmMethod: confirmmethod.Unspecified,
 			LogStatus:     logstatus.Blocked,
 			Reason:        logreason.TokenReuse,
@@ -133,7 +133,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertRoundTrip() {
 	ts.Require().Len(got, 2)
 
 	ts.Equal(visitor, got[0].VisitorID)
-	ts.Equal("confirm.authorize.user", got[0].OperationName)
+	ts.Equal("AUTHORIZE_USER", got[0].SourceName)
 	ts.Equal(int16(confirmmethod.Email), got[0].ConfirmMethod)
 	ts.Equal(int16(logstatus.Confirmed), got[0].LogStatus)
 	ts.Equal(int16(logreason.Unspecified), got[0].Reason)
@@ -142,7 +142,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertRoundTrip() {
 	ts.WithinDuration(eventAt, got[0].CreatedAt, time.Millisecond)
 
 	ts.Equal(uuid.Nil, got[1].VisitorID)
-	ts.Equal("session.continue", got[1].OperationName)
+	ts.Equal("SESSION_CONTINUE", got[1].SourceName)
 	ts.Equal(int16(confirmmethod.Unspecified), got[1].ConfirmMethod)
 	ts.Equal(int16(logstatus.Blocked), got[1].LogStatus)
 	ts.Equal(int16(logreason.TokenReuse), got[1].Reason)
@@ -159,7 +159,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertRejectsUnsetClientIP() 
 		entity.NewSecureOperationLog(
 			uuid.New(),
 			mrtype.DetailedIP{}, // IP клиента не распознан
-			"confirm.authorize.user",
+			"AUTHORIZE_USER",
 			confirmmethod.Email,
 			logstatus.Opened,
 			logreason.Unspecified,
@@ -177,7 +177,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertIPv6StoredNatively() {
 		entity.NewSecureOperationLog(
 			uuid.New(),
 			mrtype.NewIP(netip.MustParseAddr("127.0.0.1")),
-			"confirm.authorize.user",
+			"AUTHORIZE_USER",
 			confirmmethod.Email,
 			logstatus.Opened,
 			logreason.Unspecified,
@@ -185,7 +185,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertIPv6StoredNatively() {
 		entity.NewSecureOperationLog(
 			uuid.Nil,
 			mrtype.NewIP(netip.MustParseAddr("2001:db8::1")),
-			"confirm.authorize.user",
+			"AUTHORIZE_USER",
 			confirmmethod.Unspecified,
 			logstatus.Blocked,
 			logreason.LoginNotExists,
@@ -193,7 +193,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertIPv6StoredNatively() {
 		entity.NewSecureOperationLog(
 			uuid.New(),
 			mrtype.NewIP(netip.MustParseAddr("192.0.2.1")),
-			"confirm.create.user",
+			"CREATE_USER",
 			confirmmethod.Email,
 			logstatus.Opened,
 			logreason.Unspecified,
@@ -226,7 +226,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestDeleteBeforeDate() {
 			entity.NewSecureOperationLog(
 				uuid.New(),
 				mrtype.NewIP(netip.MustParseAddr("127.0.0.1")),
-				"confirm.authorize.user",
+				"AUTHORIZE_USER",
 				confirmmethod.Email,
 				logstatus.Opened,
 				logreason.Unspecified,

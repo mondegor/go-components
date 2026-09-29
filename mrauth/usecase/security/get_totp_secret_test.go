@@ -11,6 +11,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
@@ -67,11 +68,11 @@ func (s *GetTOTPSecretSuite) TestForeignOperation() {
 	s.Require().ErrorIs(err, errors.ErrAccessForbidden)
 }
 
-// TestWrongOperationName - токен операции другого типа секрет не выдаёт.
-func (s *GetTOTPSecretSuite) TestWrongOperationName() {
+// TestWrongOperationType - токен операции другого типа секрет не выдаёт.
+func (s *GetTOTPSecretSuite) TestWrongOperationType() {
 	userID := uuid.New()
 	op := confirmedOp(userID, `{"email":"u@e","secret":"`+testTotpSecret+`"}`)
-	op.Name = "confirm.change.password"
+	op.Type = operationtype.ChangePassword
 
 	s.fetcher.EXPECT().FetchOne(gomock.Any(), "op-token").Return(op, nil)
 

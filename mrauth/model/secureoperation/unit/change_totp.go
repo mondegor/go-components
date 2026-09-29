@@ -3,14 +3,10 @@ package unit
 import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
-)
-
-const (
-	// NameConfirmChangeTOTP - название операции изменения TOTP пользователя.
-	NameConfirmChangeTOTP = "confirm.change.totp"
 )
 
 type (
@@ -82,7 +78,7 @@ func (o *ChangeTOTP) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 
 	return secureoperation.NewOperation(
 		operationToken,
-		NameConfirmChangeTOTP,
+		operationtype.ChangeTOTP,
 		user2FA.ID,
 		actions,
 		payload,

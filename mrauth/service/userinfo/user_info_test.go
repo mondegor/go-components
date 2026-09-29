@@ -93,10 +93,10 @@ func (s *UserInfoSuite) TestGet() {
 		}, nil)
 
 	// операции личного кабинета попадают в сводку в порядке хранилища, вход - нет
-	s.opFetcher.EXPECT().FetchByUserIDAndNames(gomock.Any(), userID, unit.PendingOperationNames()).Return([]secureoperation.SecureOperation{
-		s.confirmedOperation(unit.NameAuthorizeUser, nil),
-		s.confirmedOperation(unit.NameConfirmChangeEmail, s.emailPayload()),
-		s.confirmedOperation(unit.NameConfirmDisable2FA, nil),
+	s.opFetcher.EXPECT().FetchByUserIDAndTypes(gomock.Any(), userID, unit.PendingOperationTypes()).Return([]secureoperation.SecureOperation{
+		s.confirmedOperation(operationtype.AuthorizeUser, nil),
+		s.confirmedOperation(operationtype.ChangeEmailConfirm, s.emailPayload()),
+		s.confirmedOperation(operationtype.Disable2FA, nil),
 	}, nil)
 
 	sv := s.newService(
@@ -147,7 +147,7 @@ func (s *UserInfoSuite) TestGetOperationsError() {
 	}{
 		{name: "storage error", fetchErr: errors.New("db is down")},
 		{name: "broken payload", operations: []secureoperation.SecureOperation{
-			s.confirmedOperation(unit.NameConfirmChangeEmail, []byte(`{"new_email":""}`)),
+			s.confirmedOperation(operationtype.ChangeEmailConfirm, []byte(`{"new_email":""}`)),
 		}},
 	}
 
@@ -159,7 +159,7 @@ func (s *UserInfoSuite) TestGetOperationsError() {
 			s.auth2faFetch.EXPECT().FetchOne(gomock.Any(), userID).Return(entity.Auth2FA{}, nil)
 			s.statFetcher.EXPECT().Fetch(gomock.Any(), userID).Return(nil, nil)
 			s.realmFetcher.EXPECT().Fetch(gomock.Any(), userID).Return(nil, nil)
-			s.opFetcher.EXPECT().FetchByUserIDAndNames(gomock.Any(), userID, unit.PendingOperationNames()).Return(tt.operations, tt.fetchErr)
+			s.opFetcher.EXPECT().FetchByUserIDAndTypes(gomock.Any(), userID, unit.PendingOperationTypes()).Return(tt.operations, tt.fetchErr)
 
 			_, err := s.newService(nil).Get(s.ctx, userID)
 			s.Require().Error(err)
@@ -168,12 +168,12 @@ func (s *UserInfoSuite) TestGetOperationsError() {
 }
 
 // confirmedOperation - подтверждённая операция указанного типа с указанным payload.
-func (s *UserInfoSuite) confirmedOperation(name string, payload []byte) secureoperation.SecureOperation {
+func (s *UserInfoSuite) confirmedOperation(opType operationtype.Enum, payload []byte) secureoperation.SecureOperation {
 	s.T().Helper()
 
 	op := secureoperation.SecureOperation{
-		Token:     "token-" + name,
-		Name:      name,
+		Token:     "token-" + opType.String(),
+		Type:      opType,
 		Payload:   payload,
 		Status:    operationstatus.Confirmed,
 		ExpiresAt: time.Now().UTC().Add(time.Hour),

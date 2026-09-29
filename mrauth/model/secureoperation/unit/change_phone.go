@@ -6,14 +6,10 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
-)
-
-const (
-	// NameConfirmChangePhone - название операции изменения телефона пользователя.
-	NameConfirmChangePhone = "confirm.change.phone"
 )
 
 type (
@@ -80,7 +76,7 @@ func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone contactaddress.Contac
 
 	return secureoperation.NewOperation(
 		operationToken,
-		NameConfirmChangePhone,
+		operationtype.ChangePhone,
 		user2FA.ID,
 		actions,
 		payload,

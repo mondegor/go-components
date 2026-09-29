@@ -12,6 +12,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -19,7 +20,7 @@ import (
 func openedOp(t *testing.T, action secureoperation.ConfirmAction) secureoperation.SecureOperation {
 	t.Helper()
 
-	op, err := secureoperation.NewOperation("token", "name1", uuid.New(), []secureoperation.ConfirmAction{action}, nil)
+	op, err := secureoperation.NewOperation("token", operationtype.ChangePhone, uuid.New(), []secureoperation.ConfirmAction{action}, nil)
 	require.NoError(t, err)
 
 	return op
@@ -43,7 +44,7 @@ func wokenOp(
 
 	op := secureoperation.SecureOperation{
 		Token:             "token",
-		Name:              "name1",
+		Type:              operationtype.ChangePhone,
 		UserID:            uuid.New(),
 		RemainingAttempts: action.MaxAttempts,
 		RemainingResends:  remainingResends,
@@ -241,7 +242,7 @@ func TestSecureOperation_ConfirmAction_FirstOfTwoKeepsOpened(t *testing.T) {
 
 	op, err := secureoperation.NewOperation(
 		"token",
-		"name1",
+		operationtype.ChangePhone,
 		uuid.New(),
 		[]secureoperation.ConfirmAction{emailAction("u@e", "c"), totpAction()},
 		nil,
@@ -292,7 +293,7 @@ func emailOpWithExpiry(t *testing.T, expiry time.Duration, expiresAt time.Time) 
 
 	op := secureoperation.SecureOperation{
 		Token:             "token",
-		Name:              "name1",
+		Type:              operationtype.ChangePhone,
 		UserID:            uuid.New(),
 		RemainingAttempts: action.MaxAttempts,
 		RemainingResends:  action.MaxResends,

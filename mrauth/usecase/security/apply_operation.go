@@ -14,8 +14,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
 type (
@@ -26,7 +26,7 @@ type (
 		storageOperation operationDeleter
 		logOperation     operationLogger
 		errorWrapper     errors.Wrapper
-		handlerMap       map[string]mrauth.OperationHandler
+		handlerMap       map[operationtype.Enum]mrauth.OperationHandler
 	}
 
 	operationDeleter interface {
@@ -45,7 +45,7 @@ func NewApplyOperation(
 	txManager mrstorage.DBTxManager,
 	storageOperation operationDeleter,
 	logOperation operationLogger,
-	handlerMap map[string]mrauth.OperationHandler,
+	handlerMap map[operationtype.Enum]mrauth.OperationHandler,
 ) *ApplyOperation {
 	return &ApplyOperation{
 		txManager:        txManager,
@@ -69,7 +69,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 	}
 
 	var (
-		operationName  string
+		operationType  operationtype.Enum
 		actionMethod   confirmmethod.Enum
 		failedLogState logState
 	)
@@ -84,7 +84,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		operationName = op.Name
+		operationType = op.Type
 		actionMethod = op.FirstActionMethod()
 
 		if actor.VisitorID != op.UserID {
@@ -95,16 +95,16 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 
 		// TODO: проверить, что пользователь не заблокирован
 
-		handler, ok := uc.handlerMap[op.Name]
+		handler, ok := uc.handlerMap[op.Type]
 		if !ok {
-			if isAppliedByOtherMethod(op.Name) {
+			if isAppliedByOtherMethod(op.Type) {
 				// у операции свой завершающий метод: токен предъявлен не тому методу
 				failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
 
 				return errors.ErrAccessForbidden
 			}
 
-			return errors.NewInternalError("operation name is not supported", "name", op.Name)
+			return errors.NewInternalError("operation type is not supported", "type", op.Type)
 		}
 
 		if !op.Is(operationstatus.Confirmed) {
@@ -126,7 +126,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 			uc.logOperation.Log(
 				ctx,
 				actor.NewOperationLog(
-					operationName, actionMethod, failedLogState.status, failedLogState.reason,
+					operationType.String(), actionMethod, failedLogState.status, failedLogState.reason,
 				),
 			)
 		}
@@ -138,7 +138,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 	uc.logOperation.Log(
 		ctx,
 		actor.NewOperationLog(
-			operationName, actionMethod, logstatus.Applied, logreason.Unspecified,
+			operationType.String(), actionMethod, logstatus.Applied, logreason.Unspecified,
 		),
 	)
 
@@ -149,15 +149,15 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 // (открытие сессии, apply-email, apply-password, apply-totp, apply-recovery-codes), а не
 // ApplyOperation. Первый шаг смены емаила сюда входит: его применение лишь открывает второй
 // шаг, а меняет емаил ApplyOperation только по операции второго шага.
-// Имя, которого нет ни здесь, ни в реестре обработчиков, - ошибка конфигурации хоста.
-func isAppliedByOtherMethod(operationName string) bool {
-	switch operationName {
-	case unit.NameAuthorizeUser,
-		unit.NameConfirmCreateUser,
-		unit.NameConfirmChangeEmailRequest,
-		unit.NameConfirmChangePassword,
-		unit.NameConfirmChangeTOTP,
-		unit.NameConfirmRegenerateRecovery:
+// Тип, которого нет ни здесь, ни в реестре обработчиков, - ошибка конфигурации хоста.
+func isAppliedByOtherMethod(opType operationtype.Enum) bool {
+	switch opType {
+	case operationtype.AuthorizeUser,
+		operationtype.CreateUser,
+		operationtype.ChangeEmail,
+		operationtype.ChangePassword,
+		operationtype.ChangeTOTP,
+		operationtype.RegenerateRecovery:
 		return true
 	default:
 		return false

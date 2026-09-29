@@ -16,6 +16,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
@@ -86,7 +87,7 @@ func (uc *ApplyPassword) Execute(
 	}
 
 	var (
-		operationName  string
+		operationType  operationtype.Enum
 		actionMethod   confirmmethod.Enum
 		failedLogState logState
 	)
@@ -101,7 +102,7 @@ func (uc *ApplyPassword) Execute(
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		operationName = op.Name
+		operationType = op.Type
 		actionMethod = op.FirstActionMethod()
 
 		if actor.VisitorID != op.UserID {
@@ -110,7 +111,7 @@ func (uc *ApplyPassword) Execute(
 			return errors.ErrAccessForbidden
 		}
 
-		if op.Name != unit.NameConfirmChangePassword {
+		if op.Type != operationtype.ChangePassword {
 			failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
 
 			return errors.ErrAccessForbidden
@@ -173,7 +174,7 @@ func (uc *ApplyPassword) Execute(
 			uc.logOperation.Log(
 				ctx,
 				actor.NewOperationLog(
-					operationName, actionMethod, failedLogState.status, failedLogState.reason,
+					operationType.String(), actionMethod, failedLogState.status, failedLogState.reason,
 				),
 			)
 		}
@@ -185,7 +186,7 @@ func (uc *ApplyPassword) Execute(
 	uc.logOperation.Log(
 		ctx,
 		actor.NewOperationLog(
-			operationName, actionMethod, logstatus.Applied, logreason.Unspecified,
+			operationType.String(), actionMethod, logstatus.Applied, logreason.Unspecified,
 		),
 	)
 
