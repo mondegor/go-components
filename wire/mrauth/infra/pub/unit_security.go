@@ -52,6 +52,18 @@ func initSecurityController(
 	// отзыв незавершённых операций пользователя при смене состояния 2FA
 	operationRevoker := secureoperation.NewRevoker(storageSecureOperation, operationLogger)
 
+	// токены, коды и аварийные коды: длину каждого секрета задаёт его потребитель
+	secretGenerator := crypt.NewSecretGenerator()
+
+	// звено кода с email у операций управления безопасностью аккаунта
+	confirmByEmailOpts := []action.Option{
+		action.WithCodeLength(int16(operationConfig.SendByEmail.CodeLength)),
+		action.WithMaxAttempts(int16(operationConfig.SendByEmail.MaxAttempts)),
+		action.WithMaxResends(int16(operationConfig.SendByEmail.MaxResends)),
+		action.WithMinResendTime(operationConfig.SendByEmail.MinResendTime),
+		action.WithExpiry(operationConfig.SessionExpiry),
+	}
+
 	confirm2faOpts := []action.Option{
 		action.WithMaxAttempts(int16(auth2faConfig.ConfirmMaxAttempts)),
 		action.WithExpiry(auth2faConfig.ConfirmExpiry),
@@ -68,10 +80,10 @@ func initSecurityController(
 		checkUserService,
 		factoryConfirm2FA,
 		unit.NewChangeEmailRequest(
-			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
-			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
-			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
-			action.WithExpiry(operationConfig.SessionExpiry),
+			secretGenerator,
+			int(operationConfig.TokenLength),
+			secretGenerator,
+			confirmByEmailOpts...,
 		),
 	)
 
@@ -82,7 +94,8 @@ func initSecurityController(
 		// аварийный код предъявляется вместо кода с текущего адреса, поэтому его звено
 		// настраивается наравне со вторым фактором, а не остаётся на умолчаниях
 		unit.NewChangeEmailRequestByRecovery(
-			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
+			secretGenerator,
+			int(operationConfig.TokenLength),
 			confirm2faOpts...,
 		),
 	)
@@ -92,10 +105,11 @@ func initSecurityController(
 		storageSecureOperation,
 		checkUserService,
 		unit.NewChangeEmail(
-			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
-			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
+			secretGenerator,
+			int(operationConfig.TokenLength),
+			secretGenerator,
 			operationConfig.NewEmailExpiry,
-			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
+			confirmByEmailOpts...,
 		),
 		operationOpener,
 		notifierAPI,
@@ -107,10 +121,10 @@ func initSecurityController(
 		checkUserService,
 		factoryConfirm2FA,
 		unit.NewChangePhone(
-			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
-			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
-			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
-			action.WithExpiry(operationConfig.SessionExpiry),
+			secretGenerator,
+			int(operationConfig.TokenLength),
+			secretGenerator,
+			confirmByEmailOpts...,
 		),
 	)
 
@@ -123,10 +137,10 @@ func initSecurityController(
 		operationOpener,
 		factoryConfirm2FA,
 		unit.NewChangePassword(
-			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
-			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
-			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
-			action.WithExpiry(operationConfig.SessionExpiry),
+			secretGenerator,
+			int(operationConfig.TokenLength),
+			secretGenerator,
+			confirmByEmailOpts...,
 		),
 		passwordService,
 	)
@@ -135,11 +149,11 @@ func initSecurityController(
 		operationOpener,
 		factoryConfirm2FA,
 		unit.NewChangeTOTP(
-			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
-			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
+			secretGenerator,
+			int(operationConfig.TokenLength),
+			secretGenerator,
 			totpAuthenticator,
-			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
-			action.WithExpiry(operationConfig.SessionExpiry),
+			confirmByEmailOpts...,
 		),
 	)
 
@@ -147,10 +161,10 @@ func initSecurityController(
 		operationOpener,
 		factoryConfirm2FA,
 		unit.NewDisable2FA(
-			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
-			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
-			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
-			action.WithExpiry(operationConfig.SessionExpiry),
+			secretGenerator,
+			int(operationConfig.TokenLength),
+			secretGenerator,
+			confirmByEmailOpts...,
 		),
 	)
 
@@ -193,11 +207,12 @@ func initSecurityController(
 		storageAuth2fa,
 		storageSecureOperation,
 		operationRevoker,
-		crypt.NewSecretGenerator(int(auth2faConfig.RecoveryCodeLength)),
+		secretGenerator,
 		totpAuthenticator,
 		notifierAPI,
 		operationLogger,
 		int(auth2faConfig.RecoveryCount),
+		int(auth2faConfig.RecoveryCodeLength),
 	)
 
 	useCaseApplyPassword := security.NewApplyPassword(
@@ -205,20 +220,21 @@ func initSecurityController(
 		storageAuth2fa,
 		storageSecureOperation,
 		operationRevoker,
-		crypt.NewSecretGenerator(int(auth2faConfig.RecoveryCodeLength)),
+		secretGenerator,
 		notifierAPI,
 		operationLogger,
 		int(auth2faConfig.RecoveryCount),
+		int(auth2faConfig.RecoveryCodeLength),
 	)
 
 	useCaseRegenerateRecovery := security.NewRegenerateRecoveryProperty(
 		operationOpener,
 		factoryConfirm2FA,
 		unit.NewRegenerateRecovery(
-			crypt.NewSecretGenerator(int(operationConfig.TokenLength)),
-			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
-			action.WithMaxAttempts(int16(operationConfig.CodeMaxAttempts)),
-			action.WithExpiry(operationConfig.SessionExpiry),
+			secretGenerator,
+			int(operationConfig.TokenLength),
+			secretGenerator,
+			confirmByEmailOpts...,
 		),
 	)
 
@@ -226,10 +242,11 @@ func initSecurityController(
 		dbConnManager,
 		storageAuth2fa,
 		storageSecureOperation,
-		crypt.NewSecretGenerator(int(auth2faConfig.RecoveryCodeLength)),
+		secretGenerator,
 		notifierAPI,
 		operationLogger,
 		int(auth2faConfig.RecoveryCount),
+		int(auth2faConfig.RecoveryCodeLength),
 	)
 
 	controller := httpv1.NewSecurity(

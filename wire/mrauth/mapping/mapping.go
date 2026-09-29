@@ -78,6 +78,8 @@ func OptionUserRealmsToSessionLimitRealms(realms []authcfg.UserRealm) []usecases
 func OptionUserRealmsToConfirmCreateRealmUsers(realms []authcfg.UserRealm) []usecaseauth.CreateRealmUser {
 	mappedRealms := make([]usecaseauth.CreateRealmUser, 0, len(realms))
 
+	secretGenerator := crypt.NewSecretGenerator()
+
 	for _, item := range realms {
 		// добавляются только области пользователей, с поддержкой регистрации
 		if item.RegisterUserKind == "none" {
@@ -91,8 +93,10 @@ func OptionUserRealmsToConfirmCreateRealmUsers(realms []authcfg.UserRealm) []use
 				Operation: unit.NewCreateUser(
 					item.Name,
 					item.RegisterUserKind,
-					crypt.NewSecretGenerator(int(item.AuthToken.Length)),
-					crypt.NewSecretGenerator(int(item.OperationConfirm.CodeLength)),
+					secretGenerator,
+					int(item.OperationConfirm.TokenLength),
+					secretGenerator,
+					action.WithCodeLength(int16(item.OperationConfirm.SendByEmail.CodeLength)),
 					action.WithMaxAttempts(int16(item.OperationConfirm.SendByEmail.MaxAttempts)),
 					action.WithMaxResends(int16(item.OperationConfirm.SendByEmail.MaxResends)),
 					action.WithMinResendTime(item.OperationConfirm.SendByEmail.MinResendTime),
@@ -110,21 +114,26 @@ func OptionUserRealmsToConfirmCreateRealmUsers(realms []authcfg.UserRealm) []use
 func OptionUserRealmsToConfirmCreateSessionRealms(realms []authcfg.UserRealm) []usecaseauth.CreateSessionRealm {
 	mappedRealms := make([]usecaseauth.CreateSessionRealm, 0, len(realms))
 
+	secretGenerator := crypt.NewSecretGenerator()
+
 	for _, item := range realms {
 		mappedRealms = append(
 			mappedRealms,
 			usecaseauth.CreateSessionRealm{
 				Name: item.Name,
 				Operation: unit.NewAuthorizeUser(
-					crypt.NewSecretGenerator(int(item.AuthToken.Length)),
-					crypt.NewSecretGenerator(int(item.OperationConfirm.CodeLength)),
+					secretGenerator,
+					int(item.OperationConfirm.TokenLength),
+					secretGenerator,
 					unit.WithAuthorizeUserConfirmByEmailOpts(
+						action.WithCodeLength(int16(item.OperationConfirm.SendByEmail.CodeLength)),
 						action.WithMaxAttempts(int16(item.OperationConfirm.SendByEmail.MaxAttempts)),
 						action.WithMaxResends(int16(item.OperationConfirm.SendByEmail.MaxResends)),
 						action.WithMinResendTime(item.OperationConfirm.SendByEmail.MinResendTime),
 						action.WithExpiry(item.OperationConfirm.SessionExpiry),
 					),
 					unit.WithAuthorizeUserConfirmByPhoneOpts(
+						action.WithCodeLength(int16(item.OperationConfirm.SendByPhone.CodeLength)),
 						action.WithMaxAttempts(int16(item.OperationConfirm.SendByPhone.MaxAttempts)),
 						action.WithMaxResends(int16(item.OperationConfirm.SendByPhone.MaxResends)),
 						action.WithMinResendTime(item.OperationConfirm.SendByPhone.MinResendTime),
@@ -148,13 +157,16 @@ func OptionUserRealmsToConfirmCreateSessionByRecoveryRealms(
 ) []usecaseauth.CreateSessionByRecoveryRealm {
 	mappedRealms := make([]usecaseauth.CreateSessionByRecoveryRealm, 0, len(realms))
 
+	secretGenerator := crypt.NewSecretGenerator()
+
 	for _, item := range realms {
 		mappedRealms = append(
 			mappedRealms,
 			usecaseauth.CreateSessionByRecoveryRealm{
 				Name: item.Name,
 				Operation: unit.NewAuthorizeUserByRecovery(
-					crypt.NewSecretGenerator(int(item.AuthToken.Length)),
+					secretGenerator,
+					int(item.OperationConfirm.TokenLength),
 					decoyFactorSelector,
 					unit.WithAuthorizeUserByRecoveryConfirmByPasswordOpts(confirm2faOpts...),
 					unit.WithAuthorizeUserByRecoveryConfirmByTOTPOpts(confirm2faOpts...),
@@ -172,13 +184,16 @@ func OptionUserRealmsToConfirmCreateSessionByRecoveryRealms(
 func OptionUserRealmsToCreateSessionRealms(realms []authcfg.UserRealm, jwtConfig authcfg.JWT) []authtoken.Realm {
 	mappedRealms := make([]authtoken.Realm, 0, len(realms))
 
+	secretGenerator := crypt.NewSecretGenerator()
+
 	for _, item := range realms {
 		var tokenIssuer mrauth.TokenIssuer
 
 		switch item.AuthToken.AccessType {
 		case "jwt":
 			tokenIssuer = jwt.NewTokenIssuer(
-				crypt.NewSecretGenerator(int(item.AuthToken.Length)),
+				secretGenerator,
+				int(item.AuthToken.Length),
 				item.AuthToken.AccessExpiry,
 				item.AuthToken.RefreshExpiry,
 				jwtConfig.Issuer,
@@ -186,7 +201,8 @@ func OptionUserRealmsToCreateSessionRealms(realms []authcfg.UserRealm, jwtConfig
 			)
 		default:
 			tokenIssuer = bagsession.NewTokenIssuer(
-				crypt.NewSecretGenerator(int(item.AuthToken.Length)),
+				secretGenerator,
+				int(item.AuthToken.Length),
 				item.AuthToken.AccessExpiry,
 				item.AuthToken.RefreshExpiry,
 			)

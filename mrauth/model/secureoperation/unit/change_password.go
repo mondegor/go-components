@@ -14,6 +14,7 @@ type (
 	ChangePassword struct {
 		actionCreator  confirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
+		tokenLength    int
 		codeGenerator  mrauth.CodeGenerator
 	}
 )
@@ -21,11 +22,13 @@ type (
 // NewChangePassword - создаёт объект ChangePassword.
 func NewChangePassword(
 	tokenGenerator mrauth.TokenGenerator,
+	tokenLength int,
 	codeGenerator mrauth.CodeGenerator,
 	confirmByEmailOpts ...action.Option,
 ) *ChangePassword {
 	return &ChangePassword{
 		tokenGenerator: tokenGenerator,
+		tokenLength:    tokenLength,
 		codeGenerator:  codeGenerator,
 		actionCreator:  action.NewConfirmByEmail(confirmByEmailOpts...),
 	}
@@ -33,12 +36,7 @@ func NewChangePassword(
 
 // Create - создаёт операцию смены пароля для указанного пользователя.
 func (o *ChangePassword) Create(user2FA dto.User2FA, newPassword string) (secureoperation.SecureOperation, error) {
-	operationToken, err := o.tokenGenerator.GenToken()
-	if err != nil {
-		return secureoperation.SecureOperation{}, err
-	}
-
-	confirmCode, hashedCode, err := o.codeGenerator.GenCodeWithHash()
+	operationToken, err := o.tokenGenerator.GenToken(o.tokenLength)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -60,7 +58,7 @@ func (o *ChangePassword) Create(user2FA dto.User2FA, newPassword string) (secure
 
 	actions := make([]secureoperation.ConfirmAction, 1, 2)
 
-	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email), confirmCode, hashedCode)
+	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email))
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -69,7 +67,8 @@ func (o *ChangePassword) Create(user2FA dto.User2FA, newPassword string) (secure
 		actions = append(actions, newConfirmActionBy2FA(user2FA.Action2FA))
 	}
 
-	return secureoperation.NewOperation(
+	return newSendableOperation(
+		o.codeGenerator,
 		operationToken,
 		operationtype.ChangePassword,
 		user2FA.ID,

@@ -30,16 +30,17 @@ type (
 	// в payload подтверждённой операции, и при успехе привязывает TOTP-генератор
 	// пользователю, выдавая одноразовые аварийные коды.
 	ApplyTOTPGenerator struct {
-		txManager        mrstorage.DBTxManager
-		storage          user2faBinder
-		storageOperation operationDeleter
-		revoker          operationRevoker
-		codeGenerator    recoveryCodesGenerator
-		totpValidator    totpValidator
-		notifierAPI      mrauth.Notifier
-		logOperation     operationLogger
-		errorWrapper     errors.Wrapper
-		recoveryCount    int
+		txManager          mrstorage.DBTxManager
+		storage            user2faBinder
+		storageOperation   operationDeleter
+		revoker            operationRevoker
+		codeGenerator      recoveryCodesGenerator
+		totpValidator      totpValidator
+		notifierAPI        mrauth.Notifier
+		logOperation       operationLogger
+		errorWrapper       errors.Wrapper
+		recoveryCount      int
+		recoveryCodeLength int
 	}
 
 	user2faBinder interface {
@@ -47,7 +48,7 @@ type (
 	}
 
 	recoveryCodesGenerator interface {
-		GenerateRecoveryCodes(count int) (plain, hashed []string, err error)
+		GenerateRecoveryCodes(count, length int) (plain, hashed []string, err error)
 	}
 
 	totpValidator interface {
@@ -66,20 +67,22 @@ func NewApplyTOTPGenerator(
 	notifierAPI mrauth.Notifier,
 	logOperation operationLogger,
 	recoveryCount int,
+	recoveryCodeLength int,
 ) *ApplyTOTPGenerator {
 	recoveryCount = clampRecoveryCount(recoveryCount)
 
 	return &ApplyTOTPGenerator{
-		txManager:        txManager,
-		storage:          storage,
-		storageOperation: storageOperation,
-		revoker:          revoker,
-		codeGenerator:    codeGenerator,
-		totpValidator:    totpValidator,
-		notifierAPI:      notifierAPI,
-		logOperation:     logOperation,
-		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
-		recoveryCount:    recoveryCount,
+		txManager:          txManager,
+		storage:            storage,
+		storageOperation:   storageOperation,
+		revoker:            revoker,
+		codeGenerator:      codeGenerator,
+		totpValidator:      totpValidator,
+		notifierAPI:        notifierAPI,
+		logOperation:       logOperation,
+		errorWrapper:       errors.NewServiceOperationFailedWrapper(),
+		recoveryCount:      recoveryCount,
+		recoveryCodeLength: recoveryCodeLength,
 	}
 }
 
@@ -162,7 +165,7 @@ func (uc *ApplyTOTPGenerator) Execute(
 
 		var hashed []string
 
-		plainCodes, hashed, err = uc.codeGenerator.GenerateRecoveryCodes(uc.recoveryCount)
+		plainCodes, hashed, err = uc.codeGenerator.GenerateRecoveryCodes(uc.recoveryCount, uc.recoveryCodeLength)
 		if err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}

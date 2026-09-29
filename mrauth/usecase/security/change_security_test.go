@@ -38,6 +38,7 @@ func openedEmailOp(t *testing.T) secureoperation.SecureOperation {
 		[]secureoperation.ConfirmAction{
 			{
 				Method:           confirmmethod.Email,
+				CodeLength:       6,
 				MaxAttempts:      3,
 				MaxResends:       5,
 				MinResendTime:    5 * time.Minute,

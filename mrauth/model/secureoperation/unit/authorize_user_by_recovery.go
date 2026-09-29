@@ -19,6 +19,7 @@ type (
 		recoveryCreator     confirmByRecoveryCreator
 		decoyFactorSelector decoyFactorSelector
 		tokenGenerator      mrauth.TokenGenerator
+		tokenLength         int
 	}
 
 	confirmBy2faCreator interface {
@@ -37,6 +38,7 @@ type (
 // NewAuthorizeUserByRecovery - создаёт объект AuthorizeUserByRecovery.
 func NewAuthorizeUserByRecovery(
 	tokenGenerator mrauth.TokenGenerator,
+	tokenLength int,
 	decoyFactorSelector decoyFactorSelector,
 	opts ...AuthorizeUserByRecoveryOption,
 ) *AuthorizeUserByRecovery {
@@ -51,6 +53,7 @@ func NewAuthorizeUserByRecovery(
 		recoveryCreator:     action.NewConfirmByRecovery(o.confirmByRecovery...),
 		decoyFactorSelector: decoyFactorSelector,
 		tokenGenerator:      tokenGenerator,
+		tokenLength:         tokenLength,
 	}
 }
 
@@ -67,7 +70,7 @@ func (o *AuthorizeUserByRecovery) Type() operationtype.Enum {
 // но и определить по ответам метода, включена ли у аккаунта 2FA, тоже нельзя - а именно это
 // и требуется, ведь метод гостевой и вызвать его может кто угодно, знающий логин.
 func (o *AuthorizeUserByRecovery) Create(user2FA dto.User2FA, realm, langCode string) (secureoperation.SecureOperation, error) {
-	operationToken, err := o.tokenGenerator.GenToken()
+	operationToken, err := o.tokenGenerator.GenToken(o.tokenLength)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}

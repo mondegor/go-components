@@ -27,7 +27,7 @@ func TestValidateRealmsKindNameSeparator(t *testing.T) {
 				ID:               1,
 				Name:             "site/admin", // в имени realm'а '/' допустим
 				RegisterUserKind: kindName,
-				AuthToken:        config.Token{AccessType: "jwt"},
+				AuthToken:        config.Token{AccessType: "jwt", Length: 64},
 				UserKinds: []config.UserKind{
 					{Name: kindName, Roles: []string{"guests"}},
 				},
@@ -383,7 +383,32 @@ func TestValidateAuth2FAConfirmExpiry(t *testing.T) {
 	}
 }
 
-// TestValidateOperationConfirm - длина кода подтверждения ограничена диапазоном из спеки,
+// confirmWithCodeLength - настройки подтверждения с допустимой длиной токена операции
+// и указанной длиной кода каждого канала.
+func confirmWithCodeLength(email, phone uint8) config.OperationConfirm {
+	return config.OperationConfirm{
+		TokenLength: 64,
+		SendByEmail: config.CodeSender{CodeLength: email},
+		SendByPhone: config.CodeSender{CodeLength: phone},
+	}
+}
+
+// withTokenLength - те же настройки подтверждения с указанной длиной токена операции.
+func withTokenLength(cfg config.OperationConfirm, length uint16) config.OperationConfirm {
+	cfg.TokenLength = length
+
+	return cfg
+}
+
+// withSessionExpiry - те же настройки подтверждения с указанным сроком звена кода.
+func withSessionExpiry(cfg config.OperationConfirm, expiry time.Duration) config.OperationConfirm {
+	cfg.SessionExpiry = expiry
+
+	return cfg
+}
+
+// TestValidateOperationConfirm - длины токена операции и кода подтверждения каждого канала ограничены
+// диапазонами из спеки,
 // а срок звена подтверждения кодом не больше порога продления: звено длиннее порога получило бы
 // лишь остаток срока предыдущего звена.
 func TestValidateOperationConfirm(t *testing.T) {
@@ -394,14 +419,20 @@ func TestValidateOperationConfirm(t *testing.T) {
 		cfg     config.OperationConfirm
 		wantErr bool
 	}{
-		{name: "code length not set", cfg: config.OperationConfirm{}, wantErr: true},
-		{name: "code length below min", cfg: config.OperationConfirm{CodeLength: 3}, wantErr: true},
-		{name: "code length exactly min", cfg: config.OperationConfirm{CodeLength: 4}, wantErr: false},
-		{name: "code length exactly max", cfg: config.OperationConfirm{CodeLength: 8}, wantErr: false},
-		{name: "code length above max", cfg: config.OperationConfirm{CodeLength: 9}, wantErr: true},
-		{name: "session expiry not set", cfg: config.OperationConfirm{CodeLength: 6}, wantErr: false},
-		{name: "session expiry equals threshold", cfg: config.OperationConfirm{CodeLength: 6, SessionExpiry: 30 * time.Minute}, wantErr: false},
-		{name: "session expiry above threshold", cfg: config.OperationConfirm{CodeLength: 6, SessionExpiry: 31 * time.Minute}, wantErr: true},
+		{name: "token length not set", cfg: withTokenLength(confirmWithCodeLength(6, 6), 0), wantErr: true},
+		{name: "token length below min", cfg: withTokenLength(confirmWithCodeLength(6, 6), 63), wantErr: true},
+		{name: "token length exactly max", cfg: withTokenLength(confirmWithCodeLength(6, 6), 128), wantErr: false},
+		{name: "token length above max", cfg: withTokenLength(confirmWithCodeLength(6, 6), 129), wantErr: true},
+		{name: "code length not set", cfg: confirmWithCodeLength(0, 0), wantErr: true},
+		{name: "phone code length not set", cfg: confirmWithCodeLength(6, 0), wantErr: true},
+		{name: "code length below min", cfg: confirmWithCodeLength(3, 6), wantErr: true},
+		{name: "code length exactly min", cfg: confirmWithCodeLength(4, 4), wantErr: false},
+		{name: "code length exactly max", cfg: confirmWithCodeLength(8, 8), wantErr: false},
+		{name: "code length above max", cfg: confirmWithCodeLength(9, 6), wantErr: true},
+		{name: "phone code length above max", cfg: confirmWithCodeLength(6, 9), wantErr: true},
+		{name: "session expiry not set", cfg: confirmWithCodeLength(6, 6), wantErr: false},
+		{name: "session expiry equals threshold", cfg: withSessionExpiry(confirmWithCodeLength(6, 6), 30*time.Minute), wantErr: false},
+		{name: "session expiry above threshold", cfg: withSessionExpiry(confirmWithCodeLength(6, 6), 31*time.Minute), wantErr: true},
 	}
 
 	for _, tc := range cases {
@@ -421,19 +452,45 @@ func TestValidateOperationConfirm(t *testing.T) {
 	}
 }
 
-// TestValidateRealmsConfirmCodeLength - заданная длина кода подтверждения realm'а проверяется
+// TestValidateRealmsConfirmCodeLength - заданная длина кода каждого канала realm'а проверяется
 // так же, как у настроек по умолчанию; незаданная допустима (её подставит CorrectValuesRealm).
 func TestValidateRealmsConfirmCodeLength(t *testing.T) {
 	t.Parallel()
 
-	makeRealms := func(codeLength uint8) []config.UserRealm {
+	makeRealms := func(email, phone uint8) []config.UserRealm {
 		return []config.UserRealm{
 			{
 				ID:               1,
 				Name:             "site",
 				RegisterUserKind: "user",
-				AuthToken:        config.Token{AccessType: "jwt"},
-				OperationConfirm: config.OperationConfirm{CodeLength: codeLength},
+				AuthToken:        config.Token{AccessType: "jwt", Length: 64},
+				OperationConfirm: confirmWithCodeLength(email, phone),
+				UserKinds: []config.UserKind{
+					{Name: "user", Roles: []string{"guests"}},
+				},
+			},
+		}
+	}
+
+	require.NoError(t, config.ValidateRealms(makeRealms(0, 0), []string{"guests"}))
+	require.NoError(t, config.ValidateRealms(makeRealms(6, 6), []string{"guests"}))
+	require.ErrorContains(t, config.ValidateRealms(makeRealms(9, 6), []string{"guests"}), "confirm code length is out of range")
+	require.ErrorContains(t, config.ValidateRealms(makeRealms(6, 9), []string{"guests"}), "confirm code length is out of range")
+}
+
+// TestValidateRealmsOperationTokenLength - заданная длина токена операции realm'а проверяется
+// так же, как у настроек по умолчанию; незаданная допустима (её подставит CorrectValuesRealm).
+func TestValidateRealmsOperationTokenLength(t *testing.T) {
+	t.Parallel()
+
+	makeRealms := func(length uint16) []config.UserRealm {
+		return []config.UserRealm{
+			{
+				ID:               1,
+				Name:             "site",
+				RegisterUserKind: "user",
+				AuthToken:        config.Token{AccessType: "jwt", Length: 64},
+				OperationConfirm: config.OperationConfirm{TokenLength: length},
 				UserKinds: []config.UserKind{
 					{Name: "user", Roles: []string{"guests"}},
 				},
@@ -442,8 +499,50 @@ func TestValidateRealmsConfirmCodeLength(t *testing.T) {
 	}
 
 	require.NoError(t, config.ValidateRealms(makeRealms(0), []string{"guests"}))
-	require.NoError(t, config.ValidateRealms(makeRealms(6), []string{"guests"}))
-	require.ErrorContains(t, config.ValidateRealms(makeRealms(9), []string{"guests"}), "confirm code length is out of range")
+	require.NoError(t, config.ValidateRealms(makeRealms(64), []string{"guests"}))
+	require.ErrorContains(t, config.ValidateRealms(makeRealms(32), []string{"guests"}), "operation token length is out of range")
+}
+
+// TestValidateRealmsAuthTokenLength - длина refresh-токена и непрозрачного access-токена realm'а
+// обязательна и ограничена диапазоном из спеки: значения по умолчанию у неё нет.
+func TestValidateRealmsAuthTokenLength(t *testing.T) {
+	t.Parallel()
+
+	makeRealms := func(length uint16) []config.UserRealm {
+		return []config.UserRealm{
+			{
+				ID:               1,
+				Name:             "site",
+				RegisterUserKind: "user",
+				AuthToken:        config.Token{AccessType: "session", Length: length},
+				UserKinds: []config.UserKind{
+					{Name: "user", Roles: []string{"guests"}},
+				},
+			},
+		}
+	}
+
+	require.NoError(t, config.ValidateRealms(makeRealms(64), []string{"guests"}))
+	require.NoError(t, config.ValidateRealms(makeRealms(128), []string{"guests"}))
+
+	for _, length := range []uint16{0, 63, 129} {
+		require.ErrorContains(t, config.ValidateRealms(makeRealms(length), []string{"guests"}), "auth token length is out of range")
+	}
+}
+
+// TestCorrectValuesRealmCodeLength - незаданная длина кода канала realm'а берётся из того же
+// канала настроек по умолчанию, заданная сохраняется.
+func TestCorrectValuesRealmCodeLength(t *testing.T) {
+	t.Parallel()
+
+	realms := config.CorrectValuesRealm(
+		[]config.UserRealm{{OperationConfirm: confirmWithCodeLength(0, 5)}},
+		confirmWithCodeLength(6, 7),
+		config.Token{},
+	)
+
+	require.Equal(t, uint8(6), realms[0].OperationConfirm.SendByEmail.CodeLength)
+	require.Equal(t, uint8(5), realms[0].OperationConfirm.SendByPhone.CodeLength)
 }
 
 // TestValidateRealmsSessionExpiry - заданный срок жизни звена подтверждения кодом realm'а
@@ -457,7 +556,7 @@ func TestValidateRealmsSessionExpiry(t *testing.T) {
 				ID:               1,
 				Name:             "site",
 				RegisterUserKind: "user",
-				AuthToken:        config.Token{AccessType: "jwt"},
+				AuthToken:        config.Token{AccessType: "jwt", Length: 64},
 				OperationConfirm: config.OperationConfirm{SessionExpiry: expiry},
 				UserKinds: []config.UserKind{
 					{Name: "user", Roles: []string{"guests"}},

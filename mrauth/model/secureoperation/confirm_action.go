@@ -15,6 +15,10 @@ type (
 		MinResendTime time.Duration      `json:"min_resend_time,omitempty"`
 		Expiry        time.Duration      `json:"expiry"`
 
+		// CodeLength - длина кода подтверждения; только для confirmmethod.Email и confirmmethod.Phone.
+		// Хранится здесь, чтобы повторная отправка и переход к нему выпускали код той же длины.
+		CodeLength int16 `json:"code_length,omitempty"`
+
 		// AllowRecovery - вместо основного доказательства этого действия допускается предъявить аварийный код.
 		AllowRecovery bool `json:"allow_recovery,omitempty"`
 

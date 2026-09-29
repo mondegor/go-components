@@ -99,7 +99,7 @@ func (o *ConfirmCode) Prepare(
 	// и его продвинутый шаг обязан попасть в ту же транзакцию подтверждения.
 
 	// для следующего действия генерится новый токен, а если оно sendable - ещё и код подтверждения
-	token, err := o.tokenGenerator.GenToken()
+	token, err := o.tokenGenerator.GenToken(len(op.Token))
 	if err != nil {
 		return secureoperation.SecureOperation{}, nil, err
 	}

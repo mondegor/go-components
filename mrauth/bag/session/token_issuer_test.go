@@ -15,6 +15,9 @@ import (
 	"github.com/mondegor/go-components/mrauth/dto"
 )
 
+// testTokenLength - длина токенов, которую выпускающий обязан передать генератору.
+const testTokenLength = 64
+
 //go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenGenerator
 
 const (
@@ -27,10 +30,10 @@ func TestTokenIssuer_CreateTokenPair(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	gen := mock.NewMockTokenGenerator(ctrl)
-	gen.EXPECT().GenToken().Return("access-token-value", nil)
-	gen.EXPECT().GenToken().Return("refresh-token-value", nil)
+	gen.EXPECT().GenToken(testTokenLength).Return("access-token-value", nil)
+	gen.EXPECT().GenToken(testTokenLength).Return("refresh-token-value", nil)
 
-	issuer := session.NewTokenIssuer(gen, accessExpiry, refreshExpiry)
+	issuer := session.NewTokenIssuer(gen, testTokenLength, accessExpiry, refreshExpiry)
 
 	userScopes := validUserScopes()
 
@@ -86,7 +89,7 @@ func TestTokenIssuer_CreateTokenPair_InvalidScopes(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			gen := mock.NewMockTokenGenerator(ctrl) // токен не генерируется: область действия отвергается раньше
 
-			issuer := session.NewTokenIssuer(gen, accessExpiry, refreshExpiry)
+			issuer := session.NewTokenIssuer(gen, testTokenLength, accessExpiry, refreshExpiry)
 
 			_, err := issuer.CreateTokenPair(tt.userScopes())
 			require.ErrorContains(t, err, tt.wantErr)
@@ -99,9 +102,9 @@ func TestTokenIssuer_CreateTokenPair_AccessError(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	gen := mock.NewMockTokenGenerator(ctrl)
-	gen.EXPECT().GenToken().Return("", errors.New("gen failed"))
+	gen.EXPECT().GenToken(testTokenLength).Return("", errors.New("gen failed"))
 
-	issuer := session.NewTokenIssuer(gen, accessExpiry, refreshExpiry)
+	issuer := session.NewTokenIssuer(gen, testTokenLength, accessExpiry, refreshExpiry)
 
 	_, err := issuer.CreateTokenPair(validUserScopes())
 	require.Error(t, err)
@@ -112,10 +115,10 @@ func TestTokenIssuer_CreateTokenPair_RefreshError(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	gen := mock.NewMockTokenGenerator(ctrl)
-	gen.EXPECT().GenToken().Return("access-token-value", nil)
-	gen.EXPECT().GenToken().Return("", errors.New("gen failed"))
+	gen.EXPECT().GenToken(testTokenLength).Return("access-token-value", nil)
+	gen.EXPECT().GenToken(testTokenLength).Return("", errors.New("gen failed"))
 
-	issuer := session.NewTokenIssuer(gen, accessExpiry, refreshExpiry)
+	issuer := session.NewTokenIssuer(gen, testTokenLength, accessExpiry, refreshExpiry)
 
 	_, err := issuer.CreateTokenPair(validUserScopes())
 	require.Error(t, err)

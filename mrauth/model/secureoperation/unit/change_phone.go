@@ -17,6 +17,7 @@ type (
 	ChangePhone struct {
 		actionCreator  confirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
+		tokenLength    int
 		codeGenerator  mrauth.CodeGenerator
 	}
 )
@@ -24,12 +25,14 @@ type (
 // NewChangePhone - создаёт объект ChangePhone.
 func NewChangePhone(
 	tokenGenerator mrauth.TokenGenerator,
+	tokenLength int,
 	codeGenerator mrauth.CodeGenerator,
 	confirmByEmailOpts ...action.Option,
 ) *ChangePhone {
 	return &ChangePhone{
 		actionCreator:  action.NewConfirmByEmail(confirmByEmailOpts...),
 		tokenGenerator: tokenGenerator,
+		tokenLength:    tokenLength,
 		codeGenerator:  codeGenerator,
 	}
 }
@@ -43,12 +46,7 @@ func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone contactaddress.Contac
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("newPhone is not a phone address")
 	}
 
-	operationToken, err := o.tokenGenerator.GenToken()
-	if err != nil {
-		return secureoperation.SecureOperation{}, err
-	}
-
-	confirmCode, hashedCode, err := o.codeGenerator.GenCodeWithHash()
+	operationToken, err := o.tokenGenerator.GenToken(o.tokenLength)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -65,7 +63,7 @@ func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone contactaddress.Contac
 
 	actions := make([]secureoperation.ConfirmAction, 1, 2)
 
-	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email), confirmCode, hashedCode)
+	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email))
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -74,7 +72,8 @@ func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone contactaddress.Contac
 		actions = append(actions, newConfirmActionBy2FA(user2FA.Action2FA))
 	}
 
-	return secureoperation.NewOperation(
+	return newSendableOperation(
+		o.codeGenerator,
 		operationToken,
 		operationtype.ChangePhone,
 		user2FA.ID,

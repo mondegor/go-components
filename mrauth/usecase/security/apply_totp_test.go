@@ -157,7 +157,7 @@ func (s *ApplyTOTPSuite) TestValidCodeBindsAndReturnsCodes() {
 	auth := totp.NewAuthenticator("TestIssuer", 20)
 	uc := security.NewApplyTOTPGenerator(
 		s.txManager, s.binder, s.verifier, s.revoker,
-		crypt.NewSecretGenerator(10), auth, s.notifierAPI, s.logOperation, 10,
+		crypt.NewSecretGenerator(), auth, s.notifierAPI, s.logOperation, 10, 10,
 	)
 
 	code, err := auth.GenerateCode(testTotpSecret, time.Now())
@@ -193,7 +193,7 @@ func (s *ApplyTOTPSuite) TestActive2FAConflictNoApply() {
 	auth := totp.NewAuthenticator("TestIssuer", 20)
 	uc := security.NewApplyTOTPGenerator(
 		s.txManager, s.binder, s.verifier, s.revoker,
-		crypt.NewSecretGenerator(10), auth, s.notifierAPI, s.logOperation, 10,
+		crypt.NewSecretGenerator(), auth, s.notifierAPI, s.logOperation, 10, 10,
 	)
 
 	code, err := auth.GenerateCode(testTotpSecret, time.Now())
@@ -220,8 +220,8 @@ func (s *ApplyTOTPSuite) TestInvalidCodeNoBind() {
 
 	uc := security.NewApplyTOTPGenerator(
 		s.txManager, s.binder, s.verifier, s.revoker,
-		crypt.NewSecretGenerator(10), totp.NewAuthenticator("TestIssuer", 20),
-		s.notifierAPI, s.logOperation, 10,
+		crypt.NewSecretGenerator(), totp.NewAuthenticator("TestIssuer", 20),
+		s.notifierAPI, s.logOperation, 10, 10,
 	)
 
 	codes, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token", "000000")

@@ -42,6 +42,20 @@ const (
 	minConfirmCodeLength = 4
 	maxConfirmCodeLength = 8
 
+	// minOperationTokenLength, maxOperationTokenLength - границы длины токена операции:
+	// ограничение поля token в спеке (Auth.Operation.Request.Model.OperationToken), его же
+	// проверяет граница ввода; токен вне диапазона не принял бы ни один метод операции.
+	minOperationTokenLength = 64
+	maxOperationTokenLength = 128
+
+	// minAuthTokenLength, maxAuthTokenLength - границы длины refresh-токена и непрозрачного
+	// access-токена (access_type=session): ограничение refresh_token в спеке
+	// (Auth.Request.Model.ContinueSession) и ширина колонки auth_tokens.auth_token
+	// (см. _sample/migrations, varchar(128)). Связь с колонкой неявная - при изменении её ширины
+	// константу нужно править вручную.
+	minAuthTokenLength = 64
+	maxAuthTokenLength = 128
+
 	// maxActionExpiry - потолок срока жизни звеньев подтверждения, к которым операция переходит
 	// по цепочке (кодом - SessionExpiry, вторым фактором - ConfirmExpiry), повторяет
 	// secureoperation.fixedExpiryThreshold: звено длиннее порога не продлевается при переходе
@@ -204,7 +218,7 @@ func ValidateAuth2FA(cfg Auth2FA) error {
 }
 
 // ValidateOperationConfirm - проверяет настройки подтверждения операций на соответствие спеке:
-// длина кода подтверждения в допустимом диапазоне, а срок жизни звена подтверждения кодом
+// длина токена операции и кода подтверждения каждого канала в допустимом диапазоне, а срок жизни звена подтверждения кодом
 // не больше порога продления, чтобы пользователь гарантированно успевал пройти звено
 // (незаданный срок допустим).
 //
@@ -212,8 +226,16 @@ func ValidateAuth2FA(cfg Auth2FA) error {
 // host-приложение из своего init-пути (внутри библиотеки она намеренно не вызывается). Конкретный
 // проект может использовать её как есть либо написать собственную.
 func ValidateOperationConfirm(cfg OperationConfirm) error {
-	if err := validateConfirmCodeLength(cfg.CodeLength); err != nil {
+	if err := validateOperationTokenLength(cfg.TokenLength); err != nil {
 		return err
+	}
+
+	if err := validateConfirmCodeLength(cfg.SendByEmail.CodeLength); err != nil {
+		return fmt.Errorf("send by email: %w", err)
+	}
+
+	if err := validateConfirmCodeLength(cfg.SendByPhone.CodeLength); err != nil {
+		return fmt.Errorf("send by phone: %w", err)
 	}
 
 	return validateActionExpiry("session expiry", cfg.SessionExpiry)
@@ -224,6 +246,32 @@ func ValidateOperationConfirm(cfg OperationConfirm) error {
 func validateActionExpiry(name string, expiry time.Duration) error {
 	if expiry > maxActionExpiry {
 		return fmt.Errorf("%s must not be greater than %s (got %s)", name, maxActionExpiry, expiry)
+	}
+
+	return nil
+}
+
+func validateAuthTokenLength(length uint16) error {
+	if length < minAuthTokenLength || length > maxAuthTokenLength {
+		return fmt.Errorf(
+			"auth token length is out of range (got %d, min=%d, max=%d)",
+			length,
+			minAuthTokenLength,
+			maxAuthTokenLength,
+		)
+	}
+
+	return nil
+}
+
+func validateOperationTokenLength(length uint16) error {
+	if length < minOperationTokenLength || length > maxOperationTokenLength {
+		return fmt.Errorf(
+			"operation token length is out of range (got %d, min=%d, max=%d)",
+			length,
+			minOperationTokenLength,
+			maxOperationTokenLength,
+		)
 	}
 
 	return nil
@@ -270,6 +318,11 @@ func ValidateRealms(realms []UserRealm, allRoles []string) error {
 			return fmt.Errorf("invalid token type for realm (type='%s', realm='%s')", realm.AuthToken.AccessType, realm.Name)
 		}
 
+		// значения по умолчанию у длины нет (CorrectValuesRealm её не подставляет), поэтому она обязательна
+		if err := validateAuthTokenLength(realm.AuthToken.Length); err != nil {
+			return fmt.Errorf("invalid auth token for realm '%s': %w", realm.Name, err)
+		}
+
 		uniqRealmIDs[realm.ID] = true
 		uniqRealms[realm.Name] = true
 
@@ -314,8 +367,18 @@ func validateRealm(realm UserRealm, allRoles []string) error {
 	}
 
 	// незаданная длина допустима: её подставляет CorrectValuesRealm
-	if realm.OperationConfirm.CodeLength != 0 {
-		if err := validateConfirmCodeLength(realm.OperationConfirm.CodeLength); err != nil {
+	if realm.OperationConfirm.TokenLength != 0 {
+		if err := validateOperationTokenLength(realm.OperationConfirm.TokenLength); err != nil {
+			return fmt.Errorf("invalid operation confirm for realm '%s': %w", realm.Name, err)
+		}
+	}
+
+	for _, sender := range []CodeSender{realm.OperationConfirm.SendByEmail, realm.OperationConfirm.SendByPhone} {
+		if sender.CodeLength == 0 {
+			continue
+		}
+
+		if err := validateConfirmCodeLength(sender.CodeLength); err != nil {
 			return fmt.Errorf("invalid operation confirm for realm '%s': %w", realm.Name, err)
 		}
 	}
@@ -335,10 +398,6 @@ func CorrectValuesRealm(realms []UserRealm, defaultConfirm OperationConfirm, ove
 
 		if rop.TokenLength < 1 {
 			rop.TokenLength = defaultConfirm.TokenLength
-		}
-
-		if rop.CodeLength < 1 {
-			rop.CodeLength = defaultConfirm.CodeLength
 		}
 
 		if rop.SessionExpiry < 1 {
@@ -367,6 +426,10 @@ func CorrectValuesRealm(realms []UserRealm, defaultConfirm OperationConfirm, ove
 }
 
 func correctValuesCodeSender(cs, defaultSender CodeSender) CodeSender {
+	if cs.CodeLength < 1 {
+		cs.CodeLength = defaultSender.CodeLength
+	}
+
 	if cs.MaxAttempts < 1 {
 		cs.MaxAttempts = defaultSender.MaxAttempts
 	}

@@ -103,7 +103,7 @@ func (s *ApplyPasswordSuite) SetupTest() {
 func (s *ApplyPasswordSuite) newUseCase() *security.ApplyPassword {
 	return security.NewApplyPassword(
 		s.txManager, s.binder, s.verifier, s.revoker,
-		crypt.NewSecretGenerator(10), s.notifierAPI, s.logOperation, 8,
+		crypt.NewSecretGenerator(), s.notifierAPI, s.logOperation, 8, 10,
 	)
 }
 

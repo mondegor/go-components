@@ -80,9 +80,9 @@ func (m *MockrecoveryCodesGenerator) EXPECT() *MockrecoveryCodesGeneratorMockRec
 }
 
 // GenerateRecoveryCodes mocks base method.
-func (m *MockrecoveryCodesGenerator) GenerateRecoveryCodes(count int) ([]string, []string, error) {
+func (m *MockrecoveryCodesGenerator) GenerateRecoveryCodes(count, length int) ([]string, []string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GenerateRecoveryCodes", count)
+	ret := m.ctrl.Call(m, "GenerateRecoveryCodes", count, length)
 	ret0, _ := ret[0].([]string)
 	ret1, _ := ret[1].([]string)
 	ret2, _ := ret[2].(error)
@@ -90,9 +90,9 @@ func (m *MockrecoveryCodesGenerator) GenerateRecoveryCodes(count int) ([]string,
 }
 
 // GenerateRecoveryCodes indicates an expected call of GenerateRecoveryCodes.
-func (mr *MockrecoveryCodesGeneratorMockRecorder) GenerateRecoveryCodes(count any) *gomock.Call {
+func (mr *MockrecoveryCodesGeneratorMockRecorder) GenerateRecoveryCodes(count, length any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateRecoveryCodes", reflect.TypeOf((*MockrecoveryCodesGenerator)(nil).GenerateRecoveryCodes), count)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenerateRecoveryCodes", reflect.TypeOf((*MockrecoveryCodesGenerator)(nil).GenerateRecoveryCodes), count, length)
 }
 
 // MocktotpValidator is a mock of totpValidator interface.

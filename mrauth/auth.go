@@ -39,14 +39,14 @@ type (
 		NameByID(id uint16) (name string, ok bool)
 	}
 
-	// TokenGenerator - генератор случайных токенов заданной длины.
+	// TokenGenerator - генератор случайных токенов указанной длины.
 	TokenGenerator interface {
-		GenToken() (string, error)
+		GenToken(length int) (string, error)
 	}
 
 	// CodeGenerator - генерация, хеширование и проверка кодов подтверждения.
 	CodeGenerator interface {
-		GenCodeWithHash() (code, hashedCode string, err error)
+		GenCodeWithHash(length int) (code, hashedCode string, err error)
 		HashedSecret(secret string) (string, error)
 		CompareSecretAndHash(secret, hashedSecret string) (ok bool, err error)
 	}

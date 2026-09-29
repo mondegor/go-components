@@ -48,7 +48,8 @@ func Test_NewOperationWithError(t *testing.T) {
 			operationType: operationtype.ChangePhone,
 			actions: []secureoperation.ConfirmAction{
 				{
-					Method: confirmmethod.Email,
+					Method:     confirmmethod.Email,
+					CodeLength: 6,
 				},
 			},
 			wantErrMessage: "token is empty",
@@ -93,6 +94,17 @@ func Test_NewOperationWithError(t *testing.T) {
 				{Method: confirmmethod.Email, AllowRecovery: true},
 			},
 			wantErrMessage: "sendable action cannot allow recovery",
+		},
+		{
+			// длина хранится в звене, потому что по ней выпускается код при повторной отправке
+			// и при переходе к звену; без неё код выпустить нечем
+			name:          "sendable action without code length",
+			operationType: operationtype.ChangePhone,
+			token:         "token",
+			actions: []secureoperation.ConfirmAction{
+				{Method: confirmmethod.Email},
+			},
+			wantErrMessage: "sendable action without code length",
 		},
 	}
 

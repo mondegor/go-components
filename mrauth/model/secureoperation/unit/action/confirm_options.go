@@ -5,6 +5,7 @@ import (
 )
 
 const (
+	defaultCodeLength    = 6
 	defaultMaxAttempts   = 3
 	defaultMaxResends    = 3
 	defaultMinResendTime = 2 * time.Minute
@@ -16,6 +17,7 @@ type (
 	Option func(o *confirmOptions)
 
 	confirmOptions struct {
+		codeLength    int16
 		maxAttempts   int16
 		maxResends    int16
 		minResendTime time.Duration
@@ -24,12 +26,14 @@ type (
 )
 
 func newConfirmOptions(opts []Option) confirmOptions {
-	o := confirmOptions{
-		minResendTime: defaultMinResendTime,
-	}
+	var o confirmOptions
 
 	for _, opt := range opts {
 		opt(&o)
+	}
+
+	if o.codeLength < 1 {
+		o.codeLength = defaultCodeLength
 	}
 
 	if o.maxAttempts < 1 {
@@ -40,6 +44,10 @@ func newConfirmOptions(opts []Option) confirmOptions {
 		o.maxResends = defaultMaxResends
 	}
 
+	if o.minResendTime < 1 {
+		o.minResendTime = defaultMinResendTime
+	}
+
 	if o.expiry < 1 {
 		o.expiry = defaultExpiry
 	}
@@ -47,7 +55,14 @@ func newConfirmOptions(opts []Option) confirmOptions {
 	return o
 }
 
-// WithMaxAttempts - устанавливает кол-во попыток отправки одного сообщения.
+// WithCodeLength - устанавливает длину кода подтверждения.
+func WithCodeLength(value int16) Option {
+	return func(o *confirmOptions) {
+		o.codeLength = value
+	}
+}
+
+// WithMaxAttempts - устанавливает кол-во попыток ввода кода подтверждения.
 func WithMaxAttempts(value int16) Option {
 	return func(o *confirmOptions) {
 		o.maxAttempts = value

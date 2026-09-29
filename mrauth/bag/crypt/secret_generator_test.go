@@ -12,13 +12,13 @@ import (
 func TestSecretGenerator_GenToken(t *testing.T) {
 	t.Parallel()
 
-	gen := crypt.NewSecretGenerator(32)
+	gen := crypt.NewSecretGenerator()
 
-	token, err := gen.GenToken()
+	token, err := gen.GenToken(32)
 	require.NoError(t, err)
 	require.Len(t, token, 32)
 
-	other, err := gen.GenToken()
+	other, err := gen.GenToken(32)
 	require.NoError(t, err)
 	require.NotEqual(t, token, other) // токены должны быть случайными
 }
@@ -26,7 +26,7 @@ func TestSecretGenerator_GenToken(t *testing.T) {
 func TestSecretGenerator_GenCode(t *testing.T) {
 	t.Parallel()
 
-	code, err := crypt.NewSecretGenerator(6).GenCode()
+	code, err := crypt.NewSecretGenerator().GenCode(6)
 	require.NoError(t, err)
 	require.Len(t, code, 6)
 
@@ -53,7 +53,7 @@ func TestSecretGenerator_GenRecoveryCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			code, err := crypt.NewSecretGenerator(tt.length).GenRecoveryCode()
+			code, err := crypt.NewSecretGenerator().GenRecoveryCode(tt.length)
 			require.NoError(t, err)
 			require.Len(t, code, tt.length)
 
@@ -72,7 +72,7 @@ func TestSecretGenerator_GenRecoveryCode(t *testing.T) {
 func TestSecretGenerator_HashAndCompare(t *testing.T) {
 	t.Parallel()
 
-	gen := crypt.NewSecretGenerator(10)
+	gen := crypt.NewSecretGenerator()
 
 	hash, err := gen.HashedSecret("my-secret")
 	require.NoError(t, err)
@@ -90,14 +90,16 @@ func TestSecretGenerator_HashAndCompare(t *testing.T) {
 func TestSecretGenerator_GenerateRecoveryCodes(t *testing.T) {
 	t.Parallel()
 
-	gen := crypt.NewSecretGenerator(12)
+	gen := crypt.NewSecretGenerator()
 
-	plain, hashed, err := gen.GenerateRecoveryCodes(5)
+	plain, hashed, err := gen.GenerateRecoveryCodes(5, 12)
 	require.NoError(t, err)
 	require.Len(t, plain, 5)
 	require.Len(t, hashed, 5)
 
 	for i := range plain {
+		require.Len(t, plain[i], 12)
+
 		require.NotEqual(t, plain[i], hashed[i]) // хранится хеш, не открытый код
 
 		ok, err := gen.CompareSecretAndHash(plain[i], hashed[i])

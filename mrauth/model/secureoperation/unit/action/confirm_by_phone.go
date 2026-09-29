@@ -14,6 +14,7 @@ import (
 type (
 	// ConfirmByPhone - фабрика действий подтверждения по телефону.
 	ConfirmByPhone struct {
+		codeLength    int16
 		maxAttempts   int16
 		maxResends    int16
 		minResendTime time.Duration
@@ -26,6 +27,7 @@ func NewConfirmByPhone(opts ...Option) *ConfirmByPhone {
 	o := newConfirmOptions(opts)
 
 	return &ConfirmByPhone{
+		codeLength:    o.codeLength,
 		maxAttempts:   o.maxAttempts,
 		maxResends:    o.maxResends,
 		minResendTime: o.minResendTime,
@@ -33,9 +35,9 @@ func NewConfirmByPhone(opts ...Option) *ConfirmByPhone {
 	}
 }
 
-// Create - создаёт действие подтверждения по телефону; в ConfirmCode сохраняется хеш
-// кода (для хранения), в PlainConfirmCode - открытый код (для отправки пользователю).
-func (a *ConfirmByPhone) Create(phone contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error) {
+// Create - создаёт действие подтверждения по телефону; сам код выпускается позже
+// (SecureOperation.InitSendableAction) по длине, записанной в действие.
+func (a *ConfirmByPhone) Create(phone contactaddress.ContactAddress) (secureoperation.ConfirmAction, error) {
 	if !phone.Is(addresstype.Phone) {
 		return secureoperation.ConfirmAction{},
 			errors.NewInternalError(
@@ -45,13 +47,12 @@ func (a *ConfirmByPhone) Create(phone contactaddress.ContactAddress, confirmCode
 	}
 
 	return secureoperation.ConfirmAction{
-		Method:           confirmmethod.Phone,
-		MaxAttempts:      a.maxAttempts,
-		MaxResends:       a.maxResends,
-		MinResendTime:    a.minResendTime,
-		Expiry:           a.expiry,
-		Address:          phone.Value(),
-		ConfirmCode:      hashedConfirmCode,
-		PlainConfirmCode: confirmCode,
+		Method:        confirmmethod.Phone,
+		MaxAttempts:   a.maxAttempts,
+		MaxResends:    a.maxResends,
+		MinResendTime: a.minResendTime,
+		CodeLength:    a.codeLength,
+		Expiry:        a.expiry,
+		Address:       phone.Value(),
 	}, nil
 }

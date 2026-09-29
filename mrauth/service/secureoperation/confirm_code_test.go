@@ -52,8 +52,9 @@ func (s *ConfirmCodeSuite) SetupTest() {
 // expectGenerators - настраивает генераторы токена и кода следующего действия.
 // Хеш кода в тестах равен самому коду, поэтому сравнение сводится к равенству строк.
 func (s *ConfirmCodeSuite) expectGenerators(token, code string) {
-	s.tokenGen.EXPECT().GenToken().Return(token, nil).AnyTimes()
-	s.codeGen.EXPECT().GenCodeWithHash().Return(code, code, nil).AnyTimes()
+	// новый токен выпускается той же длины, что текущий токен операции ("token")
+	s.tokenGen.EXPECT().GenToken(len("token")).Return(token, nil).AnyTimes()
+	s.codeGen.EXPECT().GenCodeWithHash(gomock.Any()).Return(code, code, nil).AnyTimes()
 	s.codeGen.EXPECT().
 		CompareSecretAndHash(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(secret, hashedSecret string) (bool, error) {

@@ -14,6 +14,7 @@ import (
 type (
 	// ConfirmByEmail - фабрика действий подтверждения по email.
 	ConfirmByEmail struct {
+		codeLength    int16
 		maxAttempts   int16
 		maxResends    int16
 		minResendTime time.Duration
@@ -26,6 +27,7 @@ func NewConfirmByEmail(opts ...Option) *ConfirmByEmail {
 	o := newConfirmOptions(opts)
 
 	return &ConfirmByEmail{
+		codeLength:    o.codeLength,
 		maxAttempts:   o.maxAttempts,
 		maxResends:    o.maxResends,
 		minResendTime: o.minResendTime,
@@ -38,9 +40,9 @@ func (a *ConfirmByEmail) Expiry() time.Duration {
 	return a.expiry
 }
 
-// Create - создаёт действие подтверждения по email; в ConfirmCode сохраняется хеш
-// кода (для хранения), в PlainConfirmCode - открытый код (для отправки пользователю).
-func (a *ConfirmByEmail) Create(email contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error) {
+// Create - создаёт действие подтверждения по email; сам код выпускается позже
+// (SecureOperation.InitSendableAction) по длине, записанной в действие.
+func (a *ConfirmByEmail) Create(email contactaddress.ContactAddress) (secureoperation.ConfirmAction, error) {
 	if !email.Is(addresstype.Email) {
 		return secureoperation.ConfirmAction{},
 			errors.NewInternalError(
@@ -50,13 +52,12 @@ func (a *ConfirmByEmail) Create(email contactaddress.ContactAddress, confirmCode
 	}
 
 	return secureoperation.ConfirmAction{
-		Method:           confirmmethod.Email,
-		MaxAttempts:      a.maxAttempts,
-		MaxResends:       a.maxResends,
-		MinResendTime:    a.minResendTime,
-		Expiry:           a.expiry,
-		Address:          email.Value(),
-		ConfirmCode:      hashedConfirmCode,
-		PlainConfirmCode: confirmCode,
+		Method:        confirmmethod.Email,
+		MaxAttempts:   a.maxAttempts,
+		MaxResends:    a.maxResends,
+		MinResendTime: a.minResendTime,
+		CodeLength:    a.codeLength,
+		Expiry:        a.expiry,
+		Address:       email.Value(),
 	}, nil
 }

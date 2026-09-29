@@ -28,7 +28,7 @@ func NewResendCode(
 
 // Prepare - генерирует новый токен и код подтверждения для повторной отправки кода операции.
 func (o *ResendCode) Prepare(op secureoperation.SecureOperation) (secureoperation.SecureOperation, error) {
-	token, err := o.tokenGenerator.GenToken()
+	token, err := o.tokenGenerator.GenToken(len(op.Token))
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}

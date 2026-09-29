@@ -5,11 +5,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/model/contactaddress"
+	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 	"github.com/mondegor/go-components/wire/mrauth/mapping"
 )
 
@@ -59,4 +63,31 @@ func TestOptionErrorCodeToHttpStatus(t *testing.T) {
 			assert.Equal(t, tt.want, statusMapper.ErrorStatus(tt.err))
 		})
 	}
+}
+
+// TestOptionUserRealmsToConfirmCreateSessionRealmsTokenLength - токен операции входа выпускается
+// длиной токена операции realm'а, а не длиной токенов сессии: у них разные ограничения в спеке.
+func TestOptionUserRealmsToConfirmCreateSessionRealmsTokenLength(t *testing.T) {
+	t.Parallel()
+
+	realms := mapping.OptionUserRealmsToConfirmCreateSessionRealms([]authcfg.UserRealm{
+		{
+			Name:      "site",
+			AuthToken: authcfg.Token{Length: 100},
+			OperationConfirm: authcfg.OperationConfirm{
+				TokenLength: 70,
+				SendByEmail: authcfg.CodeSender{CodeLength: 6},
+			},
+		},
+	})
+	require.Len(t, realms, 1)
+
+	op, err := realms[0].Operation.Create(
+		dto.User2FA{ID: uuid.New(), Email: "user@example.com"},
+		"site",
+		"en",
+		contactaddress.NewEmail("user@example.com"),
+	)
+	require.NoError(t, err)
+	assert.Len(t, op.Token, 70)
 }

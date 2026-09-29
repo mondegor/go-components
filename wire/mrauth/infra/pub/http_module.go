@@ -90,7 +90,6 @@ func InitHttpModule(
 		storageUser,
 		notifierAPI,
 		operationLogger,
-		operationConfig,
 		auth2faConfig,
 	)
 
@@ -155,7 +154,6 @@ func InitHttpModule(
 						requestParser,
 						responseSender,
 						notifierAPI,
-						operationConfig,
 						debugFunc,
 					)
 				},
