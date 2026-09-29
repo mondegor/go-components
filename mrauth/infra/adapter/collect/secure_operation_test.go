@@ -65,10 +65,10 @@ func (s *SecureOperationLoggerSuite) TestLogPushesToCollector() {
 	s.expectAccepts()
 
 	logger := collect.NewSecureOperationLogger(s.producer, mrlog.NopLogger())
-	logger.Log(context.Background(), entity.SecureOperationLog{OperationName: "confirm.authorize.user"})
+	logger.Log(context.Background(), entity.SecureOperationLog{SourceName: "AUTHORIZE_USER"})
 
 	s.Require().Len(s.entries, 1)
-	s.Equal("confirm.authorize.user", s.entries[0].OperationName)
+	s.Equal("AUTHORIZE_USER", s.entries[0].SourceName)
 }
 
 // TestLogOverflowDoesNotBlockLong - журнал best-effort: при заторе в коллекторе
@@ -80,7 +80,7 @@ func (s *SecureOperationLoggerSuite) TestLogOverflowDoesNotBlockLong() {
 
 	start := time.Now()
 
-	logger.Log(context.Background(), entity.SecureOperationLog{OperationName: "confirm.authorize.user"})
+	logger.Log(context.Background(), entity.SecureOperationLog{SourceName: "AUTHORIZE_USER"})
 
 	s.Less(time.Since(start), time.Second, "ожидание места в очереди ограничено pushTimeout")
 }
@@ -91,7 +91,7 @@ func (s *SecureOperationLoggerSuite) TestLogNilProducerDisabledNoPanic() {
 	logger := collect.NewSecureOperationLogger(nil, mrlog.NopLogger())
 
 	s.NotPanics(func() {
-		logger.Log(context.Background(), entity.SecureOperationLog{OperationName: "confirm.authorize.user"})
+		logger.Log(context.Background(), entity.SecureOperationLog{SourceName: "AUTHORIZE_USER"})
 	})
 }
 
@@ -105,7 +105,7 @@ func (s *SecureOperationLoggerSuite) TestLogCanceledRequestStillLogs() {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	logger.Log(ctx, entity.SecureOperationLog{OperationName: "confirm.authorize.user"})
+	logger.Log(ctx, entity.SecureOperationLog{SourceName: "AUTHORIZE_USER"})
 
 	s.Require().Len(s.entries, 1)
 }

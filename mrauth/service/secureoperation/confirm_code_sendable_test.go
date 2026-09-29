@@ -10,6 +10,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	secureoperation_model "github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -27,7 +28,7 @@ func emailConfirmAction(code string) secureoperation_model.ConfirmAction {
 
 // newOpWithActions - создаёт операцию в статусе Opened с указанными действиями.
 func (s *ConfirmCodeSuite) newOpWithActions(actions ...secureoperation_model.ConfirmAction) secureoperation_model.SecureOperation {
-	op, err := secureoperation_model.NewOperation("token", "name1", uuid.New(), actions, nil)
+	op, err := secureoperation_model.NewOperation("token", operationtype.ChangePhone, uuid.New(), actions, nil)
 	s.Require().NoError(err)
 
 	return op

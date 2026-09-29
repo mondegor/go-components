@@ -13,6 +13,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	secureoperation_model "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/service/secureoperation"
 	"github.com/mondegor/go-components/mrauth/service/secureoperation/mock"
@@ -66,7 +67,7 @@ func (s *ConfirmCodeSuite) expectGenerators(token, code string) {
 func (s *ConfirmCodeSuite) newOpWithSingleTOTPAction(userID uuid.UUID) secureoperation_model.SecureOperation {
 	op, err := secureoperation_model.NewOperation(
 		"token",
-		"name1",
+		operationtype.ChangePhone,
 		userID,
 		[]secureoperation_model.ConfirmAction{
 			{

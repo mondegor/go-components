@@ -16,6 +16,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
@@ -32,7 +33,7 @@ func openedEmailOp(t *testing.T) secureoperation.SecureOperation {
 
 	op, err := secureoperation.NewOperation(
 		"op-token",
-		"confirm.change",
+		operationtype.ChangeEmail,
 		uuid.New(),
 		[]secureoperation.ConfirmAction{
 			{

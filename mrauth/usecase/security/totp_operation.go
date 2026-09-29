@@ -9,6 +9,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
@@ -53,7 +54,7 @@ func fetchConfirmedTOTPPayload(
 
 	// TODO: проверить, что пользователь не заблокирован
 
-	if op.Name != unit.NameConfirmChangeTOTP {
+	if op.Type != operationtype.ChangeTOTP {
 		return dto.ChangeTOTPOperation{}, errors.ErrAccessForbidden
 	}
 

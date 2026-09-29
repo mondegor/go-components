@@ -10,6 +10,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 )
 
 type (
@@ -24,7 +25,7 @@ type (
 	}
 
 	operationRevokerStorage interface {
-		DeleteByUserID(ctx context.Context, userID uuid.UUID) (names []string, err error)
+		DeleteByUserID(ctx context.Context, userID uuid.UUID) (types []operationtype.Enum, err error)
 	}
 )
 
@@ -47,23 +48,23 @@ func (o *Revoker) RevokeAll(ctx context.Context, actor dto.ActorMeta, reason log
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
-	names, err := o.storage.DeleteByUserID(ctx, actor.VisitorID)
+	types, err := o.storage.DeleteByUserID(ctx, actor.VisitorID)
 	if err != nil {
 		return o.errorWrapper.Wrap(err)
 	}
 
-	logged := make(map[string]struct{}, len(names))
+	logged := make(map[operationtype.Enum]struct{}, len(types))
 
-	for _, name := range names {
-		if _, ok := logged[name]; ok {
+	for _, opType := range types {
+		if _, ok := logged[opType]; ok {
 			continue
 		}
 
-		logged[name] = struct{}{}
+		logged[opType] = struct{}{}
 
 		o.logOperation.Log(
 			ctx,
-			actor.NewOperationLog(name, confirmmethod.Unspecified, logstatus.Revoked, reason),
+			actor.NewOperationLog(opType.String(), confirmmethod.Unspecified, logstatus.Revoked, reason),
 		)
 	}
 

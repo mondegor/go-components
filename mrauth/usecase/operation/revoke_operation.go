@@ -67,7 +67,7 @@ func (co *RevokeOperation) Execute(ctx context.Context, actor dto.ActorMeta, ope
 		co.logOperation.Log(
 			ctx,
 			actor.NewOperationLog(
-				op.Name, op.FirstActionMethod(), logstatus.Blocked, logreason.AccessForbidden,
+				op.Type.String(), op.FirstActionMethod(), logstatus.Blocked, logreason.AccessForbidden,
 			),
 		)
 
@@ -89,7 +89,7 @@ func (co *RevokeOperation) Execute(ctx context.Context, actor dto.ActorMeta, ope
 	co.logOperation.Log(
 		ctx,
 		actor.NewOperationLog(
-			op.Name, op.FirstActionMethod(), logstatus.Revoked, logreason.Unspecified,
+			op.Type.String(), op.FirstActionMethod(), logstatus.Revoked, logreason.Unspecified,
 		),
 	)
 

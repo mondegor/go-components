@@ -15,6 +15,7 @@ import (
 
 	uuid "github.com/google/uuid"
 	entity "github.com/mondegor/go-components/mrauth/entity"
+	operationtype "github.com/mondegor/go-components/mrauth/enum/operationtype"
 	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -199,17 +200,17 @@ func (m *MockoperationFetcher) EXPECT() *MockoperationFetcherMockRecorder {
 	return m.recorder
 }
 
-// FetchByUserIDAndNames mocks base method.
-func (m *MockoperationFetcher) FetchByUserIDAndNames(ctx context.Context, userID uuid.UUID, names []string) ([]secureoperation.SecureOperation, error) {
+// FetchByUserIDAndTypes mocks base method.
+func (m *MockoperationFetcher) FetchByUserIDAndTypes(ctx context.Context, userID uuid.UUID, types []operationtype.Enum) ([]secureoperation.SecureOperation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchByUserIDAndNames", ctx, userID, names)
+	ret := m.ctrl.Call(m, "FetchByUserIDAndTypes", ctx, userID, types)
 	ret0, _ := ret[0].([]secureoperation.SecureOperation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FetchByUserIDAndNames indicates an expected call of FetchByUserIDAndNames.
-func (mr *MockoperationFetcherMockRecorder) FetchByUserIDAndNames(ctx, userID, names any) *gomock.Call {
+// FetchByUserIDAndTypes indicates an expected call of FetchByUserIDAndTypes.
+func (mr *MockoperationFetcherMockRecorder) FetchByUserIDAndTypes(ctx, userID, types any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchByUserIDAndNames", reflect.TypeOf((*MockoperationFetcher)(nil).FetchByUserIDAndNames), ctx, userID, names)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchByUserIDAndTypes", reflect.TypeOf((*MockoperationFetcher)(nil).FetchByUserIDAndTypes), ctx, userID, types)
 }

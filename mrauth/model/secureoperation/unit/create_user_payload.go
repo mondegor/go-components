@@ -6,6 +6,7 @@ import (
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 )
 
 // BuildCreateUserPayload - собирает payload операции создания пользователя,
@@ -18,7 +19,7 @@ func BuildCreateUserPayload(in dto.CreateUserOperation) ([]byte, error) {
 	value, err := json.Marshal(in)
 	if err != nil {
 		return nil, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not built", "operation_name", NameConfirmCreateUser)
+			WithError(err, "payload is not built", "operation_type", operationtype.CreateUser)
 	}
 
 	return value, nil
@@ -34,7 +35,7 @@ func ParseCreateUserPayload(payload []byte) (dto.CreateUserOperation, error) {
 
 	if err := json.Unmarshal(payload, &parsed); err != nil {
 		return dto.CreateUserOperation{}, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not parsed", "operation_name", NameConfirmCreateUser)
+			WithError(err, "payload is not parsed", "operation_type", operationtype.CreateUser)
 	}
 
 	if err := validateCreateUserPayload(parsed); err != nil {
@@ -54,22 +55,22 @@ func ParseCreateUserPayload(payload []byte) (dto.CreateUserOperation, error) {
 func validateCreateUserPayload(in dto.CreateUserOperation) error {
 	if in.Realm == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: realm is empty", "operation_name", NameConfirmCreateUser)
+			WithDetails("payload: realm is empty", "operation_type", operationtype.CreateUser)
 	}
 
 	if in.LangCode == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: langCode is empty", "operation_name", NameConfirmCreateUser)
+			WithDetails("payload: langCode is empty", "operation_type", operationtype.CreateUser)
 	}
 
 	if in.TimeZone == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: timeZone is empty", "operation_name", NameConfirmCreateUser)
+			WithDetails("payload: timeZone is empty", "operation_type", operationtype.CreateUser)
 	}
 
 	if in.Email == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: email is empty", "operation_name", NameConfirmCreateUser)
+			WithDetails("payload: email is empty", "operation_type", operationtype.CreateUser)
 	}
 
 	return nil

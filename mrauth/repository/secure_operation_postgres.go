@@ -9,6 +9,7 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -48,7 +49,7 @@ func (re *SecureOperationPostgres) fetchOne(ctx context.Context, token string, f
 	sql := `
 		SELECT
 			operation_token,
-			operation_name,
+			operation_type,
 			user_id,
 			confirm_actions,
 			remaining_attempts,
@@ -76,7 +77,7 @@ func (re *SecureOperationPostgres) fetchOne(ctx context.Context, token string, f
 
 	err = re.client.Conn(ctx).QueryRow(ctx, sql, token).Scan(
 		&row.Token,
-		&row.Name,
+		&row.Type,
 		&userID,
 		&actions,
 		&row.RemainingAttempts,
@@ -106,18 +107,18 @@ func (re *SecureOperationPostgres) fetchOne(ctx context.Context, token string, f
 	return row, nil
 }
 
-// FetchByUserIDAndNames - возвращает действующие (не истёкшие) операции указанных типов
+// FetchByUserIDAndTypes - возвращает действующие (не истёкшие) операции указанных типов
 // указанного пользователя в любом статусе, упорядоченные по сроку действия. Если операций нет,
 // возвращает пустой срез.
-func (re *SecureOperationPostgres) FetchByUserIDAndNames(
+func (re *SecureOperationPostgres) FetchByUserIDAndTypes(
 	ctx context.Context,
 	userID uuid.UUID,
-	names []string,
+	types []operationtype.Enum,
 ) (rows []secureoperation.SecureOperation, err error) {
 	sql := `
 		SELECT
 			operation_token,
-			operation_name,
+			operation_type,
 			confirm_actions,
 			remaining_attempts,
 			remaining_resends,
@@ -128,11 +129,11 @@ func (re *SecureOperationPostgres) FetchByUserIDAndNames(
 		FROM
 			` + re.tableName + `
 		WHERE
-			user_id = $1 AND operation_name = ANY($2) AND expires_at > NOW()
+			user_id = $1 AND operation_type = ANY($2) AND expires_at > NOW()
 		ORDER BY
 			expires_at, operation_token;`
 
-	cursor, err := re.client.Conn(ctx).Query(ctx, sql, userID, names)
+	cursor, err := re.client.Conn(ctx).Query(ctx, sql, userID, toInt16Types(types))
 	if err != nil {
 		return nil, re.errorWrapper.Wrap(err)
 	}
@@ -149,7 +150,7 @@ func (re *SecureOperationPostgres) FetchByUserIDAndNames(
 
 		err = cursor.Scan(
 			&row.Token,
-			&row.Name,
+			&row.Type,
 			&actions,
 			&row.RemainingAttempts,
 			&row.RemainingResends,
@@ -191,7 +192,7 @@ func (re *SecureOperationPostgres) Insert(ctx context.Context, row secureoperati
 		INSERT INTO ` + re.tableName + `
 			(
 				operation_token,
-				operation_name,
+				operation_type,
 				user_id,
 				confirm_actions,
 				remaining_attempts,
@@ -215,7 +216,7 @@ func (re *SecureOperationPostgres) Insert(ctx context.Context, row secureoperati
 		ctx,
 		sql,
 		row.Token,
-		row.Name,
+		row.Type,
 		userID,
 		row.Actions(),
 		row.RemainingAttempts,
@@ -298,14 +299,14 @@ func (re *SecureOperationPostgres) UpdateFailedAttempt(ctx context.Context, toke
 // DeleteByUserID - удаляет все операции указанного пользователя в любом статусе и возвращает
 // их типы (по одному на удалённую операцию, возможны повторы). Если удалять было нечего,
 // возвращает пустой срез без ошибки.
-func (re *SecureOperationPostgres) DeleteByUserID(ctx context.Context, userID uuid.UUID) (names []string, err error) {
+func (re *SecureOperationPostgres) DeleteByUserID(ctx context.Context, userID uuid.UUID) (types []operationtype.Enum, err error) {
 	sql := `
         DELETE FROM
             ` + re.tableName + `
         WHERE
             user_id = $1
         RETURNING
-            operation_name;`
+            operation_type;`
 
 	cursor, err := re.client.Conn(ctx).Query(ctx, sql, userID)
 	if err != nil {
@@ -314,66 +315,66 @@ func (re *SecureOperationPostgres) DeleteByUserID(ctx context.Context, userID uu
 
 	defer cursor.Close()
 
-	names = make([]string, 0)
+	types = make([]operationtype.Enum, 0)
 
 	for cursor.Next() {
-		var name string
+		var opType operationtype.Enum
 
-		if err = cursor.Scan(&name); err != nil {
+		if err = cursor.Scan(&opType); err != nil {
 			return nil, re.errorWrapper.Wrap(err)
 		}
 
-		names = append(names, name)
+		types = append(types, opType)
 	}
 
 	if err = cursor.Err(); err != nil {
 		return nil, re.errorWrapper.Wrap(err)
 	}
 
-	return names, nil
+	return types, nil
 }
 
-// DeleteByUserIDAndNames - удаляет операции указанных типов указанного пользователя в любом
+// DeleteByUserIDAndTypes - удаляет операции указанных типов указанного пользователя в любом
 // статусе (вытеснение прежних операций при открытии новой) и возвращает их типы (по одному
 // на удалённую операцию, возможны повторы). Если удалять было нечего, возвращает пустой срез
 // без ошибки.
-func (re *SecureOperationPostgres) DeleteByUserIDAndNames(
+func (re *SecureOperationPostgres) DeleteByUserIDAndTypes(
 	ctx context.Context,
 	userID uuid.UUID,
-	names []string,
-) (deletedNames []string, err error) {
+	types []operationtype.Enum,
+) (deletedTypes []operationtype.Enum, err error) {
 	sql := `
         DELETE FROM
             ` + re.tableName + `
         WHERE
-            user_id = $1 AND operation_name = ANY($2)
+            user_id = $1 AND operation_type = ANY($2)
         RETURNING
-            operation_name;`
+            operation_type;`
 
-	cursor, err := re.client.Conn(ctx).Query(ctx, sql, userID, names)
+	cursor, err := re.client.Conn(ctx).Query(ctx, sql, userID, toInt16Types(types))
 	if err != nil {
 		return nil, re.errorWrapper.Wrap(err)
 	}
 
 	defer cursor.Close()
 
-	deletedNames = make([]string, 0)
+	deletedTypes = make([]operationtype.Enum, 0)
 
 	for cursor.Next() {
-		var name string
+		var opType operationtype.Enum
 
-		if err = cursor.Scan(&name); err != nil {
+		if err = cursor.Scan(&opType); err != nil {
 			return nil, re.errorWrapper.Wrap(err)
 		}
 
-		deletedNames = append(deletedNames, name)
+		deletedTypes = append(deletedTypes, opType)
 	}
 
 	if err = cursor.Err(); err != nil {
 		return nil, re.errorWrapper.Wrap(err)
 	}
 
-	return deletedNames, nil
+	return deletedTypes, nil
 }
 
 // Delete - удаляет защищённую операцию по её токену. Если операции уже нет
@@ -424,4 +425,15 @@ func (re *SecureOperationPostgres) DeleteExpired(ctx context.Context, limit int)
 	}
 
 	return count, nil
+}
+
+// toInt16Types - переводит типы операций в срез int2 для параметра-массива запроса.
+func toInt16Types(types []operationtype.Enum) []int16 {
+	values := make([]int16, 0, len(types))
+
+	for _, opType := range types {
+		values = append(values, int16(opType))
+	}
+
+	return values
 }

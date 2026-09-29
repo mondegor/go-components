@@ -15,8 +15,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
@@ -26,7 +26,7 @@ import (
 func confirmedRegenerateOp(userID uuid.UUID) secureoperation.SecureOperation {
 	return secureoperation.SecureOperation{
 		Token:   "op-token",
-		Name:    unit.NameConfirmRegenerateRecovery,
+		Type:    operationtype.RegenerateRecovery,
 		UserID:  userID,
 		Payload: []byte(`{"email":"u@e"}`),
 		Status:  operationstatus.Confirmed,
@@ -96,7 +96,7 @@ func (s *ApplyRecoverySuite) TestConfirmedReplacesAndReturnsCodes() {
 	s.True(s.notified)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
-	s.Equal(unit.NameConfirmRegenerateRecovery, s.logEntries[0].OperationName)
+	s.Equal(operationtype.RegenerateRecovery.String(), s.logEntries[0].SourceName)
 }
 
 // TestNo2FARowReportsDisabled - строки 2FA нет: её удалили между созданием операции и её
@@ -127,7 +127,7 @@ func (s *ApplyRecoverySuite) TestNo2FARowReportsDisabled() {
 	s.Equal(logreason.Auth2FAStateChanged, s.logEntries[0].Reason)
 }
 
-func (s *ApplyRecoverySuite) TestWrongOperationNameNoUpdate() {
+func (s *ApplyRecoverySuite) TestWrongOperationTypeNoUpdate() {
 	userID := uuid.New()
 
 	// операция чужого типа (confirm.change.totp) не должна применяться как перевыпуск

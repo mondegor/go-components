@@ -15,7 +15,7 @@ import (
 
 type (
 	// ChangeEmail - обработчик смены email пользователя: применяет операцию второго шага
-	// (unit.NameConfirmChangeEmail), когда владение новым адресом уже подтверждено.
+	// (operationtype.ChangeEmailConfirm), когда владение новым адресом уже подтверждено.
 	ChangeEmail struct {
 		txManager    mrstorage.DBTxManager
 		storage      userEmailChanger

@@ -8,16 +8,13 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
 )
 
 const (
-	// NameConfirmChangeEmail - название операции подтверждения владения новым емаилом
-	// (второй шаг смены емаила пользователя).
-	NameConfirmChangeEmail = "confirm.change.email"
-
 	// defaultChangeEmailExpiry - срок жизни операции подтверждения нового емаила по умолчанию.
 	defaultChangeEmailExpiry = 72 * time.Hour
 )
@@ -61,7 +58,7 @@ func NewChangeEmail(
 
 // Create - создаёт операцию подтверждения владения новым емаилом: единственное звено -
 // код на новый адрес. Второй фактор повторно не запрашивается: он предъявлен на первом
-// шаге (операция NameConfirmChangeEmailRequest), из payload которого и берутся оба адреса.
+// шаге (операция operationtype.ChangeEmail), из payload которого и берутся оба адреса.
 func (o *ChangeEmail) Create(userID uuid.UUID, in dto.ChangeEmailOperation) (secureoperation.SecureOperation, error) {
 	if userID == uuid.Nil {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userID is empty")
@@ -95,7 +92,7 @@ func (o *ChangeEmail) Create(userID uuid.UUID, in dto.ChangeEmailOperation) (sec
 
 	return secureoperation.NewOperation(
 		operationToken,
-		NameConfirmChangeEmail,
+		operationtype.ChangeEmailConfirm,
 		userID,
 		[]secureoperation.ConfirmAction{confirmAction},
 		payload,

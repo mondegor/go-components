@@ -14,6 +14,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -93,8 +94,8 @@ func (co *ConfirmOperation) Execute(
 		// попыток откатится; поэтому ошибка возвращается не из замыкания, а после коммита
 		confirmCodeErr error
 
-		// имя и метод текущего подтверждаемого действия, зафиксированные до модификации op в Prepare
-		operationName string
+		// тип операции и метод текущего подтверждаемого действия, зафиксированные до модификации op в Prepare
+		operationType operationtype.Enum
 		actionMethod  confirmmethod.Enum
 
 		operationLogStatus logstatus.Enum
@@ -125,7 +126,7 @@ func (co *ConfirmOperation) Execute(
 			return nil
 		}
 
-		operationName = op.Name
+		operationType = op.Type
 		actionMethod = op.FirstActionMethod()
 
 		// владелец операции известен - он и фиксируется как посетитель
@@ -222,7 +223,7 @@ func (co *ConfirmOperation) Execute(
 					"confirm.operation.by.email",
 					conv.Group{
 						"lang":        langCode,
-						"operation":   op.Name,
+						"operation":   op.Type,
 						"to":          address,
 						"confirmCode": confirmCode,
 					},
@@ -236,7 +237,7 @@ func (co *ConfirmOperation) Execute(
 			co.logOperation.Log(
 				ctx,
 				actor.NewOperationLog(
-					operationName, actionMethod, operationLogStatus, operationLogReason,
+					operationType.String(), actionMethod, operationLogStatus, operationLogReason,
 				),
 			)
 
@@ -246,12 +247,12 @@ func (co *ConfirmOperation) Execute(
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
-	if operationName != "" {
+	if operationType != 0 {
 		// транзакция зафиксирована: пишем намеченную запись журнала вне транзакции
 		co.logOperation.Log(
 			ctx,
 			actor.NewOperationLog(
-				operationName, actionMethod, operationLogStatus, operationLogReason,
+				operationType.String(), actionMethod, operationLogStatus, operationLogReason,
 			),
 		)
 	}

@@ -123,7 +123,7 @@ func (co *ResendCode) Execute(
 					"confirm.operation.by.email",
 					conv.Group{
 						"lang":        langCode,
-						"operation":   op.Name,
+						"operation":   op.Type,
 						"to":          address,
 						"confirmCode": confirmCode,
 					},
@@ -139,7 +139,7 @@ func (co *ResendCode) Execute(
 	co.logOperation.Log(
 		ctx,
 		actor.NewOperationLog(
-			op.Name, op.FirstActionMethod(), operationLogStatus, operationLogReason,
+			op.Type.String(), op.FirstActionMethod(), operationLogStatus, operationLogReason,
 		),
 	)
 

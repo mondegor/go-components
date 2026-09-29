@@ -237,7 +237,7 @@ func wokenOp(t *testing.T, action secureoperation.ConfirmAction, resendsAt time.
 
 	op := secureoperation.SecureOperation{
 		Token:             "token",
-		Name:              "name1",
+		Type:              operationtype.ChangePhone,
 		UserID:            uuid.New(),
 		RemainingAttempts: action.MaxAttempts,
 		RemainingResends:  remainingResends,

@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/infra/adapter/collect"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/bag"
@@ -157,18 +158,18 @@ func initSecurityController(
 		dbConnManager,
 		storageSecureOperation,
 		operationLogger,
-		map[string]mrauth.OperationHandler{
-			unit.NameConfirmChangeEmail: handler.NewChangeEmail(
+		map[operationtype.Enum]mrauth.OperationHandler{
+			operationtype.ChangeEmailConfirm: handler.NewChangeEmail(
 				dbConnManager,
 				storageUser,
 				notifierAPI,
 			),
-			unit.NameConfirmChangePhone: handler.NewChangePhone(
+			operationtype.ChangePhone: handler.NewChangePhone(
 				dbConnManager,
 				storageUser,
 				notifierAPI,
 			),
-			unit.NameConfirmDisable2FA: handler.NewDisable2FA(
+			operationtype.Disable2FA: handler.NewDisable2FA(
 				dbConnManager,
 				storageAuth2fa,
 				operationRevoker,

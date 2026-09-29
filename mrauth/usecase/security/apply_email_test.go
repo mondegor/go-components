@@ -16,9 +16,9 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
@@ -31,7 +31,7 @@ const changeEmailPayload = `{"new_email":"new@example.com","email":"user@example
 func confirmedChangeEmailOp(userID uuid.UUID) secureoperation.SecureOperation {
 	return secureoperation.SecureOperation{
 		Token:   "op-token",
-		Name:    unit.NameConfirmChangeEmailRequest,
+		Type:    operationtype.ChangeEmail,
 		UserID:  userID,
 		Payload: []byte(changeEmailPayload),
 		Status:  operationstatus.Confirmed,
@@ -79,7 +79,7 @@ func (s *ApplyEmailSuite) SetupTest() {
 	s.userID = uuid.New()
 	s.confirmOp = secureoperation.SecureOperation{
 		Token:     "new-op-token",
-		Name:      unit.NameConfirmChangeEmail,
+		Type:      operationtype.ChangeEmailConfirm,
 		UserID:    s.userID,
 		Status:    operationstatus.Opened,
 		ExpiresAt: time.Now().Add(72 * time.Hour).UTC().Round(time.Second),
@@ -157,7 +157,7 @@ func (s *ApplyEmailSuite) TestSuccess() {
 	s.Equal(s.confirmOp.ExpiresAt.In(userLocation).Format("2006-01-02 15:04")+" (MSK)", s.sent[0].props["expiresAt"])
 
 	s.Require().Len(s.logEntries, 1)
-	s.Equal(unit.NameConfirmChangeEmailRequest, s.logEntries[0].OperationName)
+	s.Equal(operationtype.ChangeEmail.String(), s.logEntries[0].SourceName)
 	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
 }
 
@@ -194,13 +194,13 @@ func (s *ApplyEmailSuite) TestRejected() {
 		{
 			// токен второго шага применяется через apply-operation, а не здесь
 			name:       "operation of the second step",
-			mutate:     func(op *secureoperation.SecureOperation) { op.Name = unit.NameConfirmChangeEmail },
+			mutate:     func(op *secureoperation.SecureOperation) { op.Type = operationtype.ChangeEmailConfirm },
 			wantErr:    errors.ErrAccessForbidden,
 			wantReason: logreason.AccessForbidden,
 		},
 		{
 			name:       "operation of another type",
-			mutate:     func(op *secureoperation.SecureOperation) { op.Name = unit.NameConfirmChangePhone },
+			mutate:     func(op *secureoperation.SecureOperation) { op.Type = operationtype.ChangePhone },
 			wantErr:    errors.ErrAccessForbidden,
 			wantReason: logreason.AccessForbidden,
 		},

@@ -1,6 +1,8 @@
 package unit
 
 import (
+	"slices"
+
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
@@ -8,25 +10,24 @@ import (
 )
 
 // NewPendingOperation - строит проекцию операции для списка личного кабинета. ok == false -
-// операция в список не входит (белый список - pendingOperationType): в список попадают только
+// операция в список не входит (белый список - PendingOperationTypes): в список попадают только
 // операции, в которых может быть применён аварийный код, и долгоживущие операции; вход в аккаунт
 // не отдаётся, токен чужой попытки входа нельзя показывать другой сессии.
 // Нечитаемый payload - нарушение инварианта, а не повод пропустить операцию: возвращается ошибка.
 func NewPendingOperation(op secureoperation.SecureOperation) (item dto.PendingOperation, ok bool, err error) {
-	opType, ok := pendingOperationType(op.Name)
-	if !ok {
+	if !slices.Contains(PendingOperationTypes(), op.Type) {
 		return dto.PendingOperation{}, false, nil
 	}
 
 	item = dto.PendingOperation{
 		Token:         op.Token,
-		Type:          opType,
+		Type:          op.Type,
 		Status:        op.Status,
 		ExpiresAt:     op.ExpiresAt,
 		CurrentAction: pendingAction(&op),
 	}
 
-	if opType == operationtype.ChangeEmail || opType == operationtype.ChangeEmailConfirm {
+	if op.Type == operationtype.ChangeEmail || op.Type == operationtype.ChangeEmailConfirm {
 		payload, err := ParseChangeEmailPayload(op.Payload)
 		if err != nil {
 			return dto.PendingOperation{}, false, err
@@ -63,27 +64,12 @@ func pendingAction(op *secureoperation.SecureOperation) *dto.PendingAction {
 	return &pending
 }
 
-// PendingOperationNames - возвращает имена операций, входящих в список личного кабинета, для
-// отбора в хранилище. Должен совпадать с набором имён, известных pendingOperationType.
-func PendingOperationNames() []string {
-	return []string{
-		NameConfirmChangeEmailRequest,
-		NameConfirmChangeEmail,
-		NameConfirmDisable2FA,
-	}
-}
-
-// pendingOperationType - сопоставляет имя операции типу, отдаваемому клиенту; false - операция
-// в список личного кабинета не входит. Набор имён должен совпадать с PendingOperationNames.
-func pendingOperationType(operationName string) (operationtype.Enum, bool) {
-	switch operationName {
-	case NameConfirmChangeEmailRequest:
-		return operationtype.ChangeEmail, true
-	case NameConfirmChangeEmail:
-		return operationtype.ChangeEmailConfirm, true
-	case NameConfirmDisable2FA:
-		return operationtype.Disable2FA, true
-	default:
-		return 0, false
+// PendingOperationTypes - возвращает типы операций, входящих в список личного кабинета: по ним
+// отбираются операции в хранилище и фильтруются в NewPendingOperation.
+func PendingOperationTypes() []operationtype.Enum {
+	return []operationtype.Enum{
+		operationtype.ChangeEmail,
+		operationtype.ChangeEmailConfirm,
+		operationtype.Disable2FA,
 	}
 }

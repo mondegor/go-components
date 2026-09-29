@@ -6,6 +6,7 @@ import (
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 )
 
 // BuildAuthorizeUserPayload - собирает payload операции авторизации пользователя,
@@ -18,7 +19,7 @@ func BuildAuthorizeUserPayload(in dto.AuthorizeUserOperation) ([]byte, error) {
 	value, err := json.Marshal(in)
 	if err != nil {
 		return nil, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not built", "operation_name", NameAuthorizeUser)
+			WithError(err, "payload is not built", "operation_type", operationtype.AuthorizeUser)
 	}
 
 	return value, nil
@@ -31,7 +32,7 @@ func ParseAuthorizeUserPayload(payload []byte) (dto.AuthorizeUserOperation, erro
 
 	if err := json.Unmarshal(payload, &parsed); err != nil {
 		return dto.AuthorizeUserOperation{}, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not parsed", "operation_name", NameAuthorizeUser)
+			WithError(err, "payload is not parsed", "operation_type", operationtype.AuthorizeUser)
 	}
 
 	if err := validateAuthorizeUserPayload(parsed); err != nil {
@@ -45,12 +46,12 @@ func ParseAuthorizeUserPayload(payload []byte) (dto.AuthorizeUserOperation, erro
 func validateAuthorizeUserPayload(in dto.AuthorizeUserOperation) error {
 	if in.Realm == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: realm is empty", "operation_name", NameAuthorizeUser)
+			WithDetails("payload: realm is empty", "operation_type", operationtype.AuthorizeUser)
 	}
 
 	if in.LangCode == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: langCode is empty", "operation_name", NameAuthorizeUser)
+			WithDetails("payload: langCode is empty", "operation_type", operationtype.AuthorizeUser)
 	}
 
 	return nil

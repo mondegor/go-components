@@ -6,6 +6,7 @@ import (
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 )
 
 // BuildChangePhonePayload - собирает payload операции смены телефона пользователя,
@@ -18,7 +19,7 @@ func BuildChangePhonePayload(in dto.ChangePhoneOperation) ([]byte, error) {
 	value, err := json.Marshal(in)
 	if err != nil {
 		return nil, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not built", "operation_name", NameConfirmChangePhone)
+			WithError(err, "payload is not built", "operation_type", operationtype.ChangePhone)
 	}
 
 	return value, nil
@@ -31,7 +32,7 @@ func ParseChangePhonePayload(payload []byte) (dto.ChangePhoneOperation, error) {
 
 	if err := json.Unmarshal(payload, &parsed); err != nil {
 		return dto.ChangePhoneOperation{}, errors.ErrInternalIncorrectInputData.
-			WithError(err, "payload is not parsed", "operation_name", NameConfirmChangePhone)
+			WithError(err, "payload is not parsed", "operation_type", operationtype.ChangePhone)
 	}
 
 	if err := validateChangePhonePayload(parsed); err != nil {
@@ -45,12 +46,12 @@ func ParseChangePhonePayload(payload []byte) (dto.ChangePhoneOperation, error) {
 func validateChangePhonePayload(in dto.ChangePhoneOperation) error {
 	if in.NewPhone == 0 {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: newPhone is empty", "operation_name", NameConfirmChangePhone)
+			WithDetails("payload: newPhone is empty", "operation_type", operationtype.ChangePhone)
 	}
 
 	if in.Email == "" {
 		return errors.ErrInternalIncorrectInputData.
-			WithDetails("payload: email is empty", "operation_name", NameConfirmChangePhone)
+			WithDetails("payload: email is empty", "operation_type", operationtype.ChangePhone)
 	}
 
 	return nil

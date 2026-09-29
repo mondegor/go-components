@@ -3,14 +3,10 @@ package unit
 import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
-)
-
-const (
-	// NameConfirmRegenerateRecovery - название операции перевыпуска аварийных кодов пользователя.
-	NameConfirmRegenerateRecovery = "confirm.regenerate.recovery"
 )
 
 type (
@@ -74,7 +70,7 @@ func (o *RegenerateRecovery) Create(user2FA dto.User2FA) (secureoperation.Secure
 
 	return secureoperation.NewOperation(
 		operationToken,
-		NameConfirmRegenerateRecovery,
+		operationtype.RegenerateRecovery,
 		user2FA.ID,
 		actions,
 		payload,

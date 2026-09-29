@@ -3,14 +3,10 @@ package unit
 import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
-)
-
-const (
-	// NameConfirmChangePassword - название операции изменения пароля пользователя.
-	NameConfirmChangePassword = "confirm.change.password"
 )
 
 type (
@@ -75,7 +71,7 @@ func (o *ChangePassword) Create(user2FA dto.User2FA, newPassword string) (secure
 
 	return secureoperation.NewOperation(
 		operationToken,
-		NameConfirmChangePassword,
+		operationtype.ChangePassword,
 		user2FA.ID,
 		actions,
 		payload,

@@ -18,6 +18,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	secureoperation_model "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/service/secureoperation"
@@ -77,7 +78,7 @@ func (s *OpenerSuite) SetupTest() {
 func (s *OpenerSuite) emailOp(userID uuid.UUID) secureoperation_model.SecureOperation {
 	op := secureoperation_model.SecureOperation{
 		Token:             "token",
-		Name:              "confirm.change.email",
+		Type:              operationtype.ChangeEmailConfirm,
 		UserID:            userID,
 		RemainingAttempts: 3,
 		RemainingResends:  5,
@@ -103,18 +104,18 @@ func (s *OpenerSuite) emailOp(userID uuid.UUID) secureoperation_model.SecureOper
 }
 
 // вытесняются операции всей цепочки; каждый вытесненный тип фиксируется в журнале отзывом
-// один раз и под своим именем, затем пишется открытие новой.
+// один раз и под своим типом, затем пишется открытие новой.
 func (s *OpenerSuite) TestOpenSupersedesPrevious() {
 	userID := uuid.New()
 	op := s.emailOp(userID)
 
 	s.storage.EXPECT().
-		DeleteByUserIDAndNames(
+		DeleteByUserIDAndTypes(
 			gomock.Any(),
 			userID,
-			[]string{unit.NameConfirmChangeEmailRequest, unit.NameConfirmChangeEmail},
+			[]operationtype.Enum{operationtype.ChangeEmail, operationtype.ChangeEmailConfirm},
 		).
-		Return([]string{unit.NameConfirmChangeEmailRequest, op.Name, unit.NameConfirmChangeEmailRequest}, nil)
+		Return([]operationtype.Enum{operationtype.ChangeEmail, op.Type, operationtype.ChangeEmail}, nil)
 	s.storage.EXPECT().Insert(gomock.Any(), op).Return(nil)
 	s.notifierAPI.EXPECT().
 		Send(gomock.Any(), "confirm.change.email", gomock.Any()).
@@ -131,17 +132,17 @@ func (s *OpenerSuite) TestOpenSupersedesPrevious() {
 
 	s.Require().Len(s.logEntries, 3)
 
-	for i, name := range []string{unit.NameConfirmChangeEmailRequest, op.Name} {
+	for i, opType := range []operationtype.Enum{operationtype.ChangeEmail, op.Type} {
 		s.Equal(logstatus.Revoked, s.logEntries[i].LogStatus)
 		s.Equal(logreason.Superseded, s.logEntries[i].Reason)
-		s.Equal(name, s.logEntries[i].OperationName)
+		s.Equal(opType.String(), s.logEntries[i].SourceName)
 		// владелец операции фиксируется как посетитель, хотя поток пришёл анонимным
 		s.Equal(userID, s.logEntries[i].VisitorID)
 	}
 
 	s.Equal(logstatus.Opened, s.logEntries[2].LogStatus)
 	s.Equal(logreason.Unspecified, s.logEntries[2].Reason)
-	s.Equal(op.Name, s.logEntries[2].OperationName)
+	s.Equal(op.Type.String(), s.logEntries[2].SourceName)
 	s.Equal(userID, s.logEntries[2].VisitorID)
 }
 
@@ -151,8 +152,8 @@ func (s *OpenerSuite) TestOpenWithoutPrevious() {
 	userID := uuid.New()
 	op := s.emailOp(userID)
 
-	s.storage.EXPECT().DeleteByUserIDAndNames(gomock.Any(), userID, unit.SupersededNames(op.Name)).
-		Return([]string{}, nil)
+	s.storage.EXPECT().DeleteByUserIDAndTypes(gomock.Any(), userID, unit.SupersededTypes(op.Type)).
+		Return([]operationtype.Enum{}, nil)
 	s.storage.EXPECT().Insert(gomock.Any(), op).Return(nil)
 	s.notifierAPI.EXPECT().Send(gomock.Any(), "confirm.change.email", gomock.Any()).Return(nil)
 
@@ -181,8 +182,8 @@ func (s *OpenerSuite) TestOpenInsertError() {
 	userID := uuid.New()
 	op := s.emailOp(userID)
 
-	s.storage.EXPECT().DeleteByUserIDAndNames(gomock.Any(), userID, unit.SupersededNames(op.Name)).
-		Return([]string{}, nil)
+	s.storage.EXPECT().DeleteByUserIDAndTypes(gomock.Any(), userID, unit.SupersededTypes(op.Type)).
+		Return([]operationtype.Enum{}, nil)
 	s.storage.EXPECT().Insert(gomock.Any(), op).Return(errors.New("db is down"))
 
 	s.Require().Error(s.svc.Open(s.ctx, dto.ActorMeta{}, op, "confirm.change.email", nil))
@@ -194,7 +195,7 @@ func (s *OpenerSuite) TestOpenNotifyError() {
 	userID := uuid.New()
 	op := s.emailOp(userID)
 
-	s.storage.EXPECT().DeleteByUserIDAndNames(gomock.Any(), userID, unit.SupersededNames(op.Name)).Return(nil, nil)
+	s.storage.EXPECT().DeleteByUserIDAndTypes(gomock.Any(), userID, unit.SupersededTypes(op.Type)).Return(nil, nil)
 	s.storage.EXPECT().Insert(gomock.Any(), op).Return(nil)
 	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("smtp is down"))
 
@@ -207,7 +208,7 @@ func (s *OpenerSuite) TestOpenSupersedeError() {
 	userID := uuid.New()
 	op := s.emailOp(userID)
 
-	s.storage.EXPECT().DeleteByUserIDAndNames(gomock.Any(), userID, unit.SupersededNames(op.Name)).
+	s.storage.EXPECT().DeleteByUserIDAndTypes(gomock.Any(), userID, unit.SupersededTypes(op.Type)).
 		Return(nil, errors.New("db is down"))
 
 	s.Require().Error(s.svc.Open(s.ctx, dto.ActorMeta{}, op, "confirm.change.email", nil))

@@ -4,14 +4,10 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
-)
-
-const (
-	// NameAuthorizeUser - название операции подтверждения авторизации пользователя.
-	NameAuthorizeUser = "confirm.authorize.user"
 )
 
 type (
@@ -50,9 +46,9 @@ func NewAuthorizeUser(
 	}
 }
 
-// Name - возвращает название создаваемой операции.
-func (o *AuthorizeUser) Name() string {
-	return NameAuthorizeUser
+// Type - возвращает тип создаваемой операции.
+func (o *AuthorizeUser) Type() operationtype.Enum {
+	return operationtype.AuthorizeUser
 }
 
 // Create - создаёт операцию авторизации пользователя по его логину (email/телефон):
@@ -104,7 +100,7 @@ func (o *AuthorizeUser) Create(user2FA dto.User2FA, realm, langCode string, user
 
 	return secureoperation.NewOperation(
 		operationToken,
-		NameAuthorizeUser,
+		operationtype.AuthorizeUser,
 		user2FA.ID,
 		actions,
 		payload,

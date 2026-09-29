@@ -13,6 +13,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/tests"
@@ -50,12 +51,12 @@ func (ts *SecureOperationPostgresTestSuite) SetupTest() {
 }
 
 // seedOperation - сохраняет операцию указанного типа для указанного владельца.
-func (ts *SecureOperationPostgresTestSuite) seedOperation(userID uuid.UUID, name string) string {
+func (ts *SecureOperationPostgresTestSuite) seedOperation(userID uuid.UUID, opType operationtype.Enum) string {
 	token := "token-" + uuid.NewString()
 
 	op, err := secureoperation.NewOperation(
 		token,
-		name,
+		opType,
 		userID,
 		[]secureoperation.ConfirmAction{
 			{
@@ -88,7 +89,7 @@ func (ts *SecureOperationPostgresTestSuite) TestRecoveryChainRoundTrip() {
 
 	op, err := secureoperation.NewOperation(
 		token,
-		"confirm.authorize.user",
+		operationtype.AuthorizeUser,
 		uuid.New(),
 		[]secureoperation.ConfirmAction{
 			{
@@ -140,7 +141,7 @@ func (ts *SecureOperationPostgresTestSuite) TestFixedExpiryRoundTrip() {
 
 	op, err := secureoperation.NewOperation(
 		token,
-		"confirm.change.email",
+		operationtype.ChangeEmailConfirm,
 		uuid.New(),
 		[]secureoperation.ConfirmAction{
 			{
@@ -184,7 +185,7 @@ func (ts *SecureOperationPostgresTestSuite) TestTwoFactorChainRoundTrip() {
 
 	op, err := secureoperation.NewOperation(
 		token,
-		"confirm.authorize.user",
+		operationtype.AuthorizeUser,
 		uuid.New(),
 		[]secureoperation.ConfirmAction{
 			{
@@ -225,26 +226,26 @@ func (ts *SecureOperationPostgresTestSuite) TestTwoFactorChainRoundTrip() {
 	ts.Equal(int16(2), reread.RemainingAttempts)
 }
 
-// TestDeleteByUserIDAndNames - вытесняет все операции указанных типов пользователя, возвращает
+// TestDeleteByUserIDAndTypes - вытесняет все операции указанных типов пользователя, возвращает
 // их типы (по одному на операцию) и не трогает ни операции других типов, ни операции тех же
 // типов другого пользователя. Когда вытеснять нечего - пустой срез без ошибки.
-func (ts *SecureOperationPostgresTestSuite) TestDeleteByUserIDAndNames() {
+func (ts *SecureOperationPostgresTestSuite) TestDeleteByUserIDAndTypes() {
 	userID := uuid.New()
 	otherUserID := uuid.New()
-	names := []string{"confirm.change.email.request", "confirm.change.email"}
+	types := []operationtype.Enum{operationtype.ChangeEmail, operationtype.ChangeEmailConfirm}
 
 	// операции обоих типов цепочки, одна из них в двух экземплярах: все подлежат вытеснению
-	firstToken := ts.seedOperation(userID, "confirm.change.email.request")
-	secondToken := ts.seedOperation(userID, "confirm.change.email.request")
-	thirdToken := ts.seedOperation(userID, "confirm.change.email")
+	firstToken := ts.seedOperation(userID, operationtype.ChangeEmail)
+	secondToken := ts.seedOperation(userID, operationtype.ChangeEmail)
+	thirdToken := ts.seedOperation(userID, operationtype.ChangeEmailConfirm)
 
-	otherNameToken := ts.seedOperation(userID, "confirm.disable.2fa")
-	otherUserToken := ts.seedOperation(otherUserID, "confirm.change.email")
+	otherTypeToken := ts.seedOperation(userID, operationtype.Disable2FA)
+	otherUserToken := ts.seedOperation(otherUserID, operationtype.ChangeEmailConfirm)
 
-	deleted, err := ts.repo.DeleteByUserIDAndNames(ts.ctx, userID, names)
+	deleted, err := ts.repo.DeleteByUserIDAndTypes(ts.ctx, userID, types)
 	ts.Require().NoError(err)
 	ts.ElementsMatch(
-		[]string{"confirm.change.email.request", "confirm.change.email.request", "confirm.change.email"},
+		[]operationtype.Enum{operationtype.ChangeEmail, operationtype.ChangeEmail, operationtype.ChangeEmailConfirm},
 		deleted,
 	)
 
@@ -253,13 +254,13 @@ func (ts *SecureOperationPostgresTestSuite) TestDeleteByUserIDAndNames() {
 		ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
 	}
 
-	_, err = ts.repo.FetchOne(ts.ctx, otherNameToken)
+	_, err = ts.repo.FetchOne(ts.ctx, otherTypeToken)
 	ts.Require().NoError(err, "операция другого типа того же пользователя остаётся")
 
 	_, err = ts.repo.FetchOne(ts.ctx, otherUserToken)
 	ts.Require().NoError(err, "операция того же типа другого пользователя остаётся")
 
-	deleted, err = ts.repo.DeleteByUserIDAndNames(ts.ctx, userID, names)
+	deleted, err = ts.repo.DeleteByUserIDAndTypes(ts.ctx, userID, types)
 	ts.Require().NoError(err)
 	ts.Empty(deleted)
 }
@@ -272,9 +273,9 @@ func (ts *SecureOperationPostgresTestSuite) TestDeleteByUserID() {
 	userID := uuid.New()
 	otherUserID := uuid.New()
 
-	loginToken := ts.seedOperation(userID, "confirm.authorize.user")
-	phoneToken := ts.seedOperation(userID, "confirm.change.phone")
-	confirmedToken := ts.seedOperation(userID, "confirm.change.phone")
+	loginToken := ts.seedOperation(userID, operationtype.AuthorizeUser)
+	phoneToken := ts.seedOperation(userID, operationtype.ChangePhone)
+	confirmedToken := ts.seedOperation(userID, operationtype.ChangePhone)
 
 	// подтверждённая операция: звенья пройдены, ждёт применения
 	confirmed, err := ts.repo.FetchOne(ts.ctx, confirmedToken)
@@ -284,11 +285,11 @@ func (ts *SecureOperationPostgresTestSuite) TestDeleteByUserID() {
 	ts.Require().True(isConfirmed)
 	ts.Require().NoError(ts.repo.Replace(ts.ctx, confirmedToken, confirmed))
 
-	otherUserToken := ts.seedOperation(otherUserID, "confirm.change.phone")
+	otherUserToken := ts.seedOperation(otherUserID, operationtype.ChangePhone)
 
-	names, err := ts.repo.DeleteByUserID(ts.ctx, userID)
+	types, err := ts.repo.DeleteByUserID(ts.ctx, userID)
 	ts.Require().NoError(err)
-	ts.ElementsMatch([]string{"confirm.authorize.user", "confirm.change.phone", "confirm.change.phone"}, names)
+	ts.ElementsMatch([]operationtype.Enum{operationtype.AuthorizeUser, operationtype.ChangePhone, operationtype.ChangePhone}, types)
 
 	_, err = ts.repo.FetchOne(ts.ctx, loginToken)
 	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
@@ -302,23 +303,23 @@ func (ts *SecureOperationPostgresTestSuite) TestDeleteByUserID() {
 	_, err = ts.repo.FetchOne(ts.ctx, otherUserToken)
 	ts.Require().NoError(err, "операция другого пользователя остаётся")
 
-	names, err = ts.repo.DeleteByUserID(ts.ctx, userID)
+	types, err = ts.repo.DeleteByUserID(ts.ctx, userID)
 	ts.Require().NoError(err)
-	ts.Empty(names)
+	ts.Empty(types)
 }
 
-// TestFetchByUserIDAndNames - отдаёт действующие операции пользователя указанных типов в любом
+// TestFetchByUserIDAndTypes - отдаёт действующие операции пользователя указанных типов в любом
 // статусе (в т.ч. подтверждённые, ждущие применения), не отдаёт операции других типов, истёкшие
 // и операции другого пользователя; у пользователя без операций - пустой срез без ошибки.
-func (ts *SecureOperationPostgresTestSuite) TestFetchByUserIDAndNames() {
+func (ts *SecureOperationPostgresTestSuite) TestFetchByUserIDAndTypes() {
 	userID := uuid.New()
-	names := []string{"confirm.change.phone", "confirm.change.email", "confirm.disable.2fa"}
+	types := []operationtype.Enum{operationtype.ChangePhone, operationtype.ChangeEmailConfirm, operationtype.Disable2FA}
 
-	openedToken := ts.seedOperation(userID, "confirm.change.phone")
-	confirmedToken := ts.seedOperation(userID, "confirm.change.email")
-	expiredToken := ts.seedOperation(userID, "confirm.disable.2fa")
-	ts.seedOperation(userID, "confirm.change.password")
-	ts.seedOperation(uuid.New(), "confirm.change.phone")
+	openedToken := ts.seedOperation(userID, operationtype.ChangePhone)
+	confirmedToken := ts.seedOperation(userID, operationtype.ChangeEmailConfirm)
+	expiredToken := ts.seedOperation(userID, operationtype.Disable2FA)
+	ts.seedOperation(userID, operationtype.ChangePassword)
+	ts.seedOperation(uuid.New(), operationtype.ChangePhone)
 
 	// подтверждённая операция: звенья пройдены, ждёт применения
 	confirmed, err := ts.repo.FetchOne(ts.ctx, confirmedToken)
@@ -335,7 +336,7 @@ func (ts *SecureOperationPostgresTestSuite) TestFetchByUserIDAndNames() {
 		expiredToken,
 	))
 
-	rows, err := ts.repo.FetchByUserIDAndNames(ts.ctx, userID, names)
+	rows, err := ts.repo.FetchByUserIDAndTypes(ts.ctx, userID, types)
 	ts.Require().NoError(err)
 
 	tokens := make(map[string]secureoperation.SecureOperation, len(rows))
@@ -352,7 +353,7 @@ func (ts *SecureOperationPostgresTestSuite) TestFetchByUserIDAndNames() {
 	ts.Require().Len(opened.Actions(), 1)
 	ts.True(confirmedRow.Is(operationstatus.Confirmed))
 
-	rows, err = ts.repo.FetchByUserIDAndNames(ts.ctx, uuid.New(), names)
+	rows, err = ts.repo.FetchByUserIDAndTypes(ts.ctx, uuid.New(), types)
 	ts.Require().NoError(err)
 	ts.Empty(rows)
 }

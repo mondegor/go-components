@@ -16,7 +16,7 @@ type (
 	SecureOperationLog struct {
 		RecordID      uint64
 		VisitorID     uuid.UUID
-		OperationName string
+		SourceName    string
 		ConfirmMethod confirmmethod.Enum
 		LogStatus     logstatus.Enum
 		Reason        logreason.Enum
@@ -30,14 +30,14 @@ type (
 func NewSecureOperationLog(
 	visitorID uuid.UUID,
 	clientIP mrtype.DetailedIP,
-	operationName string,
+	sourceName string,
 	confirmMethod confirmmethod.Enum,
 	status logstatus.Enum,
 	reason logreason.Enum,
 ) SecureOperationLog {
 	return SecureOperationLog{
 		VisitorID:     visitorID,
-		OperationName: operationName,
+		SourceName:    sourceName,
 		ConfirmMethod: confirmMethod,
 		LogStatus:     status,
 		Reason:        reason,

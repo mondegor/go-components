@@ -15,6 +15,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
@@ -32,7 +33,7 @@ type (
 	}
 
 	operationOpenerStorage interface {
-		DeleteByUserIDAndNames(ctx context.Context, userID uuid.UUID, names []string) (deletedNames []string, err error)
+		DeleteByUserIDAndTypes(ctx context.Context, userID uuid.UUID, types []operationtype.Enum) (deletedTypes []operationtype.Enum, err error)
 		Insert(ctx context.Context, row secureoperation.SecureOperation) error
 	}
 
@@ -58,14 +59,14 @@ func NewOpener(
 	}
 }
 
-// Open - гасит прежние операции того же типа (или той же цепочки, см. unit.SupersededNames)
+// Open - гасит прежние операции того же типа (или той же цепочки, см. unit.SupersededTypes)
 // того же пользователя, сохраняет новую и в той же транзакции отправляет пользователю код
 // её подтверждения.
 // Вытеснение делает подтверждаемой только последнюю созданную операцию: иначе пользователь
 // накапливает несколько операций одного типа и применяет их по очереди, получая повторные
 // применения и дубли уведомлений. Операции одной цепочки вытесняют друг друга по той же
 // причине: иначе одновременно живут две её ветки.
-// Вытеснение выполняется по владельцу и именам операций и realm не учитывает:
+// Вытеснение выполняется по владельцу и типам операций и realm не учитывает:
 // realm хранится в payload операции и в предикат попасть не может. Это осознанно -
 // открывать операцию одного типа сразу в нескольких realm'ах на практике незачем,
 // а если так и произойдёт, действующим останется код последней созданной операции.
@@ -78,13 +79,13 @@ func (o *Opener) Open(
 	noteName string,
 	noteProps conv.Group, // OPTIONAL
 ) error {
-	var supersededNames []string
+	var supersededTypes []operationtype.Enum
 
 	err := o.txManager.Do(ctx, func(ctx context.Context) (err error) {
 		// у операции регистрации нового email владельца ещё нет (UserID = uuid.Nil):
 		// прежние операции такого пользователя не идентифицировать, гасить нечего
 		if op.UserID != uuid.Nil {
-			supersededNames, err = o.storage.DeleteByUserIDAndNames(ctx, op.UserID, unit.SupersededNames(op.Name))
+			supersededTypes, err = o.storage.DeleteByUserIDAndTypes(ctx, op.UserID, unit.SupersededTypes(op.Type))
 			if err != nil {
 				return err
 			}
@@ -116,18 +117,18 @@ func (o *Opener) Open(
 
 	// факт вытеснения фиксируется в журнале как отзыв - по одной записи на каждый
 	// вытесненный тип операции
-	logged := make(map[string]struct{}, len(supersededNames))
+	logged := make(map[operationtype.Enum]struct{}, len(supersededTypes))
 
-	for _, name := range supersededNames {
-		if _, ok := logged[name]; ok {
+	for _, opType := range supersededTypes {
+		if _, ok := logged[opType]; ok {
 			continue
 		}
 
-		logged[name] = struct{}{}
+		logged[opType] = struct{}{}
 
 		o.logOperation.Log(
 			ctx,
-			actor.NewOperationLog(name, confirmmethod.Unspecified, logstatus.Revoked, logreason.Superseded),
+			actor.NewOperationLog(opType.String(), confirmmethod.Unspecified, logstatus.Revoked, logreason.Superseded),
 		)
 	}
 
@@ -135,7 +136,7 @@ func (o *Opener) Open(
 	o.logOperation.Log(
 		ctx,
 		actor.NewOperationLog(
-			op.Name, op.FirstActionMethod(), logstatus.Opened, logreason.Unspecified,
+			op.Type.String(), op.FirstActionMethod(), logstatus.Opened, logreason.Unspecified,
 		),
 	)
 

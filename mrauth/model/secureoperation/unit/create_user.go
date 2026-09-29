@@ -7,14 +7,10 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit/action"
-)
-
-const (
-	// NameConfirmCreateUser - название операции подтверждения создания пользователя.
-	NameConfirmCreateUser = "confirm.create.user"
 )
 
 type (
@@ -50,9 +46,9 @@ func NewCreateUser(
 	}
 }
 
-// Name - возвращает название создаваемой операции.
-func (o *CreateUser) Name() string {
-	return NameConfirmCreateUser
+// Type - возвращает тип создаваемой операции.
+func (o *CreateUser) Type() operationtype.Enum {
+	return operationtype.CreateUser
 }
 
 // Expiry - возвращает срок жизни первого действия подтверждения создаваемой операции,
@@ -110,7 +106,7 @@ func (o *CreateUser) Create(
 
 	return secureoperation.NewOperation(
 		operationToken,
-		NameConfirmCreateUser,
+		operationtype.CreateUser,
 		user2FA.ID,
 		actions,
 		payload,

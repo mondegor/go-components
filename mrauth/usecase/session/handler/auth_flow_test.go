@@ -14,8 +14,8 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/session/handler"
 	"github.com/mondegor/go-components/mrauth/usecase/session/handler/mock"
 )
@@ -80,21 +80,21 @@ func okAuthorizeIn() dto.AuthorizeUserOperation {
 // Payload собирается из самого DTO, а не из строкового литерала: иначе имена json-тегов
 // дублировались бы в тесте, и переименование тега его бы не уронило - payload просто
 // разобрался бы в нули.
-func (s *AuthFlowSuite) confirmedOp(name string, userID uuid.UUID) secureoperation.SecureOperation {
+func (s *AuthFlowSuite) confirmedOp(opType operationtype.Enum, userID uuid.UUID) secureoperation.SecureOperation {
 	s.T().Helper()
 
-	if name == unit.NameConfirmCreateUser {
-		return s.confirmedOpWith(name, userID, s.mustMarshal(okCreateIn()))
+	if opType == operationtype.CreateUser {
+		return s.confirmedOpWith(opType, userID, s.mustMarshal(okCreateIn()))
 	}
 
-	return s.confirmedOpWith(name, userID, s.mustMarshal(okAuthorizeIn()))
+	return s.confirmedOpWith(opType, userID, s.mustMarshal(okAuthorizeIn()))
 }
 
-func (s *AuthFlowSuite) confirmedOpWith(name string, userID uuid.UUID, payload []byte) secureoperation.SecureOperation {
+func (s *AuthFlowSuite) confirmedOpWith(opType operationtype.Enum, userID uuid.UUID, payload []byte) secureoperation.SecureOperation {
 	s.T().Helper()
 
 	return secureoperation.SecureOperation{
-		Name:    name,
+		Type:    opType,
 		UserID:  userID,
 		Payload: payload,
 	}
@@ -119,7 +119,7 @@ func (s *AuthFlowSuite) TestCreateUserThenAuthorize() {
 		s.service.EXPECT().PrepareAuthorization(gomock.Any(), newUserID, gomock.Any()).Return(scopes, nil, nil),
 	)
 
-	got, _, err := s.uc.Execute(s.ctx, s.confirmedOp(unit.NameConfirmCreateUser, uuid.Nil))
+	got, _, err := s.uc.Execute(s.ctx, s.confirmedOp(operationtype.CreateUser, uuid.Nil))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
@@ -136,7 +136,7 @@ func (s *AuthFlowSuite) TestExistingUserResolvedThenAuthorize() {
 		s.service.EXPECT().PrepareAuthorization(gomock.Any(), existingUserID, gomock.Any()).Return(scopes, nil, nil),
 	)
 
-	got, _, err := s.uc.Execute(s.ctx, s.confirmedOp(unit.NameConfirmCreateUser, existingUserID))
+	got, _, err := s.uc.Execute(s.ctx, s.confirmedOp(operationtype.CreateUser, existingUserID))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
@@ -153,7 +153,7 @@ func (s *AuthFlowSuite) TestAuthorizeOnly() {
 
 	s.service.EXPECT().PrepareAuthorization(gomock.Any(), userID, gomock.Any()).Return(scopes, notify, nil)
 
-	got, gotNotify, err := s.uc.Execute(s.ctx, s.confirmedOp(unit.NameAuthorizeUser, userID))
+	got, gotNotify, err := s.uc.Execute(s.ctx, s.confirmedOp(operationtype.AuthorizeUser, userID))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 
@@ -166,7 +166,7 @@ func (s *AuthFlowSuite) TestAuthorizeOnly() {
 func (s *AuthFlowSuite) TestResolveUserErrorStops() {
 	s.service.EXPECT().ResolveUser(gomock.Any(), uuid.Nil, gomock.Any()).Return(uuid.Nil, errors.New("resolve failed"))
 
-	_, _, err := s.uc.Execute(s.ctx, s.confirmedOp(unit.NameConfirmCreateUser, uuid.Nil))
+	_, _, err := s.uc.Execute(s.ctx, s.confirmedOp(operationtype.CreateUser, uuid.Nil))
 	s.Require().Error(err)
 }
 
@@ -187,27 +187,27 @@ func (s *AuthFlowSuite) TestCreateUserMapsPayloadToAuthorize() {
 		s.service.EXPECT().PrepareAuthorization(gomock.Any(), newUserID, authIn).Return(scopes, nil, nil),
 	)
 
-	got, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(unit.NameConfirmCreateUser, uuid.Nil, s.mustMarshal(createIn)))
+	got, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(operationtype.CreateUser, uuid.Nil, s.mustMarshal(createIn)))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
 
 // некорректный payload операции создания - ошибка распаковки, сервис не вызывается.
 func (s *AuthFlowSuite) TestCreateUserInvalidPayload() {
-	_, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(unit.NameConfirmCreateUser, uuid.Nil, []byte("{")))
+	_, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(operationtype.CreateUser, uuid.Nil, []byte("{")))
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 
 // некорректный payload операции авторизации - ошибка распаковки, PrepareAuthorization не вызывается.
 func (s *AuthFlowSuite) TestAuthorizeInvalidPayload() {
-	_, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(unit.NameAuthorizeUser, uuid.New(), []byte("{")))
+	_, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(operationtype.AuthorizeUser, uuid.New(), []byte("{")))
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 
 // payload операции создания синтаксически корректен, но нарушает инвариант (нет email):
 // разбор отклоняет его на чтении, сервис не вызывается.
 func (s *AuthFlowSuite) TestCreateUserPayloadBrokenInvariant() {
-	op := s.confirmedOpWith(unit.NameConfirmCreateUser, uuid.Nil, []byte(`{"realm":"site/admin","lang":"en"}`))
+	op := s.confirmedOpWith(operationtype.CreateUser, uuid.Nil, []byte(`{"realm":"site/admin","lang":"en"}`))
 
 	_, _, err := s.uc.Execute(s.ctx, op)
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
@@ -215,7 +215,7 @@ func (s *AuthFlowSuite) TestCreateUserPayloadBrokenInvariant() {
 
 // payload операции авторизации синтаксически корректен, но нарушает инвариант (нет realm).
 func (s *AuthFlowSuite) TestAuthorizePayloadBrokenInvariant() {
-	op := s.confirmedOpWith(unit.NameAuthorizeUser, uuid.New(), []byte(`{"lang":"en"}`))
+	op := s.confirmedOpWith(operationtype.AuthorizeUser, uuid.New(), []byte(`{"lang":"en"}`))
 
 	_, _, err := s.uc.Execute(s.ctx, op)
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
@@ -229,7 +229,7 @@ func (s *AuthFlowSuite) TestAuthorizeMapsPayload() {
 
 	s.service.EXPECT().PrepareAuthorization(gomock.Any(), userID, authIn).Return(scopes, nil, nil)
 
-	got, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(unit.NameAuthorizeUser, userID, s.mustMarshal(authIn)))
+	got, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(operationtype.AuthorizeUser, userID, s.mustMarshal(authIn)))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
@@ -241,7 +241,7 @@ func (s *AuthFlowSuite) TestAuthorizeWithNilUserID() {
 
 	s.service.EXPECT().PrepareAuthorization(gomock.Any(), uuid.Nil, authIn).Return(scopes, nil, nil)
 
-	got, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(unit.NameAuthorizeUser, uuid.Nil, s.mustMarshal(authIn)))
+	got, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(operationtype.AuthorizeUser, uuid.Nil, s.mustMarshal(authIn)))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
@@ -252,6 +252,6 @@ func (s *AuthFlowSuite) TestPrepareAuthorizationErrorPropagates() {
 
 	s.service.EXPECT().PrepareAuthorization(gomock.Any(), gomock.Any(), gomock.Any()).Return(dto.UserScopes{}, nil, wantErr)
 
-	_, _, err := s.uc.Execute(s.ctx, s.confirmedOp(unit.NameAuthorizeUser, uuid.New()))
+	_, _, err := s.uc.Execute(s.ctx, s.confirmedOp(operationtype.AuthorizeUser, uuid.New()))
 	s.Require().ErrorIs(err, wantErr)
 }

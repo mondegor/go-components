@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
+	operationtype "github.com/mondegor/go-components/mrauth/enum/operationtype"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -42,10 +43,10 @@ func (m *MockoperationRevokerStorage) EXPECT() *MockoperationRevokerStorageMockR
 }
 
 // DeleteByUserID mocks base method.
-func (m *MockoperationRevokerStorage) DeleteByUserID(ctx context.Context, userID uuid.UUID) ([]string, error) {
+func (m *MockoperationRevokerStorage) DeleteByUserID(ctx context.Context, userID uuid.UUID) ([]operationtype.Enum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteByUserID", ctx, userID)
-	ret0, _ := ret[0].([]string)
+	ret0, _ := ret[0].([]operationtype.Enum)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

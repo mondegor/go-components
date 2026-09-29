@@ -17,12 +17,12 @@ import (
 )
 
 // confirmedOperation - подтверждённая операция указанного типа с указанным payload.
-func confirmedOperation(t *testing.T, name string, payload []byte) secureoperation.SecureOperation {
+func confirmedOperation(t *testing.T, opType operationtype.Enum, payload []byte) secureoperation.SecureOperation {
 	t.Helper()
 
 	op := secureoperation.SecureOperation{
-		Token:     "token-" + name,
-		Name:      name,
+		Token:     "token-" + opType.String(),
+		Type:      opType,
 		Payload:   payload,
 		Status:    operationstatus.Confirmed,
 		ExpiresAt: time.Now().UTC().Add(time.Hour).Round(time.Second),
@@ -42,41 +42,40 @@ func TestNewPendingOperationTypes(t *testing.T) {
 	require.NoError(t, err)
 
 	type testCase struct {
-		name         string
+		opType       operationtype.Enum
 		payload      []byte
 		wantOK       bool
-		wantType     operationtype.Enum
 		wantNewEmail string
 	}
 
 	tests := []testCase{
-		{name: unit.NameAuthorizeUser},
-		{name: unit.NameConfirmCreateUser},
-		{name: unit.NameConfirmChangeEmailRequest, payload: emailPayload, wantOK: true, wantType: operationtype.ChangeEmail, wantNewEmail: "new@example.com"},
-		{name: unit.NameConfirmChangeEmail, payload: emailPayload, wantOK: true, wantType: operationtype.ChangeEmailConfirm, wantNewEmail: "new@example.com"},
-		{name: unit.NameConfirmChangePhone},
-		{name: unit.NameConfirmChangePassword},
-		{name: unit.NameConfirmChangeTOTP},
-		{name: unit.NameConfirmRegenerateRecovery},
-		{name: unit.NameConfirmDisable2FA, wantOK: true, wantType: operationtype.Disable2FA},
+		{opType: operationtype.AuthorizeUser},
+		{opType: operationtype.CreateUser},
+		{opType: operationtype.ChangeEmail, payload: emailPayload, wantOK: true, wantNewEmail: "new@example.com"},
+		{opType: operationtype.ChangeEmailConfirm, payload: emailPayload, wantOK: true, wantNewEmail: "new@example.com"},
+		{opType: operationtype.ChangePhone},
+		{opType: operationtype.ChangePassword},
+		{opType: operationtype.ChangeTOTP},
+		{opType: operationtype.RegenerateRecovery},
+		{opType: operationtype.Disable2FA, wantOK: true},
 	}
 
-	// имена для отбора в хранилище совпадают с входящими в список
-	wantNames := make([]string, 0, len(tests))
+	// типы для отбора в хранилище совпадают с входящими в список
+	wantTypes := make([]operationtype.Enum, 0, len(tests))
 
 	for _, tt := range tests {
 		if tt.wantOK {
-			wantNames = append(wantNames, tt.name)
+			wantTypes = append(wantTypes, tt.opType)
 		}
 	}
 
-	assert.ElementsMatch(t, wantNames, unit.PendingOperationNames())
+	assert.ElementsMatch(t, wantTypes, unit.PendingOperationTypes())
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.opType.String(), func(t *testing.T) {
 			t.Parallel()
 
-			op := confirmedOperation(t, tt.name, tt.payload)
+			op := confirmedOperation(t, tt.opType, tt.payload)
 
 			item, ok, err := unit.NewPendingOperation(op)
 			require.NoError(t, err)
@@ -88,7 +87,7 @@ func TestNewPendingOperationTypes(t *testing.T) {
 
 			assert.Equal(t, dto.PendingOperation{
 				Token:     op.Token,
-				Type:      tt.wantType,
+				Type:      tt.opType,
 				Status:    operationstatus.Confirmed,
 				ExpiresAt: op.ExpiresAt,
 				NewEmail:  tt.wantNewEmail,
@@ -114,7 +113,7 @@ func TestNewPendingOperationCurrentAction(t *testing.T) {
 
 		op := secureoperation.SecureOperation{
 			Token:             "token",
-			Name:              unit.NameConfirmChangeEmail,
+			Type:              operationtype.ChangeEmailConfirm,
 			Payload:           payload,
 			RemainingAttempts: 3,
 			RemainingResends:  2,
@@ -144,7 +143,7 @@ func TestNewPendingOperationCurrentAction(t *testing.T) {
 
 		op := secureoperation.SecureOperation{
 			Token:             "token",
-			Name:              unit.NameConfirmDisable2FA,
+			Type:              operationtype.Disable2FA,
 			RemainingAttempts: 5,
 			Status:            operationstatus.Opened,
 			ExpiresAt:         expiresAt,
@@ -165,7 +164,7 @@ func TestNewPendingOperationCurrentAction(t *testing.T) {
 func TestNewPendingOperationBrokenPayload(t *testing.T) {
 	t.Parallel()
 
-	op := confirmedOperation(t, unit.NameConfirmChangeEmail, []byte(`{"new_email":""}`))
+	op := confirmedOperation(t, operationtype.ChangeEmailConfirm, []byte(`{"new_email":""}`))
 
 	_, ok, err := unit.NewPendingOperation(op)
 	require.ErrorIs(t, err, errors.ErrInternalIncorrectInputData)

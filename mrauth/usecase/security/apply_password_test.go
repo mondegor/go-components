@@ -17,8 +17,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
@@ -26,7 +26,7 @@ import (
 func confirmedPasswordOp(userID uuid.UUID, payload string) secureoperation.SecureOperation {
 	return secureoperation.SecureOperation{
 		Token:   "op-token",
-		Name:    unit.NameConfirmChangePassword,
+		Type:    operationtype.ChangePassword,
 		UserID:  userID,
 		Payload: []byte(payload),
 		Status:  operationstatus.Confirmed,
@@ -128,7 +128,7 @@ func (s *ApplyPasswordSuite) TestConfirmedBindsAndReturnsCodes() {
 	s.Equal(logreason.Auth2FAStateChanged, s.revokeReason)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
-	s.Equal(unit.NameConfirmChangePassword, s.logEntries[0].OperationName)
+	s.Equal(operationtype.ChangePassword.String(), s.logEntries[0].SourceName)
 }
 
 func (s *ApplyPasswordSuite) TestReissuesNewCodesEachTime() {
@@ -190,7 +190,7 @@ func (s *ApplyPasswordSuite) TestActive2FAConflictNoApply() {
 	s.Equal(logreason.Auth2FAStateChanged, s.logEntries[0].Reason)
 }
 
-func (s *ApplyPasswordSuite) TestWrongOperationNameNoBind() {
+func (s *ApplyPasswordSuite) TestWrongOperationTypeNoBind() {
 	userID := uuid.New()
 
 	// операция чужого типа (confirm.change.totp) не должна применяться как смена пароля

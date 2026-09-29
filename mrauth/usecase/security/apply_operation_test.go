@@ -14,8 +14,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
+	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
-	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
@@ -51,7 +51,7 @@ func (s *ApplyOperationSuite) SetupTest() {
 		AnyTimes()
 }
 
-func (s *ApplyOperationSuite) newUseCase(handlers map[string]mrauth.OperationHandler) *security.ApplyOperation {
+func (s *ApplyOperationSuite) newUseCase(handlers map[operationtype.Enum]mrauth.OperationHandler) *security.ApplyOperation {
 	return security.NewApplyOperation(s.txManager, s.storage, s.logOperation, handlers)
 }
 
@@ -78,14 +78,14 @@ func (s *ApplyOperationSuite) TestSuccess() {
 	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
 	s.handler.EXPECT().Execute(gomock.Any(), dto.ActorMeta{VisitorID: userID}, gomock.Any()).Return(nil)
 
-	uc := s.newUseCase(map[string]mrauth.OperationHandler{"confirm.change.totp": s.handler})
+	uc := s.newUseCase(map[operationtype.Enum]mrauth.OperationHandler{operationtype.ChangeTOTP: s.handler})
 
 	s.Require().NoError(uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token"))
 	s.Equal("op-token", s.deleted)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
 	s.Equal(logreason.Unspecified, s.logEntries[0].Reason)
-	s.Equal(op.Name, s.logEntries[0].OperationName)
+	s.Equal(op.Type.String(), s.logEntries[0].SourceName)
 	s.Equal(userID, s.logEntries[0].VisitorID)
 }
 
@@ -111,7 +111,7 @@ func (s *ApplyOperationSuite) TestNotConfirmed() {
 	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
 	s.handler.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
-	uc := s.newUseCase(map[string]mrauth.OperationHandler{"confirm.change.totp": s.handler})
+	uc := s.newUseCase(map[operationtype.Enum]mrauth.OperationHandler{operationtype.ChangeTOTP: s.handler})
 
 	// именно пользовательская ошибка: обращение к неподтверждённой операции - ошибка
 	// последовательности вызовов клиента (400), а не сбой сервера
@@ -122,14 +122,14 @@ func (s *ApplyOperationSuite) TestNotConfirmed() {
 	s.Equal(logreason.NotConfirmed, s.logEntries[0].Reason)
 }
 
-func (s *ApplyOperationSuite) TestUnknownName() {
+func (s *ApplyOperationSuite) TestUnknownType() {
 	userID := uuid.New()
 	op := confirmedOp(userID, "{}")
-	op.Name = "confirm.host.custom"
+	op.Type = operationtype.ChangePhone
 
 	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
 
-	uc := s.newUseCase(map[string]mrauth.OperationHandler{})
+	uc := s.newUseCase(map[operationtype.Enum]mrauth.OperationHandler{})
 
 	err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
 	s.Require().Error(err)
@@ -142,25 +142,25 @@ func (s *ApplyOperationSuite) TestUnknownName() {
 // TestOperationOfOtherMethod - операция, у которой свой завершающий метод, предъявленная
 // ApplyOperation, отклоняется как чужая (403), а не как ошибка конфигурации (500).
 func (s *ApplyOperationSuite) TestOperationOfOtherMethod() {
-	names := []string{
-		unit.NameAuthorizeUser,
-		unit.NameConfirmCreateUser,
-		unit.NameConfirmChangeEmailRequest,
-		unit.NameConfirmChangePassword,
-		unit.NameConfirmChangeTOTP,
-		unit.NameConfirmRegenerateRecovery,
+	opTypes := []operationtype.Enum{
+		operationtype.AuthorizeUser,
+		operationtype.CreateUser,
+		operationtype.ChangeEmail,
+		operationtype.ChangePassword,
+		operationtype.ChangeTOTP,
+		operationtype.RegenerateRecovery,
 	}
 
-	for _, name := range names {
-		s.Run(name, func() {
+	for _, opType := range opTypes {
+		s.Run(opType.String(), func() {
 			userID := uuid.New()
 			op := confirmedOp(userID, "{}")
-			op.Name = name
+			op.Type = opType
 
 			s.logEntries = nil
 			s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
 
-			uc := s.newUseCase(map[string]mrauth.OperationHandler{"confirm.change.phone": s.handler})
+			uc := s.newUseCase(map[operationtype.Enum]mrauth.OperationHandler{operationtype.ChangePhone: s.handler})
 
 			err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
 			s.Require().ErrorIs(err, errors.ErrAccessForbidden)
