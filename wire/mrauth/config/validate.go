@@ -64,7 +64,7 @@ const (
 	// и его срок назначается при её создании.
 	maxActionExpiry = 30 * time.Minute
 
-	// defaultRecoveryLowThreshold - остаток кодов по умолчанию, при котором слать предупреждение.
+	// defaultRecoveryLowThreshold - порог низкого остатка аварийных кодов по умолчанию.
 	defaultRecoveryLowThreshold = 3
 
 	// defaultDecoyTOTPPercent - доля подставного TOTP по умолчанию: применяется, когда реальное
