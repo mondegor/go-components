@@ -78,7 +78,7 @@ func (s *ApplyRecoverySuite) SetupTest() {
 func (s *ApplyRecoverySuite) newUseCase() *security.ApplyRecovery {
 	return security.NewApplyRecovery(
 		s.txManager, s.updater, s.verifier,
-		crypt.NewSecretGenerator(10), s.notifierAPI, s.logOperation, 8,
+		crypt.NewSecretGenerator(), s.notifierAPI, s.logOperation, 8, 10,
 	)
 }
 

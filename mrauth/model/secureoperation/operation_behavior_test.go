@@ -64,6 +64,7 @@ func emailAction(address, code string) secureoperation.ConfirmAction {
 		MaxAttempts:      3,
 		MaxResends:       5,
 		MinResendTime:    5 * time.Minute,
+		CodeLength:       6,
 		Expiry:           10 * time.Minute,
 		Address:          address,
 		ConfirmCode:      code,
@@ -139,10 +140,17 @@ func TestSecureOperation_InitSendable_SetsGeneratedCode(t *testing.T) {
 
 	op := openedOp(t, emailAction("u@e", ""))
 
-	require.NoError(t, op.InitSendableAction(func() (string, string, error) { return "newcode", "hashedcode", nil }))
+	var gotLength int
+
+	require.NoError(t, op.InitSendableAction(func(length int) (string, string, error) {
+		gotLength = length
+
+		return "newcode", "hashedcode", nil
+	}))
 
 	action, ok := op.FirstAction()
 	require.True(t, ok)
+	assert.Equal(t, int(action.CodeLength), gotLength)  // код выпускается длиной, записанной в действие
 	assert.Equal(t, "hashedcode", action.ConfirmCode)   // в хранилище идёт хеш
 	assert.Equal(t, "newcode", action.PlainConfirmCode) // открытый код - только для отправки
 }
@@ -153,7 +161,7 @@ func TestSecureOperation_InitSendable_NonSendableSkipped(t *testing.T) {
 	op := openedOp(t, totpAction())
 	called := false
 
-	require.NoError(t, op.InitSendableAction(func() (string, string, error) {
+	require.NoError(t, op.InitSendableAction(func(int) (string, string, error) {
 		called = true
 
 		return "x", "x", nil

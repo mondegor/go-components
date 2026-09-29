@@ -122,7 +122,7 @@ func TestNewPendingOperationCurrentAction(t *testing.T) {
 			ExpiresAt:         expiresAt,
 		}
 		require.NoError(t, secureoperation.WakeUp(&op, []secureoperation.ConfirmAction{
-			{Method: confirmmethod.Email, MaxAttempts: 3, Expiry: time.Hour, Address: "new@example.com"},
+			{Method: confirmmethod.Email, MaxAttempts: 3, CodeLength: 6, Expiry: time.Hour, Address: "new@example.com"},
 		}))
 
 		item, ok, err := unit.NewPendingOperation(op)

@@ -19,22 +19,18 @@ var (
 
 type (
 	// SecretGenerator - генератор и хешировщик секретов: токенов, цифровых
-	// и аварийных кодов подтверждения.
-	SecretGenerator struct {
-		secretLength int
-	}
+	// и аварийных кодов подтверждения. Длину секрета задаёт каждый вызов.
+	SecretGenerator struct{}
 )
 
 // NewSecretGenerator - создаёт объект SecretGenerator.
-func NewSecretGenerator(defaultLength int) *SecretGenerator {
-	return &SecretGenerator{
-		secretLength: defaultLength,
-	}
+func NewSecretGenerator() *SecretGenerator {
+	return &SecretGenerator{}
 }
 
-// GenToken - генерирует случайный токен заданной длины.
-func (c *SecretGenerator) GenToken() (string, error) {
-	token, err := crypt.GenerateToken(c.secretLength)
+// GenToken - генерирует случайный токен указанной длины.
+func (c *SecretGenerator) GenToken(length int) (string, error) {
+	token, err := crypt.GenerateToken(length)
 	if err != nil {
 		return "", fmt.Errorf("invalid GenToken: %w", err)
 	}
@@ -42,9 +38,9 @@ func (c *SecretGenerator) GenToken() (string, error) {
 	return token, nil
 }
 
-// GenCode - генерирует случайный цифровой код заданной длины.
-func (c *SecretGenerator) GenCode() (string, error) {
-	code, err := crypt.GenerateDigits(c.secretLength)
+// GenCode - генерирует случайный цифровой код указанной длины.
+func (c *SecretGenerator) GenCode(length int) (string, error) {
+	code, err := crypt.GenerateDigits(length)
 	if err != nil {
 		return "", fmt.Errorf("invalid GenCode: %w", err)
 	}
@@ -52,10 +48,10 @@ func (c *SecretGenerator) GenCode() (string, error) {
 	return code, nil
 }
 
-// GenCodeWithHash - генерирует цифровой код подтверждения и его bcrypt-хеш:
+// GenCodeWithHash - генерирует цифровой код подтверждения указанной длины и его bcrypt-хеш:
 // хеш сохраняется в хранилище, открытый код отправляется пользователю.
-func (c *SecretGenerator) GenCodeWithHash() (code, hashedCode string, err error) {
-	code, err = c.GenCode()
+func (c *SecretGenerator) GenCodeWithHash(length int) (code, hashedCode string, err error) {
+	code, err = c.GenCode(length)
 	if err != nil {
 		return "", "", err
 	}
@@ -68,9 +64,9 @@ func (c *SecretGenerator) GenCodeWithHash() (code, hashedCode string, err error)
 	return code, hashedCode, nil
 }
 
-// GenRecoveryCode - генерирует аварийный код из латиницы и цифр с разделителем посередине.
-func (c *SecretGenerator) GenRecoveryCode() (string, error) {
-	code, err := crypt.GenerateBytes(charsetRecoveryCode, c.secretLength)
+// GenRecoveryCode - генерирует аварийный код указанной длины из латиницы и цифр с разделителем посередине.
+func (c *SecretGenerator) GenRecoveryCode(length int) (string, error) {
+	code, err := crypt.GenerateBytes(charsetRecoveryCode, length)
 	if err != nil {
 		return "", fmt.Errorf("invalid GenRecoveryCode: %w", err)
 	}
@@ -105,14 +101,14 @@ func (c *SecretGenerator) CompareSecretAndHash(secret, hashedSecret string) (ok 
 	return true, nil
 }
 
-// GenerateRecoveryCodes - генерирует count одноразовых кодов и их bcrypt-хеши.
-func (c *SecretGenerator) GenerateRecoveryCodes(count int) (plain, hashed []string, err error) {
+// GenerateRecoveryCodes - генерирует count одноразовых кодов указанной длины и их bcrypt-хеши.
+func (c *SecretGenerator) GenerateRecoveryCodes(count, length int) (plain, hashed []string, err error) {
 	// TODO: можно выделить один массив и разделить его на два
 	plain = make([]string, 0, count)
 	hashed = make([]string, 0, count)
 
 	for i := 0; i < count; i++ {
-		code, err := c.GenRecoveryCode()
+		code, err := c.GenRecoveryCode(length)
 		if err != nil {
 			return nil, nil, err
 		}

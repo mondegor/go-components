@@ -17,6 +17,7 @@ type (
 	// TokenIssuer - выпускает пару токенов с непрозрачным (сессионным) access токеном.
 	TokenIssuer struct {
 		tokenGenerator mrauth.TokenGenerator
+		tokenLength    int
 		accessExpiry   time.Duration
 		refreshExpiry  time.Duration
 	}
@@ -25,6 +26,7 @@ type (
 // NewTokenIssuer - создаёт объект TokenIssuer.
 func NewTokenIssuer(
 	tokenGenerator mrauth.TokenGenerator,
+	tokenLength int,
 	accessExpiry time.Duration,
 	refreshExpiry time.Duration,
 ) *TokenIssuer {
@@ -38,6 +40,7 @@ func NewTokenIssuer(
 
 	return &TokenIssuer{
 		tokenGenerator: tokenGenerator,
+		tokenLength:    tokenLength,
 		accessExpiry:   accessExpiry,
 		refreshExpiry:  refreshExpiry,
 	}
@@ -74,7 +77,7 @@ func (uc *TokenIssuer) CreateTokenPair(userScopes dto.UserScopes) (token dto.Aut
 }
 
 func (uc *TokenIssuer) createAccessToken() (dto.AccessToken, error) {
-	accessToken, err := uc.tokenGenerator.GenToken()
+	accessToken, err := uc.tokenGenerator.GenToken(uc.tokenLength)
 	if err != nil {
 		return dto.AccessToken{}, err
 	}
@@ -86,7 +89,7 @@ func (uc *TokenIssuer) createAccessToken() (dto.AccessToken, error) {
 }
 
 func (uc *TokenIssuer) createRefreshToken() (token dto.RefreshToken, err error) {
-	refreshToken, err := uc.tokenGenerator.GenToken()
+	refreshToken, err := uc.tokenGenerator.GenToken(uc.tokenLength)
 	if err != nil {
 		return dto.RefreshToken{}, err
 	}

@@ -18,6 +18,9 @@ import (
 	"github.com/mondegor/go-components/mrauth/repository"
 )
 
+// testTokenLength - длина токенов, которую выпускающий обязан передать генератору.
+const testTokenLength = 64
+
 const jwtSecret = "test-secret-value"
 
 func signedAccessToken(t *testing.T, scopes dto.UserScopes) string {
@@ -31,12 +34,12 @@ func signedAccessTokenWithTTL(t *testing.T, scopes dto.UserScopes, accessTTL tim
 
 	ctrl := gomock.NewController(t)
 	gen := jwtmock.NewMockTokenGenerator(ctrl)
-	gen.EXPECT().GenToken().Return("refresh", nil)
+	gen.EXPECT().GenToken(testTokenLength).Return("refresh", nil)
 
 	signingKey, err := crypt.NewHMACKey("", "HS512", []byte(jwtSecret))
 	require.NoError(t, err)
 
-	pair, err := jwt.NewTokenIssuer(gen, accessTTL, 24*time.Hour, "https://auth.test", signingKey).
+	pair, err := jwt.NewTokenIssuer(gen, testTokenLength, accessTTL, 24*time.Hour, "https://auth.test", signingKey).
 		CreateTokenPair(scopes)
 	require.NoError(t, err)
 
@@ -130,12 +133,12 @@ func signedForeignAccessToken(t *testing.T) string {
 
 	ctrl := gomock.NewController(t)
 	gen := jwtmock.NewMockTokenGenerator(ctrl)
-	gen.EXPECT().GenToken().Return("refresh", nil)
+	gen.EXPECT().GenToken(testTokenLength).Return("refresh", nil)
 
 	signingKey, err := crypt.NewHMACKey("", "HS512", []byte("another-secret-value"))
 	require.NoError(t, err)
 
-	pair, err := jwt.NewTokenIssuer(gen, 15*time.Minute, 24*time.Hour, "https://auth.test", signingKey).
+	pair, err := jwt.NewTokenIssuer(gen, testTokenLength, 15*time.Minute, 24*time.Hour, "https://auth.test", signingKey).
 		CreateTokenPair(validScopes())
 	require.NoError(t, err)
 

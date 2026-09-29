@@ -61,6 +61,7 @@ func (ts *SecureOperationPostgresTestSuite) seedOperation(userID uuid.UUID, opTy
 		[]secureoperation.ConfirmAction{
 			{
 				Method:      confirmmethod.Email,
+				CodeLength:  6,
 				MaxAttempts: 3,
 				MaxResends:  5,
 				Expiry:      10 * time.Minute,
@@ -146,6 +147,7 @@ func (ts *SecureOperationPostgresTestSuite) TestFixedExpiryRoundTrip() {
 		[]secureoperation.ConfirmAction{
 			{
 				Method:      confirmmethod.Email,
+				CodeLength:  6,
 				MaxAttempts: 3,
 				MaxResends:  5,
 				Expiry:      72 * time.Hour,

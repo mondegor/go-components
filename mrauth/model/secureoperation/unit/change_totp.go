@@ -14,6 +14,7 @@ type (
 	ChangeTOTP struct {
 		actionCreator   confirmByAddressCreator
 		tokenGenerator  mrauth.TokenGenerator
+		tokenLength     int
 		codeGenerator   mrauth.CodeGenerator
 		secretGenerator totpSecretGenerator
 	}
@@ -26,12 +27,14 @@ type (
 // NewChangeTOTP - создаёт объект ChangeTOTP.
 func NewChangeTOTP(
 	tokenGenerator mrauth.TokenGenerator,
+	tokenLength int,
 	codeGenerator mrauth.CodeGenerator,
 	secretGenerator totpSecretGenerator,
 	confirmByEmailOpts ...action.Option,
 ) *ChangeTOTP {
 	return &ChangeTOTP{
 		tokenGenerator:  tokenGenerator,
+		tokenLength:     tokenLength,
 		codeGenerator:   codeGenerator,
 		secretGenerator: secretGenerator,
 		actionCreator:   action.NewConfirmByEmail(confirmByEmailOpts...),
@@ -40,12 +43,7 @@ func NewChangeTOTP(
 
 // Create - создаёт операцию смены TOTP для указанного пользователя.
 func (o *ChangeTOTP) Create(user2FA dto.User2FA) (secureoperation.SecureOperation, error) {
-	operationToken, err := o.tokenGenerator.GenToken()
-	if err != nil {
-		return secureoperation.SecureOperation{}, err
-	}
-
-	confirmCode, hashedCode, err := o.codeGenerator.GenCodeWithHash()
+	operationToken, err := o.tokenGenerator.GenToken(o.tokenLength)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -67,7 +65,7 @@ func (o *ChangeTOTP) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 
 	actions := make([]secureoperation.ConfirmAction, 1, 2)
 
-	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email), confirmCode, hashedCode)
+	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email))
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -76,7 +74,8 @@ func (o *ChangeTOTP) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 		actions = append(actions, newConfirmActionBy2FA(user2FA.Action2FA))
 	}
 
-	return secureoperation.NewOperation(
+	return newSendableOperation(
+		o.codeGenerator,
 		operationToken,
 		operationtype.ChangeTOTP,
 		user2FA.ID,

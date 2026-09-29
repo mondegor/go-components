@@ -164,7 +164,10 @@ func (v *Verifier) Verify(
 		if row.Type != auth2fatype.Password {
 			// тип второго фактора сменился после создания операции: основного доказательства
 			// у звена больше нет, но аварийный код от типа не зависит - он сверяется ниже,
-			// и терять его из-за смены типа звено не должно
+			// и терять его из-за смены типа звено не должно; сверка с подставным секретом
+			// уравнивает время ответа с ответом на неверное значение фактора
+			v.verifyDecoy(method, code)
+
 			break
 		}
 
@@ -179,6 +182,8 @@ func (v *Verifier) Verify(
 	case confirmmethod.TOTP:
 		if row.Type != auth2fatype.TOTP {
 			// тип сменился, см. пояснение в ветке confirmmethod.Password
+			v.verifyDecoy(method, code)
+
 			break
 		}
 

@@ -28,6 +28,7 @@ func TestSecureOperation_NextAction(t *testing.T) {
 			actions: []secureoperation.ConfirmAction{
 				{
 					Method:        confirmmethod.Email,
+					CodeLength:    6,
 					MaxAttempts:   10,
 					MaxResends:    5,
 					MinResendTime: 5 * time.Minute,

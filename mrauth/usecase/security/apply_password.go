@@ -24,15 +24,16 @@ type (
 	// ApplyPassword - применяет подтверждённую операцию смены пароля: привязывает пароль
 	// как второй фактор (2FA) и выдаёт новые одноразовые аварийные коды.
 	ApplyPassword struct {
-		txManager        mrstorage.DBTxManager
-		storage          user2faBinder
-		storageOperation operationDeleter
-		revoker          operationRevoker
-		codeGenerator    recoveryCodesGenerator
-		notifierAPI      mrauth.Notifier
-		logOperation     operationLogger
-		errorWrapper     errors.Wrapper
-		recoveryCount    int
+		txManager          mrstorage.DBTxManager
+		storage            user2faBinder
+		storageOperation   operationDeleter
+		revoker            operationRevoker
+		codeGenerator      recoveryCodesGenerator
+		notifierAPI        mrauth.Notifier
+		logOperation       operationLogger
+		errorWrapper       errors.Wrapper
+		recoveryCount      int
+		recoveryCodeLength int
 	}
 
 	// operationRevoker - отзывает все незавершённые операции пользователя (их цепочки
@@ -52,19 +53,21 @@ func NewApplyPassword(
 	notifierAPI mrauth.Notifier,
 	logOperation operationLogger,
 	recoveryCount int,
+	recoveryCodeLength int,
 ) *ApplyPassword {
 	recoveryCount = clampRecoveryCount(recoveryCount)
 
 	return &ApplyPassword{
-		txManager:        txManager,
-		storage:          storage,
-		storageOperation: storageOperation,
-		revoker:          revoker,
-		codeGenerator:    codeGenerator,
-		notifierAPI:      notifierAPI,
-		logOperation:     logOperation,
-		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
-		recoveryCount:    recoveryCount,
+		txManager:          txManager,
+		storage:            storage,
+		storageOperation:   storageOperation,
+		revoker:            revoker,
+		codeGenerator:      codeGenerator,
+		notifierAPI:        notifierAPI,
+		logOperation:       logOperation,
+		errorWrapper:       errors.NewServiceOperationFailedWrapper(),
+		recoveryCount:      recoveryCount,
+		recoveryCodeLength: recoveryCodeLength,
 	}
 }
 
@@ -130,7 +133,7 @@ func (uc *ApplyPassword) Execute(
 
 		var hashedCodes []string
 
-		plainCodes, hashedCodes, err = uc.codeGenerator.GenerateRecoveryCodes(uc.recoveryCount)
+		plainCodes, hashedCodes, err = uc.codeGenerator.GenerateRecoveryCodes(uc.recoveryCount, uc.recoveryCodeLength)
 		if err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}

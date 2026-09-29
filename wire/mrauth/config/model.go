@@ -38,7 +38,7 @@ type (
 		AccessType    string        `yaml:"access_type"`
 		AccessExpiry  time.Duration `yaml:"access_expiry"`
 		RefreshExpiry time.Duration `yaml:"refresh_expiry"`
-		Length        uint16        `yaml:"length"` // for refresh and access[type == 'session']
+		Length        uint16        `yaml:"length"` // длина refresh-токена и access-токена при access_type=session (у JWT своя)
 	}
 
 	// UserKind - вид пользователя внутри realm: набор ролей и максимум одновременных сессий.
@@ -51,12 +51,11 @@ type (
 		SessionMax uint16   `yaml:"session_max"`
 	}
 
-	// OperationConfirm - настройки подтверждения операции: длина токена/кода, срок жизни, способы отправки.
+	// OperationConfirm - настройки подтверждения операции: длина токена, срок жизни звена кода
+	// и параметры кода по каналу его отправки.
 	OperationConfirm struct {
-		TokenLength     uint16        `yaml:"token_length"`
-		CodeLength      uint8         `yaml:"code_length"`
-		CodeMaxAttempts uint8         `yaml:"code_max_attempts"` // число попыток ввести код подтверждения операции
-		SessionExpiry   time.Duration `yaml:"session_expiry"`    // срок жизни звена подтверждения кодом, не больше порога продления модели
+		TokenLength   uint16        `yaml:"token_length"`
+		SessionExpiry time.Duration `yaml:"session_expiry"` // срок жизни звена подтверждения кодом, не больше порога продления модели
 
 		// NewEmailExpiry - срок жизни операции подтверждения нового емаила (второй шаг смены емаила):
 		// срок больше порога продления модели фиксирован от создания операции, более
@@ -67,9 +66,11 @@ type (
 		SendByPhone CodeSender `yaml:"send_by_phone"`
 	}
 
-	// CodeSender - настройки отправки кода подтверждения: лимиты попыток, повторов и интервал между ними.
+	// CodeSender - настройки кода подтверждения, отправляемого по одному каналу (email/телефон):
+	// длина кода, лимиты попыток ввода и повторных отправок, интервал между отправками.
 	CodeSender struct {
-		MaxAttempts   uint8         `yaml:"max_attempts"`
+		CodeLength    uint8         `yaml:"code_length"`
+		MaxAttempts   uint8         `yaml:"max_attempts"` // число попыток ввести код
 		MaxResends    uint8         `yaml:"max_resends"`
 		MinResendTime time.Duration `yaml:"min_resend_time"`
 	}

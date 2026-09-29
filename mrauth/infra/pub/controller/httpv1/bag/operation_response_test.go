@@ -253,6 +253,7 @@ func wokenOp(t *testing.T, action secureoperation.ConfirmAction, resendsAt time.
 func emailAction() secureoperation.ConfirmAction {
 	return secureoperation.ConfirmAction{
 		Method:        confirmmethod.Email,
+		CodeLength:    6,
 		MaxAttempts:   3,
 		MaxResends:    5,
 		MinResendTime: 5 * time.Minute,

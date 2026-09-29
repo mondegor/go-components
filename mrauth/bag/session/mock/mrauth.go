@@ -40,16 +40,16 @@ func (m *MockTokenGenerator) EXPECT() *MockTokenGeneratorMockRecorder {
 }
 
 // GenToken mocks base method.
-func (m *MockTokenGenerator) GenToken() (string, error) {
+func (m *MockTokenGenerator) GenToken(length int) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GenToken")
+	ret := m.ctrl.Call(m, "GenToken", length)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GenToken indicates an expected call of GenToken.
-func (mr *MockTokenGeneratorMockRecorder) GenToken() *gomock.Call {
+func (mr *MockTokenGeneratorMockRecorder) GenToken(length any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenToken", reflect.TypeOf((*MockTokenGenerator)(nil).GenToken))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GenToken", reflect.TypeOf((*MockTokenGenerator)(nil).GenToken), length)
 }

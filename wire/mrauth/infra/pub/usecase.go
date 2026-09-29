@@ -22,21 +22,21 @@ func initConfirmOperationUseCase(
 	storageUser *repository.UserPostgres,
 	notifierAPI mrauth.Notifier,
 	operationLogger *collect.SecureOperationLogger,
-	operationConfig authcfg.OperationConfirm,
 	auth2faConfig authcfg.Auth2FA,
 ) *operation.ConfirmOperation {
 	recoveryCodeLength := int(auth2faConfig.RecoveryCodeLength)
+	secretGenerator := crypt.NewSecretGenerator()
 
 	return operation.NewConfirmOperation(
 		dbConnManager,
 		storageSecureOperation,
 		notifierAPI,
 		secureoperation.NewConfirmCode(
-			crypt.NewSecretGenerator(int(operationConfig.TokenLength)), // TODO: длина должна зависеть от realm
-			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
+			secretGenerator,
+			secretGenerator,
 			auth2fa.NewVerifier(
 				storageAuth2fa,
-				crypt.NewSecretGenerator(recoveryCodeLength), // длина для генератора неважна: используется только сравнение
+				secretGenerator,
 				totp.NewAuthenticator(auth2faConfig.TOTPIssuer, 64),
 				// аварийный код имеет фиксированную длину recoveryCodeLength - сужаем окно для дешёвой отбраковки
 				auth2fa.WithRecoveryCodeLength(recoveryCodeLength, recoveryCodeLength),

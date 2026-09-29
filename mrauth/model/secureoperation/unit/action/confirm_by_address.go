@@ -24,15 +24,15 @@ func NewConfirmByAddress(emailOpts, phoneOpts []Option) *ConfirmByAddress {
 	}
 }
 
-// Create - создаёт действие подтверждения по контактному адресу; confirmCode передаётся
-// в открытом виде (для отправки) и в виде хеша (для хранения).
-func (a *ConfirmByAddress) Create(address contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error) {
+// Create - создаёт действие подтверждения по контактному адресу (параметры канала
+// выбираются по типу адреса).
+func (a *ConfirmByAddress) Create(address contactaddress.ContactAddress) (secureoperation.ConfirmAction, error) {
 	if address.Is(addresstype.Phone) {
-		return a.confirmByPhone.Create(address, confirmCode, hashedConfirmCode)
+		return a.confirmByPhone.Create(address)
 	}
 
 	if address.Is(addresstype.Email) {
-		return a.confirmByEmail.Create(address, confirmCode, hashedConfirmCode)
+		return a.confirmByEmail.Create(address)
 	}
 
 	return secureoperation.ConfirmAction{},

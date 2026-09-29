@@ -135,6 +135,10 @@ func (o *SecureOperation) checkInvariants() error {
 		if action.Sendable() && action.AllowRecovery {
 			return errors.ErrInternalIncorrectInputData.WithDetails("sendable action cannot allow recovery", "index", i)
 		}
+
+		if action.Sendable() && action.CodeLength < 1 {
+			return errors.ErrInternalIncorrectInputData.WithDetails("sendable action without code length", "index", i)
+		}
 	}
 
 	return nil
@@ -145,10 +149,10 @@ func (o *SecureOperation) Is(status operationstatus.Enum) bool {
 	return o.Status == status
 }
 
-// InitSendableAction - для текущего sendable-действия генерирует код подтверждения:
+// InitSendableAction - для текущего sendable-действия генерирует код подтверждения длиной CodeLength:
 // хеш сохраняется в ConfirmCode (попадает в хранилище), открытый код - в PlainConfirmCode
 // (только для отправки). Для не-sendable действий (TOTP/password) не делает ничего.
-func (o *SecureOperation) InitSendableAction(generateCodeFunc func() (code, hashedCode string, err error)) error {
+func (o *SecureOperation) InitSendableAction(generateCodeFunc func(length int) (code, hashedCode string, err error)) error {
 	if o.Status != operationstatus.Opened || len(o.actions) == 0 {
 		return errors.ErrInternalIncorrectInputData.WithDetails(
 			"operation is not opened", "status", o.Status, "actions", len(o.actions),
@@ -163,7 +167,7 @@ func (o *SecureOperation) InitSendableAction(generateCodeFunc func() (code, hash
 		return errors.ErrInternalNilPointer.New("generateCodeFunc is nil")
 	}
 
-	code, hashedCode, err := generateCodeFunc()
+	code, hashedCode, err := generateCodeFunc(int(o.actions[0].CodeLength))
 	if err != nil {
 		return err
 	}

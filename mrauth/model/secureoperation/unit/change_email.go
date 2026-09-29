@@ -25,6 +25,7 @@ type (
 	ChangeEmail struct {
 		actionCreator  confirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
+		tokenLength    int
 		codeGenerator  mrauth.CodeGenerator
 	}
 )
@@ -36,6 +37,7 @@ type (
 // ими не переопределяется.
 func NewChangeEmail(
 	tokenGenerator mrauth.TokenGenerator,
+	tokenLength int,
 	codeGenerator mrauth.CodeGenerator,
 	expiry time.Duration,
 	confirmByEmailOpts ...action.Option,
@@ -52,6 +54,7 @@ func NewChangeEmail(
 	return &ChangeEmail{
 		actionCreator:  action.NewConfirmByEmail(opts...),
 		tokenGenerator: tokenGenerator,
+		tokenLength:    tokenLength,
 		codeGenerator:  codeGenerator,
 	}
 }
@@ -75,22 +78,18 @@ func (o *ChangeEmail) Create(userID uuid.UUID, in dto.ChangeEmailOperation) (sec
 		return secureoperation.SecureOperation{}, err
 	}
 
-	operationToken, err := o.tokenGenerator.GenToken()
+	operationToken, err := o.tokenGenerator.GenToken(o.tokenLength)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
 
-	confirmCode, hashedCode, err := o.codeGenerator.GenCodeWithHash()
+	confirmAction, err := o.actionCreator.Create(newEmail)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
 
-	confirmAction, err := o.actionCreator.Create(newEmail, confirmCode, hashedCode)
-	if err != nil {
-		return secureoperation.SecureOperation{}, err
-	}
-
-	return secureoperation.NewOperation(
+	return newSendableOperation(
+		o.codeGenerator,
 		operationToken,
 		operationtype.ChangeEmailConfirm,
 		userID,

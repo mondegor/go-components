@@ -17,6 +17,7 @@ import (
 func emailConfirmAction(code string) secureoperation_model.ConfirmAction {
 	return secureoperation_model.ConfirmAction{
 		Method:        confirmmethod.Email,
+		CodeLength:    6,
 		MaxAttempts:   3,
 		MaxResends:    5,
 		MinResendTime: 5 * time.Minute,

@@ -23,6 +23,7 @@ type (
 	// TokenIssuer - выпускает пару токенов с подписанным (JWT) access токеном.
 	TokenIssuer struct {
 		tokenGenerator mrauth.TokenGenerator
+		tokenLength    int
 		accessExpiry   time.Duration
 		refreshExpiry  time.Duration
 		issuer         string
@@ -33,6 +34,7 @@ type (
 // NewTokenIssuer - создаёт объект TokenIssuer.
 func NewTokenIssuer(
 	tokenGenerator mrauth.TokenGenerator,
+	tokenLength int,
 	accessExpiry time.Duration,
 	refreshExpiry time.Duration,
 	issuer string,
@@ -52,6 +54,7 @@ func NewTokenIssuer(
 
 	return &TokenIssuer{
 		tokenGenerator: tokenGenerator,
+		tokenLength:    tokenLength,
 		accessExpiry:   accessExpiry,
 		refreshExpiry:  refreshExpiry,
 		issuer:         issuer,
@@ -125,7 +128,7 @@ func (uc *TokenIssuer) createAccessToken(userScopes *dto.UserScopes) (dto.Access
 }
 
 func (uc *TokenIssuer) createRefreshToken() (token dto.RefreshToken, err error) {
-	refreshToken, err := uc.tokenGenerator.GenToken()
+	refreshToken, err := uc.tokenGenerator.GenToken(uc.tokenLength)
 	if err != nil {
 		return dto.RefreshToken{}, err
 	}

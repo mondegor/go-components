@@ -22,14 +22,15 @@ type (
 	// ApplyRecovery - применяет подтверждённую операцию перевыпуска аварийных кодов:
 	// заменяет набор кодов пользователя на новый и возвращает его (показывается один раз).
 	ApplyRecovery struct {
-		txManager        mrstorage.DBTxManager
-		storage          recoveryCodesUpdater
-		storageOperation operationDeleter
-		codeGenerator    recoveryCodesGenerator
-		notifierAPI      mrauth.Notifier
-		logOperation     operationLogger
-		errorWrapper     errors.Wrapper
-		recoveryCount    int
+		txManager          mrstorage.DBTxManager
+		storage            recoveryCodesUpdater
+		storageOperation   operationDeleter
+		codeGenerator      recoveryCodesGenerator
+		notifierAPI        mrauth.Notifier
+		logOperation       operationLogger
+		errorWrapper       errors.Wrapper
+		recoveryCount      int
+		recoveryCodeLength int
 	}
 
 	recoveryCodesUpdater interface {
@@ -46,18 +47,20 @@ func NewApplyRecovery(
 	notifierAPI mrauth.Notifier,
 	logOperation operationLogger,
 	recoveryCount int,
+	recoveryCodeLength int,
 ) *ApplyRecovery {
 	recoveryCount = clampRecoveryCount(recoveryCount)
 
 	return &ApplyRecovery{
-		txManager:        txManager,
-		storage:          storage,
-		storageOperation: storageOperation,
-		codeGenerator:    codeGenerator,
-		notifierAPI:      notifierAPI,
-		logOperation:     logOperation,
-		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
-		recoveryCount:    recoveryCount,
+		txManager:          txManager,
+		storage:            storage,
+		storageOperation:   storageOperation,
+		codeGenerator:      codeGenerator,
+		notifierAPI:        notifierAPI,
+		logOperation:       logOperation,
+		errorWrapper:       errors.NewServiceOperationFailedWrapper(),
+		recoveryCount:      recoveryCount,
+		recoveryCodeLength: recoveryCodeLength,
 	}
 }
 
@@ -121,7 +124,7 @@ func (uc *ApplyRecovery) Execute(
 
 		var hashedCodes []string
 
-		plainCodes, hashedCodes, err = uc.codeGenerator.GenerateRecoveryCodes(uc.recoveryCount)
+		plainCodes, hashedCodes, err = uc.codeGenerator.GenerateRecoveryCodes(uc.recoveryCount, uc.recoveryCodeLength)
 		if err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}

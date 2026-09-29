@@ -20,11 +20,12 @@ type (
 		userKind       string
 		actionCreator  confirmByEmailCreator
 		tokenGenerator mrauth.TokenGenerator
+		tokenLength    int
 		codeGenerator  mrauth.CodeGenerator
 	}
 
 	confirmByEmailCreator interface {
-		Create(address contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error)
+		Create(address contactaddress.ContactAddress) (secureoperation.ConfirmAction, error)
 		Expiry() time.Duration
 	}
 )
@@ -34,6 +35,7 @@ func NewCreateUser(
 	realm string,
 	userKind string,
 	tokenGenerator mrauth.TokenGenerator,
+	tokenLength int,
 	codeGenerator mrauth.CodeGenerator,
 	confirmByEmailOpts ...action.Option,
 ) *CreateUser {
@@ -41,6 +43,7 @@ func NewCreateUser(
 		realm:          realm,
 		userKind:       userKind,
 		tokenGenerator: tokenGenerator,
+		tokenLength:    tokenLength,
 		codeGenerator:  codeGenerator,
 		actionCreator:  action.NewConfirmByEmail(confirmByEmailOpts...),
 	}
@@ -69,12 +72,7 @@ func (o *CreateUser) Create(
 	userEmail contactaddress.ContactAddress,
 	registeredIP mrtype.DetailedIP,
 ) (secureoperation.SecureOperation, error) {
-	operationToken, err := o.tokenGenerator.GenToken()
-	if err != nil {
-		return secureoperation.SecureOperation{}, err
-	}
-
-	confirmCode, hashedCode, err := o.codeGenerator.GenCodeWithHash()
+	operationToken, err := o.tokenGenerator.GenToken(o.tokenLength)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -95,7 +93,7 @@ func (o *CreateUser) Create(
 
 	actions := make([]secureoperation.ConfirmAction, 1, 2)
 
-	actions[0], err = o.actionCreator.Create(userEmail, confirmCode, hashedCode)
+	actions[0], err = o.actionCreator.Create(userEmail)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -104,7 +102,8 @@ func (o *CreateUser) Create(
 		actions = append(actions, newConfirmActionBy2FA(user2FA.Action2FA))
 	}
 
-	return secureoperation.NewOperation(
+	return newSendableOperation(
+		o.codeGenerator,
 		operationToken,
 		operationtype.CreateUser,
 		user2FA.ID,

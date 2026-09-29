@@ -20,6 +20,7 @@ type (
 	ChangeEmailRequestByRecovery struct {
 		recoveryCreator confirmByRecoveryCreator
 		tokenGenerator  mrauth.TokenGenerator
+		tokenLength     int
 	}
 )
 
@@ -28,11 +29,13 @@ type (
 // наравне с остальными, а не остаётся на умолчаниях.
 func NewChangeEmailRequestByRecovery(
 	tokenGenerator mrauth.TokenGenerator,
+	tokenLength int,
 	confirmByRecoveryOpts ...action.Option,
 ) *ChangeEmailRequestByRecovery {
 	return &ChangeEmailRequestByRecovery{
 		recoveryCreator: action.NewConfirmByRecovery(confirmByRecoveryOpts...),
 		tokenGenerator:  tokenGenerator,
+		tokenLength:     tokenLength,
 	}
 }
 
@@ -51,7 +54,7 @@ func (o *ChangeEmailRequestByRecovery) Create(user2FA dto.User2FA, newEmail cont
 		return secureoperation.SecureOperation{}, mrauth.ErrAuth2FAIsDisabled
 	}
 
-	operationToken, err := o.tokenGenerator.GenToken()
+	operationToken, err := o.tokenGenerator.GenToken(o.tokenLength)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}

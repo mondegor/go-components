@@ -15,18 +15,20 @@ type (
 	AuthorizeUser struct {
 		actionCreator       confirmByAddressCreator
 		tokenGenerator      mrauth.TokenGenerator
+		tokenLength         int
 		codeGenerator       mrauth.CodeGenerator
 		confirmPhoneByEmail bool
 	}
 
 	confirmByAddressCreator interface {
-		Create(address contactaddress.ContactAddress, confirmCode, hashedConfirmCode string) (secureoperation.ConfirmAction, error)
+		Create(address contactaddress.ContactAddress) (secureoperation.ConfirmAction, error)
 	}
 )
 
 // NewAuthorizeUser - создаёт объект AuthorizeUser.
 func NewAuthorizeUser(
 	tokenGenerator mrauth.TokenGenerator,
+	tokenLength int,
 	codeGenerator mrauth.CodeGenerator,
 	opts ...AuthorizeUserOption,
 ) *AuthorizeUser {
@@ -41,6 +43,7 @@ func NewAuthorizeUser(
 	return &AuthorizeUser{
 		actionCreator:       action.NewConfirmByAddress(o.confirmByEmail, o.confirmByPhone),
 		tokenGenerator:      tokenGenerator,
+		tokenLength:         tokenLength,
 		codeGenerator:       codeGenerator,
 		confirmPhoneByEmail: o.confirmPhoneByEmail,
 	}
@@ -56,12 +59,7 @@ func (o *AuthorizeUser) Type() operationtype.Enum {
 // предъявить аварийный код, поэтому цепочка покрывает сразу две комбинации из трёх;
 // третью ("второй фактор + аварийный код") строит фабрика AuthorizeUserByRecovery.
 func (o *AuthorizeUser) Create(user2FA dto.User2FA, realm, langCode string, userLogin contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
-	operationToken, err := o.tokenGenerator.GenToken()
-	if err != nil {
-		return secureoperation.SecureOperation{}, err
-	}
-
-	confirmCode, hashedCode, err := o.codeGenerator.GenCodeWithHash()
+	operationToken, err := o.tokenGenerator.GenToken(o.tokenLength)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -72,7 +70,7 @@ func (o *AuthorizeUser) Create(user2FA dto.User2FA, realm, langCode string, user
 
 	actions := make([]secureoperation.ConfirmAction, 1, 2)
 
-	actions[0], err = o.actionCreator.Create(userLogin, confirmCode, hashedCode)
+	actions[0], err = o.actionCreator.Create(userLogin)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -98,7 +96,8 @@ func (o *AuthorizeUser) Create(user2FA dto.User2FA, realm, langCode string, user
 		return secureoperation.SecureOperation{}, err
 	}
 
-	return secureoperation.NewOperation(
+	return newSendableOperation(
+		o.codeGenerator,
 		operationToken,
 		operationtype.AuthorizeUser,
 		user2FA.ID,

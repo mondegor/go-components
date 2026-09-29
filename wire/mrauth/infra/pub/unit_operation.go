@@ -13,7 +13,6 @@ import (
 	"github.com/mondegor/go-components/mrauth/service/secureoperation"
 	"github.com/mondegor/go-components/mrauth/usecase/operation"
 	"github.com/mondegor/go-components/mrauth/validate"
-	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
 )
 
 func initOperationController(
@@ -24,17 +23,15 @@ func initOperationController(
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 	notifierAPI mrauth.Notifier,
-	operationConfig authcfg.OperationConfirm,
 	debugFunc func(value any) string,
 ) (mrserver.HttpController, error) {
+	secretGenerator := crypt.NewSecretGenerator()
+
 	useCaseResendConfirmCode := operation.NewResendCode(
 		dbConnManager,
 		storageSecureOperation,
 		notifierAPI,
-		secureoperation.NewResendCode(
-			crypt.NewSecretGenerator(int(operationConfig.TokenLength)), // TODO: длина должна зависеть от realm
-			crypt.NewSecretGenerator(int(operationConfig.CodeLength)),
-		),
+		secureoperation.NewResendCode(secretGenerator, secretGenerator),
 		operationLogger,
 	)
 

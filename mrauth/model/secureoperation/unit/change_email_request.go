@@ -18,6 +18,7 @@ type (
 	ChangeEmailRequest struct {
 		actionCreator  confirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
+		tokenLength    int
 		codeGenerator  mrauth.CodeGenerator
 	}
 )
@@ -25,12 +26,14 @@ type (
 // NewChangeEmailRequest - создаёт объект ChangeEmailRequest.
 func NewChangeEmailRequest(
 	tokenGenerator mrauth.TokenGenerator,
+	tokenLength int,
 	codeGenerator mrauth.CodeGenerator,
 	confirmByEmailOpts ...action.Option,
 ) *ChangeEmailRequest {
 	return &ChangeEmailRequest{
 		actionCreator:  action.NewConfirmByEmail(confirmByEmailOpts...),
 		tokenGenerator: tokenGenerator,
+		tokenLength:    tokenLength,
 		codeGenerator:  codeGenerator,
 	}
 }
@@ -43,12 +46,7 @@ func (o *ChangeEmailRequest) Create(user2FA dto.User2FA, newEmail contactaddress
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("newEmail is not an email address")
 	}
 
-	operationToken, err := o.tokenGenerator.GenToken()
-	if err != nil {
-		return secureoperation.SecureOperation{}, err
-	}
-
-	confirmCode, hashedCode, err := o.codeGenerator.GenCodeWithHash()
+	operationToken, err := o.tokenGenerator.GenToken(o.tokenLength)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -65,7 +63,7 @@ func (o *ChangeEmailRequest) Create(user2FA dto.User2FA, newEmail contactaddress
 
 	actions := make([]secureoperation.ConfirmAction, 1, 2)
 
-	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email), confirmCode, hashedCode)
+	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email))
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -77,7 +75,8 @@ func (o *ChangeEmailRequest) Create(user2FA dto.User2FA, newEmail contactaddress
 		actions = append(actions, newConfirmActionBy2FA(user2FA.Action2FA))
 	}
 
-	return secureoperation.NewOperation(
+	return newSendableOperation(
+		o.codeGenerator,
 		operationToken,
 		operationtype.ChangeEmail,
 		user2FA.ID,

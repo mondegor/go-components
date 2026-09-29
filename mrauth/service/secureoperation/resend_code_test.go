@@ -39,7 +39,7 @@ func (s *ResendCodeSuite) SetupTest() {
 	s.codeGen = mock.NewMockCodeGenerator(s.ctrl)
 	s.svc = secureoperation.NewResendCode(s.tokenGen, s.codeGen)
 
-	s.codeGen.EXPECT().GenCodeWithHash().Return("123456", "123456", nil).AnyTimes()
+	s.codeGen.EXPECT().GenCodeWithHash(gomock.Any()).Return("123456", "123456", nil).AnyTimes()
 }
 
 // openedEmailOp - создаёт sendable-операцию (Email) в статусе Opened, готовую к
@@ -58,6 +58,7 @@ func (s *ResendCodeSuite) openedEmailOp() secureoperation_model.SecureOperation 
 	s.Require().NoError(secureoperation_model.WakeUp(&op, []secureoperation_model.ConfirmAction{
 		{
 			Method:        confirmmethod.Email,
+			CodeLength:    6,
 			MaxAttempts:   3,
 			MaxResends:    5,
 			MinResendTime: 5 * time.Minute,
@@ -70,7 +71,8 @@ func (s *ResendCodeSuite) openedEmailOp() secureoperation_model.SecureOperation 
 }
 
 func (s *ResendCodeSuite) TestPrepareSuccess() {
-	s.tokenGen.EXPECT().GenToken().Return("new-token", nil)
+	// новый токен той же длины, что текущий токен операции
+	s.tokenGen.EXPECT().GenToken(len("token")).Return("new-token", nil)
 
 	out, err := s.svc.Prepare(s.openedEmailOp())
 	s.Require().NoError(err)
@@ -83,7 +85,7 @@ func (s *ResendCodeSuite) TestPrepareSuccess() {
 
 func (s *ResendCodeSuite) TestPrepareTokenGeneratorError() {
 	wantErr := errors.New("token generation failed")
-	s.tokenGen.EXPECT().GenToken().Return("", wantErr)
+	s.tokenGen.EXPECT().GenToken(len("token")).Return("", wantErr)
 
 	_, err := s.svc.Prepare(s.openedEmailOp())
 	s.Require().ErrorIs(err, wantErr)
@@ -115,7 +117,7 @@ func (s *ResendCodeSuite) TestPrepareBusinessErrorsKeepOperation() {
 		},
 	} {
 		s.Run(tt.name, func() {
-			s.tokenGen.EXPECT().GenToken().Return("new-token", nil)
+			s.tokenGen.EXPECT().GenToken(len("token")).Return("new-token", nil)
 
 			op := s.openedEmailOp()
 			tt.prepare(&op)
@@ -145,7 +147,7 @@ func (s *ResendCodeSuite) TestPrepareNonSendableActionFails() {
 		{name: "звено аварийного кода", method: confirmmethod.Recovery},
 	} {
 		s.Run(tt.name, func() {
-			s.tokenGen.EXPECT().GenToken().Return("new-token", nil).AnyTimes()
+			s.tokenGen.EXPECT().GenToken(len("token")).Return("new-token", nil).AnyTimes()
 
 			op := secureoperation_model.SecureOperation{
 				Token:             "token",
@@ -171,7 +173,7 @@ func (s *ResendCodeSuite) TestPrepareNonSendableActionFails() {
 }
 
 func (s *ResendCodeSuite) TestPrepareNotOpenedFails() {
-	s.tokenGen.EXPECT().GenToken().Return("new-token", nil).AnyTimes()
+	s.tokenGen.EXPECT().GenToken(len("token")).Return("new-token", nil).AnyTimes()
 
 	confirmed := secureoperation_model.SecureOperation{
 		Token:     "token",

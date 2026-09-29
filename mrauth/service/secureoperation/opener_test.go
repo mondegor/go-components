@@ -89,6 +89,7 @@ func (s *OpenerSuite) emailOp(userID uuid.UUID) secureoperation_model.SecureOper
 	s.Require().NoError(secureoperation_model.WakeUp(&op, []secureoperation_model.ConfirmAction{
 		{
 			Method:        confirmmethod.Email,
+			CodeLength:    6,
 			MaxAttempts:   3,
 			MaxResends:    5,
 			MinResendTime: 5 * time.Minute,

@@ -29,6 +29,9 @@ import (
 //go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth TokenGenerator,CodeGenerator
 //go:generate mockgen -source=change_totp.go -destination=mock/change_totp.go -package=mock
 
+// testTokenLength - длина токена операции, которую фабрики обязаны передать генератору.
+const testTokenLength = 64
+
 type FactorySuite struct {
 	suite.Suite
 
@@ -67,8 +70,8 @@ func (s *FactorySuite) decoySelector() *crypt.DecoyFactorSelector {
 // expectGenerators - разрешает фабрике сколько угодно раз получать токен операции и код
 // подтверждения: конкретное их число зависит от набора действий и здесь не проверяется.
 func (s *FactorySuite) expectGenerators() {
-	s.tokenGen.EXPECT().GenToken().Return("tok", nil).AnyTimes()
-	s.codeGen.EXPECT().GenCodeWithHash().Return("123456", "hashed-code", nil).AnyTimes()
+	s.tokenGen.EXPECT().GenToken(testTokenLength).Return("tok", nil).AnyTimes()
+	s.codeGen.EXPECT().GenCodeWithHash(gomock.Any()).Return("123456", "hashed-code", nil).AnyTimes()
 }
 
 // userWith2FA - пользователь с активным вторым фактором (TOTP).
@@ -89,7 +92,7 @@ func (s *FactorySuite) TestChangeEmailRequestCreate() {
 	s.Run("without 2fa - single action", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangeEmailRequest(s.tokenGen, s.codeGen)
+		f := unit.NewChangeEmailRequest(s.tokenGen, testTokenLength, s.codeGen)
 
 		op, err := f.Create(userWithout2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().NoError(err)
@@ -105,7 +108,7 @@ func (s *FactorySuite) TestChangeEmailRequestCreate() {
 	s.Run("with 2fa - appends second action", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangeEmailRequest(s.tokenGen, s.codeGen)
+		f := unit.NewChangeEmailRequest(s.tokenGen, testTokenLength, s.codeGen)
 
 		op, err := f.Create(userWith2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().NoError(err)
@@ -114,10 +117,10 @@ func (s *FactorySuite) TestChangeEmailRequestCreate() {
 
 	s.Run("token generator error", func() {
 		wantErr := errors.New("token failed")
-		s.tokenGen.EXPECT().GenToken().Return("", wantErr).AnyTimes()
-		s.codeGen.EXPECT().GenCodeWithHash().Return("123456", "hashed-code", nil).AnyTimes()
+		s.tokenGen.EXPECT().GenToken(testTokenLength).Return("", wantErr).AnyTimes()
+		s.codeGen.EXPECT().GenCodeWithHash(gomock.Any()).Return("123456", "hashed-code", nil).AnyTimes()
 
-		f := unit.NewChangeEmailRequest(s.tokenGen, s.codeGen)
+		f := unit.NewChangeEmailRequest(s.tokenGen, testTokenLength, s.codeGen)
 
 		_, err := f.Create(userWithout2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().ErrorIs(err, wantErr)
@@ -135,7 +138,7 @@ func (s *FactorySuite) TestChangeEmailCreate() {
 		s.expectGenerators()
 
 		userID := uuid.New()
-		f := unit.NewChangeEmail(s.tokenGen, s.codeGen, 0, action.WithMaxAttempts(7))
+		f := unit.NewChangeEmail(s.tokenGen, testTokenLength, s.codeGen, 0, action.WithMaxAttempts(7))
 
 		op, err := f.Create(userID, in)
 		s.Require().NoError(err)
@@ -158,7 +161,7 @@ func (s *FactorySuite) TestChangeEmailCreate() {
 	s.Run("expiry is not overridden by options", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangeEmail(s.tokenGen, s.codeGen, 24*time.Hour, action.WithExpiry(time.Minute))
+		f := unit.NewChangeEmail(s.tokenGen, testTokenLength, s.codeGen, 24*time.Hour, action.WithExpiry(time.Minute))
 
 		op, err := f.Create(uuid.New(), in)
 		s.Require().NoError(err)
@@ -168,7 +171,7 @@ func (s *FactorySuite) TestChangeEmailCreate() {
 	s.Run("broken payload is an invariant violation", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangeEmail(s.tokenGen, s.codeGen, 0)
+		f := unit.NewChangeEmail(s.tokenGen, testTokenLength, s.codeGen, 0)
 
 		_, err := f.Create(uuid.New(), dto.ChangeEmailOperation{NewEmail: "not-an-email", Email: "user@example.com"})
 		s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
@@ -185,7 +188,7 @@ func (s *FactorySuite) TestChangePasswordCreate() {
 	s.expectGenerators()
 	s.codeGen.EXPECT().HashedSecret("new-password").Return("hashed-pw", nil).AnyTimes()
 
-	f := unit.NewChangePassword(s.tokenGen, s.codeGen)
+	f := unit.NewChangePassword(s.tokenGen, testTokenLength, s.codeGen)
 
 	op, err := f.Create(userWithout2FA(), "new-password")
 	s.Require().NoError(err)
@@ -204,7 +207,7 @@ func (s *FactorySuite) TestChangePasswordCreate() {
 func (s *FactorySuite) TestChangePhoneCreate() {
 	s.expectGenerators()
 
-	f := unit.NewChangePhone(s.tokenGen, s.codeGen)
+	f := unit.NewChangePhone(s.tokenGen, testTokenLength, s.codeGen)
 
 	op, err := f.Create(userWithout2FA(), contactaddress.NewPhone("79991234567"))
 	s.Require().NoError(err)
@@ -228,7 +231,7 @@ func (s *FactorySuite) TestChangePhoneCreate() {
 func (s *FactorySuite) TestChangePhoneCreateInvalidPhone() {
 	s.expectGenerators()
 
-	f := unit.NewChangePhone(s.tokenGen, s.codeGen)
+	f := unit.NewChangePhone(s.tokenGen, testTokenLength, s.codeGen)
 
 	// такие значения отсекаются ещё тегом на границе ввода, поэтому пустой адрес,
 	// который возвращает на них NewPhone, для фабрики - нарушение инварианта
@@ -242,7 +245,7 @@ func (s *FactorySuite) TestChangeTOTPCreate() {
 	s.expectGenerators()
 	s.secretGen.EXPECT().GenerateSecret(gomock.Any()).Return("TOTPSECRET", nil).AnyTimes()
 
-	f := unit.NewChangeTOTP(s.tokenGen, s.codeGen, s.secretGen)
+	f := unit.NewChangeTOTP(s.tokenGen, testTokenLength, s.codeGen, s.secretGen)
 
 	op, err := f.Create(userWithout2FA())
 	s.Require().NoError(err)
@@ -264,7 +267,7 @@ func (s *FactorySuite) TestCreateUserCreate() {
 	s.Run("new user - single email action, nil user id", func() {
 		s.expectGenerators()
 
-		f := unit.NewCreateUser("shop", "customer", s.tokenGen, s.codeGen)
+		f := unit.NewCreateUser("shop", "customer", s.tokenGen, testTokenLength, s.codeGen)
 
 		// для нового email usecase передаёт пустой User2FA
 		op, err := f.Create(dto.User2FA{}, "en", "Europe/Moscow", contactaddress.NewEmail("user@example.com"), registeredIP)
@@ -286,7 +289,7 @@ func (s *FactorySuite) TestCreateUserCreate() {
 	s.Run("existing user with 2fa - appends second action and binds user id", func() {
 		s.expectGenerators()
 
-		f := unit.NewCreateUser("shop", "customer", s.tokenGen, s.codeGen)
+		f := unit.NewCreateUser("shop", "customer", s.tokenGen, testTokenLength, s.codeGen)
 
 		user2FA := userWith2FA()
 
@@ -299,7 +302,7 @@ func (s *FactorySuite) TestCreateUserCreate() {
 	s.Run("existing user without 2fa - single email action", func() {
 		s.expectGenerators()
 
-		f := unit.NewCreateUser("shop", "customer", s.tokenGen, s.codeGen)
+		f := unit.NewCreateUser("shop", "customer", s.tokenGen, testTokenLength, s.codeGen)
 
 		user2FA := userWithout2FA()
 
@@ -314,7 +317,7 @@ func (s *FactorySuite) TestDisable2FACreate() {
 	s.Run("with active 2fa", func() {
 		s.expectGenerators()
 
-		f := unit.NewDisable2FA(s.tokenGen, s.codeGen)
+		f := unit.NewDisable2FA(s.tokenGen, testTokenLength, s.codeGen)
 
 		op, err := f.Create(userWith2FA())
 		s.Require().NoError(err)
@@ -329,7 +332,7 @@ func (s *FactorySuite) TestDisable2FACreate() {
 	s.Run("already disabled fails", func() {
 		s.expectGenerators()
 
-		f := unit.NewDisable2FA(s.tokenGen, s.codeGen)
+		f := unit.NewDisable2FA(s.tokenGen, testTokenLength, s.codeGen)
 
 		_, err := f.Create(userWithout2FA())
 		s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
@@ -340,7 +343,7 @@ func (s *FactorySuite) TestRegenerateRecoveryCreate() {
 	s.Run("with active 2fa", func() {
 		s.expectGenerators()
 
-		f := unit.NewRegenerateRecovery(s.tokenGen, s.codeGen)
+		f := unit.NewRegenerateRecovery(s.tokenGen, testTokenLength, s.codeGen)
 
 		op, err := f.Create(userWith2FA())
 		s.Require().NoError(err)
@@ -355,7 +358,7 @@ func (s *FactorySuite) TestRegenerateRecoveryCreate() {
 	s.Run("without 2fa fails", func() {
 		s.expectGenerators()
 
-		f := unit.NewRegenerateRecovery(s.tokenGen, s.codeGen)
+		f := unit.NewRegenerateRecovery(s.tokenGen, testTokenLength, s.codeGen)
 
 		_, err := f.Create(userWithout2FA())
 		s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
@@ -365,7 +368,7 @@ func (s *FactorySuite) TestRegenerateRecoveryCreate() {
 func (s *FactorySuite) TestAuthorizeUserCreate() {
 	s.expectGenerators()
 
-	f := unit.NewAuthorizeUser(s.tokenGen, s.codeGen)
+	f := unit.NewAuthorizeUser(s.tokenGen, testTokenLength, s.codeGen)
 
 	op, err := f.Create(userWithout2FA(), "shop", "en", contactaddress.NewEmail("login@example.com"))
 	s.Require().NoError(err)
@@ -381,7 +384,7 @@ func (s *FactorySuite) TestAuthorizeUserCreatePhoneConvertedToEmail() {
 	s.expectGenerators()
 
 	// confirmPhoneByEmail по умолчанию true: телефонный логин подтверждается по email
-	f := unit.NewAuthorizeUser(s.tokenGen, s.codeGen)
+	f := unit.NewAuthorizeUser(s.tokenGen, testTokenLength, s.codeGen)
 
 	op, err := f.Create(userWith2FA(), "shop", "en", contactaddress.NewPhone("79991234567"))
 	s.Require().NoError(err)
@@ -397,6 +400,7 @@ func (s *FactorySuite) TestAuthorizeUserCreatePhoneLoginWithOptions() {
 
 	f := unit.NewAuthorizeUser(
 		s.tokenGen,
+		testTokenLength,
 		s.codeGen,
 		unit.WithAuthorizeUserConfirmByEmailOpts(action.WithMaxAttempts(5)),
 		unit.WithAuthorizeUserConfirmByPhoneOpts(action.WithMaxAttempts(5)),
@@ -411,13 +415,52 @@ func (s *FactorySuite) TestAuthorizeUserCreatePhoneLoginWithOptions() {
 	s.Equal(confirmmethod.Phone, firstAction.Method)
 }
 
+// TestAuthorizeUserCodeLengthByChannel - длина кода задаётся каналом: она записывается в действие
+// (по ней код перевыпускается при повторной отправке) и по ней же выпускается первый код.
+func (s *FactorySuite) TestAuthorizeUserCodeLengthByChannel() {
+	cases := []struct {
+		name       string
+		login      contactaddress.ContactAddress
+		wantMethod confirmmethod.Enum
+		wantLength int16
+	}{
+		{name: "email login", login: contactaddress.NewEmail("user@example.com"), wantMethod: confirmmethod.Email, wantLength: 4},
+		{name: "phone login", login: contactaddress.NewPhone("79991234567"), wantMethod: confirmmethod.Phone, wantLength: 8},
+	}
+
+	for _, tc := range cases {
+		s.Run(tc.name, func() {
+			s.tokenGen.EXPECT().GenToken(testTokenLength).Return("tok", nil).AnyTimes()
+			s.codeGen.EXPECT().GenCodeWithHash(int(tc.wantLength)).Return("123456", "hashed-code", nil).Times(1)
+
+			f := unit.NewAuthorizeUser(
+				s.tokenGen,
+				testTokenLength,
+				s.codeGen,
+				unit.WithAuthorizeUserConfirmByEmailOpts(action.WithCodeLength(4)),
+				unit.WithAuthorizeUserConfirmByPhoneOpts(action.WithCodeLength(8)),
+				unit.WithAuthorizeUserConfirmPhoneByEmail(false),
+			)
+
+			op, err := f.Create(userWithout2FA(), "shop", "en", tc.login)
+			s.Require().NoError(err)
+
+			firstAction, ok := op.FirstAction()
+			s.Require().True(ok)
+			s.Equal(tc.wantMethod, firstAction.Method)
+			s.Equal(tc.wantLength, firstAction.CodeLength)
+			s.Equal("hashed-code", firstAction.ConfirmCode)
+		})
+	}
+}
+
 // TestChangeEmailRequestConfirmsCurrentAddress - операция смены email собирает доказательства владения
 // аккаунтом, поэтому код подтверждения уходит на текущий адрес пользователя, а не на новый:
 // владение новым адресом подтверждается отдельным шагом сценария смены адреса.
 func (s *FactorySuite) TestChangeEmailRequestConfirmsCurrentAddress() {
 	s.expectGenerators()
 
-	f := unit.NewChangeEmailRequest(s.tokenGen, s.codeGen)
+	f := unit.NewChangeEmailRequest(s.tokenGen, testTokenLength, s.codeGen)
 
 	op, err := f.Create(userWith2FA(), contactaddress.NewEmail("new@example.com"))
 	s.Require().NoError(err)
@@ -446,7 +489,7 @@ func (s *FactorySuite) TestRecoveryPolicy() {
 	s.Run("authorize user - allowed instead of the second factor", func() {
 		s.expectGenerators()
 
-		f := unit.NewAuthorizeUser(s.tokenGen, s.codeGen)
+		f := unit.NewAuthorizeUser(s.tokenGen, testTokenLength, s.codeGen)
 
 		op, err := f.Create(userWith2FA(), "shop", "en", contactaddress.NewEmail("login@example.com"))
 		s.Require().NoError(err)
@@ -459,7 +502,7 @@ func (s *FactorySuite) TestRecoveryPolicy() {
 	s.Run("authorize user without 2fa - not allowed", func() {
 		s.expectGenerators()
 
-		f := unit.NewAuthorizeUser(s.tokenGen, s.codeGen)
+		f := unit.NewAuthorizeUser(s.tokenGen, testTokenLength, s.codeGen)
 
 		op, err := f.Create(userWithout2FA(), "shop", "en", contactaddress.NewEmail("login@example.com"))
 		s.Require().NoError(err)
@@ -471,7 +514,7 @@ func (s *FactorySuite) TestRecoveryPolicy() {
 	s.Run("disable 2fa - allowed instead of the second factor", func() {
 		s.expectGenerators()
 
-		f := unit.NewDisable2FA(s.tokenGen, s.codeGen)
+		f := unit.NewDisable2FA(s.tokenGen, testTokenLength, s.codeGen)
 
 		op, err := f.Create(userWith2FA())
 		s.Require().NoError(err)
@@ -484,7 +527,7 @@ func (s *FactorySuite) TestRecoveryPolicy() {
 	s.Run("regenerate recovery - not allowed at all", func() {
 		s.expectGenerators()
 
-		f := unit.NewRegenerateRecovery(s.tokenGen, s.codeGen)
+		f := unit.NewRegenerateRecovery(s.tokenGen, testTokenLength, s.codeGen)
 
 		op, err := f.Create(userWith2FA())
 		s.Require().NoError(err)
@@ -498,7 +541,7 @@ func (s *FactorySuite) TestRecoveryPolicy() {
 	s.Run("change email - not allowed in the regular chain", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangeEmailRequest(s.tokenGen, s.codeGen)
+		f := unit.NewChangeEmailRequest(s.tokenGen, testTokenLength, s.codeGen)
 
 		op, err := f.Create(userWith2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().NoError(err)
@@ -511,7 +554,7 @@ func (s *FactorySuite) TestRecoveryPolicy() {
 	s.Run("create user - not allowed", func() {
 		s.expectGenerators()
 
-		f := unit.NewCreateUser("shop", "customer", s.tokenGen, s.codeGen)
+		f := unit.NewCreateUser("shop", "customer", s.tokenGen, testTokenLength, s.codeGen)
 
 		op, err := f.Create(userWith2FA(), "en", "Europe/Moscow", contactaddress.NewEmail("user@example.com"), registeredIP)
 		s.Require().NoError(err)
@@ -524,7 +567,7 @@ func (s *FactorySuite) TestRecoveryPolicy() {
 		s.expectGenerators()
 		s.codeGen.EXPECT().HashedSecret(gomock.Any()).Return("hashed-pw", nil).AnyTimes()
 
-		f := unit.NewChangePassword(s.tokenGen, s.codeGen)
+		f := unit.NewChangePassword(s.tokenGen, testTokenLength, s.codeGen)
 
 		op, err := f.Create(userWith2FA(), "new-password")
 		s.Require().NoError(err)
@@ -537,7 +580,7 @@ func (s *FactorySuite) TestRecoveryPolicy() {
 		s.expectGenerators()
 		s.secretGen.EXPECT().GenerateSecret(gomock.Any()).Return("TOTPSECRET", nil).AnyTimes()
 
-		f := unit.NewChangeTOTP(s.tokenGen, s.codeGen, s.secretGen)
+		f := unit.NewChangeTOTP(s.tokenGen, testTokenLength, s.codeGen, s.secretGen)
 
 		op, err := f.Create(userWith2FA())
 		s.Require().NoError(err)
@@ -549,7 +592,7 @@ func (s *FactorySuite) TestRecoveryPolicy() {
 	s.Run("change phone - not allowed", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangePhone(s.tokenGen, s.codeGen)
+		f := unit.NewChangePhone(s.tokenGen, testTokenLength, s.codeGen)
 
 		op, err := f.Create(userWith2FA(), contactaddress.NewPhone("79991234567"))
 		s.Require().NoError(err)
@@ -566,7 +609,7 @@ func (s *FactorySuite) TestByRecoveryChains() {
 	s.Run("authorize user", func() {
 		s.expectGenerators()
 
-		f := unit.NewAuthorizeUserByRecovery(s.tokenGen, s.decoySelector())
+		f := unit.NewAuthorizeUserByRecovery(s.tokenGen, testTokenLength, s.decoySelector())
 
 		op, err := f.Create(userWith2FA(), "shop", "en")
 		s.Require().NoError(err)
@@ -580,7 +623,7 @@ func (s *FactorySuite) TestByRecoveryChains() {
 	s.Run("change email", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangeEmailRequestByRecovery(s.tokenGen)
+		f := unit.NewChangeEmailRequestByRecovery(s.tokenGen, testTokenLength)
 
 		op, err := f.Create(userWith2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().NoError(err)
@@ -599,7 +642,7 @@ func (s *FactorySuite) TestByRecoveryChains() {
 	s.Run("change email without 2fa is rejected", func() {
 		s.expectGenerators()
 
-		f := unit.NewChangeEmailRequestByRecovery(s.tokenGen)
+		f := unit.NewChangeEmailRequestByRecovery(s.tokenGen, testTokenLength)
 
 		_, err := f.Create(userWithout2FA(), contactaddress.NewEmail("new@example.com"))
 		s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
@@ -615,6 +658,7 @@ func (s *FactorySuite) TestByRecoveryActionOptions() {
 
 		f := unit.NewAuthorizeUserByRecovery(
 			s.tokenGen,
+			testTokenLength,
 			s.decoySelector(),
 			unit.WithAuthorizeUserByRecoveryConfirmByRecoveryOpts(
 				action.WithMaxAttempts(7),
@@ -635,6 +679,7 @@ func (s *FactorySuite) TestByRecoveryActionOptions() {
 
 		f := unit.NewChangeEmailRequestByRecovery(
 			s.tokenGen,
+			testTokenLength,
 			action.WithMaxAttempts(7),
 			action.WithExpiry(time.Hour),
 		)
@@ -654,7 +699,7 @@ func (s *FactorySuite) TestByRecoveryActionOptions() {
 func (s *FactorySuite) TestAuthorizeUserByRecoveryDecoy() {
 	s.expectGenerators()
 
-	f := unit.NewAuthorizeUserByRecovery(s.tokenGen, s.decoySelector())
+	f := unit.NewAuthorizeUserByRecovery(s.tokenGen, testTokenLength, s.decoySelector())
 
 	user := userWithout2FA()
 
@@ -680,7 +725,7 @@ func (s *FactorySuite) TestAuthorizeUserByRecoveryDecoy() {
 func (s *FactorySuite) TestAuthorizeUserByRecoveryUsesRealFactor() {
 	s.expectGenerators()
 
-	f := unit.NewAuthorizeUserByRecovery(s.tokenGen, s.decoySelector())
+	f := unit.NewAuthorizeUserByRecovery(s.tokenGen, testTokenLength, s.decoySelector())
 
 	user := userWith2FA()
 
@@ -720,6 +765,7 @@ func (s *FactorySuite) TestAuthorizeUserByRecoveryDecoyMatchesRealChain() {
 
 	f := unit.NewAuthorizeUserByRecovery(
 		s.tokenGen,
+		testTokenLength,
 		s.decoySelector(),
 		unit.WithAuthorizeUserByRecoveryConfirmByPasswordOpts(factorOpts...),
 		unit.WithAuthorizeUserByRecoveryConfirmByTOTPOpts(factorOpts...),

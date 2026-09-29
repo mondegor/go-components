@@ -14,6 +14,7 @@ type (
 	Disable2FA struct {
 		actionCreator  confirmByAddressCreator
 		tokenGenerator mrauth.TokenGenerator
+		tokenLength    int
 		codeGenerator  mrauth.CodeGenerator
 	}
 )
@@ -21,11 +22,13 @@ type (
 // NewDisable2FA - создаёт объект Disable2FA.
 func NewDisable2FA(
 	tokenGenerator mrauth.TokenGenerator,
+	tokenLength int,
 	codeGenerator mrauth.CodeGenerator,
 	confirmByEmailOpts ...action.Option,
 ) *Disable2FA {
 	return &Disable2FA{
 		tokenGenerator: tokenGenerator,
+		tokenLength:    tokenLength,
 		codeGenerator:  codeGenerator,
 		actionCreator:  action.NewConfirmByEmail(confirmByEmailOpts...),
 	}
@@ -39,12 +42,7 @@ func (o *Disable2FA) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 		return secureoperation.SecureOperation{}, mrauth.ErrAuth2FAIsDisabled
 	}
 
-	operationToken, err := o.tokenGenerator.GenToken()
-	if err != nil {
-		return secureoperation.SecureOperation{}, err
-	}
-
-	confirmCode, hashedCode, err := o.codeGenerator.GenCodeWithHash()
+	operationToken, err := o.tokenGenerator.GenToken(o.tokenLength)
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -60,7 +58,7 @@ func (o *Disable2FA) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 
 	actions := make([]secureoperation.ConfirmAction, 1, 2)
 
-	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email), confirmCode, hashedCode)
+	actions[0], err = o.actionCreator.Create(contactaddress.NewEmail(user2FA.Email))
 	if err != nil {
 		return secureoperation.SecureOperation{}, err
 	}
@@ -73,7 +71,8 @@ func (o *Disable2FA) Create(user2FA dto.User2FA) (secureoperation.SecureOperatio
 
 	actions = append(actions, factorAction)
 
-	return secureoperation.NewOperation(
+	return newSendableOperation(
+		o.codeGenerator,
 		operationToken,
 		operationtype.Disable2FA,
 		user2FA.ID,

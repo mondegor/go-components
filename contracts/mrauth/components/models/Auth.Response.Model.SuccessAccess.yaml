@@ -5,12 +5,13 @@ required:
 properties:
   access_token:
     description: |-
-      Access токен. В режиме access_type=session — непрозрачная строка, проверяемая на сервере
-      (отзыв мгновенный). В режиме access_type=jwt — подписанный JWT (HS/RS/ES) с короткоживущими
-      claim'ами sub/sid/aud/scope/iss/iat/jti и заголовком kid; проверяется по подписи (для RS/ES
-      публичные ключи публикуются хостом на /.well-known/jwks.json),
-      отзыв реализован коротким TTL: при DELETE/повторном refresh refresh-линия гасится сразу,
-      а сам access остаётся валиден до истечения своего короткого срока жизни.
+      Access токен. В режиме access_type=session — непрозрачная строка длиной от 64 до 128
+      символов, проверяемая на сервере (отзыв мгновенный). В режиме access_type=jwt — подписанный
+      JWT (HS/RS/ES) с короткоживущими claim'ами sub/sid/aud/scope/iss/iat/jti и заголовком kid;
+      проверяется по подписи (для RS/ES публичные ключи публикуются хостом на
+      /.well-known/jwks.json), отзыв реализован коротким TTL: при DELETE/повторном refresh
+      refresh-линия гасится сразу, а сам access остаётся валиден до истечения своего короткого
+      срока жизни.
     type: string
     example: "425b91568a1801dc02fb5463db17f2be3a4b357929cee700974b1d50cb1f3bc8"
   expires_in:
@@ -24,4 +25,6 @@ properties:
       Refresh токен. Возвращается в этом поле, только если он не передаётся кукой RTID
       в заголовке Set-Cookie (см. описание метода)
     type: string
+    minLength: 64
+    maxLength: 128
     example: "02fb5463db25b91568a1801dc0974b1d50cb1f3bc817f2be3a4b357929cee704"

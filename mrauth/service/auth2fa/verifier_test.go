@@ -52,7 +52,7 @@ func (s *VerifierSuite) SetupTest() {
 	s.source = mock.NewMockuser2faSource(s.ctrl)
 	s.alerter = mock.NewMockrecoveryAlerter(s.ctrl)
 	s.userID = uuid.New()
-	s.gen = crypt.NewSecretGenerator(10)
+	s.gen = crypt.NewSecretGenerator()
 	s.auth = totp.NewAuthenticator("TestIssuer", 20)
 }
 
@@ -427,6 +427,46 @@ func (s *VerifierSuite) TestFetch2FADisabledStillComparesSecret() {
 
 	ok, commit, err := v.Verify(s.ctx, uuid.New(), confirmmethod.Password, true, "any-password")
 	s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
+	s.False(ok)
+	s.Nil(commit)
+}
+
+// TestFactorTypeMismatchStillComparesSecret - тип фактора сменился после создания операции:
+// основного доказательства у звена нет, но сверка с подставным секретом всё равно выполняется,
+// иначе ответ пришёл бы быстрее, чем на неверное значение фактора.
+func (s *VerifierSuite) TestFactorTypeMismatchStillComparesSecret() {
+	comparer := mock.NewMockpasswordComparer(s.ctrl)
+
+	s.expectFetch(entity.Auth2FA{Type: auth2fatype.TOTP, Secret: testTOTPSecret})
+	comparer.EXPECT().
+		CompareSecretAndHash("any-password", gomock.Not(gomock.Eq(""))).
+		Return(false, nil).
+		Times(1)
+
+	v := auth2fa.NewVerifier(s.source, comparer, s.auth)
+
+	ok, commit, err := v.Verify(s.ctx, s.userID, confirmmethod.Password, false, "any-password")
+	s.Require().NoError(err)
+	s.False(ok)
+	s.Nil(commit)
+}
+
+// TestFactorTypeMismatchStillValidatesTOTP - зеркальный случай к тесту выше: звено ждёт TOTP,
+// а у аккаунта теперь пароль; код сверяется с подставным TOTP-секретом, а не с хешем пароля.
+func (s *VerifierSuite) TestFactorTypeMismatchStillValidatesTOTP() {
+	validator := mock.NewMocktotpValidator(s.ctrl)
+	passwordHash := s.hashed("real-password")
+
+	s.expectFetch(entity.Auth2FA{Type: auth2fatype.Password, Secret: passwordHash})
+	validator.EXPECT().
+		ValidateCode("000000", gomock.Not(gomock.Eq(passwordHash))).
+		Return(false, int64(0), nil).
+		Times(1)
+
+	v := auth2fa.NewVerifier(s.source, s.gen, validator)
+
+	ok, commit, err := v.Verify(s.ctx, s.userID, confirmmethod.TOTP, false, "000000")
+	s.Require().NoError(err)
 	s.False(ok)
 	s.Nil(commit)
 }
