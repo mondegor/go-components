@@ -199,7 +199,7 @@ func (s *AuthTokenSuite) TestRecreate_RetriedJWTReissuesAccess() {
 	s.expectTxRunsJob()
 	s.storage.EXPECT().RevokeRefresh(gomock.Any(), "rt", gomock.Any()).Return(us, true, nil)
 	s.storage.EXPECT().FetchLastEnabledPairBySessionID(gomock.Any(), us.UserID, us.SessionID).Return(
-		entity.AuthToken{}, // access пустой => JWT
+		entity.AuthToken{}, // access не хранится => подписанный токен
 		entity.AuthToken{Token: "old-refresh", ExpiresAt: time.Now().Add(time.Hour)},
 		nil,
 	)

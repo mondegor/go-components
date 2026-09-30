@@ -41,7 +41,7 @@ type (
 		Send(ctx context.Context, key string, props map[string]any) error
 	}
 
-	// NoticeSender - занимается непосредственной отправкой сформированных уведомлений получателям.
+	// NoticeSender - передаёт сформированные уведомления на отправку получателям.
 	NoticeSender interface {
 		Send(ctx context.Context, notices []dto.Notice) error
 	}

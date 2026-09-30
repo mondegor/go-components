@@ -233,8 +233,8 @@ func (s *AuthUserSuite) TestResolveUserLookupError() {
 	s.Require().Error(err)
 }
 
-// TestPrepareAuthorizationUserRowIsMissingIsInternal - строка пользователя подтверждённой
-// операции пропала: это рассогласованное состояние БД, а не ответ клиенту. Наружу должна идти
+// TestPrepareAuthorizationUserRowIsMissingIsInternal - пользователь подтверждённой
+// операции пропал: это рассогласованные данные хранилища, а не ответ клиенту. Наружу должна идти
 // внутренняя ошибка (500), а не errors.ErrRecordNotFound, который маппер отдал бы как 404
 // (и который контракт POST /v1/session не объявляет вовсе).
 func (s *AuthUserSuite) TestPrepareAuthorizationUserRowIsMissingIsInternal() {

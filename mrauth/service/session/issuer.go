@@ -17,8 +17,8 @@ const (
 )
 
 type (
-	// Issuer - выдаёт новую сессию: генерирует уникальный session_id и вставляет её строку,
-	// повторяя вставку при коллизии первичного ключа. Скрывает ретраи подбора id от вызывающего.
+	// Issuer - выдаёт новую сессию: генерирует уникальный session_id и сохраняет её,
+	// повторяя сохранение, если session_id занят. Скрывает ретраи подбора id от вызывающего.
 	Issuer struct {
 		storage sessionStorage
 	}
@@ -35,8 +35,8 @@ func NewIssuer(storage sessionStorage) *Issuer {
 	}
 }
 
-// Issue - вставляет строку новой сессии, генерируя уникальный session_id и повторяя
-// вставку при коллизии PK. Возвращает фактически записанный session_id.
+// Issue - сохраняет новую сессию, генерируя уникальный session_id и повторяя
+// сохранение, если session_id занят. Возвращает фактически записанный session_id.
 func (s *Issuer) Issue(ctx context.Context, session entity.Session) (sessionID uint32, err error) {
 	for attempt := 1; ; attempt++ {
 		session.SessionID, err = genSessionID()

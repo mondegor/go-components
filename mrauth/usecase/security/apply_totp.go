@@ -231,7 +231,7 @@ func (uc *ApplyTOTPGenerator) Execute(
 }
 
 // clampRecoveryCount - ограничивает число аварийных кодов диапазоном [minRecoveryCount, maxRecoveryCount]:
-// оно задаёт длину bcrypt-перебора при проверке, поэтому это защита от чрезмерного значения из конфигурации хоста.
+// оно задаёт длину перебора хешей при проверке, поэтому это защита от чрезмерного значения из конфигурации хоста.
 func clampRecoveryCount(count int) int {
 	if count < minRecoveryCount {
 		return minRecoveryCount

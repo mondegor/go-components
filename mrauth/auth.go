@@ -33,7 +33,7 @@ type (
 
 	// RealmRegistry - реестр соответствия числового идентификатора realm его имени.
 	// Имя используется на границах системы (HTTP, token scopes, отображение),
-	// идентификатор - как компактный ключ хранения в БД.
+	// идентификатор - как компактный ключ хранения.
 	RealmRegistry interface {
 		IDByName(name string) (id uint16, ok bool)
 		NameByID(id uint16) (name string, ok bool)
@@ -56,8 +56,8 @@ type (
 		CreateTokenPair(userScopes dto.UserScopes) (token dto.AuthTokenPair, err error)
 	}
 
-	// Notifier - ставит уведомление по ключу события в отправку; получатель передаётся
-	// в props["to"] адресом (ID пользователя заменяется на email декоратором notify.UserEmailNotifier).
+	// Notifier - ставит уведомление по ключу события в отправку; получатель передаётся в props["to"]
+	// адресом; вызывающим, знающим только ID пользователя, нужен разрешающий его декоратор.
 	Notifier interface {
 		Send(ctx context.Context, key string, props map[string]any) error
 	}

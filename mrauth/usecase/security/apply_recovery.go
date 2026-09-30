@@ -130,7 +130,7 @@ func (uc *ApplyRecovery) Execute(
 		}
 
 		if err = uc.storage.UpdateRecoveryCodes(ctx, op.UserID, hashedCodes); err != nil {
-			// строки 2FA нет: она удалена между созданием операции и её применением
+			// записи 2FA нет: она удалена между созданием операции и её применением
 			if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 				failedLogState = newLogState(logstatus.Blocked, logreason.Auth2FAStateChanged)
 

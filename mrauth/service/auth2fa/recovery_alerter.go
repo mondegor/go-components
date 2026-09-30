@@ -17,7 +17,9 @@ const (
 type (
 	// RecoveryAlerter - оповещает пользователя через notifierAPI о каждом использовании
 	// аварийного кода: сообщает остаток и признак low - остаток не выше threshold, при котором
-	// в письме предлагается перевыпустить список.
+	// в письме предлагается перевыпустить список. Получатель передаётся в props["to"]
+	// как ID пользователя (uuid.UUID), поэтому notifierAPI должен разрешать его в адрес
+	// (см. notify.UserEmailNotifier).
 	RecoveryAlerter struct {
 		notifierAPI mrauth.Notifier
 		threshold   int

@@ -331,7 +331,7 @@ func (s *OpenSessionSuite) TestSessionLimitFetchError() {
 }
 
 // TestOperationConsumeRace - оптимистичная сериализация: конкурентный запрос уже потребил
-// (удалил) операцию, поэтому Delete затрагивает 0 строк и возвращает ErrEventStorageNoRecordFound;
+// (удалил) операцию, поэтому Delete не находит её и возвращает ErrEventStorageNoRecordFound;
 // usecase приводит его к ErrOperationInvalid -> транзакция открытия сессии откатывается.
 func (s *OpenSessionSuite) TestOperationConsumeRace() {
 	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
@@ -581,7 +581,7 @@ func (s *CloseSessionSuite) SetupTest() {
 // TestEmptyToken - метод идемпотентен, поэтому пустой токен - такой же успех, как неизвестный:
 // контракт обещает 204, а ошибка здесь ломала бы logout. При этом отзывать по пустому токену
 // заведомо нечего, поэтому запрос вниз не идёт вовсе: отсутствие EXPECT на Close пиннит,
-// что гард в usecase не даёт уйти бессмысленному запросу в БД.
+// что гард в usecase не даёт уйти бессмысленному вызову хранилища.
 func (s *CloseSessionSuite) TestEmptyToken() {
 	s.Require().NoError(s.uc.Execute(s.ctx, s.userID, ""))
 }

@@ -56,7 +56,7 @@ func (s *RecoveryAlerterSuite) TestNotifiesEveryUse() {
 			s.notifierAPI.EXPECT().
 				Send(gomock.Any(), "user.recovery_codes.used", gomock.Any()).
 				DoAndReturn(func(_ context.Context, _ string, props map[string]any) error {
-					s.Equal(userID, props["to"]) // ID пользователя заменяется на email декоратором notifierAPI
+					s.Equal(userID, props["to"]) // получатель передаётся идентификатором пользователя
 					s.Equal(tc.remaining, props["remaining"])
 					s.Equal(tc.wantLow, props["low"])
 

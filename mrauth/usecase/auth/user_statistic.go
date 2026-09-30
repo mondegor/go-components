@@ -77,7 +77,7 @@ func (uc *UserStatistic) Execute(ctx context.Context, messages []dto.UserActivit
 	stat := make([]dto.UserActivityLastVisited, 0, len(messages))
 
 	for i := range messages {
-		// RealmID = 0 - realm не определён (см. dto.UserActivityLogMessage): строки статистики
+		// RealmID = 0 - realm не определён (см. dto.UserActivityLogMessage): статистики
 		// для него не существует, обновлять нечего; сессия и журнал обрабатываются как обычно
 		if messages[i].RealmID == 0 {
 			continue
@@ -111,7 +111,7 @@ func (uc *UserStatistic) Execute(ctx context.Context, messages []dto.UserActivit
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		// ни одна пара (user, realm) пакета не имеет строки статистики: для realm != 0 строка
+		// ни одна пара (user, realm) пакета не имеет статистики: для realm != 0 она
 		// создаётся при входе в realm (OpenSession, где сбой её записи лишь логируется), поэтому
 		// total-miss - признак деградации, а не штатный случай. Сигналим в лог, но пакет
 		// не проваливаем: иначе он бесконечно ретраился бы, а keep-alive сессий уже обновлён
@@ -153,8 +153,7 @@ func (uc *UserStatistic) sessionsLastActivity(messages []dto.UserActivityLogMess
 			UserID:    msg.UserID,
 			SessionID: msg.SessionID,
 			// инвариант: real IP в сообщении всегда задан (источник RemoteAddr,
-			// см. collect.UserRequest.Emit), поэтому запись в sessions.last_ip (NOT NULL)
-			// безопасна и проверки IsValid не требует
+			// см. collect.UserRequest.Emit), поэтому LastIP заполнен всегда и проверки IsValid не требует
 			LastIP:        msg.UserIP.Real,
 			LastVisitedAt: msg.VisitedAt,
 		}

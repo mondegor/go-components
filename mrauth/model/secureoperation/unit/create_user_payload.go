@@ -27,8 +27,8 @@ func BuildCreateUserPayload(in dto.CreateUserOperation) ([]byte, error) {
 
 // ParseCreateUserPayload - разбирает payload операции создания пользователя и проверяет его
 // инварианты. Инварианты проверяются именно на чтении, а не только на записи: между созданием
-// операции и её подтверждением проходит время, payload всё это время лежит в БД как непрозрачные
-// байты (bytea), которые СУБД никак не валидирует. Поэтому его целостность подтверждается на
+// операции и её подтверждением проходит время, payload всё это время лежит в хранилище как
+// непрозрачные байты, которые оно никак не валидирует. Поэтому его целостность подтверждается на
 // каждом чтении, а не предполагается по факту того, что запись прошла через BuildCreateUserPayload.
 func ParseCreateUserPayload(payload []byte) (dto.CreateUserOperation, error) {
 	parsed := dto.CreateUserOperation{}
@@ -50,8 +50,8 @@ func ParseCreateUserPayload(payload []byte) (dto.CreateUserOperation, error) {
 // с единственным видом пользователей, а для IP действует инвариант "RemoteAddr всегда валиден".
 //
 // TimeZone проверяется наравне с LangCode: пустое значение по умолчанию нигде не подставляется,
-// поэтому иначе оно дошло бы до колонки users.user_timezone, и первая же выдача токена упала бы
-// внутренней ошибкой уже после успешной регистрации (см. jwt.TokenIssuer.CreateTokenPair).
+// поэтому иначе оно дошло бы до профиля пользователя, и первая же выдача токена упала бы
+// внутренней ошибкой уже после успешной регистрации (см. dto.UserScopes.Validate).
 func validateCreateUserPayload(in dto.CreateUserOperation) error {
 	if in.Realm == "" {
 		return errors.ErrInternalIncorrectInputData.

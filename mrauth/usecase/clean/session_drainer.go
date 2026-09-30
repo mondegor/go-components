@@ -10,9 +10,9 @@ import (
 
 type (
 	// SessionDrainer - воркер, сливающий очередь удаления сессий батчами.
-	// Разделение ответственности: consumer выбирает/удаляет пары из очереди, deleter атомарно
-	// удаляет из них реально осиротевшие строки сессий (проверка осиротелости и удаление - в
-	// одном запросе, что исключает гонку с параллельным переоткрытием сессии).
+	// Разделение ответственности: consumer выбирает/удаляет пары из очереди, deleter удаляет
+	// из них реально осиротевшие сессии (проверка осиротелости и удаление атомарны, что исключает
+	// гонку с параллельным переоткрытием сессии).
 	SessionDrainer struct {
 		consumer     SessionCleanupQueueConsumer
 		deleter      OrphanSessionDeleter
@@ -25,7 +25,7 @@ type (
 		Delete(ctx context.Context, pks []entity.SessionPK) error
 	}
 
-	// OrphanSessionDeleter - атомарное удаление реально осиротевших строк сессий.
+	// OrphanSessionDeleter - атомарное удаление реально осиротевших сессий.
 	OrphanSessionDeleter interface {
 		DeleteOrphaned(ctx context.Context, candidates []entity.SessionPK) error
 	}

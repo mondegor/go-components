@@ -54,7 +54,7 @@ func NewCreateSessionByRecovery(
 			logOperation,
 			realm2operation,
 			// шаблона нет: первое звено этой цепочки - второй фактор, кода к отправке
-			// не возникает вовсе (см. AuthorizeUserByRecovery)
+			// не возникает вовсе (см. unit.AuthorizeUserByRecovery)
 			"",
 		),
 	}

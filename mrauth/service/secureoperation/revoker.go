@@ -42,7 +42,7 @@ func NewRevoker(storage operationRevokerStorage, logOperation operationLogger) *
 // в журнале отзыв с причиной reason - по одной записи на каждый отозванный тип операции.
 // Отсутствие операций - штатный случай, а не ошибка.
 // Вызывается внутри транзакции изменения, из-за которого операции стали недействительными;
-// журнал best-effort и пишется сразу, поэтому запись может пережить откат этой транзакции.
+// журнал best-effort и в транзакции не участвует, поэтому запись может пережить её откат.
 func (o *Revoker) RevokeAll(ctx context.Context, actor dto.ActorMeta, reason logreason.Enum) error {
 	if actor.VisitorID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")

@@ -231,8 +231,8 @@ func (s *CreateSessionSuite) TestSuccess() {
 	_, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().NoError(err)
 	s.Equal("confirm.create.session.by.email", s.openedNote)
-	// запись об открытии операции (и о вытеснении прежних) пишет компонент Opener,
-	// поэтому здесь журнал остаётся пустым - проверка в его собственном тесте
+	// запись журнала об открытии операции (и о вытеснении прежних) - ответственность Open
+	// (контракт operationOpener), поэтому здесь журнал остаётся пустым
 	s.Empty(s.logEntries)
 }
 
@@ -267,8 +267,8 @@ func (s *CreateSessionSuite) TestCheckerError() {
 	s.Require().Error(err)
 }
 
-// TestCheckerRecordNotFoundIsInternal - строка пользователя пропала между проверкой логина и
-// созданием операции: это рассогласованное состояние БД, а не ответ клиенту. Наружу должна идти
+// TestCheckerRecordNotFoundIsInternal - пользователь пропал между проверкой логина и
+// созданием операции: это рассогласованные данные хранилища, а не ответ клиенту. Наружу должна идти
 // внутренняя ошибка (500), а не errors.ErrRecordNotFound, который маппер отдал бы как 404 -
 // статус, которого контракт signin не объявляет.
 func (s *CreateSessionSuite) TestCheckerRecordNotFoundIsInternal() {
@@ -512,7 +512,7 @@ func (s *CreateUserSuite) TestSuccess() {
 	// поток регистрации анонимный: форензику несёт IP, а не идентификатор посетителя
 	s.Equal(testIP(), s.openedActor.ClientIP)
 	s.Equal(uuid.Nil, s.openedActor.VisitorID)
-	// запись об открытии операции пишет компонент Opener - проверка в его собственном тесте
+	// запись журнала об открытии операции - ответственность Open (контракт operationOpener)
 	s.Empty(s.logEntries)
 }
 
@@ -540,7 +540,7 @@ func (s *CreateUserSuite) TestCheckerError() {
 }
 
 // TestCheckerRecordNotFoundIsInternal - см. одноимённый тест CreateSessionSuite: отсутствие
-// строки на этапе проверки логина - рассогласование БД (500), а не 404 клиенту.
+// пользователя на этапе проверки логина - рассогласование данных хранилища (500), а не 404 клиенту.
 func (s *CreateUserSuite) TestCheckerRecordNotFoundIsInternal() {
 	s.expectCheckLogin(sysmesserrors.ErrEventStorageNoRecordFound)
 	s.expectLock(nil)

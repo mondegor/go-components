@@ -88,8 +88,9 @@ func New(
 //
 // userID берётся из подтверждённой операции: Nil означает, что на момент её создания email не
 // принадлежал никому. Существование пользователя с этим email на момент подтверждения означает
-// ретрай тем же токеном ЛИБО параллельный кросс-realm signup (лок при создании операции - пер
-// realm+email, поэтому разные realm идут независимо) - в этом случае используется существующий id.
+// ретрай тем же токеном ЛИБО параллельный кросс-realm signup (создание операции сериализуется
+// блокировкой по паре realm+email, поэтому разные realm идут независимо) - в этом случае используется
+// существующий id.
 func (s *Service) ResolveUser(ctx context.Context, userID uuid.UUID, in dto.CreateUserOperation) (uuid.UUID, error) {
 	// пользователь уже известен из операции - только гарантируем привязку к нужному realm
 	if userID != uuid.Nil {
@@ -125,8 +126,8 @@ func (s *Service) PrepareAuthorization(ctx context.Context, userID uuid.UUID, in
 		return dto.UserScopes{}, nil, errors.ErrInternalIncorrectInputData.WithDetails("realm is unknown", "realm", in.Realm)
 	}
 
-	// строка пользователя подтверждённой операции обязана существовать: её отсутствие -
-	// рассогласованное состояние БД, а не ответ клиенту, поэтому наружу идёт внутренняя ошибка
+	// пользователь подтверждённой операции обязан существовать: его отсутствие -
+	// рассогласованные данные хранилища, а не ответ клиенту, поэтому наружу идёт внутренняя ошибка
 	user, err := s.storageUser.FetchOne(ctx, userID)
 	if err != nil {
 		return dto.UserScopes{}, nil, s.errorWrapper.Wrap(err, "userId", userID)
