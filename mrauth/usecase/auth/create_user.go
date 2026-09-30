@@ -184,8 +184,8 @@ func (co *CreateUser) Execute(
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
-	// поток регистрации анонимный, форензику несёт IP; если же email принадлежит
-	// существующему пользователю, владелец операции известен и Open зафиксирует в журнале его
+	// поток регистрации анонимный: посетитель не передаётся, форензику несёт IP; если email
+	// принадлежит существующему пользователю, Open сам зафиксирует его в журнале как владельца операции
 	err = co.opener.Open(
 		ctx,
 		dto.ActorMeta{ClientIP: registeredIP},

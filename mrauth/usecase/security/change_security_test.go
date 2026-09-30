@@ -207,9 +207,9 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertySuccess() {
 }
 
 // TestChangeEmailByRecoveryPropertySuccess - смена адреса при утрате доступа к нему идёт
-// отдельным юзкейсом со своей фабрикой (unit.ChangeEmailRequestByRecovery), но тем же конвейером: проверка
-// доступности нового адреса и открытие операции обязаны остаться. Шаблон уведомления при этом
-// не передаётся вовсе: первое звено цепочки не sendable, кода к отправке не возникает.
+// отдельным юзкейсом со своей фабрикой (unit.ChangeEmailRequestByRecovery), но тем же конвейером:
+// проверка доступности нового адреса и открытие операции обязаны остаться. Шаблон уведомления
+// при этом не передаётся вовсе: первое звено цепочки не sendable, кода к отправке не возникает.
 func (s *ChangeSecuritySuite) TestChangeEmailByRecoveryPropertySuccess() {
 	s.expectOpen(nil)
 	s.expect2FA(userWithEmail(), nil)
@@ -464,8 +464,8 @@ func (s *ChangeSecuritySuite) TestDisable2FAFactoryError() {
 	s.Require().Error(err)
 }
 
-// TestUserRowIsMissingIsInternal - строки пользователя нет, хотя access-токен предъявлен и
-// валиден: это рассогласованное состояние БД, а не ответ клиенту. Наружу должна идти внутренняя
+// TestUserRowIsMissingIsInternal - пользователя нет, хотя access-токен предъявлен и
+// валиден: это рассогласованные данные хранилища, а не ответ клиенту. Наружу должна идти внутренняя
 // ошибка (500), а не ошибка о недействительном токене и не errors.ErrRecordNotFound (404).
 // Проверяются все создающие методы: обёртка ошибок задаётся в каждом конструкторе отдельно,
 // поэтому одного usecase здесь недостаточно.

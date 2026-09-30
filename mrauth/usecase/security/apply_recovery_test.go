@@ -99,7 +99,7 @@ func (s *ApplyRecoverySuite) TestConfirmedReplacesAndReturnsCodes() {
 	s.Equal(operationtype.RegenerateRecovery.String(), s.logEntries[0].SourceName)
 }
 
-// TestNo2FARowReportsDisabled - строки 2FA нет: её удалили между созданием операции и её
+// TestNo2FARowReportsDisabled - записи 2FA нет: её удалили между созданием операции и её
 // применением. Клиент должен увидеть "2FA выключена", а не ошибку о недействительном токене:
 // токен цел, и создавать операцию заново бессмысленно - сначала нужно включить 2FA.
 func (s *ApplyRecoverySuite) TestNo2FARowReportsDisabled() {

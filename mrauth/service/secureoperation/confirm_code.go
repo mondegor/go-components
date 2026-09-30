@@ -64,7 +64,7 @@ func (o *ConfirmCode) Prepare(
 			case confirmmethod.TOTP, confirmmethod.Password, confirmmethod.Recovery:
 				ok, factorCommit, err := o.verifier.Verify(ctx, op.UserID, action.Method, action.AllowRecovery, confirmCode)
 				if err != nil {
-					// строки 2FA нет: либо действие подставное (построено аккаунту с выключенной 2FA),
+					// 2FA у пользователя нет: либо действие подставное (построено аккаунту с выключенной 2FA),
 					// либо 2FA сняли уже после создания операции. Отдельным кодом ответа эти случаи
 					// не отражаются вовсе: метод гостевой, и любой отличающийся ответ читался бы как
 					// состояние 2FA аккаунта - ровно то, что подстановка скрывает. Поэтому отказ

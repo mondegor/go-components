@@ -25,7 +25,7 @@ type (
 		// Address - only for confirmmethod.Email and confirmmethod.Phone.
 		Address string `json:"address,omitempty"`
 
-		// ConfirmCode - bcrypt-хеш кода подтверждения; заполняется только у Email/Phone,
+		// ConfirmCode - хеш кода подтверждения (mrauth.CodeGenerator); заполняется только у Email/Phone,
 		// у остальных действий доказательство сверяет второй фактор, а не операция.
 		ConfirmCode string `json:"code,omitempty"`
 

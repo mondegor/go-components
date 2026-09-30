@@ -170,7 +170,7 @@ func (s *ConfirmOperationSuite) TestUnknownTokenIsDomainError() {
 	s.Require().NotErrorIs(err, sysmesserrors.ErrRecordNotFound)
 }
 
-// TestRecordNotFoundAfterLockIsInternal - строка уже выбрана через FetchOneForUpdate, то есть
+// TestRecordNotFoundAfterLockIsInternal - операция уже выбрана через FetchOneForUpdate, то есть
 // заблокирована в этой же транзакции: её исчезновение на записи - нарушение инварианта, а не
 // недействительный токен. Перевод "записи нет" вешается только на поиск по токену, иначе
 // повреждение данных замаскируется под обычный ответ клиенту.
@@ -352,7 +352,7 @@ func (s *ConfirmOperationSuite) TestSuccessAuth2FARaceRejectedAsWrongCode() {
 }
 
 // TestCommitFailureIsNotReplay - commit второго фактора упал по причине, не связанной
-// с его расходованием (например, сбой alerter'а внутри транзакции). Такой сбой не должен
+// с его расходованием (например, сбой побочного действия внутри commit). Такой сбой не должен
 // маскироваться под повтор кода: наружу идёт внутренняя ошибка, а не «неверный код»,
 // и в журнал безопасности не пишется TOTP_REPLAY.
 func (s *ConfirmOperationSuite) TestCommitFailureIsNotReplay() {

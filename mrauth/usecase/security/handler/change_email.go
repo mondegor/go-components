@@ -44,8 +44,8 @@ func NewChangeEmail(
 
 // Execute - меняет email пользователя на новый и отправляет на прежний адрес уведомление
 // о состоявшейся смене. Если новый адрес успели занять за время жизни операции, возвращает
-// mrauth.ErrEmailAlreadyExists: уникальность адреса держит индекс, поэтому гонка с другим
-// пользователем проявляется нарушением уникальности при обновлении.
+// mrauth.ErrEmailAlreadyExists: гонка с другим пользователем за адрес проявляется ошибкой
+// дубликата от UpdateEmail.
 func (uc *ChangeEmail) Execute(ctx context.Context, actor dto.ActorMeta, payload []byte) error {
 	if actor.VisitorID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")

@@ -15,7 +15,7 @@ type (
 	// SessionExcessTrimmer - воркер фоновой чистки лишних сессий. По каждой записи очереди
 	// (пользователь+realm) пересчитывает живые сессии этого realm и, ТОЛЬКО при превышении лимита,
 	// ревокает дубли одного устройства и наименее активные сверх лимита, затем сам удаляет
-	// осиротевшие строки.
+	// осиротевшие сессии.
 	SessionExcessTrimmer struct {
 		txManager    mrstorage.DBTxManager
 		consumer     SessionExcessQueueConsumer
@@ -76,13 +76,13 @@ func NewSessionExcessTrimmer(
 // краш между обработкой и ack приводит лишь к идемпотентной переобработке, без потерь.
 //
 // Пользователи пачки обрабатываются ПОСЛЕДОВАТЕЛЬНО (без внутрибатчевого параллелизма): на каждого
-// приходится ~3-4 round-trip'а к БД (FetchOpenSessions + FetchOrderedList + транзакция ревока),
-// то есть до ~limit*4 запросов на пачку. Это осознанный trade-off ради простоты single-pod-воркера:
+// приходится ~4 обращения к хранилищу (FetchOpenSessions + FetchOrderedList + два в транзакции ревока),
+// то есть до ~limit*4 обращений на пачку. Это осознанный trade-off ради простоты single-pod-воркера:
 // длительность ограничена durationLimit у ItemBatchPlayer, а крупный backlog разгребается за несколько
-// циклов. Если понадобится ускорить - батчить выборки по группе user_id (user_id = ANY(...)),
-// оставив транзакцию ревока пер-юзерной.
+// циклов. Если понадобится ускорить - батчить выборки по группе пользователей, оставив транзакцию
+// ревока пер-юзерной.
 // TODO: при росте backlog'а батчить read-сторону (FetchOpenSessions/FetchOrderedList) по группе
-// user_id = ANY(...), сократив ~limit*4 round-trip'ов, транзакцию ревока оставить пер-юзерной.
+// пользователей, сократив число обращений к хранилищу, транзакцию ревока оставить пер-юзерной.
 func (co *SessionExcessTrimmer) Execute(ctx context.Context, limit int) (count int, err error) {
 	if limit < 1 {
 		return 0, errors.ErrInternalIncorrectInputData.WithDetails("limit is zero or negative")
@@ -115,9 +115,9 @@ func (co *SessionExcessTrimmer) Execute(ctx context.Context, limit int) (count i
 }
 
 // trimUser - пересчитывает живые сессии пользователя в realm записи, выбирает лишние (дубли
-// устройства + сверх лимита) и в одной транзакции ревокает их токены и удаляет осиротевшие строки.
+// устройства + сверх лимита) и в одной транзакции ревокает их токены и удаляет осиротевшие сессии.
 // session_id уникален в пределах пользователя и принадлежит сессиям только этого realm, поэтому
-// ревок/удаление по session_id не задевают другие realm. DeleteOrphaned удалит лишь строки без
+// ревок/удаление по session_id не задевают другие realm. DeleteOrphaned удалит лишь сессии без
 // живого refresh-токена - защита от гонки с переоткрытием сессии.
 func (co *SessionExcessTrimmer) trimUser(ctx context.Context, item entity.SessionExcessItem) error {
 	openSessions, err := co.openFetcher.FetchOpenSessions(ctx, item.UserID, item.RealmID)

@@ -9,8 +9,8 @@ import (
 )
 
 type (
-	// SettingsGetter - обёртка с упрощённым интерфейсом для сервиса получения настроек,
-	// которые хранятся в хранилище данных.
+	// SettingsGetter - обёртка с упрощённым интерфейсом для сервиса получения настроек
+	// (mrsettings.Getter).
 	SettingsGetter struct {
 		reader mrsettings.Getter
 		logger mrlog.Logger

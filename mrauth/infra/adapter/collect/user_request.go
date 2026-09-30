@@ -77,9 +77,9 @@ func (rs *UserRequest) Emit(r *http.Request, _ []byte, _ int, _ []byte, _ int, _
 	realmID, ok := rs.realmRegistry.IDByName(usergroup.Realm(group))
 	if !ok {
 		// ошибка конфигурации: реестр realm'ов разошёлся с провайдерами. Сообщение не дропается,
-		// а уходит с сентинелом RealmID = 0: иначе замёрз бы keep-alive сессий (sessions.updated_at),
-		// и session-limit eviction закрывал бы реально активные сессии; теряется только
-		// per-realm статистика (свёртка last-visited пропускает realm 0)
+		// а уходит с сентинелом RealmID = 0: иначе замёрз бы keep-alive сессий, и session-limit
+		// eviction закрывал бы реально активные сессии; теряется только per-realm статистика
+		// (см. dto.UserActivityLogMessage)
 		realmID = 0 // явно: контракт IDByName не обязывает возвращать 0 при промахе
 
 		if rs.allowUnknownRealmLog(time.Now()) {
@@ -97,8 +97,7 @@ func (rs *UserRequest) Emit(r *http.Request, _ []byte, _ int, _ []byte, _ int, _
 		RealmID:   realmID,
 		SessionID: rs.parseSessionID(r.Context(), rs.parserUser.SessionID(r)),
 		// инвариант: real IP всегда задан - источник RemoteAddr, который в поддерживаемых
-		// конфигурациях (tcp-listener) всегда парсится; на этом держатся NOT NULL колонки
-		// users_activity_log.user_ip и sessions.last_ip, куда сообщение попадает из очереди
+		// конфигурациях (tcp-listener) всегда парсится; получатели сообщения на это полагаются
 		UserIP:        rs.parserClientIP.DetailedIP(r),
 		UserAgent:     r.UserAgent(),
 		RequestPath:   r.URL.Path,

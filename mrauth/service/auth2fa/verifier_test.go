@@ -175,7 +175,7 @@ func (s *VerifierSuite) TestAllDigitCodeSkipsRecovery() {
 		Secret:        testTOTPSecret,
 		RecoveryCodes: []string{"hash-1", "hash-2", "hash-3"},
 	})
-	// неверный код в формате TOTP (только цифры) не должен запускать перебор bcrypt-хешей
+	// неверный код в формате TOTP (только цифры) не должен запускать сверку с хешами аварийных кодов
 	comparer.EXPECT().CompareSecretAndHash(gomock.Any(), gomock.Any()).Times(0)
 
 	v := auth2fa.NewVerifier(s.source, comparer, s.auth)
@@ -241,7 +241,7 @@ func (s *VerifierSuite) TestVerifyRecoveryNoMatch() {
 }
 
 // TestVerifyRecoverySkipsShortCode - код, не похожий на аварийный (обычный код с емаила),
-// отклоняется завершающим звеном без перебора bcrypt-хешей.
+// отклоняется завершающим звеном без сверки с хешами аварийных кодов.
 func (s *VerifierSuite) TestVerifyRecoverySkipsShortCode() {
 	comparer := mock.NewMockpasswordComparer(s.ctrl)
 
@@ -392,7 +392,7 @@ func (s *VerifierSuite) TestFetchError() {
 	s.Nil(commit)
 }
 
-// TestFetch2FADisabledIsReported - строки 2FA нет: у аккаунта её либо никогда не было
+// TestFetch2FADisabledIsReported - записи 2FA нет: у аккаунта её либо никогда не было
 // (цепочка-заглушка входа по аварийному коду), либо её удалили между созданием операции
 // и её подтверждением. Верификатор отдаёт этот факт как есть, а скрывать ли состояние
 // аккаунта - решает вызывающий.
@@ -416,8 +416,8 @@ func (s *VerifierSuite) TestFetch2FADisabledStillComparesSecret() {
 	s.source.EXPECT().
 		FetchOne(gomock.Any(), gomock.Any()).
 		Return(entity.Auth2FA{}, sysmesserrors.ErrEventStorageNoRecordFound)
-	// сверка идёт с подставным хешем, а не с пустой строкой: bcrypt по пустому хешу
-	// завершается мгновенно и всю затею обесценивает
+	// сверка идёт с подставным хешем, а не с пустой строкой: сверка с пустым хешем не обязана
+	// стоить столько же, сколько с настоящим, и выдала бы состояние аккаунта
 	comparer.EXPECT().
 		CompareSecretAndHash("any-password", gomock.Not(gomock.Eq(""))).
 		Return(false, nil).
@@ -597,9 +597,9 @@ func (s *VerifierSuite) TestCommitRecoveryCodeRaceTranslated() {
 	s.Require().NotErrorIs(commitErr, sysmesserrors.ErrEventStorageNoRecordFound)
 }
 
-// TestAlerterErrorIsNotTranslated - код успешно израсходован, а упал alerter (внедряется
-// хостом и ходит в своё хранилище). Его "запись не найдена" к расходу кода отношения не имеет
-// и обязана дойти как есть: иначе вызывающий код примет сбой alerter'а за повтор второго
+// TestAlerterErrorIsNotTranslated - код успешно израсходован, а alerter вернул ошибку. Любая
+// его ошибка, в том числе "запись не найдена", к расходу кода отношения не имеет и обязана
+// дойти как есть: иначе вызывающий код примет сбой alerter'а за повтор второго
 // фактора и отдаст клиенту "неверный код" вместо внутренней ошибки.
 func (s *VerifierSuite) TestAlerterErrorIsNotTranslated() {
 	h1 := s.hashed("AAAAABBBBB")

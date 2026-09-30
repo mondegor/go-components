@@ -23,9 +23,8 @@ type (
 
 	// LocationResolver - определяет местоположение по IP адресу; параметр result задаёт,
 	// что вернуть, когда местоположение вычислено, а что - когда нет (см. константы Location*).
-	// Адрес нормально всегда задан: источник - RemoteAddr, а колонки, из которых он читается
-	// (last_login_ip, sessions.last_ip), объявлены NOT NULL. Тем не менее реализация должна выдержать
-	// и незаданный netip.Addr - DefaultLocationResolver в этом случае возвращает пустую строку.
+	// Адрес задан всегда (источник - RemoteAddr), но реализация обязана выдержать
+	// и незаданный netip.Addr.
 	LocationResolver func(ip netip.Addr, mode LocationMode) string
 
 	// AppResolver - определяет приложение и устройство по строке User-Agent.

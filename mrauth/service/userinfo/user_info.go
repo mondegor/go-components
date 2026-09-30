@@ -148,8 +148,8 @@ func (sv *UserInfo) buildRealms(realms []entity.UserRealm, stats []entity.UserAc
 			UpdatedAt: realm.UpdatedAt,
 		}
 
-		// запись заводится только при входе, а last_login_ip/last_logged_at объявлены NOT NULL
-		// (см. _sample/migrations, users_activity_stat), поэтому в найденной строке IP и дата входа есть
+		// статистика по realm'у появляется только после входа в него, поэтому у найденной записи
+		// IP и время входа заданы
 		if stat, ok := statByRealm[realm.RealmID]; ok {
 			item.LastLocation = sv.locationResolver(stat.LastLoginIP, mrauth.LocationOrIP)
 			item.LastLoggedAt = stat.LastLoggedAt

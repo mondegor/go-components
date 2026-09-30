@@ -12,7 +12,7 @@ import (
 	"github.com/mondegor/go-components/mrsettings/enum/settingtype"
 )
 
-// Reload - работа для обновления кэша настроек из БД.
+// Reload - обновляет кэш настроек изменениями из хранилища данных.
 func (sv *SettingsGetter) Reload(ctx context.Context) error {
 	sv.cache.mu.RLock()
 	lastUpdated := sv.lastUpdated
