@@ -52,6 +52,7 @@ func TestSecurityChangePhoneNormalizesNumber(t *testing.T) {
 		})
 	parser.EXPECT().UserID(gomock.Any()).Return(uuid.New())
 	parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{})
+	parser.EXPECT().Location(gomock.Any()).Return(time.UTC)
 	parser.EXPECT().Localizer(gomock.Any()).Return(localizer)
 	localizer.EXPECT().Translate(gomock.Any()).Return("confirm it")
 
@@ -100,6 +101,7 @@ func TestSecurityChangePasswordTooWeakBoundToField(t *testing.T) {
 		})
 	parser.EXPECT().UserID(gomock.Any()).Return(uuid.New())
 	parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{})
+	parser.EXPECT().Location(gomock.Any()).Return(time.UTC)
 
 	useCase.EXPECT().
 		Execute(gomock.Any(), gomock.Any(), "aaaaaaaa").
@@ -162,14 +164,21 @@ func TestSecurityApplyEmail(t *testing.T) {
 			parser.EXPECT().UserID(gomock.Any()).Return(uuid.New())
 			parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{})
 
-			// пояс пользователя из запроса доходит до usecase: в нём выводится срок в уведомлении
+			// пояс пользователя и User-Agent из запроса доходят до usecase в метаданных клиента:
+			// в поясе выводятся время события и срок в уведомлении, по User-Agent - устройство
 			userLocation := time.FixedZone("MSK", 3*60*60)
 			parser.EXPECT().Location(gomock.Any()).Return(userLocation)
 
 			confirmOp := secureoperation.SecureOperation{Token: "new-op-token"}
+
 			useCase.EXPECT().
-				Execute(gomock.Any(), gomock.Any(), userLocation, "op-token").
-				Return(confirmOp, tt.useCaseErr)
+				Execute(gomock.Any(), gomock.Any(), "op-token").
+				DoAndReturn(func(_ context.Context, actor dto.ActorMeta, _ string) (secureoperation.SecureOperation, error) {
+					assert.Equal(t, userLocation, actor.Location())
+					assert.Equal(t, "test-agent", actor.UserAgent)
+
+					return confirmOp, tt.useCaseErr
+				})
 
 			if tt.useCaseErr == nil {
 				parser.EXPECT().Localizer(gomock.Any()).Return(localizer)
@@ -184,10 +193,10 @@ func TestSecurityApplyEmail(t *testing.T) {
 				parser, sender, nil, nil, useCase, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, operationResponse,
 			)
 
-			err := controller.ApplyEmail(
-				httptest.NewRecorder(),
-				httptest.NewRequest(http.MethodPost, "/v1/security/apply-email", http.NoBody),
-			)
+			request := httptest.NewRequest(http.MethodPost, "/v1/security/apply-email", http.NoBody)
+			request.Header.Set("User-Agent", "test-agent")
+
+			err := controller.ApplyEmail(httptest.NewRecorder(), request)
 
 			if tt.useCaseErr == nil {
 				require.NoError(t, err)

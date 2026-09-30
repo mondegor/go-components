@@ -3,10 +3,10 @@ package auth2fa
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
 )
 
 const (
@@ -19,30 +19,39 @@ type (
 	// аварийного кода: сообщает остаток и признак low - остаток не выше threshold, при котором
 	// в письме предлагается перевыпустить список. Получатель передаётся в props["to"]
 	// как ID пользователя (uuid.UUID), поэтому notifierAPI должен разрешать его в адрес
-	// (см. notify.UserEmailNotifier).
+	// (см. notify.UserEmailNotifier). Уведомление дополняется контекстом клиента,
+	// предъявившего код (время, IP, устройство).
 	RecoveryAlerter struct {
 		notifierAPI mrauth.Notifier
+		actorProps  actorPropsBuilder
 		threshold   int
+	}
+
+	// actorPropsBuilder - дополняет props уведомления о событии безопасности контекстом клиента
+	// (время события, IP, устройство).
+	actorPropsBuilder interface {
+		With(actor dto.ActorMeta, props conv.Group) conv.Group
 	}
 )
 
 // NewRecoveryAlerter - создаёт объект RecoveryAlerter.
-func NewRecoveryAlerter(notifierAPI mrauth.Notifier, threshold int) *RecoveryAlerter {
+func NewRecoveryAlerter(notifierAPI mrauth.Notifier, actorProps actorPropsBuilder, threshold int) *RecoveryAlerter {
 	return &RecoveryAlerter{
 		notifierAPI: notifierAPI,
+		actorProps:  actorProps,
 		threshold:   threshold,
 	}
 }
 
-// SendAlert - оповещает пользователя об использовании аварийного кода и остатке кодов.
-func (uc *RecoveryAlerter) SendAlert(ctx context.Context, userID uuid.UUID, codeRemaining int) error {
+// SendAlert - оповещает пользователя actor.UserID об использовании аварийного кода и остатке кодов.
+func (uc *RecoveryAlerter) SendAlert(ctx context.Context, actor dto.ActorMeta, codeRemaining int) error {
 	return uc.notifierAPI.Send(
 		ctx,
 		notifyKeyRecoveryCodeUsed,
-		conv.Group{
-			"to":        userID,
+		uc.actorProps.With(actor, conv.Group{
+			"to":        actor.UserID,
 			"remaining": codeRemaining,
 			"low":       codeRemaining <= uc.threshold,
-		},
+		}),
 	)
 }

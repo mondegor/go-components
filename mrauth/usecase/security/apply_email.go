@@ -2,7 +2,6 @@ package security
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
@@ -33,6 +32,7 @@ type (
 		factoryConfirm   changeEmailCreator
 		opener           operationOpener
 		notifierAPI      mrauth.Notifier
+		actorProps       actorPropsBuilder
 		logOperation     operationLogger
 		errorWrapper     errors.Wrapper
 	}
@@ -51,6 +51,7 @@ func NewApplyEmail(
 	factoryConfirm changeEmailCreator,
 	opener operationOpener,
 	notifierAPI mrauth.Notifier,
+	actorProps actorPropsBuilder,
 	logOperation operationLogger,
 ) *ApplyEmail {
 	return &ApplyEmail{
@@ -60,6 +61,7 @@ func NewApplyEmail(
 		factoryConfirm:   factoryConfirm,
 		opener:           opener,
 		notifierAPI:      notifierAPI,
+		actorProps:       actorProps,
 		logOperation:     logOperation,
 		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 	}
@@ -70,15 +72,14 @@ func NewApplyEmail(
 // на новый адрес; прежняя операция второго шага, если была, вытесняется) и отправляет на
 // прежний адрес уведомление о запросе смены. Возвращает операцию второго шага.
 // Если новый адрес успели занять, пока шло подтверждение, возвращает mrauth.ErrEmailAlreadyExists.
-// Срок действия новой операции в уведомлении выводится в часовом поясе userLocation
-// (nil - UTC), тем же, в котором пользователю отдаются даты в ответах.
+// Срок действия новой операции в уведомлении выводится в часовом поясе клиента из actor,
+// тем же, в котором пользователю отдаются даты в ответах.
 func (uc *ApplyEmail) Execute(
 	ctx context.Context,
 	actor dto.ActorMeta,
-	userLocation *time.Location,
 	operationToken string,
 ) (secureoperation.SecureOperation, error) {
-	if actor.VisitorID == uuid.Nil {
+	if actor.UserID == uuid.Nil {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -106,7 +107,7 @@ func (uc *ApplyEmail) Execute(
 		operationType = op.Type
 		actionMethod = op.FirstActionMethod()
 
-		if actor.VisitorID != op.UserID {
+		if actor.UserID != op.UserID {
 			failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
 
 			return errors.ErrAccessForbidden
@@ -152,11 +153,11 @@ func (uc *ApplyEmail) Execute(
 		return uc.notifierAPI.Send(
 			ctx,
 			"user.email.change.requested",
-			conv.Group{
+			uc.actorProps.With(actor, conv.Group{
 				"to":        payload.Email,
 				"newEmail":  payload.NewEmail,
-				"expiresAt": formatNoticeTime(confirmOp.ExpiresAt, userLocation),
-			},
+				"expiresAt": uc.actorProps.FormatTime(actor, confirmOp.ExpiresAt),
+			}),
 		)
 	})
 	if err != nil {
@@ -183,14 +184,4 @@ func (uc *ApplyEmail) Execute(
 	)
 
 	return confirmOp, nil
-}
-
-// formatNoticeTime - форматирует момент для текста уведомления: дата и время в часовом поясе
-// loc (nil - UTC) с его названием, чтобы читатель письма не гадал, в каком поясе указан срок.
-func formatNoticeTime(tm time.Time, loc *time.Location) string {
-	if loc == nil {
-		loc = time.UTC
-	}
-
-	return tm.In(loc).Format("2006-01-02 15:04") + " (" + loc.String() + ")"
 }

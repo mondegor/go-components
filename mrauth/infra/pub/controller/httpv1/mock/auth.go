@@ -19,7 +19,6 @@ import (
 	model "github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	contactaddress "github.com/mondegor/go-components/mrauth/model/contactaddress"
 	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
-	mrtype "github.com/mondegor/go-core/mrtype"
 	mrresp "github.com/mondegor/go-webcore/mrserver/mrresp"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -111,18 +110,18 @@ func (m *MockcreateUserUseCase) EXPECT() *MockcreateUserUseCaseMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockcreateUserUseCase) Execute(ctx context.Context, realm, langCode, timeZone string, userEmail contactaddress.ContactAddress, registeredIP mrtype.DetailedIP) (secureoperation.SecureOperation, error) {
+func (m *MockcreateUserUseCase) Execute(ctx context.Context, actor dto.ActorMeta, realm, langCode string, userEmail contactaddress.ContactAddress) (secureoperation.SecureOperation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", ctx, realm, langCode, timeZone, userEmail, registeredIP)
+	ret := m.ctrl.Call(m, "Execute", ctx, actor, realm, langCode, userEmail)
 	ret0, _ := ret[0].(secureoperation.SecureOperation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockcreateUserUseCaseMockRecorder) Execute(ctx, realm, langCode, timeZone, userEmail, registeredIP any) *gomock.Call {
+func (mr *MockcreateUserUseCaseMockRecorder) Execute(ctx, actor, realm, langCode, userEmail any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockcreateUserUseCase)(nil).Execute), ctx, realm, langCode, timeZone, userEmail, registeredIP)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockcreateUserUseCase)(nil).Execute), ctx, actor, realm, langCode, userEmail)
 }
 
 // MockauthUserUseCase is a mock of authUserUseCase interface.
@@ -228,18 +227,18 @@ func (m *MockopenSessionUseCase) EXPECT() *MockopenSessionUseCaseMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockopenSessionUseCase) Execute(ctx context.Context, meta dto.SessionMeta, op secureoperation.SecureOperation) (dto.AuthTokenPair, error) {
+func (m *MockopenSessionUseCase) Execute(ctx context.Context, actor dto.ActorMeta, op secureoperation.SecureOperation) (dto.AuthTokenPair, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", ctx, meta, op)
+	ret := m.ctrl.Call(m, "Execute", ctx, actor, op)
 	ret0, _ := ret[0].(dto.AuthTokenPair)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockopenSessionUseCaseMockRecorder) Execute(ctx, meta, op any) *gomock.Call {
+func (mr *MockopenSessionUseCaseMockRecorder) Execute(ctx, actor, op any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockopenSessionUseCase)(nil).Execute), ctx, meta, op)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockopenSessionUseCase)(nil).Execute), ctx, actor, op)
 }
 
 // MockcontinueSessionUseCase is a mock of continueSessionUseCase interface.

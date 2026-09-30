@@ -39,6 +39,7 @@ type (
 	confirmOperationPreparer interface {
 		Prepare(
 			ctx context.Context,
+			actor dto.ActorMeta,
 			op secureoperation.SecureOperation,
 			confirmCode string,
 		) (secureoperation.SecureOperation, func(ctx context.Context) error, error)
@@ -131,11 +132,11 @@ func (co *ConfirmOperation) Execute(
 
 		// владелец операции известен - он и фиксируется как посетитель
 		// (поток подтверждения анонимный, в actor приходит uuid.Nil)
-		actor = actor.WithVisitor(op.UserID)
+		actor = actor.WithUser(op.UserID)
 
 		var commitConfirmed func(ctx context.Context) error
 
-		op, commitConfirmed, err = co.operationPreparer.Prepare(ctx, op, confirmCode)
+		op, commitConfirmed, err = co.operationPreparer.Prepare(ctx, actor, op, confirmCode)
 		if err != nil {
 			if errors.Is(err, mrauth.ErrNoAttemptsToConfirmOperation) {
 				confirmCodeErr = err

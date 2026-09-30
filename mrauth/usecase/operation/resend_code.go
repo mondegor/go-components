@@ -86,7 +86,7 @@ func (co *ResendCode) Execute(
 
 		// владелец операции известен - он и фиксируется как посетитель
 		// (поток повторной отправки анонимный, в actor приходит uuid.Nil)
-		actor = actor.WithVisitor(op.UserID)
+		actor = actor.WithUser(op.UserID)
 
 		op, err = co.operationPreparer.Prepare(op)
 		if err != nil {

@@ -20,7 +20,7 @@ type (
 
 	authUserService interface {
 		ResolveUser(ctx context.Context, userID uuid.UUID, in dto.CreateUserOperation) (resolvedUserID uuid.UUID, err error)
-		PrepareAuthorization(ctx context.Context, userID uuid.UUID, in dto.AuthorizeUserOperation) (dto.UserScopes, func(context.Context), error)
+		PrepareAuthorization(ctx context.Context, actor dto.ActorMeta, in dto.AuthorizeUserOperation) (dto.UserScopes, func(context.Context), error)
 	}
 )
 
@@ -36,11 +36,17 @@ func NewAuthFlow(service authUserService) *AuthFlow {
 // что он уже зарегистрирован (вариант 2), после чего операция трактуется как авторизация.
 // Для операции авторизации (вариант 3) сразу выполняется подготовка к авторизации.
 //
-// Вместе со scopes возвращается отложенный callback отправки login-alert'а.
+// Вместе со scopes возвращается отложенный callback отправки login-alert'а с контекстом клиента actor.
+// actor - анонимный клиент либо сам владелец операции.
 func (uc *AuthFlow) Execute(
 	ctx context.Context,
+	actor dto.ActorMeta,
 	op secureoperation.SecureOperation,
 ) (scopes dto.UserScopes, notifyAuthSuccess func(context.Context), err error) {
+	if actor.UserID != uuid.Nil && actor.UserID != op.UserID {
+		return dto.UserScopes{}, nil, errors.ErrInternalIncorrectInputData.WithDetails("actor is not the operation owner")
+	}
+
 	var authIn dto.AuthorizeUserOperation
 
 	switch op.Type {
@@ -68,5 +74,6 @@ func (uc *AuthFlow) Execute(
 		return dto.UserScopes{}, nil, errors.ErrInternalIncorrectInputData.WithDetails("operation type is incorrect", "type", op.Type)
 	}
 
-	return uc.service.PrepareAuthorization(ctx, op.UserID, authIn)
+	// пользователь известен (из операции или только что разрешён) - он и фиксируется как посетитель
+	return uc.service.PrepareAuthorization(ctx, actor.WithUser(op.UserID), authIn)
 }

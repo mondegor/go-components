@@ -79,7 +79,7 @@ func (uc *ContinueSession) Execute(ctx context.Context, actor dto.ActorMeta, _, 
 			// повторное использование refresh-токена (атака): фиксируем блокировку в журнале
 			uc.logOperation.Log(
 				ctx,
-				actor.WithVisitor(tokenErr.UserID).NewOperationLog(
+				actor.WithUser(tokenErr.UserID).NewOperationLog(
 					sourceNameContinue, confirmmethod.Unspecified, logstatus.Blocked, logreason.TokenReuse,
 				),
 			)

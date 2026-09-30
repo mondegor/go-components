@@ -116,10 +116,10 @@ func (s *AuthFlowSuite) TestCreateUserThenAuthorize() {
 
 	gomock.InOrder(
 		s.service.EXPECT().ResolveUser(gomock.Any(), uuid.Nil, gomock.Any()).Return(newUserID, nil),
-		s.service.EXPECT().PrepareAuthorization(gomock.Any(), newUserID, gomock.Any()).Return(scopes, nil, nil),
+		s.service.EXPECT().PrepareAuthorization(gomock.Any(), dto.ActorMeta{UserID: newUserID}, gomock.Any()).Return(scopes, nil, nil),
 	)
 
-	got, _, err := s.uc.Execute(s.ctx, s.confirmedOp(operationtype.CreateUser, uuid.Nil))
+	got, _, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, s.confirmedOp(operationtype.CreateUser, uuid.Nil))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
@@ -133,27 +133,29 @@ func (s *AuthFlowSuite) TestExistingUserResolvedThenAuthorize() {
 
 	gomock.InOrder(
 		s.service.EXPECT().ResolveUser(gomock.Any(), existingUserID, gomock.Any()).Return(existingUserID, nil),
-		s.service.EXPECT().PrepareAuthorization(gomock.Any(), existingUserID, gomock.Any()).Return(scopes, nil, nil),
+		s.service.EXPECT().PrepareAuthorization(gomock.Any(), dto.ActorMeta{UserID: existingUserID}, gomock.Any()).Return(scopes, nil, nil),
 	)
 
-	got, _, err := s.uc.Execute(s.ctx, s.confirmedOp(operationtype.CreateUser, existingUserID))
+	got, _, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, s.confirmedOp(operationtype.CreateUser, existingUserID))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
 
 // вариант 3: подготовка к авторизации без создания (ResolveUser не вызывается);
-// отложенный callback login-alert'а пробрасывается наружу без изменений.
+// отложенный callback login-alert'а пробрасывается наружу без изменений, а клиент (actor)
+// передаётся в подготовку авторизации для контекста login-alert'а.
 func (s *AuthFlowSuite) TestAuthorizeOnly() {
 	userID := uuid.New()
 	scopes := okScopes()
+	actor := dto.ActorMeta{UserAgent: "test-agent"}
 
 	var called bool
 
 	notify := func(context.Context) { called = true }
 
-	s.service.EXPECT().PrepareAuthorization(gomock.Any(), userID, gomock.Any()).Return(scopes, notify, nil)
+	s.service.EXPECT().PrepareAuthorization(gomock.Any(), actor.WithUser(userID), gomock.Any()).Return(scopes, notify, nil)
 
-	got, gotNotify, err := s.uc.Execute(s.ctx, s.confirmedOp(operationtype.AuthorizeUser, userID))
+	got, gotNotify, err := s.uc.Execute(s.ctx, actor, s.confirmedOp(operationtype.AuthorizeUser, userID))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 
@@ -166,7 +168,7 @@ func (s *AuthFlowSuite) TestAuthorizeOnly() {
 func (s *AuthFlowSuite) TestResolveUserErrorStops() {
 	s.service.EXPECT().ResolveUser(gomock.Any(), uuid.Nil, gomock.Any()).Return(uuid.Nil, errors.New("resolve failed"))
 
-	_, _, err := s.uc.Execute(s.ctx, s.confirmedOp(operationtype.CreateUser, uuid.Nil))
+	_, _, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, s.confirmedOp(operationtype.CreateUser, uuid.Nil))
 	s.Require().Error(err)
 }
 
@@ -184,23 +186,23 @@ func (s *AuthFlowSuite) TestCreateUserMapsPayloadToAuthorize() {
 
 	gomock.InOrder(
 		s.service.EXPECT().ResolveUser(gomock.Any(), uuid.Nil, createIn).Return(newUserID, nil),
-		s.service.EXPECT().PrepareAuthorization(gomock.Any(), newUserID, authIn).Return(scopes, nil, nil),
+		s.service.EXPECT().PrepareAuthorization(gomock.Any(), dto.ActorMeta{UserID: newUserID}, authIn).Return(scopes, nil, nil),
 	)
 
-	got, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(operationtype.CreateUser, uuid.Nil, s.mustMarshal(createIn)))
+	got, _, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, s.confirmedOpWith(operationtype.CreateUser, uuid.Nil, s.mustMarshal(createIn)))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
 
 // некорректный payload операции создания - ошибка распаковки, сервис не вызывается.
 func (s *AuthFlowSuite) TestCreateUserInvalidPayload() {
-	_, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(operationtype.CreateUser, uuid.Nil, []byte("{")))
+	_, _, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, s.confirmedOpWith(operationtype.CreateUser, uuid.Nil, []byte("{")))
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 
 // некорректный payload операции авторизации - ошибка распаковки, PrepareAuthorization не вызывается.
 func (s *AuthFlowSuite) TestAuthorizeInvalidPayload() {
-	_, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(operationtype.AuthorizeUser, uuid.New(), []byte("{")))
+	_, _, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, s.confirmedOpWith(operationtype.AuthorizeUser, uuid.New(), []byte("{")))
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 
@@ -209,7 +211,7 @@ func (s *AuthFlowSuite) TestAuthorizeInvalidPayload() {
 func (s *AuthFlowSuite) TestCreateUserPayloadBrokenInvariant() {
 	op := s.confirmedOpWith(operationtype.CreateUser, uuid.Nil, []byte(`{"realm":"site/admin","lang":"en"}`))
 
-	_, _, err := s.uc.Execute(s.ctx, op)
+	_, _, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, op)
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 
@@ -217,7 +219,7 @@ func (s *AuthFlowSuite) TestCreateUserPayloadBrokenInvariant() {
 func (s *AuthFlowSuite) TestAuthorizePayloadBrokenInvariant() {
 	op := s.confirmedOpWith(operationtype.AuthorizeUser, uuid.New(), []byte(`{"lang":"en"}`))
 
-	_, _, err := s.uc.Execute(s.ctx, op)
+	_, _, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, op)
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 
@@ -227,9 +229,9 @@ func (s *AuthFlowSuite) TestAuthorizeMapsPayload() {
 	scopes := okScopes()
 	authIn := okAuthorizeIn()
 
-	s.service.EXPECT().PrepareAuthorization(gomock.Any(), userID, authIn).Return(scopes, nil, nil)
+	s.service.EXPECT().PrepareAuthorization(gomock.Any(), dto.ActorMeta{UserID: userID}, authIn).Return(scopes, nil, nil)
 
-	got, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(operationtype.AuthorizeUser, userID, s.mustMarshal(authIn)))
+	got, _, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, s.confirmedOpWith(operationtype.AuthorizeUser, userID, s.mustMarshal(authIn)))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
@@ -239,9 +241,9 @@ func (s *AuthFlowSuite) TestAuthorizeWithNilUserID() {
 	scopes := okScopes()
 	authIn := okAuthorizeIn()
 
-	s.service.EXPECT().PrepareAuthorization(gomock.Any(), uuid.Nil, authIn).Return(scopes, nil, nil)
+	s.service.EXPECT().PrepareAuthorization(gomock.Any(), dto.ActorMeta{UserID: uuid.Nil}, authIn).Return(scopes, nil, nil)
 
-	got, _, err := s.uc.Execute(s.ctx, s.confirmedOpWith(operationtype.AuthorizeUser, uuid.Nil, s.mustMarshal(authIn)))
+	got, _, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, s.confirmedOpWith(operationtype.AuthorizeUser, uuid.Nil, s.mustMarshal(authIn)))
 	s.Require().NoError(err)
 	s.Equal(scopes, got)
 }
@@ -252,6 +254,18 @@ func (s *AuthFlowSuite) TestPrepareAuthorizationErrorPropagates() {
 
 	s.service.EXPECT().PrepareAuthorization(gomock.Any(), gomock.Any(), gomock.Any()).Return(dto.UserScopes{}, nil, wantErr)
 
-	_, _, err := s.uc.Execute(s.ctx, s.confirmedOp(operationtype.AuthorizeUser, uuid.New()))
+	_, _, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, s.confirmedOp(operationtype.AuthorizeUser, uuid.New()))
 	s.Require().ErrorIs(err, wantErr)
+}
+
+// актор другого пользователя (или актор с пользователем при операции регистрации без владельца) -
+// ошибка проводки вызывающего: сервис не вызывается (мок без EXPECT: любой вызов провалит тест).
+func (s *AuthFlowSuite) TestActorNotOwnerRejected() {
+	for _, op := range []secureoperation.SecureOperation{
+		s.confirmedOp(operationtype.AuthorizeUser, uuid.New()),
+		s.confirmedOp(operationtype.CreateUser, uuid.Nil),
+	} {
+		_, _, err := s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, op)
+		s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
+	}
 }

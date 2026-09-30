@@ -10,7 +10,7 @@ import (
 )
 
 // ActivateResendCode - повторно активирует операцию под новый токен для отправки нового кода подтверждения.
-func (o *SecureOperation) ActivateResendCode(token string) (err error) {
+func (o *SecureOperation) ActivateResendCode(token string) error {
 	if token == "" {
 		return errors.ErrInternalIncorrectInputData.WithDetails("token is empty")
 	}

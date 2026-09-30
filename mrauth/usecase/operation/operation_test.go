@@ -136,7 +136,7 @@ func (s *ConfirmOperationSuite) expectPrepare(
 	err error,
 ) {
 	s.preparer.EXPECT().
-		Prepare(gomock.Any(), gomock.Any(), gomock.Any()).
+		Prepare(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(op, commit, err).
 		AnyTimes()
 }
@@ -281,7 +281,7 @@ func (s *ConfirmOperationSuite) TestSuccessConfirmedRunsCommit() {
 func (s *ConfirmOperationSuite) TestAlreadyConfirmedIsIdempotent() {
 	s.expectFetch(confirmedOp(s.T()), nil)
 	// короткое замыкание: ни подготовка, ни запись, ни уведомление не выполняются
-	s.preparer.EXPECT().Prepare(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	s.preparer.EXPECT().Prepare(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 	s.storage.EXPECT().Replace(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
@@ -299,7 +299,7 @@ func (s *ConfirmOperationSuite) TestAlreadyConfirmedIsIdempotent() {
 func (s *ConfirmOperationSuite) TestEmptySecretOnConfirmedOperation() {
 	s.expectFetch(confirmedOp(s.T()), nil)
 	// короткое замыкание: ни подготовка, ни учёт неудачной попытки не выполняются
-	s.preparer.EXPECT().Prepare(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	s.preparer.EXPECT().Prepare(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 	s.storage.EXPECT().Replace(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 	s.storage.EXPECT().UpdateFailedAttempt(gomock.Any(), gomock.Any()).Times(0)
 	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
@@ -317,7 +317,7 @@ func (s *ConfirmOperationSuite) TestEmptySecretOnConfirmedOperation() {
 func (s *ConfirmOperationSuite) TestEmptySecretOnOpenedOperation() {
 	op := openedEmailOp(s.T())
 	s.expectFetch(op, nil)
-	s.preparer.EXPECT().Prepare(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	s.preparer.EXPECT().Prepare(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 	s.storage.EXPECT().UpdateFailedAttempt(gomock.Any(), gomock.Any()).Times(0)
 
 	out, err := s.execute("")
@@ -536,7 +536,7 @@ func (s *RevokeOperationSuite) SetupTest() {
 // пустым токеном не может быть найдена ни одна операция: снаружи это неотличимо
 // от неизвестного и истёкшего токена и отдаётся тем же сентинелом.
 func (s *RevokeOperationSuite) TestEmptyToken() {
-	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, ""), mrauth.ErrOperationInvalid)
+	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, ""), mrauth.ErrOperationInvalid)
 }
 
 // поток отзыва доступен только залогиненным, поэтому анонимный вызывающий - ошибка проводки.
@@ -552,7 +552,7 @@ func (s *RevokeOperationSuite) TestSuccess() {
 	s.storage.EXPECT().FetchOne(gomock.Any(), "token").Return(op, nil)
 	s.storage.EXPECT().Delete(gomock.Any(), "token").Return(nil)
 
-	s.Require().NoError(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: op.UserID}, "token"))
+	s.Require().NoError(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: op.UserID}, "token"))
 	// операция читается перед удалением, поэтому в журнал попадает, что именно отозвано
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Revoked, s.logEntries[0].LogStatus)
@@ -566,7 +566,7 @@ func (s *RevokeOperationSuite) TestFetchError() {
 	s.storage.EXPECT().FetchOne(gomock.Any(), gomock.Any()).Return(secureoperation.SecureOperation{}, wantErr)
 	s.storage.EXPECT().Delete(gomock.Any(), gomock.Any()).Times(0)
 
-	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "token"), wantErr)
+	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, "token"), wantErr)
 	s.Empty(s.logEntries)
 }
 
@@ -577,7 +577,7 @@ func (s *RevokeOperationSuite) TestDeleteError() {
 	s.storage.EXPECT().FetchOne(gomock.Any(), gomock.Any()).Return(op, nil)
 	s.storage.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(wantErr)
 
-	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: op.UserID}, "token"), wantErr)
+	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: op.UserID}, "token"), wantErr)
 	s.Empty(s.logEntries)
 }
 
@@ -587,7 +587,7 @@ func (s *RevokeOperationSuite) TestForeignOperation() {
 	s.storage.EXPECT().FetchOne(gomock.Any(), gomock.Any()).Return(op, nil)
 	s.storage.EXPECT().Delete(gomock.Any(), gomock.Any()).Times(0)
 
-	err := s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "token")
+	err := s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, "token")
 	s.Require().ErrorIs(err, sysmesserrors.ErrAccessForbidden)
 	// обращение к чужой операции фиксируется в журнале за реальным вызывающим, а не за владельцем
 	s.Require().Len(s.logEntries, 1)

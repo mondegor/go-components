@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrlock"
 	"github.com/mondegor/go-core/mrtype"
@@ -97,7 +96,8 @@ func NewCreateUser(
 }
 
 // Execute - инициирует создание пользователя: открывает защищённую операцию подтверждения по коду
-// и отправляет код на email. registeredIP фиксируется в payload операции как IP регистрации.
+// и отправляет код на email. actor - анонимный клиент: его IP фиксируется в payload операции
+// как IP регистрации, а его часовой пояс - как пояс профиля.
 //
 // Язык и часовой пояс приходят уже определёнными по запросу и кладутся
 // в payload операции как есть: это значения из списков, зарегистрированных приложением, поэтому
@@ -105,16 +105,12 @@ func NewCreateUser(
 // подтверждения email профиль создавался с теми же настройками, с какими шла регистрация.
 func (co *CreateUser) Execute(
 	ctx context.Context,
-	realm, langCode, timeZone string,
+	actor dto.ActorMeta,
+	realm, langCode string,
 	userEmail contactaddress.ContactAddress,
-	registeredIP mrtype.DetailedIP,
 ) (op secureoperation.SecureOperation, err error) {
 	if langCode == "" {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("langCode is empty")
-	}
-
-	if timeZone == "" {
-		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("timeZone is empty")
 	}
 
 	if userEmail.Value() == "" {
@@ -137,9 +133,7 @@ func (co *CreateUser) Execute(
 			// (операция не создана, поэтому её имя берётся у фабрики, а метод подтверждения неизвестен)
 			co.logOperation.Log(
 				ctx,
-				entity.NewSecureOperationLog(
-					uuid.Nil,
-					registeredIP,
+				actor.NewOperationLog(
 					opCreator.Type().String(),
 					confirmmethod.Unspecified,
 					logstatus.Blocked,
@@ -179,16 +173,16 @@ func (co *CreateUser) Execute(
 		}
 	}
 
-	op, err = opCreator.Create(user2FA, langCode, timeZone, userEmail, registeredIP)
+	op, err = opCreator.Create(user2FA, langCode, actor.Location().String(), userEmail, actor.ClientIP)
 	if err != nil {
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
-	// поток регистрации анонимный: посетитель не передаётся, форензику несёт IP; если email
+	// поток регистрации анонимный: пользователь в actor не задан, форензику несёт IP; если email
 	// принадлежит существующему пользователю, Open сам зафиксирует его в журнале как владельца операции
 	err = co.opener.Open(
 		ctx,
-		dto.ActorMeta{ClientIP: registeredIP},
+		actor,
 		op,
 		"confirm.user.activation",
 		conv.Group{"lang": langCode},

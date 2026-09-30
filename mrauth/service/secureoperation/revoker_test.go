@@ -63,7 +63,7 @@ func (s *RevokerSuite) TestRevokeAll() {
 		DeleteByUserID(gomock.Any(), userID).
 		Return([]operationtype.Enum{operationtype.AuthorizeUser, operationtype.ChangePhone, operationtype.AuthorizeUser}, nil)
 
-	err := s.svc.RevokeAll(s.ctx, dto.ActorMeta{VisitorID: userID}, logreason.Auth2FAStateChanged)
+	err := s.svc.RevokeAll(s.ctx, dto.ActorMeta{UserID: userID}, logreason.Auth2FAStateChanged)
 	s.Require().NoError(err)
 
 	s.Require().Len(s.logEntries, 2)
@@ -84,7 +84,7 @@ func (s *RevokerSuite) TestRevokeAll() {
 func (s *RevokerSuite) TestNothingToRevoke() {
 	s.storage.EXPECT().DeleteByUserID(gomock.Any(), gomock.Any()).Return([]operationtype.Enum{}, nil)
 
-	s.Require().NoError(s.svc.RevokeAll(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, logreason.Auth2FAStateChanged))
+	s.Require().NoError(s.svc.RevokeAll(s.ctx, dto.ActorMeta{UserID: uuid.New()}, logreason.Auth2FAStateChanged))
 	s.Empty(s.logEntries)
 }
 
@@ -93,7 +93,7 @@ func (s *RevokerSuite) TestNothingToRevoke() {
 func (s *RevokerSuite) TestStorageError() {
 	s.storage.EXPECT().DeleteByUserID(gomock.Any(), gomock.Any()).Return(nil, errors.New("db is down"))
 
-	s.Require().Error(s.svc.RevokeAll(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, logreason.Auth2FAStateChanged))
+	s.Require().Error(s.svc.RevokeAll(s.ctx, dto.ActorMeta{UserID: uuid.New()}, logreason.Auth2FAStateChanged))
 	s.Empty(s.logEntries)
 }
 

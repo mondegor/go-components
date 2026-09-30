@@ -3,10 +3,10 @@ package secureoperation
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
@@ -22,7 +22,7 @@ type (
 	auth2faVerifier interface {
 		Verify(
 			ctx context.Context,
-			userID uuid.UUID,
+			actor dto.ActorMeta,
 			method confirmmethod.Enum,
 			allowRecovery bool,
 			code string,
@@ -46,11 +46,20 @@ func NewConfirmCode(
 // Prepare - проверяет текущее действие операции; для TOTP/password и аварийного кода
 // использует верификатор. Возвращает commit расхода второго фактора (продвинутый TOTP-шаг
 // или погашенный аварийный код), который должен быть вызван в транзакции подтверждения.
+// actor - клиент, подтверждающий операцию, с владельцем операции в UserID (подставляет
+// вызывающий, см. dto.ActorMeta.WithUser): по нему проверяется 2FA, а контекст клиента
+// попадает в оповещение о расходе аварийного кода.
 func (o *ConfirmCode) Prepare(
 	ctx context.Context,
+	actor dto.ActorMeta,
 	op secureoperation.SecureOperation,
 	confirmCode string,
 ) (_ secureoperation.SecureOperation, commit func(ctx context.Context) error, err error) {
+	if actor.UserID != op.UserID {
+		return secureoperation.SecureOperation{}, nil,
+			errors.ErrInternalIncorrectInputData.WithDetails("actor is not the operation owner")
+	}
+
 	if confirmCode == "" {
 		return secureoperation.SecureOperation{}, nil,
 			errors.ErrInternalIncorrectInputData.WithDetails("confirmCode is empty")
@@ -62,7 +71,7 @@ func (o *ConfirmCode) Prepare(
 			case confirmmethod.Email, confirmmethod.Phone:
 				return o.codeGenerator.CompareSecretAndHash(confirmCode, action.ConfirmCode)
 			case confirmmethod.TOTP, confirmmethod.Password, confirmmethod.Recovery:
-				ok, factorCommit, err := o.verifier.Verify(ctx, op.UserID, action.Method, action.AllowRecovery, confirmCode)
+				ok, factorCommit, err := o.verifier.Verify(ctx, actor, action.Method, action.AllowRecovery, confirmCode)
 				if err != nil {
 					// 2FA у пользователя нет: либо действие подставное (построено аккаунту с выключенной 2FA),
 					// либо 2FA сняли уже после создания операции. Отдельным кодом ответа эти случаи

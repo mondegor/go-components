@@ -3,7 +3,6 @@ package httpv1
 import (
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
@@ -38,10 +37,11 @@ func (f confirmOperationFlow) confirm(
 
 	op, err = f.useCase.Execute(
 		r.Context(),
-		dto.ActorMeta{
-			VisitorID: uuid.Nil, // анонимный поток подтверждения: форензику несёт ClientIP
-			ClientIP:  f.parser.DetailedIP(r),
-		},
+		dto.NewAnonymousActorMeta(
+			f.parser.DetailedIP(r),
+			r.UserAgent(),
+			f.parser.Location(r),
+		),
 		lz.Language(),
 		token,
 		secret,

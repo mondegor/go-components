@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
+	dto "github.com/mondegor/go-components/mrauth/dto"
 	entity "github.com/mondegor/go-components/mrauth/entity"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -190,15 +191,15 @@ func (m *MockrecoveryAlerter) EXPECT() *MockrecoveryAlerterMockRecorder {
 }
 
 // SendAlert mocks base method.
-func (m *MockrecoveryAlerter) SendAlert(ctx context.Context, userID uuid.UUID, codeRemaining int) error {
+func (m *MockrecoveryAlerter) SendAlert(ctx context.Context, actor dto.ActorMeta, codeRemaining int) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SendAlert", ctx, userID, codeRemaining)
+	ret := m.ctrl.Call(m, "SendAlert", ctx, actor, codeRemaining)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // SendAlert indicates an expected call of SendAlert.
-func (mr *MockrecoveryAlerterMockRecorder) SendAlert(ctx, userID, codeRemaining any) *gomock.Call {
+func (mr *MockrecoveryAlerterMockRecorder) SendAlert(ctx, actor, codeRemaining any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendAlert", reflect.TypeOf((*MockrecoveryAlerter)(nil).SendAlert), ctx, userID, codeRemaining)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendAlert", reflect.TypeOf((*MockrecoveryAlerter)(nil).SendAlert), ctx, actor, codeRemaining)
 }

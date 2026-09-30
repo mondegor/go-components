@@ -78,7 +78,7 @@ func (s *ApplyRecoverySuite) SetupTest() {
 func (s *ApplyRecoverySuite) newUseCase() *security.ApplyRecovery {
 	return security.NewApplyRecovery(
 		s.txManager, s.updater, s.verifier,
-		crypt.NewSecretGenerator(), s.notifierAPI, s.logOperation, 8, 10,
+		crypt.NewSecretGenerator(), s.notifierAPI, s.actorProps, s.logOperation, 8, 10,
 	)
 }
 
@@ -87,13 +87,16 @@ func (s *ApplyRecoverySuite) TestConfirmedReplacesAndReturnsCodes() {
 
 	s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(confirmedRegenerateOp(userID), nil)
 
-	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 	s.Require().NoError(err)
 	s.Require().Len(codes, 8)
 	s.Require().Len(s.saved, 8)
 	s.NotEqual(codes, s.saved) // хранятся хеши, возвращается plaintext
 	s.Equal("op-token", s.deleted)
 	s.True(s.notified)
+	s.Equal("user.recovery_codes.changed", s.notifiedKey)
+	s.Equal("TestApp, TestDevice", s.notifiedWith["device"])
+	s.Contains(s.notifiedWith, "occurredAt")
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
 	s.Equal(operationtype.RegenerateRecovery.String(), s.logEntries[0].SourceName)
@@ -115,7 +118,7 @@ func (s *ApplyRecoverySuite) TestNo2FARowReportsDisabled() {
 		FetchOneForUpdate(gomock.Any(), gomock.Any()).
 		Return(confirmedRegenerateOp(userID), nil)
 
-	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 	s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
 	s.Require().NotErrorIs(err, errors.ErrRecordNotFound)
 	s.Nil(codes)
@@ -135,7 +138,7 @@ func (s *ApplyRecoverySuite) TestWrongOperationTypeNoUpdate() {
 		FetchOneForUpdate(gomock.Any(), gomock.Any()).
 		Return(confirmedOp(userID, `{"email":"u@e"}`), nil)
 
-	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 	s.Require().Error(err)
 	s.Nil(codes)
 	s.Nil(s.saved)

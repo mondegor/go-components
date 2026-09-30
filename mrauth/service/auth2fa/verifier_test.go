@@ -14,6 +14,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/bag/totp"
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
@@ -82,7 +83,7 @@ func (s *VerifierSuite) TestValidTOTP() {
 	// шаг фиксируется только при вызове commit
 	s.source.EXPECT().UpdateTOTPStep(gomock.Any(), s.userID, gomock.Not(gomock.Eq(int64(0)))).Return(nil)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.TOTP, true, code)
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, code)
 	s.Require().NoError(err)
 	s.Require().True(ok)
 
@@ -105,7 +106,7 @@ func (s *VerifierSuite) TestTOTPReplayRejected() {
 		LastTOTPStep: now.Unix()/30 + 5,
 	})
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.TOTP, true, code)
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, code)
 	s.Require().NoError(err)
 	s.False(ok)
 	s.Nil(commit)
@@ -122,7 +123,7 @@ func (s *VerifierSuite) TestRecoveryFallbackConsumes() {
 	// израсходован именно совпавший хеш, и только после фиксации
 	s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, h1).Return(1, nil)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.TOTP, true, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "AAAAABBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 
@@ -145,7 +146,7 @@ func (s *VerifierSuite) TestRecoveryFallbackSurvivesFactorTypeChange() {
 	})
 	s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, h1).Return(1, nil)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.Password, true, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Password, true, "AAAAABBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 
@@ -161,7 +162,7 @@ func (s *VerifierSuite) TestInvalidTOTPNoRecoveryMatch() {
 		RecoveryCodes: []string{s.hashed("AAAAABBBBB")},
 	})
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.TOTP, true, "ZZZZZYYYYY")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "ZZZZZYYYYY")
 	s.Require().NoError(err)
 	s.False(ok)
 	s.Nil(commit)
@@ -180,7 +181,7 @@ func (s *VerifierSuite) TestAllDigitCodeSkipsRecovery() {
 
 	v := auth2fa.NewVerifier(s.source, comparer, s.auth)
 
-	ok, commit, err := v.Verify(s.ctx, s.userID, confirmmethod.TOTP, true, "000000")
+	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "000000")
 	s.Require().NoError(err)
 	s.False(ok)
 	s.Nil(commit)
@@ -201,7 +202,7 @@ func (s *VerifierSuite) TestRecoveryNotAllowedSkipsRecovery() {
 
 	v := auth2fa.NewVerifier(s.source, comparer, s.auth)
 
-	ok, commit, err := v.Verify(s.ctx, s.userID, confirmmethod.TOTP, false, "AAAAABBBBB")
+	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, false, "AAAAABBBBB")
 	s.Require().NoError(err)
 	s.False(ok)
 
@@ -218,7 +219,7 @@ func (s *VerifierSuite) TestVerifyRecoveryConsumes() {
 	})
 	s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, h2).Return(1, nil)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.Recovery, false, "CCCCCDDDDD")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "CCCCCDDDDD")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 
@@ -234,7 +235,7 @@ func (s *VerifierSuite) TestVerifyRecoveryNoMatch() {
 		RecoveryCodes: []string{s.hashed("AAAAABBBBB")},
 	})
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.Recovery, false, "ZZZZZYYYYY")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "ZZZZZYYYYY")
 	s.Require().NoError(err)
 	s.False(ok)
 	s.Nil(commit)
@@ -254,7 +255,7 @@ func (s *VerifierSuite) TestVerifyRecoverySkipsShortCode() {
 
 	v := auth2fa.NewVerifier(s.source, comparer, s.auth)
 
-	ok, commit, err := v.Verify(s.ctx, s.userID, confirmmethod.Recovery, false, "183947")
+	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "183947")
 	s.Require().NoError(err)
 	s.False(ok)
 	s.Nil(commit)
@@ -269,7 +270,7 @@ func (s *VerifierSuite) TestVerifyRecovery2FADisabled() {
 		FetchOne(gomock.Any(), s.userID).
 		Return(entity.Auth2FA{}, sysmesserrors.ErrEventStorageNoRecordFound)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.Recovery, false, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "AAAAABBBBB")
 	s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
 	s.False(ok)
 	s.Nil(commit)
@@ -279,7 +280,7 @@ func (s *VerifierSuite) TestVerifyRecoveryFetchError() {
 	wantErr := errors.New("fetch failed")
 	s.source.EXPECT().FetchOne(gomock.Any(), s.userID).Return(entity.Auth2FA{}, wantErr)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.Recovery, false, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "AAAAABBBBB")
 	s.Require().ErrorIs(err, wantErr)
 	s.False(ok)
 	s.Nil(commit)
@@ -297,7 +298,7 @@ func (s *VerifierSuite) TestRecoveryConsumeRace() {
 	// код уже израсходован параллельной операцией
 	s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, h1).Return(0, consumeErr)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.TOTP, true, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "AAAAABBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 	s.Require().NotNil(commit)
@@ -308,7 +309,7 @@ func (s *VerifierSuite) TestRecoveryConsumeRace() {
 func (s *VerifierSuite) TestPasswordCorrect() {
 	s.expectFetch(entity.Auth2FA{Type: auth2fatype.Password, Secret: s.hashed("my-secret-password")})
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.Password, true, "my-secret-password")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Password, true, "my-secret-password")
 	s.Require().NoError(err)
 	s.True(ok)
 	s.Nil(commit)
@@ -317,7 +318,7 @@ func (s *VerifierSuite) TestPasswordCorrect() {
 func (s *VerifierSuite) TestPasswordWrong() {
 	s.expectFetch(entity.Auth2FA{Type: auth2fatype.Password, Secret: s.hashed("my-secret-password")})
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.Password, true, "wrong-password")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Password, true, "wrong-password")
 	s.Require().NoError(err)
 	s.False(ok)
 	s.Nil(commit)
@@ -334,7 +335,7 @@ func (s *VerifierSuite) TestPasswordRecoveryFallbackConsumes() {
 	s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, recHash).Return(1, nil)
 
 	// пароль не подошёл, но предъявлен валидный аварийный код - он засчитывается и расходуется
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.Password, true, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Password, true, "AAAAABBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 
@@ -351,7 +352,7 @@ func (s *VerifierSuite) TestPasswordWrongNoRecoveryMatch() {
 	})
 
 	// ни пароль, ни аварийный код не совпали - доступ не предоставляется, код не расходуется
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.Password, true, "ZZZZZYYYYY")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Password, true, "ZZZZZYYYYY")
 	s.Require().NoError(err)
 	s.False(ok)
 	s.Nil(commit)
@@ -365,16 +366,18 @@ func (s *VerifierSuite) TestRecoveryConsumedCallsAlerter() {
 		Secret:        testTOTPSecret,
 		RecoveryCodes: []string{h1},
 	})
-	// Verifier сообщает alerter'у остаток на каждый израсходованный код.
-	// Обе фиксации происходят только после commit, поэтому порядок задан явно.
+	// Verifier сообщает alerter'у остаток на каждый израсходованный код вместе с клиентом,
+	// предъявившим код. Обе фиксации происходят только после commit, поэтому порядок задан явно.
+	actor := dto.ActorMeta{UserID: s.userID, UserAgent: "test-agent"}
+
 	gomock.InOrder(
 		s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, h1).Return(1, nil),
-		s.alerter.EXPECT().SendAlert(gomock.Any(), s.userID, 1).Return(nil),
+		s.alerter.EXPECT().SendAlert(gomock.Any(), actor, 1).Return(nil),
 	)
 
 	v := s.newVerifier(auth2fa.WithRecoveryAlerter(s.alerter))
 
-	ok, commit, err := v.Verify(s.ctx, s.userID, confirmmethod.TOTP, true, "AAAAABBBBB")
+	ok, commit, err := v.Verify(s.ctx, actor, confirmmethod.TOTP, true, "AAAAABBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 	s.Require().NotNil(commit)
@@ -386,7 +389,7 @@ func (s *VerifierSuite) TestFetchError() {
 	wantErr := errors.New("fetch failed")
 	s.source.EXPECT().FetchOne(gomock.Any(), gomock.Any()).Return(entity.Auth2FA{}, wantErr)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, uuid.New(), confirmmethod.TOTP, true, "000000")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: uuid.New()}, confirmmethod.TOTP, true, "000000")
 	s.Require().ErrorIs(err, wantErr)
 	s.False(ok)
 	s.Nil(commit)
@@ -401,7 +404,7 @@ func (s *VerifierSuite) TestFetch2FADisabledIsReported() {
 		FetchOne(gomock.Any(), gomock.Any()).
 		Return(entity.Auth2FA{}, sysmesserrors.ErrEventStorageNoRecordFound)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, uuid.New(), confirmmethod.TOTP, true, "000000")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: uuid.New()}, confirmmethod.TOTP, true, "000000")
 	s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
 	s.False(ok)
 	s.Nil(commit)
@@ -425,7 +428,7 @@ func (s *VerifierSuite) TestFetch2FADisabledStillComparesSecret() {
 
 	v := auth2fa.NewVerifier(s.source, comparer, s.auth)
 
-	ok, commit, err := v.Verify(s.ctx, uuid.New(), confirmmethod.Password, true, "any-password")
+	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: uuid.New()}, confirmmethod.Password, true, "any-password")
 	s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
 	s.False(ok)
 	s.Nil(commit)
@@ -445,7 +448,7 @@ func (s *VerifierSuite) TestFactorTypeMismatchStillComparesSecret() {
 
 	v := auth2fa.NewVerifier(s.source, comparer, s.auth)
 
-	ok, commit, err := v.Verify(s.ctx, s.userID, confirmmethod.Password, false, "any-password")
+	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Password, false, "any-password")
 	s.Require().NoError(err)
 	s.False(ok)
 	s.Nil(commit)
@@ -465,7 +468,7 @@ func (s *VerifierSuite) TestFactorTypeMismatchStillValidatesTOTP() {
 
 	v := auth2fa.NewVerifier(s.source, s.gen, validator)
 
-	ok, commit, err := v.Verify(s.ctx, s.userID, confirmmethod.TOTP, false, "000000")
+	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, false, "000000")
 	s.Require().NoError(err)
 	s.False(ok)
 	s.Nil(commit)
@@ -486,7 +489,7 @@ func (s *VerifierSuite) TestFetch2FADisabledDecoyErrorIsSwallowed() {
 
 	v := auth2fa.NewVerifier(s.source, comparer, s.auth)
 
-	ok, commit, err := v.Verify(s.ctx, uuid.New(), confirmmethod.Password, true, "any-password")
+	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: uuid.New()}, confirmmethod.Password, true, "any-password")
 	s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
 	s.Require().NotContains(err.Error(), "broken decoy hash")
 	s.False(ok)
@@ -514,7 +517,7 @@ func (s *VerifierSuite) TestDecoyPasswordHashIsWellFormed() {
 
 	v := auth2fa.NewVerifier(s.source, comparer, s.auth)
 
-	_, _, err := v.Verify(s.ctx, uuid.New(), confirmmethod.Password, true, "any-password")
+	_, _, err := v.Verify(s.ctx, dto.ActorMeta{UserID: uuid.New()}, confirmmethod.Password, true, "any-password")
 	s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
 
 	// хеш проверяется настоящим генератором: сверка обязана не сойтись и не дать ошибки
@@ -543,7 +546,7 @@ func (s *VerifierSuite) TestDecoyTOTPSecretIsWellFormed() {
 
 	v := auth2fa.NewVerifier(s.source, s.gen, validator)
 
-	_, _, err := v.Verify(s.ctx, uuid.New(), confirmmethod.TOTP, true, "000000")
+	_, _, err := v.Verify(s.ctx, dto.ActorMeta{UserID: uuid.New()}, confirmmethod.TOTP, true, "000000")
 	s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
 
 	// секрет проверяется настоящим аутентификатором: код по нему обязан считаться без ошибки
@@ -563,7 +566,7 @@ func (s *VerifierSuite) TestCommitTOTPStepRaceTranslated() {
 		UpdateTOTPStep(gomock.Any(), s.userID, gomock.Any()).
 		Return(sysmesserrors.ErrEventStorageNoRecordFound)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.TOTP, true, code)
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, code)
 	s.Require().NoError(err)
 	s.Require().True(ok)
 	s.Require().NotNil(commit)
@@ -587,7 +590,7 @@ func (s *VerifierSuite) TestCommitRecoveryCodeRaceTranslated() {
 		UpdateRecoveryCode(gomock.Any(), s.userID, h1).
 		Return(0, sysmesserrors.ErrEventStorageNoRecordFound)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, s.userID, confirmmethod.TOTP, true, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "AAAAABBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 	s.Require().NotNil(commit)
@@ -612,13 +615,13 @@ func (s *VerifierSuite) TestAlerterErrorIsNotTranslated() {
 	gomock.InOrder(
 		s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, h1).Return(1, nil),
 		s.alerter.EXPECT().
-			SendAlert(gomock.Any(), s.userID, 1).
+			SendAlert(gomock.Any(), gomock.Any(), 1).
 			Return(sysmesserrors.ErrEventStorageNoRecordFound),
 	)
 
 	v := s.newVerifier(auth2fa.WithRecoveryAlerter(s.alerter))
 
-	ok, commit, err := v.Verify(s.ctx, s.userID, confirmmethod.TOTP, true, "AAAAABBBBB")
+	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "AAAAABBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 	s.Require().NotNil(commit)

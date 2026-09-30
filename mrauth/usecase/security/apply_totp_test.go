@@ -20,6 +20,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/service/notify"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
@@ -40,7 +41,10 @@ type baseSuite struct {
 	notifierAPI  *mock.MockNotifier
 	logOperation *mock.MockoperationLogger
 	logEntries   []entity.SecureOperationLog
+	actorProps   *notify.ActorProps
 	notified     bool
+	notifiedKey  string
+	notifiedWith map[string]any
 }
 
 func (s *baseSuite) SetupTest() {
@@ -50,7 +54,12 @@ func (s *baseSuite) SetupTest() {
 	s.notifierAPI = mock.NewMockNotifier(s.ctrl)
 	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
 	s.logEntries = nil
+	s.actorProps = notify.NewActorProps(func(string) (string, string) {
+		return "TestApp", "TestDevice"
+	})
 	s.notified = false
+	s.notifiedKey = ""
+	s.notifiedWith = nil
 
 	// транзакция выполняет переданное задание как есть
 	s.txManager.EXPECT().
@@ -62,8 +71,10 @@ func (s *baseSuite) SetupTest() {
 
 	s.notifierAPI.EXPECT().
 		Send(gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(context.Context, string, map[string]any) error {
+		DoAndReturn(func(_ context.Context, key string, props map[string]any) error {
 			s.notified = true
+			s.notifiedKey = key
+			s.notifiedWith = props
 
 			return nil
 		}).
@@ -118,7 +129,7 @@ func (s *ApplyTOTPSuite) SetupTest() {
 	s.revoker.EXPECT().
 		RevokeAll(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, actor dto.ActorMeta, reason logreason.Enum) error {
-			s.revokedFor = actor.VisitorID
+			s.revokedFor = actor.UserID
 			s.revokeReason = reason
 
 			return s.revokeErr
@@ -157,13 +168,13 @@ func (s *ApplyTOTPSuite) TestValidCodeBindsAndReturnsCodes() {
 	auth := totp.NewAuthenticator("TestIssuer", 20)
 	uc := security.NewApplyTOTPGenerator(
 		s.txManager, s.binder, s.verifier, s.revoker,
-		crypt.NewSecretGenerator(), auth, s.notifierAPI, s.logOperation, 10, 10,
+		crypt.NewSecretGenerator(), auth, s.notifierAPI, s.actorProps, s.logOperation, 10, 10,
 	)
 
 	code, err := auth.GenerateCode(testTotpSecret, time.Now())
 	s.Require().NoError(err)
 
-	codes, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token", code)
+	codes, err := uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token", code)
 	s.Require().NoError(err)
 	s.Require().Len(codes, 10)
 	s.Equal(auth2fatype.TOTP, s.saved.Type)
@@ -172,6 +183,8 @@ func (s *ApplyTOTPSuite) TestValidCodeBindsAndReturnsCodes() {
 	s.NotEqual(codes, s.saved.RecoveryCodes) // хранятся хеши, возвращается plaintext
 	s.Equal("op-token", s.deleted)
 	s.True(s.notified)
+	s.Equal("user.2fa.enabled", s.notifiedKey)
+	s.Equal(auth2fatype.TOTP.String(), s.notifiedWith["factor"])
 	// включение 2FA отзывает все незавершённые операции пользователя
 	s.Equal(userID, s.revokedFor)
 	s.Equal(logreason.Auth2FAStateChanged, s.revokeReason)
@@ -193,13 +206,13 @@ func (s *ApplyTOTPSuite) TestActive2FAConflictNoApply() {
 	auth := totp.NewAuthenticator("TestIssuer", 20)
 	uc := security.NewApplyTOTPGenerator(
 		s.txManager, s.binder, s.verifier, s.revoker,
-		crypt.NewSecretGenerator(), auth, s.notifierAPI, s.logOperation, 10, 10,
+		crypt.NewSecretGenerator(), auth, s.notifierAPI, s.actorProps, s.logOperation, 10, 10,
 	)
 
 	code, err := auth.GenerateCode(testTotpSecret, time.Now())
 	s.Require().NoError(err)
 
-	codes, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token", code)
+	codes, err := uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token", code)
 	s.Require().ErrorIs(err, mrauth.ErrAuth2FAMustBeDisabledFirst)
 	s.Nil(codes)
 	s.Equal(entity.Auth2FA{}, s.saved, "второй фактор не должен привязываться")
@@ -221,10 +234,10 @@ func (s *ApplyTOTPSuite) TestInvalidCodeNoBind() {
 	uc := security.NewApplyTOTPGenerator(
 		s.txManager, s.binder, s.verifier, s.revoker,
 		crypt.NewSecretGenerator(), totp.NewAuthenticator("TestIssuer", 20),
-		s.notifierAPI, s.logOperation, 10, 10,
+		s.notifierAPI, s.actorProps, s.logOperation, 10, 10,
 	)
 
-	codes, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token", "000000")
+	codes, err := uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token", "000000")
 	s.Require().ErrorIs(err, mrauth.ErrTOTPCodeIsIncorrect)
 	s.Nil(codes)
 	s.Equal(entity.Auth2FA{}, s.saved)

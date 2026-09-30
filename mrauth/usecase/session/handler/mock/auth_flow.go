@@ -43,9 +43,9 @@ func (m *MockauthUserService) EXPECT() *MockauthUserServiceMockRecorder {
 }
 
 // PrepareAuthorization mocks base method.
-func (m *MockauthUserService) PrepareAuthorization(ctx context.Context, userID uuid.UUID, in dto.AuthorizeUserOperation) (dto.UserScopes, func(context.Context), error) {
+func (m *MockauthUserService) PrepareAuthorization(ctx context.Context, actor dto.ActorMeta, in dto.AuthorizeUserOperation) (dto.UserScopes, func(context.Context), error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PrepareAuthorization", ctx, userID, in)
+	ret := m.ctrl.Call(m, "PrepareAuthorization", ctx, actor, in)
 	ret0, _ := ret[0].(dto.UserScopes)
 	ret1, _ := ret[1].(func(context.Context))
 	ret2, _ := ret[2].(error)
@@ -53,9 +53,9 @@ func (m *MockauthUserService) PrepareAuthorization(ctx context.Context, userID u
 }
 
 // PrepareAuthorization indicates an expected call of PrepareAuthorization.
-func (mr *MockauthUserServiceMockRecorder) PrepareAuthorization(ctx, userID, in any) *gomock.Call {
+func (mr *MockauthUserServiceMockRecorder) PrepareAuthorization(ctx, actor, in any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareAuthorization", reflect.TypeOf((*MockauthUserService)(nil).PrepareAuthorization), ctx, userID, in)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PrepareAuthorization", reflect.TypeOf((*MockauthUserService)(nil).PrepareAuthorization), ctx, actor, in)
 }
 
 // ResolveUser mocks base method.

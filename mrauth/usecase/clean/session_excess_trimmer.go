@@ -141,7 +141,7 @@ func (co *SessionExcessTrimmer) trimUser(ctx context.Context, item entity.Sessio
 	}
 
 	return co.txManager.Do(ctx, func(ctx context.Context) error {
-		if err := co.closer.RevokeTokensBySessionIDs(ctx, item.UserID, toRevoke); err != nil {
+		if err = co.closer.RevokeTokensBySessionIDs(ctx, item.UserID, toRevoke); err != nil {
 			return err
 		}
 

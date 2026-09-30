@@ -40,7 +40,7 @@ func (s *ConfirmCodeSuite) TestEmailCorrectCodeConfirms() {
 
 	op := s.newOpWithActions(emailConfirmAction("secret1"))
 
-	out, commit, err := s.svc.Prepare(s.ctx, op, "secret1")
+	out, commit, err := s.prepareAsOwner(op, "secret1")
 	s.Require().NoError(err)
 	s.True(out.Is(operationstatus.Confirmed))
 	s.Nil(commit)
@@ -51,7 +51,7 @@ func (s *ConfirmCodeSuite) TestEmailWrongCodeRejected() {
 
 	op := s.newOpWithActions(emailConfirmAction("secret1"))
 
-	out, commit, err := s.svc.Prepare(s.ctx, op, "wrong")
+	out, commit, err := s.prepareAsOwner(op, "wrong")
 	s.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Nil(commit)
@@ -64,7 +64,7 @@ func (s *ConfirmCodeSuite) TestFirstOfTwoActionsGeneratesNextCode() {
 
 	op := s.newOpWithActions(emailConfirmAction("secret1"), emailConfirmAction("secret2"))
 
-	out, _, err := s.svc.Prepare(s.ctx, op, "secret1")
+	out, _, err := s.prepareAsOwner(op, "secret1")
 	s.Require().NoError(err)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Equal("new-token", out.Token)
@@ -109,7 +109,7 @@ func (s *ConfirmCodeSuite) TestRecoveryChainConfirms() {
 
 	op := s.newOpWithActions(totpConfirmAction(), recoveryConfirmAction())
 
-	out, commit, err := s.svc.Prepare(s.ctx, op, "123456")
+	out, commit, err := s.prepareAsOwner(op, "123456")
 	s.Require().NoError(err)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Nil(commit)
@@ -118,7 +118,7 @@ func (s *ConfirmCodeSuite) TestRecoveryChainConfirms() {
 	s.Require().True(ok)
 	s.Equal(confirmmethod.Recovery, next.Method)
 
-	out, commit, err = s.svc.Prepare(s.ctx, out, "AAAAABBBBB")
+	out, commit, err = s.prepareAsOwner(out, "AAAAABBBBB")
 	s.Require().NoError(err)
 	s.True(out.Is(operationstatus.Confirmed))
 	s.Require().NotNil(commit)
@@ -135,7 +135,7 @@ func (s *ConfirmCodeSuite) TestRecoveryActionWrongCodeRejected() {
 
 	op := s.newOpWithActions(recoveryConfirmAction())
 
-	out, commit, err := s.svc.Prepare(s.ctx, op, "ZZZZZYYYYY")
+	out, commit, err := s.prepareAsOwner(op, "ZZZZZYYYYY")
 	s.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Nil(commit)
@@ -155,7 +155,7 @@ func (s *ConfirmCodeSuite) TestTOTPStepCommitSurvivesNonFinalAction() {
 
 	op := s.newOpWithActions(totpConfirmAction(), recoveryConfirmAction())
 
-	out, commit, err := s.svc.Prepare(s.ctx, op, "123456")
+	out, commit, err := s.prepareAsOwner(op, "123456")
 	s.Require().NoError(err)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Require().NotNil(commit)

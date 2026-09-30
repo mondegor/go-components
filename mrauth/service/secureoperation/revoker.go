@@ -38,17 +38,17 @@ func NewRevoker(storage operationRevokerStorage, logOperation operationLogger) *
 	}
 }
 
-// RevokeAll - удаляет все незавершённые операции пользователя actor.VisitorID и фиксирует
+// RevokeAll - удаляет все незавершённые операции пользователя actor.UserID и фиксирует
 // в журнале отзыв с причиной reason - по одной записи на каждый отозванный тип операции.
 // Отсутствие операций - штатный случай, а не ошибка.
 // Вызывается внутри транзакции изменения, из-за которого операции стали недействительными;
 // журнал best-effort и в транзакции не участвует, поэтому запись может пережить её откат.
 func (o *Revoker) RevokeAll(ctx context.Context, actor dto.ActorMeta, reason logreason.Enum) error {
-	if actor.VisitorID == uuid.Nil {
+	if actor.UserID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
-	types, err := o.storage.DeleteByUserID(ctx, actor.VisitorID)
+	types, err := o.storage.DeleteByUserID(ctx, actor.UserID)
 	if err != nil {
 		return o.errorWrapper.Wrap(err)
 	}

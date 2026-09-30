@@ -21,6 +21,7 @@ func initConfirmOperationUseCase(
 	storageAuth2fa *repository.Auth2FAPostgres,
 	storageUser *repository.UserPostgres,
 	notifierAPI mrauth.Notifier,
+	actorProps *notify.ActorProps,
 	operationLogger *collect.SecureOperationLogger,
 	auth2faConfig authcfg.Auth2FA,
 ) *operation.ConfirmOperation {
@@ -44,6 +45,7 @@ func initConfirmOperationUseCase(
 					// алертер знает только ID пользователя - декоратор подставляет его email
 					auth2fa.NewRecoveryAlerter(
 						notify.NewUserEmailNotifier(notifierAPI, storageUser),
+						actorProps,
 						int(auth2faConfig.RecoveryLowThreshold),
 					),
 				),

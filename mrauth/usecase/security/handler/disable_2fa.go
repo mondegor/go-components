@@ -21,6 +21,7 @@ type (
 		storage      user2faDisabler
 		revoker      operationRevoker
 		notifierAPI  mrauth.Notifier
+		actorProps   actorPropsBuilder
 		errorWrapper errors.Wrapper
 	}
 
@@ -35,12 +36,14 @@ func NewDisable2FA(
 	storage user2faDisabler,
 	revoker operationRevoker,
 	notifierAPI mrauth.Notifier,
+	actorProps actorPropsBuilder,
 ) *Disable2FA {
 	return &Disable2FA{
 		txManager:    txManager,
 		storage:      storage,
 		revoker:      revoker,
 		notifierAPI:  notifierAPI,
+		actorProps:   actorProps,
 		errorWrapper: errors.NewServiceOperationFailedWrapper(),
 	}
 }
@@ -49,7 +52,7 @@ func NewDisable2FA(
 // фактор, отзывает все незавершённые операции пользователя (их цепочки подтверждения
 // построены при включённой 2FA) и отправляет уведомление.
 func (uc *Disable2FA) Execute(ctx context.Context, actor dto.ActorMeta, payload []byte) error {
-	if actor.VisitorID == uuid.Nil {
+	if actor.UserID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -59,7 +62,7 @@ func (uc *Disable2FA) Execute(ctx context.Context, actor dto.ActorMeta, payload 
 	}
 
 	return uc.txManager.Do(ctx, func(ctx context.Context) error {
-		if err := uc.storage.Delete(ctx, actor.VisitorID); err != nil {
+		if err = uc.storage.Delete(ctx, actor.UserID); err != nil {
 			// отсутствие записи 2FA - не ошибка: применение операции идемпотентно.
 			// Достижимо, когда операция отключения открыта повторно (2FA уже выключена
 			// предыдущей) либо когда один и тот же токен применяется конкурентно.
@@ -75,11 +78,11 @@ func (uc *Disable2FA) Execute(ctx context.Context, actor dto.ActorMeta, payload 
 		// 2FA отключена именно этим применением, поэтому незавершённые операции пользователя,
 		// построенные при включённой 2FA, отзываются. Если 2FA уже была снята (ветка выше),
 		// сюда не доходим: операции, открытые после снятия, построены без неё и остаются в силе
-		if err := uc.revoker.RevokeAll(ctx, actor, logreason.Auth2FAStateChanged); err != nil {
+		if err = uc.revoker.RevokeAll(ctx, actor, logreason.Auth2FAStateChanged); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		if err := uc.notifierAPI.Send(ctx, "user.2fa.disabled", conv.Group{"to": payloadDTO.Email}); err != nil {
+		if err = uc.notifierAPI.Send(ctx, "user.2fa.disabled", uc.actorProps.With(actor, conv.Group{"to": payloadDTO.Email})); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

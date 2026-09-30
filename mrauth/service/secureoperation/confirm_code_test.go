@@ -11,6 +11,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
@@ -84,13 +85,40 @@ func (s *ConfirmCodeSuite) newOpWithSingleTOTPAction(userID uuid.UUID) secureope
 	return op
 }
 
+// prepareAsOwner - вызывает Prepare от имени владельца операции, как это делает вызывающий
+// после dto.ActorMeta.WithUser.
+func (s *ConfirmCodeSuite) prepareAsOwner(
+	op secureoperation_model.SecureOperation,
+	confirmCode string,
+) (secureoperation_model.SecureOperation, func(ctx context.Context) error, error) {
+	return s.svc.Prepare(s.ctx, dto.ActorMeta{UserID: op.UserID}, op, confirmCode)
+}
+
+// TestActorNotOwnerRejected - actor, не совпадающий с владельцем операции, - нарушение контракта
+// вызывающего: иначе проверялась бы 2FA другого пользователя. Верификатор при этом не дёргается.
+func (s *ConfirmCodeSuite) TestActorNotOwnerRejected() {
+	s.verifier.EXPECT().Verify(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	for _, actorUserID := range []uuid.UUID{uuid.Nil, uuid.New()} {
+		out, commitConfirmed, err := s.svc.Prepare(
+			s.ctx,
+			dto.ActorMeta{UserID: actorUserID},
+			s.newOpWithSingleTOTPAction(uuid.New()),
+			"123456",
+		)
+		s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
+		s.False(out.Is(operationstatus.Confirmed))
+		s.Nil(commitConfirmed)
+	}
+}
+
 // TestEmptyConfirmCodeRejected - пустой секрет сюда попасть не может: вызывающий отсекает его
 // до Prepare. Поэтому это нарушение контракта, а не пользовательский ввод, и отдаётся внутренней
 // ошибкой, а не «введено неверно»; верификатор при этом не дёргается.
 func (s *ConfirmCodeSuite) TestEmptyConfirmCodeRejected() {
 	s.verifier.EXPECT().Verify(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
-	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "")
+	out, commitConfirmed, err := s.prepareAsOwner(s.newOpWithSingleTOTPAction(uuid.New()), "")
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 	s.Require().NotErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.False(out.Is(operationstatus.Confirmed))
@@ -99,12 +127,14 @@ func (s *ConfirmCodeSuite) TestEmptyConfirmCodeRejected() {
 
 func (s *ConfirmCodeSuite) TestTOTPVerifiedNoConsume() {
 	userID := uuid.New()
+	// клиент, подтверждающий операцию, передаётся верификатору как есть
+	actor := dto.ActorMeta{UserID: userID, UserAgent: "test-agent"}
 
 	s.verifier.EXPECT().
-		Verify(gomock.Any(), userID, confirmmethod.TOTP, false, "123456").
+		Verify(gomock.Any(), actor, confirmmethod.TOTP, false, "123456").
 		Return(true, nil, nil)
 
-	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(userID), "123456")
+	out, commitConfirmed, err := s.svc.Prepare(s.ctx, actor, s.newOpWithSingleTOTPAction(userID), "123456")
 	s.Require().NoError(err)
 	s.True(out.Is(operationstatus.Confirmed))
 	s.Nil(commitConfirmed)
@@ -122,7 +152,7 @@ func (s *ConfirmCodeSuite) TestTOTPVerifiedWithConsume() {
 		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, false, gomock.Any()).
 		Return(true, consume, nil)
 
-	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "recovery")
+	out, commitConfirmed, err := s.prepareAsOwner(s.newOpWithSingleTOTPAction(uuid.New()), "recovery")
 	s.Require().NoError(err)
 	s.True(out.Is(operationstatus.Confirmed))
 	s.Require().NotNil(commitConfirmed)
@@ -136,7 +166,7 @@ func (s *ConfirmCodeSuite) TestTOTPVerifierRejects() {
 		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, false, gomock.Any()).
 		Return(false, nil, nil)
 
-	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "bad")
+	out, commitConfirmed, err := s.prepareAsOwner(s.newOpWithSingleTOTPAction(uuid.New()), "bad")
 	s.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Nil(commitConfirmed)
@@ -149,7 +179,7 @@ func (s *ConfirmCodeSuite) TestTOTPVerifierError() {
 		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, false, gomock.Any()).
 		Return(false, nil, wantErr)
 
-	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "any")
+	out, commitConfirmed, err := s.prepareAsOwner(s.newOpWithSingleTOTPAction(uuid.New()), "any")
 	s.Require().ErrorIs(err, wantErr)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Nil(commitConfirmed)
@@ -165,7 +195,7 @@ func (s *ConfirmCodeSuite) Test2FADisabledLooksLikeMiss() {
 		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, false, gomock.Any()).
 		Return(false, nil, mrauth.ErrAuth2FAIsDisabled)
 
-	out, commitConfirmed, err := s.svc.Prepare(s.ctx, s.newOpWithSingleTOTPAction(uuid.New()), "123456")
+	out, commitConfirmed, err := s.prepareAsOwner(s.newOpWithSingleTOTPAction(uuid.New()), "123456")
 	s.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.Require().NotErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
 	s.False(out.Is(operationstatus.Confirmed))

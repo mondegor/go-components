@@ -30,6 +30,7 @@ type (
 		revoker            operationRevoker
 		codeGenerator      recoveryCodesGenerator
 		notifierAPI        mrauth.Notifier
+		actorProps         actorPropsBuilder
 		logOperation       operationLogger
 		errorWrapper       errors.Wrapper
 		recoveryCount      int
@@ -51,6 +52,7 @@ func NewApplyPassword(
 	revoker operationRevoker,
 	codeGenerator recoveryCodesGenerator,
 	notifierAPI mrauth.Notifier,
+	actorProps actorPropsBuilder,
 	logOperation operationLogger,
 	recoveryCount int,
 	recoveryCodeLength int,
@@ -64,6 +66,7 @@ func NewApplyPassword(
 		revoker:            revoker,
 		codeGenerator:      codeGenerator,
 		notifierAPI:        notifierAPI,
+		actorProps:         actorProps,
 		logOperation:       logOperation,
 		errorWrapper:       errors.NewServiceOperationFailedWrapper(),
 		recoveryCount:      recoveryCount,
@@ -73,7 +76,7 @@ func NewApplyPassword(
 
 // Execute - проверяет, что операция смены пароля подтверждена, и в одной транзакции
 // привязывает пароль как 2FA, удаляет операцию, отзывает незавершённые операции пользователя, отправляет
-// уведомление и возвращает новые аварийные коды в открытом виде (показываются один раз).
+// уведомление о включении 2FA и возвращает новые аварийные коды в открытом виде (показываются один раз).
 // Если к моменту применения 2FA уже включена (её успели включить другим способом после
 // создания операции), возвращает mrauth.ErrAuth2FAMustBeDisabledFirst.
 func (uc *ApplyPassword) Execute(
@@ -81,7 +84,7 @@ func (uc *ApplyPassword) Execute(
 	actor dto.ActorMeta,
 	operationToken string,
 ) (plainCodes []string, err error) {
-	if actor.VisitorID == uuid.Nil {
+	if actor.UserID == uuid.Nil {
 		return nil, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -108,7 +111,7 @@ func (uc *ApplyPassword) Execute(
 		operationType = op.Type
 		actionMethod = op.FirstActionMethod()
 
-		if actor.VisitorID != op.UserID {
+		if actor.UserID != op.UserID {
 			failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
 
 			return errors.ErrAccessForbidden
@@ -168,7 +171,14 @@ func (uc *ApplyPassword) Execute(
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		return uc.notifierAPI.Send(ctx, "user.password.changed", conv.Group{"to": payload.Email})
+		return uc.notifierAPI.Send(
+			ctx,
+			"user.2fa.enabled",
+			uc.actorProps.With(actor, conv.Group{
+				"to":     payload.Email,
+				"factor": auth2fatype.Password.String(),
+			}),
+		)
 	})
 	if err != nil {
 		if failedLogState.isSet() {

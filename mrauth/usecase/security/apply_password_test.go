@@ -70,7 +70,7 @@ func (s *ApplyPasswordSuite) SetupTest() {
 	s.revoker.EXPECT().
 		RevokeAll(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, actor dto.ActorMeta, reason logreason.Enum) error {
-			s.revokedFor = actor.VisitorID
+			s.revokedFor = actor.UserID
 			s.revokeReason = reason
 
 			return s.revokeErr
@@ -103,7 +103,7 @@ func (s *ApplyPasswordSuite) SetupTest() {
 func (s *ApplyPasswordSuite) newUseCase() *security.ApplyPassword {
 	return security.NewApplyPassword(
 		s.txManager, s.binder, s.verifier, s.revoker,
-		crypt.NewSecretGenerator(), s.notifierAPI, s.logOperation, 8, 10,
+		crypt.NewSecretGenerator(), s.notifierAPI, s.actorProps, s.logOperation, 8, 10,
 	)
 }
 
@@ -114,7 +114,7 @@ func (s *ApplyPasswordSuite) TestConfirmedBindsAndReturnsCodes() {
 		FetchOneForUpdate(gomock.Any(), gomock.Any()).
 		Return(confirmedPasswordOp(userID, `{"new_password":"hashed-pwd","email":"u@e"}`), nil)
 
-	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 	s.Require().NoError(err)
 	s.Require().Len(codes, 8)
 	s.Equal(auth2fatype.Password, s.saved.Type)
@@ -123,6 +123,13 @@ func (s *ApplyPasswordSuite) TestConfirmedBindsAndReturnsCodes() {
 	s.NotEqual(codes, s.saved.RecoveryCodes) // хранятся хеши, возвращается plaintext
 	s.Equal("op-token", s.deleted)
 	s.True(s.notified)
+	// о включении 2FA уведомляет одно событие для любого фактора, фактор - в props
+	s.Equal("user.2fa.enabled", s.notifiedKey)
+	s.Equal("u@e", s.notifiedWith["to"])
+	s.Equal(auth2fatype.Password.String(), s.notifiedWith["factor"])
+	s.Equal("TestApp, TestDevice", s.notifiedWith["device"])
+	s.Contains(s.notifiedWith, "occurredAt")
+	s.Contains(s.notifiedWith, "ip")
 	// включение 2FA отзывает все незавершённые операции пользователя
 	s.Equal(userID, s.revokedFor)
 	s.Equal(logreason.Auth2FAStateChanged, s.revokeReason)
@@ -142,10 +149,10 @@ func (s *ApplyPasswordSuite) TestReissuesNewCodesEachTime() {
 
 	uc := s.newUseCase()
 
-	first, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	first, err := uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 	s.Require().NoError(err)
 
-	second, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	second, err := uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 	s.Require().NoError(err)
 
 	s.NotEqual(first, second) // каждая смена пароля выдаёт новый набор кодов
@@ -160,7 +167,7 @@ func (s *ApplyPasswordSuite) TestPayloadWithoutPasswordNoBind() {
 		FetchOneForUpdate(gomock.Any(), gomock.Any()).
 		Return(confirmedPasswordOp(userID, `{"email":"u@e"}`), nil)
 
-	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 	s.Require().Error(err)
 	s.Nil(codes)
 	s.Empty(s.saved.Secret, "пароль не должен привязываться")
@@ -177,7 +184,7 @@ func (s *ApplyPasswordSuite) TestActive2FAConflictNoApply() {
 		FetchOneForUpdate(gomock.Any(), gomock.Any()).
 		Return(confirmedPasswordOp(userID, `{"new_password":"hashed-pwd","email":"u@e"}`), nil)
 
-	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 	s.Require().ErrorIs(err, mrauth.ErrAuth2FAMustBeDisabledFirst)
 	s.Nil(codes)
 	s.Equal(entity.Auth2FA{}, s.saved, "второй фактор не должен привязываться")
@@ -198,7 +205,7 @@ func (s *ApplyPasswordSuite) TestWrongOperationTypeNoBind() {
 		FetchOneForUpdate(gomock.Any(), gomock.Any()).
 		Return(confirmedOp(userID, `{"new_password":"hashed-pwd","email":"u@e"}`), nil)
 
-	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 	s.Require().Error(err)
 	s.Nil(codes)
 	s.Empty(s.deleted)
@@ -219,7 +226,7 @@ func (s *ApplyPasswordSuite) TestRevokeError() {
 		FetchOneForUpdate(gomock.Any(), gomock.Any()).
 		Return(confirmedPasswordOp(userID, `{"new_password":"hashed-pwd","email":"u@e"}`), nil)
 
-	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 	s.Require().Error(err)
 	s.Nil(codes)
 	s.False(s.notified)

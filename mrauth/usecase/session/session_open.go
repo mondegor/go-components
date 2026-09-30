@@ -56,7 +56,11 @@ type (
 	}
 
 	authFlowHandler interface {
-		Execute(ctx context.Context, op secureoperation.SecureOperation) (userScopes dto.UserScopes, notifyAuthSuccess func(context.Context), err error)
+		Execute(
+			ctx context.Context,
+			actor dto.ActorMeta,
+			op secureoperation.SecureOperation,
+		) (userScopes dto.UserScopes, notifyAuthSuccess func(context.Context), err error)
 	}
 
 	tokenCreator interface {
@@ -111,8 +115,9 @@ func NewOpenSession(
 }
 
 // Execute - открывает новую сессию: сохраняет сессию (с генерацией её идентификатора),
-// выпускает пару токенов и фиксирует активность пользователя.
-func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op secureoperation.SecureOperation) (authToken dto.AuthTokenPair, err error) {
+// выпускает пару токенов, фиксирует активность пользователя и отправляет login-alert
+// с контекстом клиента actor.
+func (uc *OpenSession) Execute(ctx context.Context, actor dto.ActorMeta, op secureoperation.SecureOperation) (authToken dto.AuthTokenPair, err error) {
 	if op.Type != operationtype.CreateUser && op.Type != operationtype.AuthorizeUser {
 		return dto.AuthTokenPair{}, errors.ErrAccessForbidden
 	}
@@ -121,7 +126,7 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 		return dto.AuthTokenPair{}, mrauth.ErrOperationIsNotConfirmed
 	}
 
-	userScopes, notifyAuthSuccess, err := uc.handlerAuthFlow.Execute(ctx, op)
+	userScopes, notifyAuthSuccess, err := uc.handlerAuthFlow.Execute(ctx, actor, op)
 	if err != nil {
 		return dto.AuthTokenPair{}, uc.errorWrapper.Wrap(err)
 	}
@@ -138,9 +143,7 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 			// жёсткий лимит сессий: фиксируем блокировку входа в журнале
 			uc.logOperation.Log(
 				ctx,
-				entity.NewSecureOperationLog(
-					userScopes.UserID,
-					meta.ClientIP,
+				actor.WithUser(userScopes.UserID).NewOperationLog(
 					op.Type.String(),
 					op.FirstActionMethod(),
 					logstatus.Blocked,
@@ -159,9 +162,9 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 			ctx,
 			entity.Session{
 				UserID:    userScopes.UserID,
-				UserAgent: meta.UserAgent,
+				UserAgent: actor.UserAgent,
 				// инвариант: real IP всегда задан (источник RemoteAddr), поэтому LastIP заполнен всегда
-				LastIP: meta.ClientIP.Real,
+				LastIP: actor.ClientIP.Real,
 			},
 		)
 		if err != nil {
@@ -207,9 +210,7 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 	// поэтому здесь используется отдельный статус - иначе события неразличимы
 	uc.logOperation.Log(
 		ctx,
-		entity.NewSecureOperationLog(
-			userScopes.UserID,
-			meta.ClientIP,
+		actor.WithUser(userScopes.UserID).NewOperationLog(
 			op.Type.String(),
 			op.FirstActionMethod(),
 			logstatus.SessionOpened,
@@ -226,7 +227,7 @@ func (uc *OpenSession) Execute(ctx context.Context, meta dto.SessionMeta, op sec
 	userActivity := entity.UserActivityStat{
 		UserID:        userScopes.UserID,
 		RealmID:       realmID,
-		LastLoginIP:   meta.ClientIP.Real,
+		LastLoginIP:   actor.ClientIP.Real,
 		LastLoggedAt:  now,
 		LastVisitedAt: now,
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/service/authuser"
 	"github.com/mondegor/go-components/mrauth/service/authuser/mock"
+	"github.com/mondegor/go-components/mrauth/service/notify"
 	"github.com/mondegor/go-components/mrauth/service/realm"
 )
 
@@ -65,6 +66,9 @@ func (s *AuthUserSuite) SetupTest() {
 		s.storageUserRealm,
 		realm.New([]realm.Realm{{ID: 1, Name: "site/admin"}}),
 		s.notifierAPI,
+		notify.NewActorProps(func(string) (string, string) {
+			return "TestApp", "TestDevice"
+		}),
 		mrlog.NopLogger(),
 	)
 }
@@ -233,6 +237,20 @@ func (s *AuthUserSuite) TestResolveUserLookupError() {
 	s.Require().Error(err)
 }
 
+// TestPrepareAuthorizationWithoutUser - пользователь не подставлен в actor: нарушение инварианта
+// вызывающего, хранилище не опрашивается.
+func (s *AuthUserSuite) TestPrepareAuthorizationWithoutUser() {
+	s.storageUser.EXPECT().FetchOne(gomock.Any(), gomock.Any()).Times(0)
+	s.storageUserRealm.EXPECT().FetchOne(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	_, _, err := s.svc.PrepareAuthorization(
+		s.ctx,
+		dto.ActorMeta{},
+		dto.AuthorizeUserOperation{Realm: "site/admin", LangCode: "en"},
+	)
+	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
+}
+
 // TestPrepareAuthorizationUserRowIsMissingIsInternal - пользователь подтверждённой
 // операции пропал: это рассогласованные данные хранилища, а не ответ клиенту. Наружу должна идти
 // внутренняя ошибка (500), а не errors.ErrRecordNotFound, который маппер отдал бы как 404
@@ -247,7 +265,7 @@ func (s *AuthUserSuite) TestPrepareAuthorizationUserRowIsMissingIsInternal() {
 
 	_, _, err := s.svc.PrepareAuthorization(
 		s.ctx,
-		userID,
+		dto.ActorMeta{UserID: userID},
 		dto.AuthorizeUserOperation{Realm: "site/admin", LangCode: "en"},
 	)
 	s.Require().Error(err)
@@ -270,7 +288,7 @@ func (s *AuthUserSuite) TestPrepareAuthorizationMissingRealmBindingIsForbidden()
 
 	_, _, err := s.svc.PrepareAuthorization(
 		s.ctx,
-		userID,
+		dto.ActorMeta{UserID: userID},
 		dto.AuthorizeUserOperation{Realm: "site/admin", LangCode: "en"},
 	)
 	s.Require().ErrorIs(err, errors.ErrAccessForbidden)
@@ -278,7 +296,8 @@ func (s *AuthUserSuite) TestPrepareAuthorizationMissingRealmBindingIsForbidden()
 }
 
 // PrepareAuthorization сам НЕ шлёт login-alert: он возвращает scopes и отложенный callback,
-// а уведомление user.authorization.success.<realm> уходит только при вызове callback'а.
+// а уведомление user.authorization.success.<realm> уходит только при вызове callback'а
+// и несёт контекст клиента (время, IP, устройство).
 func (s *AuthUserSuite) TestPrepareAuthorizationDefersRealmSpecificNotice() {
 	userID := uuid.New()
 
@@ -293,15 +312,21 @@ func (s *AuthUserSuite) TestPrepareAuthorizationDefersRealmSpecificNotice() {
 
 	s.notifierAPI.EXPECT().
 		Send(gomock.Any(), "user.authorization.success.site.admin", gomock.Any()).
-		DoAndReturn(func(context.Context, string, map[string]any) error {
+		DoAndReturn(func(_ context.Context, _ string, props map[string]any) error {
 			notified = true
+
+			s.Equal("user@example.com", props["to"])
+			s.Equal("en", props["lang"])
+			s.Equal("192.0.2.10", props["ip"])
+			s.Equal("TestApp, TestDevice", props["device"])
+			s.Contains(props, "occurredAt")
 
 			return nil
 		})
 
-	scopes, notify, err := s.svc.PrepareAuthorization(
+	scopes, notifyAuth, err := s.svc.PrepareAuthorization(
 		s.ctx,
-		userID,
+		dto.ActorMeta{UserID: userID, ClientIP: mrtype.NewIP(netip.MustParseAddr("192.0.2.10"))},
 		dto.AuthorizeUserOperation{Realm: "site/admin", LangCode: "en"},
 	)
 	s.Require().NoError(err)
@@ -310,8 +335,8 @@ func (s *AuthUserSuite) TestPrepareAuthorizationDefersRealmSpecificNotice() {
 
 	// синхронно ничего не отправлено - только отложенный callback
 	s.False(notified, "login-alert must not be sent synchronously")
-	s.Require().NotNil(notify)
+	s.Require().NotNil(notifyAuth)
 
-	notify(s.ctx)
+	notifyAuth(s.ctx)
 	s.True(notified)
 }

@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mraccess"
-	"github.com/mondegor/go-core/mrtype"
 	"github.com/mondegor/go-core/util/casttype"
 	"github.com/mondegor/go-webcore/mrserver"
 	"github.com/mondegor/go-webcore/mrserver/mrresp"
@@ -62,9 +61,9 @@ type (
 	createUserUseCase interface {
 		Execute(
 			ctx context.Context,
-			realm, langCode, timeZone string,
+			actor dto.ActorMeta,
+			realm, langCode string,
 			userEmail contactaddress.ContactAddress,
-			registeredIP mrtype.DetailedIP,
 		) (secureoperation.SecureOperation, error)
 	}
 
@@ -82,7 +81,7 @@ type (
 	}
 
 	openSessionUseCase interface {
-		Execute(ctx context.Context, meta dto.SessionMeta, op secureoperation.SecureOperation) (token dto.AuthTokenPair, err error)
+		Execute(ctx context.Context, actor dto.ActorMeta, op secureoperation.SecureOperation) (token dto.AuthTokenPair, err error)
 	}
 
 	continueSessionUseCase interface {
@@ -192,11 +191,14 @@ func (ht *Auth) Signup(w http.ResponseWriter, r *http.Request) error {
 	// TODO: добавить rate-limit (частота регистраций/повторной отправки кода по identifier+IP)
 	op, err := ht.useCaseCreateUser.Execute(
 		r.Context(),
+		dto.NewAnonymousActorMeta(
+			ht.parser.DetailedIP(r),
+			r.UserAgent(),
+			ht.parser.Location(r),
+		),
 		req.Realm,
 		lz.Language(),
-		ht.parser.Location(r).String(),
 		contactaddress.NewEmail(req.UserEmail),
-		ht.parser.DetailedIP(r),
 	)
 	if err != nil {
 		if errors.Is(err, mrauth.ErrEmailAlreadyExists) {
@@ -257,10 +259,11 @@ func (ht *Auth) signin(
 
 	op, err := useCase.Execute(
 		r.Context(),
-		dto.ActorMeta{
-			VisitorID: uuid.Nil, // анонимный поток входа: форензику несёт ClientIP
-			ClientIP:  ht.parser.DetailedIP(r),
-		},
+		dto.NewAnonymousActorMeta(
+			ht.parser.DetailedIP(r),
+			r.UserAgent(),
+			ht.parser.Location(r),
+		),
 		req.Realm,
 		lz.Language(),
 		contactaddress.NewValidAddress(req.UserLogin),
@@ -308,10 +311,12 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 	// шаг 2: открыть сессию и выдать пару токенов
 	tk, err := ht.useCaseOpenSession.Execute(
 		r.Context(),
-		dto.SessionMeta{
-			UserAgent: r.UserAgent(),
-			ClientIP:  ht.parser.DetailedIP(r),
-		},
+		// пользователь выводится из операции внутри usecase
+		dto.NewAnonymousActorMeta(
+			ht.parser.DetailedIP(r),
+			r.UserAgent(),
+			ht.parser.Location(r),
+		),
 		op,
 	)
 	if err != nil {
@@ -360,10 +365,12 @@ func (ht *Auth) ContinueSession(w http.ResponseWriter, r *http.Request) error {
 
 	tk, err := ht.useCaseContinueSession.Execute(
 		r.Context(),
-		dto.ActorMeta{
-			VisitorID: uuid.Nil, // пользователь выводится из токена внутри usecase; форензику несёт ClientIP
-			ClientIP:  ht.parser.DetailedIP(r),
-		},
+		// пользователь выводится из токена внутри usecase
+		dto.NewAnonymousActorMeta(
+			ht.parser.DetailedIP(r),
+			r.UserAgent(),
+			ht.parser.Location(r),
+		),
 		ht.parser.Localizer(r).Language(),
 		refreshToken,
 	)
