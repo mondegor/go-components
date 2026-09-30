@@ -176,6 +176,7 @@ func initSecurityController(
 			operationtype.ChangeEmailConfirm: handler.NewChangeEmail(
 				dbConnManager,
 				storageUser,
+				operationRevoker,
 				notifierAPI,
 			),
 			operationtype.ChangePhone: handler.NewChangePhone(

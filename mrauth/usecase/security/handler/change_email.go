@@ -10,6 +10,7 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
@@ -19,6 +20,7 @@ type (
 	ChangeEmail struct {
 		txManager    mrstorage.DBTxManager
 		storage      userEmailChanger
+		revoker      operationRevoker
 		notifierAPI  mrauth.Notifier
 		errorWrapper errors.Wrapper
 	}
@@ -32,20 +34,22 @@ type (
 func NewChangeEmail(
 	txManager mrstorage.DBTxManager,
 	storage userEmailChanger,
+	revoker operationRevoker,
 	notifierAPI mrauth.Notifier,
 ) *ChangeEmail {
 	return &ChangeEmail{
 		txManager:    txManager,
 		storage:      storage,
+		revoker:      revoker,
 		notifierAPI:  notifierAPI,
 		errorWrapper: errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
-// Execute - меняет email пользователя на новый и отправляет на прежний адрес уведомление
-// о состоявшейся смене. Если новый адрес успели занять за время жизни операции, возвращает
-// mrauth.ErrEmailAlreadyExists: гонка с другим пользователем за адрес проявляется ошибкой
-// дубликата от UpdateEmail.
+// Execute - меняет email пользователя на новый, отзывает незавершённые операции пользователя
+// и отправляет на прежний адрес уведомление о состоявшейся смене. Если новый адрес успели занять
+// за время жизни операции, возвращает mrauth.ErrEmailAlreadyExists: гонка с другим пользователем
+// за адрес проявляется ошибкой дубликата от UpdateEmail.
 func (uc *ChangeEmail) Execute(ctx context.Context, actor dto.ActorMeta, payload []byte) error {
 	if actor.VisitorID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
@@ -62,6 +66,12 @@ func (uc *ChangeEmail) Execute(ctx context.Context, actor dto.ActorMeta, payload
 				return mrauth.ErrEmailAlreadyExists
 			}
 
+			return uc.errorWrapper.Wrap(err)
+		}
+
+		// коды подтверждения и уведомления незавершённых операций привязаны к прежнему адресу,
+		// поэтому операции отзываются: их нужно начать заново
+		if err := uc.revoker.RevokeAll(ctx, actor, logreason.EmailChanged); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

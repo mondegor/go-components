@@ -612,16 +612,21 @@ func (s *AuthSuite) TestUserInfoPendingOperations() {
 	userID := uuid.New()
 	expiresAt := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
 
-	emailItem := dto.PendingOperation{
-		Token:     "token-email",
+	firstItem := dto.PendingOperation{
+		Token:     "token-first",
 		Type:      operationtype.ChangeEmailConfirm,
 		ExpiresAt: expiresAt,
-		NewEmail:  "new@example.com",
+		NewEmail:  "first@example.com",
 	}
-	disableItem := dto.PendingOperation{Token: "token-2fa", Type: operationtype.Disable2FA, ExpiresAt: expiresAt}
+	secondItem := dto.PendingOperation{
+		Token:     "token-second",
+		Type:      operationtype.ChangeEmailConfirm,
+		ExpiresAt: expiresAt,
+		NewEmail:  "second@example.com",
+	}
 
 	info := okUserInfo()
-	info.PendingOperations = []dto.PendingOperation{emailItem, disableItem}
+	info.PendingOperations = []dto.PendingOperation{firstItem, secondItem}
 
 	s.parser.EXPECT().UserID(gomock.Any()).Return(userID)
 	s.parser.EXPECT().Location(gomock.Any()).Return(s.mustLoadLocation(responseTimeZone))
@@ -630,18 +635,18 @@ func (s *AuthSuite) TestUserInfoPendingOperations() {
 
 	gomock.InOrder(
 		s.operationResponse.EXPECT().
-			NewPendingOperation(emailItem, "2026-09-28T15:00:00+03:00").
-			Return(model.PendingOperation{Token: "token-email"}),
+			NewPendingOperation(firstItem, "2026-09-28T15:00:00+03:00").
+			Return(model.PendingOperation{Token: "token-first"}),
 		s.operationResponse.EXPECT().
-			NewPendingOperation(disableItem, "2026-09-28T15:00:00+03:00").
-			Return(model.PendingOperation{Token: "token-2fa"}),
+			NewPendingOperation(secondItem, "2026-09-28T15:00:00+03:00").
+			Return(model.PendingOperation{Token: "token-second"}),
 	)
 
 	s.Require().NoError(s.userInfo())
 
 	response, ok := s.sent.(model.UserInfoResponse)
 	s.Require().True(ok)
-	s.Equal([]model.PendingOperation{{Token: "token-email"}, {Token: "token-2fa"}}, response.PendingOperations)
+	s.Equal([]model.PendingOperation{{Token: "token-first"}, {Token: "token-second"}}, response.PendingOperations)
 }
 
 // TestUserInfoRecoveryCodesLeft - остаток аварийных кодов отдаётся только при включённой 2FA.

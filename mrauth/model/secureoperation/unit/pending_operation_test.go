@@ -32,9 +32,8 @@ func confirmedOperation(t *testing.T, opType operationtype.Enum, payload []byte)
 	return op
 }
 
-// TestNewPendingOperationTypes - в список входят только операции, в которых может быть применён
-// аварийный код, и долгоживущие операции, у смены емаила (оба шага) разобран новый адрес;
-// короткоживущие операции без аварийного кода, вход и регистрация в список не входят.
+// TestNewPendingOperationTypes - в список входит только шаг 2 смены емаила с разобранным новым
+// адресом; остальные операции, вход и регистрация в список не входят.
 func TestNewPendingOperationTypes(t *testing.T) {
 	t.Parallel()
 
@@ -51,13 +50,13 @@ func TestNewPendingOperationTypes(t *testing.T) {
 	tests := []testCase{
 		{opType: operationtype.AuthorizeUser},
 		{opType: operationtype.CreateUser},
-		{opType: operationtype.ChangeEmail, payload: emailPayload, wantOK: true, wantNewEmail: "new@example.com"},
+		{opType: operationtype.ChangeEmail, payload: emailPayload},
 		{opType: operationtype.ChangeEmailConfirm, payload: emailPayload, wantOK: true, wantNewEmail: "new@example.com"},
 		{opType: operationtype.ChangePhone},
 		{opType: operationtype.ChangePassword},
 		{opType: operationtype.ChangeTOTP},
 		{opType: operationtype.RegenerateRecovery},
-		{opType: operationtype.Disable2FA, wantOK: true},
+		{opType: operationtype.Disable2FA},
 	}
 
 	// типы для отбора в хранилище совпадают с входящими в список
@@ -98,65 +97,63 @@ func TestNewPendingOperationTypes(t *testing.T) {
 
 // TestNewPendingOperationCurrentAction - звено отдаётся только у неподтверждённой операции
 // (у подтверждённой проверено в TestNewPendingOperationTypes), а счётчики повторной отправки -
-// только у звена, которое её допускает (код по емаилу, но не TOTP).
+// только у звена, которое её допускает. В списке один тип операции, и его цепочка состоит из звена
+// EMAIL, поэтому звено без повторной отправки (TOTP) подставлено в неё искусственно.
 func TestNewPendingOperationCurrentAction(t *testing.T) {
 	t.Parallel()
 
 	resendsAt := time.Now().UTC().Add(time.Minute).Round(time.Second)
-	expiresAt := time.Now().UTC().Add(time.Hour).Round(time.Second)
+	remainingResends := int16(2)
 
-	t.Run("email action", func(t *testing.T) {
-		t.Parallel()
+	type testCase struct {
+		name   string
+		action secureoperation.ConfirmAction
+		want   *dto.PendingAction
+	}
 
-		payload, err := unit.BuildChangeEmailPayload(dto.ChangeEmailOperation{NewEmail: "new@example.com", Email: "user@example.com"})
-		require.NoError(t, err)
+	tests := []testCase{
+		{
+			name:   "sendable action",
+			action: secureoperation.ConfirmAction{Method: confirmmethod.Email, MaxAttempts: 3, CodeLength: 6, Expiry: time.Hour, Address: "new@example.com"},
+			want: &dto.PendingAction{
+				Method:            confirmmethod.Email,
+				RemainingAttempts: 3,
+				RemainingResends:  &remainingResends,
+				ResendsAt:         &resendsAt,
+			},
+		},
+		{
+			name:   "not sendable action",
+			action: secureoperation.ConfirmAction{Method: confirmmethod.TOTP, MaxAttempts: 3, Expiry: time.Hour},
+			want:   &dto.PendingAction{Method: confirmmethod.TOTP, RemainingAttempts: 3},
+		},
+	}
 
-		op := secureoperation.SecureOperation{
-			Token:             "token",
-			Type:              operationtype.ChangeEmailConfirm,
-			Payload:           payload,
-			RemainingAttempts: 3,
-			RemainingResends:  2,
-			ResendsAt:         resendsAt,
-			Status:            operationstatus.Opened,
-			ExpiresAt:         expiresAt,
-		}
-		require.NoError(t, secureoperation.WakeUp(&op, []secureoperation.ConfirmAction{
-			{Method: confirmmethod.Email, MaxAttempts: 3, CodeLength: 6, Expiry: time.Hour, Address: "new@example.com"},
-		}))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		item, ok, err := unit.NewPendingOperation(op)
-		require.NoError(t, err)
-		require.True(t, ok)
+			payload, err := unit.BuildChangeEmailPayload(dto.ChangeEmailOperation{NewEmail: "new@example.com", Email: "user@example.com"})
+			require.NoError(t, err)
 
-		remainingResends := int16(2)
-		assert.Equal(t, &dto.PendingAction{
-			Method:            confirmmethod.Email,
-			RemainingAttempts: 3,
-			RemainingResends:  &remainingResends,
-			ResendsAt:         &resendsAt,
-		}, item.CurrentAction)
-	})
+			op := secureoperation.SecureOperation{
+				Token:             "token",
+				Type:              operationtype.ChangeEmailConfirm,
+				Payload:           payload,
+				RemainingAttempts: 3,
+				RemainingResends:  2,
+				ResendsAt:         resendsAt,
+				Status:            operationstatus.Opened,
+				ExpiresAt:         time.Now().UTC().Add(time.Hour).Round(time.Second),
+			}
+			require.NoError(t, secureoperation.WakeUp(&op, []secureoperation.ConfirmAction{tt.action}))
 
-	t.Run("totp action", func(t *testing.T) {
-		t.Parallel()
-
-		op := secureoperation.SecureOperation{
-			Token:             "token",
-			Type:              operationtype.Disable2FA,
-			RemainingAttempts: 5,
-			Status:            operationstatus.Opened,
-			ExpiresAt:         expiresAt,
-		}
-		require.NoError(t, secureoperation.WakeUp(&op, []secureoperation.ConfirmAction{
-			{Method: confirmmethod.TOTP, MaxAttempts: 5, Expiry: time.Hour},
-		}))
-
-		item, ok, err := unit.NewPendingOperation(op)
-		require.NoError(t, err)
-		require.True(t, ok)
-		assert.Equal(t, &dto.PendingAction{Method: confirmmethod.TOTP, RemainingAttempts: 5}, item.CurrentAction)
-	})
+			item, ok, err := unit.NewPendingOperation(op)
+			require.NoError(t, err)
+			require.True(t, ok)
+			assert.Equal(t, tt.want, item.CurrentAction)
+		})
+	}
 }
 
 // TestNewPendingOperationBrokenPayload - нечитаемый payload - нарушение инварианта: ошибка,
