@@ -3,7 +3,6 @@ package httpv1
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
@@ -63,12 +62,7 @@ type (
 	}
 
 	applyEmailUseCase interface {
-		Execute(
-			ctx context.Context,
-			actor dto.ActorMeta,
-			userLocation *time.Location,
-			operationToken string,
-		) (secureoperation.SecureOperation, error)
+		Execute(ctx context.Context, actor dto.ActorMeta, operationToken string) (secureoperation.SecureOperation, error)
 	}
 
 	changePhoneUseCase interface {
@@ -241,7 +235,7 @@ func (ht *Security) ApplyEmail(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	op, err := ht.useCaseApplyEmail.Execute(r.Context(), ht.userActor(r), ht.parser.Location(r), req.Token)
+	op, err := ht.useCaseApplyEmail.Execute(r.Context(), ht.userActor(r), req.Token)
 	if err != nil {
 		return wrapOperationError(err, "token")
 	}
@@ -466,11 +460,13 @@ func (ht *Security) getRawToken(r *http.Request) string {
 	return ht.parser.PathParamString(r, "token")
 }
 
-// userActor - собирает метаданные клиента для журнала защищённых операций.
-// Поток аутентифицирован (PermissionAnyUser), поэтому посетитель - это сам пользователь.
+// userActor - собирает метаданные клиента для журнала защищённых операций и уведомлений о них.
+// Поток аутентифицирован (PermissionAnyUser), поэтому UserID - это сам пользователь.
 func (ht *Security) userActor(r *http.Request) dto.ActorMeta {
-	return dto.ActorMeta{
-		VisitorID: ht.parser.UserID(r),
-		ClientIP:  ht.parser.DetailedIP(r),
-	}
+	return dto.NewActorMeta(
+		ht.parser.UserID(r),
+		ht.parser.DetailedIP(r),
+		r.UserAgent(),
+		ht.parser.Location(r),
+	)
 }

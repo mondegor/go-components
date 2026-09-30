@@ -20,6 +20,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/service/authtoken"
 	"github.com/mondegor/go-components/mrauth/service/authuser"
 	"github.com/mondegor/go-components/mrauth/service/check"
+	"github.com/mondegor/go-components/mrauth/service/notify"
 	"github.com/mondegor/go-components/mrauth/service/secureoperation"
 	sessionsrv "github.com/mondegor/go-components/mrauth/service/session"
 	"github.com/mondegor/go-components/mrauth/service/userinfo"
@@ -53,6 +54,7 @@ func initUnitAuthController(
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 	notifierAPI mrauth.Notifier,
+	actorProps *notify.ActorProps,
 	userRealms []authcfg.UserRealm,
 	auth2faConfig authcfg.Auth2FA,
 	jwtConfig authcfg.JWT,
@@ -143,6 +145,7 @@ func initUnitAuthController(
 				storageUserRealm,
 				realmRegistry,
 				notifierAPI,
+				actorProps,
 				logger,
 			),
 		),

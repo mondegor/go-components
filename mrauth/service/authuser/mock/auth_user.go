@@ -14,8 +14,10 @@ import (
 	reflect "reflect"
 
 	uuid "github.com/google/uuid"
+	dto "github.com/mondegor/go-components/mrauth/dto"
 	entity "github.com/mondegor/go-components/mrauth/entity"
 	contactaddress "github.com/mondegor/go-components/mrauth/model/contactaddress"
+	conv "github.com/mondegor/go-core/util/conv"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -138,4 +140,42 @@ func (m *MockuserRealmStorage) Insert(ctx context.Context, row entity.UserRealm)
 func (mr *MockuserRealmStorageMockRecorder) Insert(ctx, row any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MockuserRealmStorage)(nil).Insert), ctx, row)
+}
+
+// MockactorPropsBuilder is a mock of actorPropsBuilder interface.
+type MockactorPropsBuilder struct {
+	ctrl     *gomock.Controller
+	recorder *MockactorPropsBuilderMockRecorder
+	isgomock struct{}
+}
+
+// MockactorPropsBuilderMockRecorder is the mock recorder for MockactorPropsBuilder.
+type MockactorPropsBuilderMockRecorder struct {
+	mock *MockactorPropsBuilder
+}
+
+// NewMockactorPropsBuilder creates a new mock instance.
+func NewMockactorPropsBuilder(ctrl *gomock.Controller) *MockactorPropsBuilder {
+	mock := &MockactorPropsBuilder{ctrl: ctrl}
+	mock.recorder = &MockactorPropsBuilderMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockactorPropsBuilder) EXPECT() *MockactorPropsBuilderMockRecorder {
+	return m.recorder
+}
+
+// With mocks base method.
+func (m *MockactorPropsBuilder) With(actor dto.ActorMeta, props conv.Group) conv.Group {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "With", actor, props)
+	ret0, _ := ret[0].(conv.Group)
+	return ret0
+}
+
+// With indicates an expected call of With.
+func (mr *MockactorPropsBuilderMockRecorder) With(actor, props any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "With", reflect.TypeOf((*MockactorPropsBuilder)(nil).With), actor, props)
 }

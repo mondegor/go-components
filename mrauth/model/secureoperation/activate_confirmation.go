@@ -23,7 +23,7 @@ const (
 )
 
 // ActivateConfirmation - активирует подтверждение операции под указанный токен.
-func (o *SecureOperation) ActivateConfirmation(token string) (err error) {
+func (o *SecureOperation) ActivateConfirmation(token string) error {
 	if token == "" {
 		return errors.ErrInternalIncorrectInputData.WithDetails("token is empty")
 	}

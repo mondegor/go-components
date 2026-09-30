@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
@@ -63,7 +64,7 @@ type (
 	// в очередь, а не слать письмо синхронно), иначе транзакция подтверждения удерживается
 	// дольше нужного.
 	recoveryAlerter interface {
-		SendAlert(ctx context.Context, userID uuid.UUID, codeRemaining int) error
+		SendAlert(ctx context.Context, actor dto.ActorMeta, codeRemaining int) error
 	}
 )
 
@@ -127,18 +128,22 @@ func NewVerifier(
 // При расходе аварийного кода или продвижении TOTP-шага возвращает commit, который должен
 // быть вызван в транзакции подтверждения.
 //
+// Проверяется 2FA пользователя actor.UserID: вызывающий обязан подставить в actor владельца
+// операции (см. dto.ActorMeta.WithUser). Контекст клиента из actor передаётся в оповещение
+// о расходе аварийного кода.
+//
 // Отсутствие записи 2FA отдаётся как mrauth.ErrAuth2FAIsDisabled - это факт, известный только
 // хранилищу. Скрывать ли его за неверным доказательством, решает вызывающий: подтверждение
 // операции скрывает, потому что метод гостевой. Стоимость сверки оплачивается здесь в любом
 // случае, потому что решение вызывающего на неё не влияет.
 func (v *Verifier) Verify(
 	ctx context.Context,
-	userID uuid.UUID,
+	actor dto.ActorMeta,
 	method confirmmethod.Enum,
 	allowRecovery bool,
 	code string,
 ) (ok bool, commit func(ctx context.Context) error, err error) {
-	row, err := v.storage.FetchOne(ctx, userID)
+	row, err := v.storage.FetchOne(ctx, actor.UserID)
 	if err != nil {
 		if !errors.Is(err, errors.ErrEventStorageNoRecordFound) {
 			return false, nil, err
@@ -201,7 +206,7 @@ func (v *Verifier) Verify(
 			}
 
 			commit = func(ctx context.Context) error {
-				if err := v.storage.UpdateTOTPStep(ctx, userID, timeStep); err != nil {
+				if err := v.storage.UpdateTOTPStep(ctx, actor.UserID, timeStep); err != nil {
 					// шаг не продвинулся: тот же time-step уже израсходован конкурентным
 					// подтверждением либо записи 2FA больше нет - по ошибке хранилища эти случаи
 					// не различить, и на исход это не влияет
@@ -229,7 +234,7 @@ func (v *Verifier) Verify(
 		return false, nil, nil
 	}
 
-	return v.tryRecovery(userID, row.RecoveryCodes, code)
+	return v.tryRecovery(actor, row.RecoveryCodes, code)
 }
 
 // verifyDecoy - сверяет code с подставным секретом и отбрасывает исход сверки. Нужна ровно
@@ -261,7 +266,7 @@ func (v *Verifier) looksLikeRecoveryCode(s string) bool {
 // Стоимость перебора хешей ограничена: число аварийных кодов невелико (recoveryCount),
 // а число попыток на операцию лимитировано, и попытки одной операции не выполняются параллельно.
 func (v *Verifier) tryRecovery(
-	userID uuid.UUID,
+	actor dto.ActorMeta,
 	hashes []string,
 	code string,
 ) (bool, func(ctx context.Context) error, error) {
@@ -276,7 +281,7 @@ func (v *Verifier) tryRecovery(
 		}
 
 		commit := func(ctx context.Context) error {
-			remaining, err := v.storage.UpdateRecoveryCode(ctx, userID, hash)
+			remaining, err := v.storage.UpdateRecoveryCode(ctx, actor.UserID, hash)
 			if err != nil {
 				// хеша в наборе уже нет: код израсходован конкурентным подтверждением
 				if errors.Is(err, errors.ErrEventStorageNoRecordFound) {
@@ -288,7 +293,7 @@ func (v *Verifier) tryRecovery(
 
 			// оповещается о каждом расходе вместе с остатком аварийных кодов;
 			// вызов идёт в той же транзакции подтверждения
-			return v.recoveryAlerter.SendAlert(ctx, userID, remaining)
+			return v.recoveryAlerter.SendAlert(ctx, actor, remaining)
 		}
 
 		return true, commit, nil
@@ -303,6 +308,6 @@ type (
 )
 
 // SendAlert - no-op реализация по умолчанию.
-func (defaultRecoveryAlerter) SendAlert(_ context.Context, _ uuid.UUID, _ int) error {
+func (defaultRecoveryAlerter) SendAlert(_ context.Context, _ dto.ActorMeta, _ int) error {
 	return nil
 }

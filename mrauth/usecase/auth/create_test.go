@@ -46,9 +46,15 @@ func testIP() mrtype.DetailedIP {
 	return mrtype.NewIP(netip.MustParseAddr("203.0.113.7"))
 }
 
-// testTZ - часовой пояс, определённый по запросу; usecase кладёт его в payload как есть.
-func testTZ() string {
-	return "Europe/Moscow"
+// testActor - анонимный клиент регистрации с IP testIP и часовым поясом tz, определённым
+// по запросу; usecase кладёт пояс в payload как есть.
+func testActor(t *testing.T, tz string) dto.ActorMeta {
+	t.Helper()
+
+	loc, err := time.LoadLocation(tz)
+	require.NoError(t, err)
+
+	return dto.NewAnonymousActorMeta(testIP(), "test-agent", loc)
 }
 
 // expectPassThroughTx - транзакция выполняет переданное задание как есть.
@@ -435,29 +441,27 @@ func (s *CreateUserSuite) expectCreateOperation(op secureoperation.SecureOperati
 func (s *CreateUserSuite) TestUnknownRealm() {
 	s.expectHappyDeps()
 
-	_, err := s.newUseCase().Execute(s.ctx, "unknown", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
+	_, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Europe/Moscow"), "unknown", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 }
 
-// язык, часовой пояс и email приходят уже определёнными по запросу,
+// язык и email приходят уже определёнными по запросу,
 // поэтому пустое значение здесь - ошибка проводки, а не клиента.
 func (s *CreateUserSuite) TestEmptyRequiredArgs() {
 	type testCase struct {
 		name      string
 		langCode  string
-		timeZone  string
 		userEmail contactaddress.ContactAddress
 	}
 
 	tests := []testCase{
-		{name: "empty langCode", timeZone: testTZ(), userEmail: contactaddress.NewEmail("user@example.com")},
-		{name: "empty timeZone", langCode: "en", userEmail: contactaddress.NewEmail("user@example.com")},
-		{name: "empty userEmail", langCode: "en", timeZone: testTZ()},
+		{name: "empty langCode", userEmail: contactaddress.NewEmail("user@example.com")},
+		{name: "empty userEmail", langCode: "en"},
 	}
 
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
-			_, err := s.newUseCase().Execute(s.ctx, "shop", tt.langCode, tt.timeZone, tt.userEmail, testIP())
+			_, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Europe/Moscow"), "shop", tt.langCode, tt.userEmail)
 			s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 		})
 	}
@@ -471,7 +475,7 @@ func (s *CreateUserSuite) TestLockTakenForOperationExpiry() {
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 	s.expectOpen()
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
+	_, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Europe/Moscow"), "shop", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().NoError(err)
 	s.Equal(testThrottleWindow, s.gotLockExpiry)
 	// лок именной: он держится на паре (realm, email), а не на одном емаиле
@@ -484,7 +488,7 @@ func (s *CreateUserSuite) TestLockNotObtained() {
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
+	_, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Europe/Moscow"), "shop", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().ErrorIs(err, mrauth.ErrSignupAlreadyInProgressTryLater)
 
 	// ошибка несёт срок повторной попытки: контроллер отдаёт его заголовком Retry-After,
@@ -505,13 +509,15 @@ func (s *CreateUserSuite) TestSuccess() {
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 	s.expectOpen()
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
+	actor := testActor(s.T(), "Europe/Moscow")
+
+	_, err := s.newUseCase().Execute(s.ctx, actor, "shop", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().NoError(err)
 	s.Equal(testIP(), s.gotRegisteredIP, "IP регистрации доезжает до фабрики операции")
 	s.Equal("confirm.user.activation", s.openedNote)
-	// поток регистрации анонимный: форензику несёт IP, а не идентификатор посетителя
-	s.Equal(testIP(), s.openedActor.ClientIP)
-	s.Equal(uuid.Nil, s.openedActor.VisitorID)
+	// поток регистрации анонимный: actor клиента доезжает до Open целиком, форензику несёт IP
+	s.Equal(actor, s.openedActor)
+	s.Equal(uuid.Nil, s.openedActor.UserID)
 	// запись журнала об открытии операции - ответственность Open (контракт operationOpener)
 	s.Empty(s.logEntries)
 }
@@ -523,7 +529,7 @@ func (s *CreateUserSuite) TestSettingsForwardedAsIs() {
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 	s.expectOpen()
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en-US", "Asia/Tokyo", contactaddress.NewEmail("user@example.com"), testIP())
+	_, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Asia/Tokyo"), "shop", "en-US", contactaddress.NewEmail("user@example.com"))
 	s.Require().NoError(err)
 	s.Equal("en-US", s.gotLangCode)
 	s.Equal("Asia/Tokyo", s.gotTimeZone)
@@ -535,7 +541,7 @@ func (s *CreateUserSuite) TestCheckerError() {
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
+	_, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Europe/Moscow"), "shop", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().Error(err)
 }
 
@@ -547,7 +553,7 @@ func (s *CreateUserSuite) TestCheckerRecordNotFoundIsInternal() {
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
+	_, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Europe/Moscow"), "shop", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().Error(err)
 	s.Require().NotErrorIs(err, sysmesserrors.ErrRecordNotFound)
 }
@@ -558,7 +564,7 @@ func (s *CreateUserSuite) Test2FAFactoryError() {
 	s.expectCheckLogin(nil)
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
+	_, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Europe/Moscow"), "shop", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().Error(err)
 }
 
@@ -572,7 +578,7 @@ func (s *CreateUserSuite) TestNewEmailEmpty2FAForwarded() {
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 	s.expectOpen()
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
+	_, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Europe/Moscow"), "shop", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().NoError(err)
 	s.Equal(dto.User2FA{}, s.gotUser2FA)
 }
@@ -591,7 +597,7 @@ func (s *CreateUserSuite) TestExistingUser2FAForwarded() {
 	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
 	s.expectOpen()
 
-	_, err := s.newUseCase().Execute(s.ctx, "shop", "en", testTZ(), contactaddress.NewEmail("user@example.com"), testIP())
+	_, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Europe/Moscow"), "shop", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().NoError(err)
 	s.Equal(user2FA, s.gotUser2FA)
 }

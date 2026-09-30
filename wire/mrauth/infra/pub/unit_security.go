@@ -16,6 +16,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/repository"
 	"github.com/mondegor/go-components/mrauth/service"
 	"github.com/mondegor/go-components/mrauth/service/check"
+	"github.com/mondegor/go-components/mrauth/service/notify"
 	"github.com/mondegor/go-components/mrauth/service/secureoperation"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/handler"
@@ -36,6 +37,7 @@ func initSecurityController(
 	requestParser *validate.Parser,
 	responseFileSender mrserver.FileResponseSender,
 	notifierAPI mrauth.Notifier,
+	actorProps *notify.ActorProps,
 	userRealms []authcfg.UserRealm,
 	operationConfig authcfg.OperationConfirm,
 	auth2faConfig authcfg.Auth2FA,
@@ -113,6 +115,7 @@ func initSecurityController(
 		),
 		operationOpener,
 		notifierAPI,
+		actorProps,
 		operationLogger,
 	)
 
@@ -178,17 +181,20 @@ func initSecurityController(
 				storageUser,
 				operationRevoker,
 				notifierAPI,
+				actorProps,
 			),
 			operationtype.ChangePhone: handler.NewChangePhone(
 				dbConnManager,
 				storageUser,
 				notifierAPI,
+				actorProps,
 			),
 			operationtype.Disable2FA: handler.NewDisable2FA(
 				dbConnManager,
 				storageAuth2fa,
 				operationRevoker,
 				notifierAPI,
+				actorProps,
 			),
 		},
 	)
@@ -211,6 +217,7 @@ func initSecurityController(
 		secretGenerator,
 		totpAuthenticator,
 		notifierAPI,
+		actorProps,
 		operationLogger,
 		int(auth2faConfig.RecoveryCount),
 		int(auth2faConfig.RecoveryCodeLength),
@@ -223,6 +230,7 @@ func initSecurityController(
 		operationRevoker,
 		secretGenerator,
 		notifierAPI,
+		actorProps,
 		operationLogger,
 		int(auth2faConfig.RecoveryCount),
 		int(auth2faConfig.RecoveryCodeLength),
@@ -245,6 +253,7 @@ func initSecurityController(
 		storageSecureOperation,
 		secretGenerator,
 		notifierAPI,
+		actorProps,
 		operationLogger,
 		int(auth2faConfig.RecoveryCount),
 		int(auth2faConfig.RecoveryCodeLength),

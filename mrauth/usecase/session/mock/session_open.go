@@ -199,9 +199,9 @@ func (m *MockauthFlowHandler) EXPECT() *MockauthFlowHandlerMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockauthFlowHandler) Execute(ctx context.Context, op secureoperation.SecureOperation) (dto.UserScopes, func(context.Context), error) {
+func (m *MockauthFlowHandler) Execute(ctx context.Context, actor dto.ActorMeta, op secureoperation.SecureOperation) (dto.UserScopes, func(context.Context), error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", ctx, op)
+	ret := m.ctrl.Call(m, "Execute", ctx, actor, op)
 	ret0, _ := ret[0].(dto.UserScopes)
 	ret1, _ := ret[1].(func(context.Context))
 	ret2, _ := ret[2].(error)
@@ -209,9 +209,9 @@ func (m *MockauthFlowHandler) Execute(ctx context.Context, op secureoperation.Se
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockauthFlowHandlerMockRecorder) Execute(ctx, op any) *gomock.Call {
+func (mr *MockauthFlowHandlerMockRecorder) Execute(ctx, actor, op any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockauthFlowHandler)(nil).Execute), ctx, op)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockauthFlowHandler)(nil).Execute), ctx, actor, op)
 }
 
 // MocktokenCreator is a mock of tokenCreator interface.

@@ -42,11 +42,11 @@ func (uc *RegenerateRecoveryProperty) Execute(
 	ctx context.Context,
 	actor dto.ActorMeta,
 ) (secureoperation.SecureOperation, error) {
-	if actor.VisitorID == uuid.Nil {
+	if actor.UserID == uuid.Nil {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
-	user2FA, err := uc.factoryUser2FAConfirmAction.CreateByUserID(ctx, actor.VisitorID) // TODO: объединить CreateByUserLogin и CreateByUserID
+	user2FA, err := uc.factoryUser2FAConfirmAction.CreateByUserID(ctx, actor.UserID) // TODO: объединить CreateByUserLogin и CreateByUserID
 	if err != nil {
 		return secureoperation.SecureOperation{}, uc.errorWrapper.Wrap(err)
 	}

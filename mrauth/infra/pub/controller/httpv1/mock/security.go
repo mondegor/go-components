@@ -12,7 +12,6 @@ package mock
 import (
 	context "context"
 	reflect "reflect"
-	time "time"
 
 	uuid "github.com/google/uuid"
 	dto "github.com/mondegor/go-components/mrauth/dto"
@@ -86,18 +85,18 @@ func (m *MockapplyEmailUseCase) EXPECT() *MockapplyEmailUseCaseMockRecorder {
 }
 
 // Execute mocks base method.
-func (m *MockapplyEmailUseCase) Execute(ctx context.Context, actor dto.ActorMeta, userLocation *time.Location, operationToken string) (secureoperation.SecureOperation, error) {
+func (m *MockapplyEmailUseCase) Execute(ctx context.Context, actor dto.ActorMeta, operationToken string) (secureoperation.SecureOperation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Execute", ctx, actor, userLocation, operationToken)
+	ret := m.ctrl.Call(m, "Execute", ctx, actor, operationToken)
 	ret0, _ := ret[0].(secureoperation.SecureOperation)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Execute indicates an expected call of Execute.
-func (mr *MockapplyEmailUseCaseMockRecorder) Execute(ctx, actor, userLocation, operationToken any) *gomock.Call {
+func (mr *MockapplyEmailUseCaseMockRecorder) Execute(ctx, actor, operationToken any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockapplyEmailUseCase)(nil).Execute), ctx, actor, userLocation, operationToken)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockapplyEmailUseCase)(nil).Execute), ctx, actor, operationToken)
 }
 
 // MockchangePhoneUseCase is a mock of changePhoneUseCase interface.

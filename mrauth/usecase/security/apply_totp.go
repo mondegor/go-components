@@ -37,6 +37,7 @@ type (
 		codeGenerator      recoveryCodesGenerator
 		totpValidator      totpValidator
 		notifierAPI        mrauth.Notifier
+		actorProps         actorPropsBuilder
 		logOperation       operationLogger
 		errorWrapper       errors.Wrapper
 		recoveryCount      int
@@ -65,6 +66,7 @@ func NewApplyTOTPGenerator(
 	codeGenerator recoveryCodesGenerator,
 	totpValidator totpValidator,
 	notifierAPI mrauth.Notifier,
+	actorProps actorPropsBuilder,
 	logOperation operationLogger,
 	recoveryCount int,
 	recoveryCodeLength int,
@@ -79,6 +81,7 @@ func NewApplyTOTPGenerator(
 		codeGenerator:      codeGenerator,
 		totpValidator:      totpValidator,
 		notifierAPI:        notifierAPI,
+		actorProps:         actorProps,
 		logOperation:       logOperation,
 		errorWrapper:       errors.NewServiceOperationFailedWrapper(),
 		recoveryCount:      recoveryCount,
@@ -88,7 +91,8 @@ func NewApplyTOTPGenerator(
 
 // Execute - проверяет TOTP-код, введённый пользователем, против секрета операции
 // и при успехе в одной транзакции привязывает TOTP-генератор, удаляет операцию, отзывает
-// все незавершённые операции пользователя, отправляет уведомление и возвращает аварийные коды в открытом виде (показываются один раз).
+// все незавершённые операции пользователя, отправляет уведомление о включении 2FA и возвращает аварийные коды
+// в открытом виде (показываются один раз).
 // Если к моменту применения 2FA уже включена (её успели включить другим способом после
 // создания операции), возвращает mrauth.ErrAuth2FAMustBeDisabledFirst.
 func (uc *ApplyTOTPGenerator) Execute(
@@ -96,7 +100,7 @@ func (uc *ApplyTOTPGenerator) Execute(
 	actor dto.ActorMeta,
 	operationToken, totpCode string,
 ) (plainCodes []string, err error) {
-	if actor.VisitorID == uuid.Nil {
+	if actor.UserID == uuid.Nil {
 		return nil, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -127,7 +131,7 @@ func (uc *ApplyTOTPGenerator) Execute(
 		operationType = op.Type
 		actionMethod = op.FirstActionMethod()
 
-		if actor.VisitorID != op.UserID {
+		if actor.UserID != op.UserID {
 			failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
 
 			return errors.ErrAccessForbidden
@@ -201,7 +205,14 @@ func (uc *ApplyTOTPGenerator) Execute(
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		return uc.notifierAPI.Send(ctx, "user.totp.changed", conv.Group{"to": payload.Email})
+		return uc.notifierAPI.Send(
+			ctx,
+			"user.2fa.enabled",
+			uc.actorProps.With(actor, conv.Group{
+				"to":     payload.Email,
+				"factor": auth2fatype.TOTP.String(),
+			}),
+		)
 	})
 	if err != nil {
 		if failedLogState.isSet() {

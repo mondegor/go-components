@@ -19,6 +19,7 @@ type (
 		txManager    mrstorage.DBTxManager
 		storage      userPhoneChanger
 		notifierAPI  mrauth.Notifier
+		actorProps   actorPropsBuilder
 		errorWrapper errors.Wrapper
 	}
 
@@ -32,18 +33,21 @@ func NewChangePhone(
 	txManager mrstorage.DBTxManager,
 	storage userPhoneChanger,
 	notifierAPI mrauth.Notifier,
+	actorProps actorPropsBuilder,
 ) *ChangePhone {
 	return &ChangePhone{
 		txManager:    txManager,
 		storage:      storage,
 		notifierAPI:  notifierAPI,
+		actorProps:   actorProps,
 		errorWrapper: errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
-// Execute - применяет подтверждённую операцию смены телефона пользователя.
+// Execute - применяет подтверждённую операцию смены телефона пользователя и отправляет
+// уведомление о состоявшейся смене с контекстом клиента.
 func (uc *ChangePhone) Execute(ctx context.Context, actor dto.ActorMeta, payload []byte) error {
-	if actor.VisitorID == uuid.Nil {
+	if actor.UserID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -53,11 +57,11 @@ func (uc *ChangePhone) Execute(ctx context.Context, actor dto.ActorMeta, payload
 	}
 
 	return uc.txManager.Do(ctx, func(ctx context.Context) error {
-		if err := uc.storage.UpdatePhone(ctx, actor.VisitorID, payloadDTO.NewPhone); err != nil {
+		if err = uc.storage.UpdatePhone(ctx, actor.UserID, payloadDTO.NewPhone); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		if err := uc.notifierAPI.Send(ctx, "user.phone.changed", conv.Group{"to": payloadDTO.Email}); err != nil {
+		if err = uc.notifierAPI.Send(ctx, "user.phone.changed", uc.actorProps.With(actor, conv.Group{"to": payloadDTO.Email})); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

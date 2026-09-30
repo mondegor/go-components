@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	sysmesserrors "github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/util/conv"
 	"github.com/stretchr/testify/suite"
@@ -214,4 +215,15 @@ func (s *OpenerSuite) TestOpenSupersedeError() {
 
 	s.Require().Error(s.svc.Open(s.ctx, dto.ActorMeta{}, op, "confirm.change.email", nil))
 	s.Empty(s.logEntries)
+}
+
+// актор другого пользователя (или актор с пользователем при операции без владельца) - ошибка
+// проводки вызывающего: операция не создаётся, журнал не пишется (моки хранилища и
+// уведомлений без EXPECT: любой вызов провалит тест).
+func (s *OpenerSuite) TestOpenActorNotOwnerRejected() {
+	for _, ownerID := range []uuid.UUID{uuid.Nil, uuid.New()} {
+		err := s.svc.Open(s.ctx, dto.ActorMeta{UserID: uuid.New()}, s.emailOp(ownerID), "confirm.change.email", nil)
+		s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
+		s.Empty(s.logEntries)
+	}
 }

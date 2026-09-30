@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mraccess"
 	"github.com/mondegor/go-webcore/mrserver"
@@ -119,10 +118,11 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 
 	op, err := ht.useCaseResendConfirmCode.Execute(
 		r.Context(),
-		dto.ActorMeta{
-			VisitorID: uuid.Nil, // анонимный поток операции: форензику несёт ClientIP
-			ClientIP:  ht.parser.DetailedIP(r),
-		},
+		dto.NewAnonymousActorMeta(
+			ht.parser.DetailedIP(r),
+			r.UserAgent(),
+			ht.parser.Location(r),
+		),
 		lz.Language(),
 		req.Token,
 	)
@@ -172,10 +172,12 @@ func (ht *Operation) Revoke(w http.ResponseWriter, r *http.Request) error {
 
 	if err := ht.useCaseRevokeOperation.Execute(
 		r.Context(),
-		dto.ActorMeta{
-			VisitorID: ht.parser.UserID(r),
-			ClientIP:  ht.parser.DetailedIP(r),
-		},
+		dto.NewActorMeta(
+			ht.parser.UserID(r),
+			ht.parser.DetailedIP(r),
+			r.UserAgent(),
+			ht.parser.Location(r),
+		),
 		req.Token,
 	); err != nil {
 		return wrapOperationError(err, "token")

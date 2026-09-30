@@ -72,6 +72,7 @@ func NewOpener(
 // незачем, а если так и произойдёт, действующим останется код последней созданной операции.
 // В noteProps передаются дополнительные поля уведомления (например, {"lang": langCode});
 // адрес получателя и код подтверждения сервис подставляет сам.
+// actor - анонимный клиент либо сам владелец операции.
 func (o *Opener) Open(
 	ctx context.Context,
 	actor dto.ActorMeta,
@@ -79,6 +80,14 @@ func (o *Opener) Open(
 	noteName string,
 	noteProps conv.Group, // OPTIONAL
 ) error {
+	if actor.UserID != uuid.Nil && actor.UserID != op.UserID {
+		return errors.ErrInternalIncorrectInputData.WithDetails("actor is not the operation owner")
+	}
+
+	// владелец операции известен - он и фиксируется как посетитель (в анонимных потоках
+	// входа и регистрации в actor приходит uuid.Nil, который WithUser игнорирует)
+	actor = actor.WithUser(op.UserID)
+
 	var supersededTypes []operationtype.Enum
 
 	err := o.txManager.Do(ctx, func(ctx context.Context) (err error) {
@@ -91,7 +100,7 @@ func (o *Opener) Open(
 			}
 		}
 
-		if err := o.storage.Insert(ctx, op); err != nil {
+		if err = o.storage.Insert(ctx, op); err != nil {
 			return err
 		}
 
@@ -110,10 +119,6 @@ func (o *Opener) Open(
 	if err != nil {
 		return o.errorWrapper.Wrap(err)
 	}
-
-	// владелец операции известен - он и фиксируется как посетитель (в анонимных потоках
-	// входа и регистрации в actor приходит uuid.Nil, который WithVisitor игнорирует)
-	actor = actor.WithVisitor(op.UserID)
 
 	// факт вытеснения фиксируется в журнале как отзыв - по одной записи на каждый
 	// вытесненный тип операции

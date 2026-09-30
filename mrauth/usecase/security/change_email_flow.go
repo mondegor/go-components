@@ -49,7 +49,7 @@ func (f changeEmailFlow) execute(
 	newEmail contactaddress.ContactAddress,
 	createFunc func(user2FA dto.User2FA, newEmail contactaddress.ContactAddress) (secureoperation.SecureOperation, error),
 ) (secureoperation.SecureOperation, error) {
-	if actor.VisitorID == uuid.Nil {
+	if actor.UserID == uuid.Nil {
 		return secureoperation.SecureOperation{}, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -61,7 +61,7 @@ func (f changeEmailFlow) execute(
 		return secureoperation.SecureOperation{}, f.errorWrapper.Wrap(err)
 	}
 
-	user2FA, err := f.factoryUser2FAConfirmAction.CreateByUserID(ctx, actor.VisitorID) // TODO: объединить CreateByUserLogin и CreateByUserID
+	user2FA, err := f.factoryUser2FAConfirmAction.CreateByUserID(ctx, actor.UserID) // TODO: объединить CreateByUserLogin и CreateByUserID
 	if err != nil {
 		return secureoperation.SecureOperation{}, f.errorWrapper.Wrap(err)
 	}

@@ -2,10 +2,12 @@ package security
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrstorage"
+	"github.com/mondegor/go-core/util/conv"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -38,6 +40,14 @@ type (
 	operationLogger interface {
 		Log(ctx context.Context, entry entity.SecureOperationLog)
 	}
+
+	// actorPropsBuilder - дополняет props уведомления о событии безопасности контекстом клиента
+	// (время события, IP, устройство) и форматирует моменты времени для текста уведомления
+	// в часовом поясе клиента.
+	actorPropsBuilder interface {
+		With(actor dto.ActorMeta, props conv.Group) conv.Group
+		FormatTime(actor dto.ActorMeta, tm time.Time) string
+	}
 )
 
 // NewApplyOperation - создаёт объект ApplyOperation.
@@ -60,7 +70,7 @@ func NewApplyOperation(
 // в одной транзакции удаляет её и выполняет привязанный к ней обработчик.
 // Блокировка исключает повторное применение одной операции при конкурентных запросах.
 func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, operationToken string) error {
-	if actor.VisitorID == uuid.Nil {
+	if actor.UserID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -87,7 +97,7 @@ func (uc *ApplyOperation) Execute(ctx context.Context, actor dto.ActorMeta, oper
 		operationType = op.Type
 		actionMethod = op.FirstActionMethod()
 
-		if actor.VisitorID != op.UserID {
+		if actor.UserID != op.UserID {
 			failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
 
 			return errors.ErrAccessForbidden

@@ -66,7 +66,7 @@ func (s *ApplyOperationSuite) TestUnknownTokenIsDomainError() {
 		FetchOneForUpdate(gomock.Any(), gomock.Any()).
 		Return(secureoperation.SecureOperation{}, errors.ErrEventStorageNoRecordFound)
 
-	err := s.newUseCase(nil).Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, "op-token")
+	err := s.newUseCase(nil).Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, "op-token")
 	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
 	s.Require().NotErrorIs(err, errors.ErrRecordNotFound)
 }
@@ -76,11 +76,11 @@ func (s *ApplyOperationSuite) TestSuccess() {
 	op := confirmedOp(userID, "{}")
 
 	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(op, nil)
-	s.handler.EXPECT().Execute(gomock.Any(), dto.ActorMeta{VisitorID: userID}, gomock.Any()).Return(nil)
+	s.handler.EXPECT().Execute(gomock.Any(), dto.ActorMeta{UserID: userID}, gomock.Any()).Return(nil)
 
 	uc := s.newUseCase(map[operationtype.Enum]mrauth.OperationHandler{operationtype.ChangeTOTP: s.handler})
 
-	s.Require().NoError(uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token"))
+	s.Require().NoError(uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token"))
 	s.Equal("op-token", s.deleted)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
@@ -94,7 +94,7 @@ func (s *ApplyOperationSuite) TestWrongUser() {
 
 	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), gomock.Any()).Return(confirmedOp(uuid.New(), "{}"), nil)
 
-	s.Require().Error(s.newUseCase(nil).Execute(s.ctx, dto.ActorMeta{VisitorID: stranger}, "op-token"))
+	s.Require().Error(s.newUseCase(nil).Execute(s.ctx, dto.ActorMeta{UserID: stranger}, "op-token"))
 
 	// в журнал попадает обратившийся, а не владелец операции
 	s.Require().Len(s.logEntries, 1)
@@ -115,7 +115,7 @@ func (s *ApplyOperationSuite) TestNotConfirmed() {
 
 	// именно пользовательская ошибка: обращение к неподтверждённой операции - ошибка
 	// последовательности вызовов клиента (400), а не сбой сервера
-	err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	err := uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 	s.Require().ErrorIs(err, mrauth.ErrOperationIsNotConfirmed)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
@@ -131,7 +131,7 @@ func (s *ApplyOperationSuite) TestUnknownType() {
 
 	uc := s.newUseCase(map[operationtype.Enum]mrauth.OperationHandler{})
 
-	err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+	err := uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 	s.Require().Error(err)
 	s.Require().NotErrorIs(err, errors.ErrAccessForbidden)
 
@@ -162,7 +162,7 @@ func (s *ApplyOperationSuite) TestOperationOfOtherMethod() {
 
 			uc := s.newUseCase(map[operationtype.Enum]mrauth.OperationHandler{operationtype.ChangePhone: s.handler})
 
-			err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, "op-token")
+			err := uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 			s.Require().ErrorIs(err, errors.ErrAccessForbidden)
 			s.Empty(s.deleted)
 			s.Require().Len(s.logEntries, 1)

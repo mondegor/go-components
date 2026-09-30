@@ -200,7 +200,7 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertySuccess() {
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(nil)
 
-	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
 	s.Require().NoError(err)
 	s.True(s.opened)
 	s.Equal("confirm.change.email.request", s.openedNote)
@@ -216,7 +216,7 @@ func (s *ChangeSecuritySuite) TestChangeEmailByRecoveryPropertySuccess() {
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(nil)
 
-	_, err := s.newChangeEmailByRecovery().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
+	_, err := s.newChangeEmailByRecovery().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
 	s.Require().NoError(err)
 	s.True(s.opened)
 	s.Empty(s.openedNote)
@@ -229,7 +229,7 @@ func (s *ChangeSecuritySuite) TestChangeEmailByRecoveryPropertyEmailUnavailable(
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(errors.New("taken"))
 
-	_, err := s.newChangeEmailByRecovery().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
+	_, err := s.newChangeEmailByRecovery().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
 	s.Require().Error(err)
 }
 
@@ -239,7 +239,7 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertyEmailUnavailable() {
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(errors.New("taken"))
 
-	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
 	s.Require().Error(err)
 }
 
@@ -249,7 +249,7 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertyUser2FAFactoryError() {
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(nil)
 
-	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
 	s.Require().Error(err)
 }
 
@@ -259,7 +259,7 @@ func (s *ChangeSecuritySuite) TestChangeEmailPropertyOpenError() {
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectEmailChecker(nil)
 
-	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
 	s.Require().Error(err)
 }
 
@@ -277,7 +277,7 @@ func (s *ChangeSecuritySuite) TestChangePasswordPropertySuccess() {
 	s.expect2FA(userWithEmail(), nil)
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 
-	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, strongPassword)
+	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, strongPassword)
 	s.Require().NoError(err)
 	s.True(s.opened)
 	s.Equal("confirm.change.password", s.openedNote)
@@ -288,7 +288,7 @@ func (s *ChangeSecuritySuite) TestChangePasswordPropertyFactoryError() {
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectValueFactory(secureoperation.SecureOperation{}, errors.New("factory failed"))
 
-	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, strongPassword)
+	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, strongPassword)
 	s.Require().Error(err)
 }
 
@@ -301,7 +301,7 @@ func (s *ChangeSecuritySuite) TestChangePasswordPropertyRejectedWhen2FAActive() 
 			s.expect2FA(userWith2FA(method), nil)
 			s.expectValueFactory(openedEmailOp(s.T()), nil)
 
-			_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, strongPassword)
+			_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, strongPassword)
 			s.Require().ErrorIs(err, mrauth.ErrAuth2FAMustBeDisabledFirst)
 			s.False(s.opened)
 		})
@@ -317,7 +317,7 @@ func (s *ChangeSecuritySuite) TestChangePasswordPropertyTooWeak() {
 
 	uc := security.NewChangePasswordProperty(s.opener, s.factory2FA, s.secretFactory, s.passwordPolicy(false))
 
-	_, err := uc.Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, strongPassword)
+	_, err := uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, strongPassword)
 	s.Require().ErrorIs(err, mrauth.ErrPasswordIsTooWeak)
 	s.False(s.opened)
 }
@@ -331,7 +331,7 @@ func (s *ChangeSecuritySuite) TestChangePropertyEmptyNewValue() {
 	s.expectEmailChecker(nil)
 	s.expectPhoneChecker(nil)
 
-	actor := dto.ActorMeta{VisitorID: uuid.New()}
+	actor := dto.ActorMeta{UserID: uuid.New()}
 
 	s.Run("empty newEmail", func() {
 		_, err := s.newChangeEmail().Execute(s.ctx, actor, contactaddress.ContactAddress{})
@@ -365,7 +365,7 @@ func (s *ChangeSecuritySuite) TestChangePhonePropertySuccess() {
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectPhoneChecker(nil)
 
-	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewPhone("79991234567"))
+	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, contactaddress.NewPhone("79991234567"))
 	s.Require().NoError(err)
 	s.True(s.opened)
 	s.Equal("confirm.change.phone", s.openedNote)
@@ -377,7 +377,7 @@ func (s *ChangeSecuritySuite) TestChangePhonePropertyPhoneUnavailable() {
 	s.expectValueFactory(openedEmailOp(s.T()), nil)
 	s.expectPhoneChecker(errors.New("taken"))
 
-	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewPhone("79991234567"))
+	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, contactaddress.NewPhone("79991234567"))
 	s.Require().Error(err)
 }
 
@@ -395,7 +395,7 @@ func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertySuccess() {
 	s.expect2FA(userWithEmail(), nil)
 	s.expectOpFactory(openedEmailOp(s.T()), nil)
 
-	_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+	_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()})
 	s.Require().NoError(err)
 	s.True(s.opened)
 	s.Equal("confirm.change.totp", s.openedNote)
@@ -406,7 +406,7 @@ func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyFactoryError() {
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectOpFactory(secureoperation.SecureOperation{}, errors.New("factory failed"))
 
-	_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+	_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()})
 	s.Require().Error(err)
 }
 
@@ -415,7 +415,7 @@ func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyOpenError() {
 	s.expect2FA(userWithEmail(), nil)
 	s.expectOpFactory(openedEmailOp(s.T()), nil)
 
-	_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+	_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()})
 	s.Require().Error(err)
 }
 
@@ -428,7 +428,7 @@ func (s *ChangeSecuritySuite) TestChangeTOTPGeneratorPropertyRejectedWhen2FAActi
 			s.expect2FA(userWith2FA(method), nil)
 			s.expectOpFactory(openedEmailOp(s.T()), nil)
 
-			_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+			_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()})
 			s.Require().ErrorIs(err, mrauth.ErrAuth2FAMustBeDisabledFirst)
 			s.False(s.opened)
 		})
@@ -449,7 +449,7 @@ func (s *ChangeSecuritySuite) TestDisable2FASuccess() {
 	s.expect2FA(userWithEmail(), nil)
 	s.expectOpFactory(openedEmailOp(s.T()), nil)
 
-	_, err := s.newDisable2FA().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+	_, err := s.newDisable2FA().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()})
 	s.Require().NoError(err)
 	s.True(s.opened)
 	s.Equal("confirm.disable.2fa", s.openedNote)
@@ -460,7 +460,7 @@ func (s *ChangeSecuritySuite) TestDisable2FAFactoryError() {
 	s.expect2FA(dto.User2FA{}, nil)
 	s.expectOpFactory(secureoperation.SecureOperation{}, errors.New("factory failed"))
 
-	_, err := s.newDisable2FA().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+	_, err := s.newDisable2FA().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()})
 	s.Require().Error(err)
 }
 
@@ -477,7 +477,7 @@ func (s *ChangeSecuritySuite) TestUserRowIsMissingIsInternal() {
 		{
 			name: "change email",
 			call: func() error {
-				_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
+				_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
 
 				return err
 			},
@@ -485,7 +485,7 @@ func (s *ChangeSecuritySuite) TestUserRowIsMissingIsInternal() {
 		{
 			name: "change phone",
 			call: func() error {
-				_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, contactaddress.NewPhone("79991234567"))
+				_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, contactaddress.NewPhone("79991234567"))
 
 				return err
 			},
@@ -493,7 +493,7 @@ func (s *ChangeSecuritySuite) TestUserRowIsMissingIsInternal() {
 		{
 			name: "change password",
 			call: func() error {
-				_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, strongPassword)
+				_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, strongPassword)
 
 				return err
 			},
@@ -501,7 +501,7 @@ func (s *ChangeSecuritySuite) TestUserRowIsMissingIsInternal() {
 		{
 			name: "change totp",
 			call: func() error {
-				_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+				_, err := s.newChangeTOTP().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()})
 
 				return err
 			},
@@ -509,7 +509,7 @@ func (s *ChangeSecuritySuite) TestUserRowIsMissingIsInternal() {
 		{
 			name: "disable 2fa",
 			call: func() error {
-				_, err := s.newDisable2FA().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+				_, err := s.newDisable2FA().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()})
 
 				return err
 			},
@@ -517,7 +517,7 @@ func (s *ChangeSecuritySuite) TestUserRowIsMissingIsInternal() {
 		{
 			name: "regenerate recovery codes",
 			call: func() error {
-				_, err := s.newRegenerateRecovery().Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()})
+				_, err := s.newRegenerateRecovery().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()})
 
 				return err
 			},

@@ -22,6 +22,7 @@ type (
 		storage      userEmailChanger
 		revoker      operationRevoker
 		notifierAPI  mrauth.Notifier
+		actorProps   actorPropsBuilder
 		errorWrapper errors.Wrapper
 	}
 
@@ -36,22 +37,24 @@ func NewChangeEmail(
 	storage userEmailChanger,
 	revoker operationRevoker,
 	notifierAPI mrauth.Notifier,
+	actorProps actorPropsBuilder,
 ) *ChangeEmail {
 	return &ChangeEmail{
 		txManager:    txManager,
 		storage:      storage,
 		revoker:      revoker,
 		notifierAPI:  notifierAPI,
+		actorProps:   actorProps,
 		errorWrapper: errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
 // Execute - меняет email пользователя на новый, отзывает незавершённые операции пользователя
-// и отправляет на прежний адрес уведомление о состоявшейся смене. Если новый адрес успели занять
+// и отправляет уведомления о состоявшейся смене на прежний и на новый адреса. Если новый адрес успели занять
 // за время жизни операции, возвращает mrauth.ErrEmailAlreadyExists: гонка с другим пользователем
 // за адрес проявляется ошибкой дубликата от UpdateEmail.
 func (uc *ChangeEmail) Execute(ctx context.Context, actor dto.ActorMeta, payload []byte) error {
-	if actor.VisitorID == uuid.Nil {
+	if actor.UserID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -61,7 +64,7 @@ func (uc *ChangeEmail) Execute(ctx context.Context, actor dto.ActorMeta, payload
 	}
 
 	return uc.txManager.Do(ctx, func(ctx context.Context) error {
-		if err := uc.storage.UpdateEmail(ctx, actor.VisitorID, payloadDTO.NewEmail); err != nil {
+		if err = uc.storage.UpdateEmail(ctx, actor.UserID, payloadDTO.NewEmail); err != nil {
 			if errors.Is(err, errors.ErrInternalStorageDuplicateKeyViolation) {
 				return mrauth.ErrEmailAlreadyExists
 			}
@@ -71,11 +74,31 @@ func (uc *ChangeEmail) Execute(ctx context.Context, actor dto.ActorMeta, payload
 
 		// коды подтверждения и уведомления незавершённых операций привязаны к прежнему адресу,
 		// поэтому операции отзываются: их нужно начать заново
-		if err := uc.revoker.RevokeAll(ctx, actor, logreason.EmailChanged); err != nil {
+		if err = uc.revoker.RevokeAll(ctx, actor, logreason.EmailChanged); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		if err := uc.notifierAPI.Send(ctx, "user.email.changed", conv.Group{"to": payloadDTO.Email}); err != nil {
+		if err = uc.notifierAPI.Send(
+			ctx,
+			"user.email.changed",
+			uc.actorProps.With(actor, conv.Group{
+				"to":       payloadDTO.Email,
+				"oldEmail": payloadDTO.Email,
+				"newEmail": payloadDTO.NewEmail,
+			}),
+		); err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
+
+		if err = uc.notifierAPI.Send(
+			ctx,
+			"user.email.changed.new",
+			uc.actorProps.With(actor, conv.Group{
+				"to":       payloadDTO.NewEmail,
+				"oldEmail": payloadDTO.Email,
+				"newEmail": payloadDTO.NewEmail,
+			}),
+		); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

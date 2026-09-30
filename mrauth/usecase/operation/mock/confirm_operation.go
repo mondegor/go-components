@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	dto "github.com/mondegor/go-components/mrauth/dto"
 	entity "github.com/mondegor/go-components/mrauth/entity"
 	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	gomock "go.uber.org/mock/gomock"
@@ -111,9 +112,9 @@ func (m *MockconfirmOperationPreparer) EXPECT() *MockconfirmOperationPreparerMoc
 }
 
 // Prepare mocks base method.
-func (m *MockconfirmOperationPreparer) Prepare(ctx context.Context, op secureoperation.SecureOperation, confirmCode string) (secureoperation.SecureOperation, func(context.Context) error, error) {
+func (m *MockconfirmOperationPreparer) Prepare(ctx context.Context, actor dto.ActorMeta, op secureoperation.SecureOperation, confirmCode string) (secureoperation.SecureOperation, func(context.Context) error, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Prepare", ctx, op, confirmCode)
+	ret := m.ctrl.Call(m, "Prepare", ctx, actor, op, confirmCode)
 	ret0, _ := ret[0].(secureoperation.SecureOperation)
 	ret1, _ := ret[1].(func(context.Context) error)
 	ret2, _ := ret[2].(error)
@@ -121,9 +122,9 @@ func (m *MockconfirmOperationPreparer) Prepare(ctx context.Context, op secureope
 }
 
 // Prepare indicates an expected call of Prepare.
-func (mr *MockconfirmOperationPreparerMockRecorder) Prepare(ctx, op, confirmCode any) *gomock.Call {
+func (mr *MockconfirmOperationPreparerMockRecorder) Prepare(ctx, actor, op, confirmCode any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockconfirmOperationPreparer)(nil).Prepare), ctx, op, confirmCode)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Prepare", reflect.TypeOf((*MockconfirmOperationPreparer)(nil).Prepare), ctx, actor, op, confirmCode)
 }
 
 // MockoperationLogger is a mock of operationLogger interface.

@@ -12,9 +12,12 @@ package mock
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
+	dto "github.com/mondegor/go-components/mrauth/dto"
 	entity "github.com/mondegor/go-components/mrauth/entity"
 	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
+	conv "github.com/mondegor/go-core/util/conv"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -105,4 +108,56 @@ func (m *MockoperationLogger) Log(ctx context.Context, entry entity.SecureOperat
 func (mr *MockoperationLoggerMockRecorder) Log(ctx, entry any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Log", reflect.TypeOf((*MockoperationLogger)(nil).Log), ctx, entry)
+}
+
+// MockactorPropsBuilder is a mock of actorPropsBuilder interface.
+type MockactorPropsBuilder struct {
+	ctrl     *gomock.Controller
+	recorder *MockactorPropsBuilderMockRecorder
+	isgomock struct{}
+}
+
+// MockactorPropsBuilderMockRecorder is the mock recorder for MockactorPropsBuilder.
+type MockactorPropsBuilderMockRecorder struct {
+	mock *MockactorPropsBuilder
+}
+
+// NewMockactorPropsBuilder creates a new mock instance.
+func NewMockactorPropsBuilder(ctrl *gomock.Controller) *MockactorPropsBuilder {
+	mock := &MockactorPropsBuilder{ctrl: ctrl}
+	mock.recorder = &MockactorPropsBuilderMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockactorPropsBuilder) EXPECT() *MockactorPropsBuilderMockRecorder {
+	return m.recorder
+}
+
+// FormatTime mocks base method.
+func (m *MockactorPropsBuilder) FormatTime(actor dto.ActorMeta, tm time.Time) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FormatTime", actor, tm)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// FormatTime indicates an expected call of FormatTime.
+func (mr *MockactorPropsBuilderMockRecorder) FormatTime(actor, tm any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FormatTime", reflect.TypeOf((*MockactorPropsBuilder)(nil).FormatTime), actor, tm)
+}
+
+// With mocks base method.
+func (m *MockactorPropsBuilder) With(actor dto.ActorMeta, props conv.Group) conv.Group {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "With", actor, props)
+	ret0, _ := ret[0].(conv.Group)
+	return ret0
+}
+
+// With indicates an expected call of With.
+func (mr *MockactorPropsBuilderMockRecorder) With(actor, props any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "With", reflect.TypeOf((*MockactorPropsBuilder)(nil).With), actor, props)
 }

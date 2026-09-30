@@ -14,6 +14,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/infra/adapter/collect"
+	"github.com/mondegor/go-components/mrauth/service/notify"
 	"github.com/mondegor/go-components/mrauth/service/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
@@ -75,6 +76,9 @@ func InitHttpModule(
 
 	operationLogger := collect.NewSecureOperationLogger(secureOperationLogProducer, logger)
 
+	// контекст клиента (время, IP, устройство) в уведомлениях о событиях безопасности
+	actorProps := notify.NewActorProps(appResolver)
+
 	// единая точка открытия защищённых операций всех типов (гасит прежние операции того же типа или той же цепочки)
 	operationOpener := secureoperation.NewOpener(
 		dbConnManager,
@@ -89,6 +93,7 @@ func InitHttpModule(
 		storageAuth2fa,
 		storageUser,
 		notifierAPI,
+		actorProps,
 		operationLogger,
 		auth2faConfig,
 	)
@@ -119,6 +124,7 @@ func InitHttpModule(
 						requestParser,
 						responseSender,
 						notifierAPI,
+						actorProps,
 						userRealms,
 						auth2faConfig,
 						jwtConfig,
@@ -172,6 +178,7 @@ func InitHttpModule(
 						requestParser,
 						responseFileSender,
 						notifierAPI,
+						actorProps,
 						userRealms,
 						operationConfig,
 						auth2faConfig,

@@ -44,7 +44,7 @@ func NewRevokeOperation(
 // что именно было отозвано.
 func (co *RevokeOperation) Execute(ctx context.Context, actor dto.ActorMeta, operationToken string) error {
 	// поток отзыва только для залогиненных, поэтому анонимный вызывающий - ошибка проводки
-	if actor.VisitorID == uuid.Nil {
+	if actor.UserID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -62,7 +62,7 @@ func (co *RevokeOperation) Execute(ctx context.Context, actor dto.ActorMeta, ope
 	}
 
 	// отозвать можно только собственную операцию: владение её токеном доступа не даёт
-	if actor.VisitorID != op.UserID {
+	if actor.UserID != op.UserID {
 		// обращение к чужой операции: фиксируем блокировку в журнале
 		co.logOperation.Log(
 			ctx,

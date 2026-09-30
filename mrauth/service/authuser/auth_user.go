@@ -45,6 +45,7 @@ type (
 		storageUserRealm userRealmStorage
 		realmRegistry    mrauth.RealmRegistry
 		notifierAPI      mrauth.Notifier
+		actorProps       actorPropsBuilder
 		errorWrapper     errors.Wrapper
 		logger           mrlog.Logger
 	}
@@ -59,6 +60,12 @@ type (
 		FetchOne(ctx context.Context, userID uuid.UUID, realmID uint16) (row entity.UserRealm, err error)
 		Insert(ctx context.Context, row entity.UserRealm) error
 	}
+
+	// actorPropsBuilder - дополняет props уведомления о событии безопасности контекстом клиента
+	// (время события, IP, устройство).
+	actorPropsBuilder interface {
+		With(actor dto.ActorMeta, props conv.Group) conv.Group
+	}
 )
 
 // New - создаёт объект Service.
@@ -68,6 +75,7 @@ func New(
 	storageUserRealm userRealmStorage,
 	realmRegistry mrauth.RealmRegistry,
 	notifierAPI mrauth.Notifier,
+	actorProps actorPropsBuilder,
 	logger mrlog.Logger,
 ) *Service {
 	return &Service{
@@ -76,6 +84,7 @@ func New(
 		storageUserRealm: storageUserRealm,
 		realmRegistry:    realmRegistry,
 		notifierAPI:      notifierAPI,
+		actorProps:       actorProps,
 		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
 		logger:           logger,
 	}
@@ -112,12 +121,13 @@ func (s *Service) ResolveUser(ctx context.Context, userID uuid.UUID, in dto.Crea
 	return existingUser.ID, s.bindUserToRealm(ctx, existingUser.ID, in)
 }
 
-// PrepareAuthorization - подготавливает пользователя к авторизации: загружает его и привязку к realm,
-// возвращает scopes и отложенный callback отправки login-alert'а об успешной авторизации.
+// PrepareAuthorization - подготавливает пользователя actor.UserID к авторизации: загружает его
+// и привязку к realm, возвращает scopes и отложенный callback отправки login-alert'а об успешной
+// авторизации с контекстом клиента actor (время, IP, устройство).
 // Само уведомление здесь НЕ отправляется: оно должно уйти только после успешного открытия сессии,
 // поэтому вызывающий дёргает callback после commit'а.
-func (s *Service) PrepareAuthorization(ctx context.Context, userID uuid.UUID, in dto.AuthorizeUserOperation) (dto.UserScopes, func(context.Context), error) {
-	if userID == uuid.Nil {
+func (s *Service) PrepareAuthorization(ctx context.Context, actor dto.ActorMeta, in dto.AuthorizeUserOperation) (dto.UserScopes, func(context.Context), error) {
+	if actor.UserID == uuid.Nil {
 		return dto.UserScopes{}, nil, errors.ErrInternalIncorrectInputData.WithDetails("userID is zero")
 	}
 
@@ -128,12 +138,12 @@ func (s *Service) PrepareAuthorization(ctx context.Context, userID uuid.UUID, in
 
 	// пользователь подтверждённой операции обязан существовать: его отсутствие -
 	// рассогласованные данные хранилища, а не ответ клиенту, поэтому наружу идёт внутренняя ошибка
-	user, err := s.storageUser.FetchOne(ctx, userID)
+	user, err := s.storageUser.FetchOne(ctx, actor.UserID)
 	if err != nil {
-		return dto.UserScopes{}, nil, s.errorWrapper.Wrap(err, "userId", userID)
+		return dto.UserScopes{}, nil, s.errorWrapper.Wrap(err, "userId", actor.UserID)
 	}
 
-	userRealm, err := s.storageUserRealm.FetchOne(ctx, userID, realmID)
+	userRealm, err := s.storageUserRealm.FetchOne(ctx, actor.UserID, realmID)
 	if err != nil {
 		// привязка к realm снята между созданием операции и входом:
 		// доступ отозван - это не «не найдено» и не сбой сервера
@@ -141,14 +151,17 @@ func (s *Service) PrepareAuthorization(ctx context.Context, userID uuid.UUID, in
 			return dto.UserScopes{}, nil, errors.ErrAccessForbidden
 		}
 
-		return dto.UserScopes{}, nil, s.errorWrapper.Wrap(err, "userId", userID, "realm", in.Realm)
+		return dto.UserScopes{}, nil, s.errorWrapper.Wrap(err, "userId", actor.UserID, "realm", in.Realm)
 	}
 
 	notifyAuthSuccess := func(ctx context.Context) {
-		s.notify(ctx, notice.KeyByEventAndRealm("user.authorization.success", in.Realm), conv.Group{
-			"lang": in.LangCode,
-			"to":   user.Email,
-		})
+		s.notify(
+			ctx,
+			notice.KeyByEventAndRealm("user.authorization.success", in.Realm),
+			s.actorProps.With(actor, conv.Group{
+				"lang": in.LangCode,
+				"to":   user.Email,
+			}))
 	}
 
 	return dto.UserScopes{

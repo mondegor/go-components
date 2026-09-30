@@ -184,7 +184,7 @@ func confirmedOp(opType operationtype.Enum) secureoperation.SecureOperation {
 
 // expectOpenSession - типовые ожидания удачного открытия сессии (после проверки лимита).
 func (s *OpenSessionSuite) expectOpenSession(scopes dto.UserScopes) {
-	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(scopes, s.authSuccessNotify(), nil)
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(scopes, s.authSuccessNotify(), nil)
 	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
 	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(1), nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
@@ -195,7 +195,7 @@ func (s *OpenSessionSuite) expectOpenSession(scopes dto.UserScopes) {
 func (s *OpenSessionSuite) TestNotConfirmed() {
 	op := secureoperation.SecureOperation{Type: operationtype.CreateUser, Status: operationstatus.Opened}
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, op)
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, op)
 	s.Require().ErrorIs(err, mrauth.ErrOperationIsNotConfirmed)
 }
 
@@ -205,7 +205,7 @@ func (s *OpenSessionSuite) TestCreateUserHappy() {
 	s.expectOpenSession(okScopes())
 	// excessQueue.Enqueue НЕ вызывается
 
-	got, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	got, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().NoError(err)
 	s.Equal(okPair(), got)
 	s.Equal(1, s.notifyCount, "login-alert должен уйти ровно один раз после commit'а")
@@ -217,7 +217,7 @@ func (s *OpenSessionSuite) TestAuthorizeUserHappy() {
 	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(0, nil)
 	s.expectOpenSession(okScopes())
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.AuthorizeUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.AuthorizeUser))
 	s.Require().NoError(err)
 	s.Equal(1, s.notifyCount, "login-alert должен уйти ровно один раз после commit'а")
 }
@@ -230,7 +230,7 @@ func (s *OpenSessionSuite) TestSoftThresholdEnqueues() {
 	s.excessQueue.EXPECT().Enqueue(gomock.Any(), scopes.UserID, testRealmID, 4).Return(nil)
 	s.expectOpenSession(scopes)
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().NoError(err)
 }
 
@@ -238,12 +238,12 @@ func (s *OpenSessionSuite) TestSoftThresholdEnqueues() {
 func (s *OpenSessionSuite) TestHardThresholdRejects() {
 	scopes := okScopes()
 
-	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(scopes, s.authSuccessNotify(), nil)
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(scopes, s.authSuccessNotify(), nil)
 	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), scopes.UserID, testRealmID).Return(8, nil)
 	s.excessQueue.EXPECT().Enqueue(gomock.Any(), scopes.UserID, testRealmID, 4).Return(nil)
 	// tx.Do / Issue / Create не вызываются - вход отклонён до открытия транзакции
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().ErrorIs(err, mrauth.ErrSessionLimitExceededTryLater)
 	s.Zero(s.notifyCount, "на отказе hard-гейта login-alert не шлётся")
 	s.Require().Len(s.logEntries, 1)
@@ -259,7 +259,7 @@ func (s *OpenSessionSuite) TestEnqueueErrorIgnored() {
 	s.excessQueue.EXPECT().Enqueue(gomock.Any(), scopes.UserID, testRealmID, 4).Return(errors.New("enqueue failed"))
 	s.expectOpenSession(scopes)
 
-	got, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	got, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().NoError(err)
 	s.Equal(okPair(), got)
 }
@@ -272,7 +272,7 @@ func (s *OpenSessionSuite) TestUnderSoftNoEnqueue() {
 	// excessQueue.Enqueue НЕ вызывается: N+1=3 < soft=4
 	s.expectOpenSession(okScopes())
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().NoError(err)
 }
 
@@ -286,7 +286,7 @@ func (s *OpenSessionSuite) TestSessionMaxZeroUsesDefault() {
 	s.excessQueue.EXPECT().Enqueue(gomock.Any(), scopes.UserID, testRealmID, 4).Return(nil)
 	s.expectOpenSession(scopes)
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().NoError(err)
 }
 
@@ -296,11 +296,11 @@ func (s *OpenSessionSuite) TestCustomHardThresholdRejectsEarlier() {
 
 	scopes := okScopes()
 
-	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(scopes, s.authSuccessNotify(), nil)
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(scopes, s.authSuccessNotify(), nil)
 	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), scopes.UserID, testRealmID).Return(5, nil)
 	s.excessQueue.EXPECT().Enqueue(gomock.Any(), scopes.UserID, testRealmID, 4).Return(nil)
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().ErrorIs(err, mrauth.ErrSessionLimitExceededTryLater)
 	s.Zero(s.notifyCount, "на отказе hard-гейта login-alert не шлётся")
 }
@@ -316,16 +316,16 @@ func (s *OpenSessionSuite) TestThresholdClampMinOne() {
 	s.excessQueue.EXPECT().Enqueue(gomock.Any(), scopes.UserID, testRealmID, 1).Return(nil) // soft=1: 0+1>=1
 	s.expectOpenSession(scopes)
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().NoError(err)
 }
 
 func (s *OpenSessionSuite) TestSessionLimitFetchError() {
-	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
 	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(0, errors.New("fetch failed"))
 	// tx.Do / Enqueue не вызываются: подсчёт лимита идёт до них
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().Error(err)
 	s.Zero(s.notifyCount)
 }
@@ -335,13 +335,13 @@ func (s *OpenSessionSuite) TestSessionLimitFetchError() {
 // usecase приводит его к ErrOperationInvalid -> транзакция открытия сессии откатывается.
 func (s *OpenSessionSuite) TestOperationConsumeRace() {
 	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
-	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
 	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(0, nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
 	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(1), nil)
 	s.storageOp.EXPECT().Delete(gomock.Any(), "op-token").Return(errors.ErrEventStorageNoRecordFound)
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
 	s.Zero(s.notifyCount, "при откате транзакции login-alert не шлётся")
 }
@@ -349,28 +349,28 @@ func (s *OpenSessionSuite) TestOperationConsumeRace() {
 // TestOperationDeleteError - сбой потребления операции откатывает транзакцию открытия сессии.
 func (s *OpenSessionSuite) TestOperationDeleteError() {
 	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
-	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
 	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(0, nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
 	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(1), nil)
 	s.storageOp.EXPECT().Delete(gomock.Any(), "op-token").Return(errors.New("delete failed"))
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().Error(err)
 	s.Zero(s.notifyCount, "при откате транзакции login-alert не шлётся")
 }
 
 func (s *OpenSessionSuite) TestUnknownOperation() {
 	// операция не входа отклоняется до обработчика и транзакции
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.ChangePhone))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.ChangePhone))
 	s.Require().Error(err)
 }
 
 func (s *OpenSessionSuite) TestHandlerError() {
 	// обработчик выполняется до транзакции: его ошибка возвращается без вызова tx.Do
-	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(dto.UserScopes{}, nil, errors.New("handler failed"))
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(dto.UserScopes{}, nil, errors.New("handler failed"))
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().Error(err)
 	s.Zero(s.notifyCount)
 }
@@ -381,10 +381,10 @@ func (s *OpenSessionSuite) TestHandlerError() {
 // здесь уехала бы клиенту статусом, которого нет в контракте POST /v1/session.
 func (s *OpenSessionSuite) TestHandlerUserErrorPassesThrough() {
 	s.authFlow.EXPECT().
-		Execute(gomock.Any(), gomock.Any()).
+		Execute(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(dto.UserScopes{}, nil, errors.ErrAccessForbidden)
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().ErrorIs(err, errors.ErrAccessForbidden)
 	s.Require().NotErrorIs(err, errors.ErrRecordNotFound)
 	s.Require().NotErrorIs(err, mrauth.ErrOperationInvalid)
@@ -393,13 +393,13 @@ func (s *OpenSessionSuite) TestHandlerUserErrorPassesThrough() {
 
 func (s *OpenSessionSuite) TestTokenCreatorError() {
 	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
-	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
 	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(0, nil)
 	// сессия выпускается до токенов, поэтому Issue вызывается раньше падающего Create
 	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(1), nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(dto.AuthTokenPair{}, errors.New("create failed"))
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().Error(err)
 	s.Zero(s.notifyCount, "при откате транзакции login-alert не шлётся")
 }
@@ -408,14 +408,14 @@ func (s *OpenSessionSuite) TestTokenCreatorError() {
 // проваливать уже открытую сессию (commit прошёл, токены выданы), Execute возвращает токен без ошибки.
 func (s *OpenSessionSuite) TestActivityErrorIgnored() {
 	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
-	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
 	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(0, nil)
 	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
 	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(1), nil)
 	s.storageOp.EXPECT().Delete(gomock.Any(), "op-token").Return(nil)
 	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(errors.New("activity failed"))
 
-	got, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	got, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().NoError(err)
 	s.Equal(okPair(), got)
 	s.Equal(1, s.notifyCount, "commit прошёл - login-alert уходит несмотря на сбой записи активности")
@@ -423,12 +423,12 @@ func (s *OpenSessionSuite) TestActivityErrorIgnored() {
 
 func (s *OpenSessionSuite) TestSessionIssuerError() {
 	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
-	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
 	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(0, nil)
 	// issuer не смог выдать session_id -> Create и InsertOrUpdate не вызываются
 	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(0), errors.ErrEventRecordAlreadyExists)
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().ErrorIs(err, errors.ErrEventRecordAlreadyExists)
 	s.Zero(s.notifyCount, "при откате транзакции login-alert не шлётся")
 }
@@ -439,7 +439,7 @@ func (s *OpenSessionSuite) TestHardRejectThenSuccessNotifiesOnce() {
 	scopes := okScopes()
 	notify := s.authSuccessNotify()
 
-	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any()).Return(scopes, notify, nil).Times(2)
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(scopes, notify, nil).Times(2)
 	gomock.InOrder(
 		s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), scopes.UserID, testRealmID).Return(8, nil),
 		s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), scopes.UserID, testRealmID).Return(0, nil),
@@ -453,11 +453,11 @@ func (s *OpenSessionSuite) TestHardRejectThenSuccessNotifiesOnce() {
 	s.storageOp.EXPECT().Delete(gomock.Any(), "op-token").Return(nil)
 	s.activity.EXPECT().InsertOrUpdate(gomock.Any(), gomock.Any()).Return(nil)
 
-	_, err := s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().ErrorIs(err, mrauth.ErrSessionLimitExceededTryLater)
 	s.Zero(s.notifyCount)
 
-	_, err = s.uc.Execute(s.ctx, dto.SessionMeta{}, confirmedOp(operationtype.CreateUser))
+	_, err = s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
 	s.Require().NoError(err)
 	s.Equal(1, s.notifyCount, "суммарно за ретрай login-alert уходит ровно один раз")
 }

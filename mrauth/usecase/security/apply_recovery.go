@@ -27,6 +27,7 @@ type (
 		storageOperation   operationDeleter
 		codeGenerator      recoveryCodesGenerator
 		notifierAPI        mrauth.Notifier
+		actorProps         actorPropsBuilder
 		logOperation       operationLogger
 		errorWrapper       errors.Wrapper
 		recoveryCount      int
@@ -45,6 +46,7 @@ func NewApplyRecovery(
 	storageOperation operationDeleter,
 	codeGenerator recoveryCodesGenerator,
 	notifierAPI mrauth.Notifier,
+	actorProps actorPropsBuilder,
 	logOperation operationLogger,
 	recoveryCount int,
 	recoveryCodeLength int,
@@ -57,6 +59,7 @@ func NewApplyRecovery(
 		storageOperation:   storageOperation,
 		codeGenerator:      codeGenerator,
 		notifierAPI:        notifierAPI,
+		actorProps:         actorProps,
 		logOperation:       logOperation,
 		errorWrapper:       errors.NewServiceOperationFailedWrapper(),
 		recoveryCount:      recoveryCount,
@@ -72,7 +75,7 @@ func (uc *ApplyRecovery) Execute(
 	actor dto.ActorMeta,
 	operationToken string,
 ) (plainCodes []string, err error) {
-	if actor.VisitorID == uuid.Nil {
+	if actor.UserID == uuid.Nil {
 		return nil, errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -99,7 +102,7 @@ func (uc *ApplyRecovery) Execute(
 		operationType = op.Type
 		actionMethod = op.FirstActionMethod()
 
-		if actor.VisitorID != op.UserID {
+		if actor.UserID != op.UserID {
 			failedLogState = newLogState(logstatus.Blocked, logreason.AccessForbidden)
 
 			return errors.ErrAccessForbidden
@@ -144,7 +147,7 @@ func (uc *ApplyRecovery) Execute(
 			return uc.errorWrapper.Wrap(err)
 		}
 
-		return uc.notifierAPI.Send(ctx, "user.recovery_codes.changed", conv.Group{"to": payload.Email})
+		return uc.notifierAPI.Send(ctx, "user.recovery_codes.changed", uc.actorProps.With(actor, conv.Group{"to": payload.Email}))
 	})
 	if err != nil {
 		if failedLogState.isSet() {

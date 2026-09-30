@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrtype"
 	"github.com/mondegor/go-core/util/conv"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -119,11 +120,11 @@ func (s *ApplyEmailSuite) SetupTest() {
 }
 
 func (s *ApplyEmailSuite) newUseCase() *security.ApplyEmail {
-	return security.NewApplyEmail(s.txManager, s.storage, s.checker, s.factory, s.opener, s.notes, s.logOperation)
+	return security.NewApplyEmail(s.txManager, s.storage, s.checker, s.factory, s.opener, s.notes, s.actorProps, s.logOperation)
 }
 
 func (s *ApplyEmailSuite) actor() dto.ActorMeta {
-	return dto.ActorMeta{VisitorID: s.userID}
+	return dto.ActorMeta{UserID: s.userID}
 }
 
 // TestSuccess - первый шаг применяется так: его операция удаляется, открывается операция
@@ -140,8 +141,9 @@ func (s *ApplyEmailSuite) TestSuccess() {
 		Return(s.confirmOp, nil)
 
 	userLocation := time.FixedZone("MSK", 3*60*60)
+	actor := dto.NewActorMeta(s.userID, mrtype.DetailedIP{}, "", userLocation)
 
-	op, err := s.newUseCase().Execute(s.ctx, s.actor(), userLocation, "op-token")
+	op, err := s.newUseCase().Execute(s.ctx, actor, "op-token")
 	s.Require().NoError(err)
 	s.Equal(s.confirmOp, op)
 
@@ -155,6 +157,9 @@ func (s *ApplyEmailSuite) TestSuccess() {
 	s.Equal("new@example.com", s.sent[0].props["newEmail"])
 	// срок - текстом в поясе пользователя и с его названием: в письме нет места для RFC3339
 	s.Equal(s.confirmOp.ExpiresAt.In(userLocation).Format("2006-01-02 15:04")+" (MSK)", s.sent[0].props["expiresAt"])
+	// время события - в том же поясе пользователя, устройство - по User-Agent
+	s.Contains(s.sent[0].props["occurredAt"], "(MSK)")
+	s.Equal("TestApp, TestDevice", s.sent[0].props["device"])
 
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(operationtype.ChangeEmail.String(), s.logEntries[0].SourceName)
@@ -168,7 +173,7 @@ func (s *ApplyEmailSuite) TestNoticeTimeWithoutLocation() {
 	s.checker.EXPECT().CheckAvailabilityEmail(gomock.Any(), gomock.Any()).Return(nil)
 	s.factory.EXPECT().Create(gomock.Any(), gomock.Any()).Return(s.confirmOp, nil)
 
-	_, err := s.newUseCase().Execute(s.ctx, s.actor(), nil, "op-token")
+	_, err := s.newUseCase().Execute(s.ctx, s.actor(), "op-token")
 	s.Require().NoError(err)
 	s.Require().Len(s.sent, 1)
 	s.Equal(s.confirmOp.ExpiresAt.UTC().Format("2006-01-02 15:04")+" (UTC)", s.sent[0].props["expiresAt"])
@@ -219,7 +224,7 @@ func (s *ApplyEmailSuite) TestRejected() {
 
 			s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(op, nil)
 
-			_, err := s.newUseCase().Execute(s.ctx, s.actor(), nil, "op-token")
+			_, err := s.newUseCase().Execute(s.ctx, s.actor(), "op-token")
 			s.Require().ErrorIs(err, tt.wantErr)
 
 			s.Empty(s.deleted)
@@ -239,7 +244,7 @@ func (s *ApplyEmailSuite) TestEmailTaken() {
 	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(confirmedChangeEmailOp(s.userID), nil)
 	s.checker.EXPECT().CheckAvailabilityEmail(gomock.Any(), gomock.Any()).Return(mrauth.ErrEmailAlreadyExists)
 
-	_, err := s.newUseCase().Execute(s.ctx, s.actor(), nil, "op-token")
+	_, err := s.newUseCase().Execute(s.ctx, s.actor(), "op-token")
 	s.Require().ErrorIs(err, mrauth.ErrEmailAlreadyExists)
 
 	s.Empty(s.deleted)
@@ -253,7 +258,7 @@ func (s *ApplyEmailSuite) TestUnknownToken() {
 		FetchOneForUpdate(gomock.Any(), "op-token").
 		Return(secureoperation.SecureOperation{}, errors.ErrEventStorageNoRecordFound)
 
-	_, err := s.newUseCase().Execute(s.ctx, s.actor(), nil, "op-token")
+	_, err := s.newUseCase().Execute(s.ctx, s.actor(), "op-token")
 	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
 	s.Empty(s.logEntries)
 }
@@ -261,9 +266,9 @@ func (s *ApplyEmailSuite) TestUnknownToken() {
 // TestInvalidInput - пустой токен - недействительная операция (запрос вниз не идёт),
 // пустой пользователь - нарушение инварианта метода, доступного только авторизованному.
 func (s *ApplyEmailSuite) TestInvalidInput() {
-	_, err := s.newUseCase().Execute(s.ctx, s.actor(), nil, "")
+	_, err := s.newUseCase().Execute(s.ctx, s.actor(), "")
 	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
 
-	_, err = s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, nil, "op-token")
+	_, err = s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "op-token")
 	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
 }
