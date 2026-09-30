@@ -10,9 +10,10 @@ import (
 )
 
 // NewPendingOperation - строит проекцию операции для списка личного кабинета. ok == false -
-// операция в список не входит (белый список - PendingOperationTypes): в список попадают только
-// операции, в которых может быть применён аварийный код, и долгоживущие операции; вход в аккаунт
-// не отдаётся, токен чужой попытки входа нельзя показывать другой сессии.
+// операция в список не входит (белый список - PendingOperationTypes): в список попадает только
+// шаг 2 смены емаила (ChangeEmailConfirm) - долгоживущая операция, потерять которую нельзя;
+// остальные операции короткие и завершаются клиентом сразу. Вход в аккаунт не отдаётся, токен
+// чужой попытки входа нельзя показывать другой сессии.
 // Нечитаемый payload - нарушение инварианта, а не повод пропустить операцию: возвращается ошибка.
 func NewPendingOperation(op secureoperation.SecureOperation) (item dto.PendingOperation, ok bool, err error) {
 	if !slices.Contains(PendingOperationTypes(), op.Type) {
@@ -27,7 +28,7 @@ func NewPendingOperation(op secureoperation.SecureOperation) (item dto.PendingOp
 		CurrentAction: pendingAction(&op),
 	}
 
-	if op.Type == operationtype.ChangeEmail || op.Type == operationtype.ChangeEmailConfirm {
+	if op.Type == operationtype.ChangeEmailConfirm {
 		payload, err := ParseChangeEmailPayload(op.Payload)
 		if err != nil {
 			return dto.PendingOperation{}, false, err
@@ -68,8 +69,6 @@ func pendingAction(op *secureoperation.SecureOperation) *dto.PendingAction {
 // отбираются операции в хранилище и фильтруются в NewPendingOperation.
 func PendingOperationTypes() []operationtype.Enum {
 	return []operationtype.Enum{
-		operationtype.ChangeEmail,
 		operationtype.ChangeEmailConfirm,
-		operationtype.Disable2FA,
 	}
 }

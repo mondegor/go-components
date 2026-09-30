@@ -24,10 +24,11 @@ const (
 	Superseded                      // операция вытеснена новой операцией того же типа
 	ResendsExhausted                // исчерпаны повторные отправки кода подтверждения
 	Auth2FAStateChanged             // состояние 2FA изменилось между созданием операции и её применением
+	EmailChanged                    // емаил пользователя изменился после создания операции
 )
 
 const (
-	enumLast = uint8(Auth2FAStateChanged)
+	enumLast = uint8(EmailChanged)
 	enumName = "LogReason"
 )
 
@@ -53,6 +54,7 @@ var (
 		Superseded:          "SUPERSEDED",
 		ResendsExhausted:    "RESENDS_EXHAUSTED",
 		Auth2FAStateChanged: "AUTH_2FA_STATE_CHANGED",
+		EmailChanged:        "EMAIL_CHANGED",
 	}
 
 	enumValues = map[string]Enum{
@@ -70,6 +72,7 @@ var (
 		"SUPERSEDED":             Superseded,
 		"RESENDS_EXHAUSTED":      ResendsExhausted,
 		"AUTH_2FA_STATE_CHANGED": Auth2FAStateChanged,
+		"EMAIL_CHANGED":          EmailChanged,
 	}
 )
 

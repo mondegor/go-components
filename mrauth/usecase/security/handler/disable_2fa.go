@@ -27,11 +27,6 @@ type (
 	user2faDisabler interface {
 		Delete(ctx context.Context, userID uuid.UUID) error
 	}
-
-	// operationRevoker - отзывает все незавершённые операции пользователя.
-	operationRevoker interface {
-		RevokeAll(ctx context.Context, actor dto.ActorMeta, reason logreason.Enum) error
-	}
 )
 
 // NewDisable2FA - создаёт объект Disable2FA.

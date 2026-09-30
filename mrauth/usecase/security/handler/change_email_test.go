@@ -12,6 +12,7 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/security/handler"
 	"github.com/mondegor/go-components/mrauth/usecase/security/handler/mock"
@@ -26,6 +27,7 @@ type ChangeEmailSuite struct {
 	ctx         context.Context
 	txManager   *mock.MockDBTxManager
 	storage     *mock.MockuserEmailChanger
+	revoker     *mock.MockoperationRevoker
 	notifierAPI *mock.MockNotifier
 	uc          *handler.ChangeEmail
 }
@@ -41,6 +43,7 @@ func (s *ChangeEmailSuite) SetupTest() {
 	s.ctx = context.Background()
 	s.txManager = mock.NewMockDBTxManager(s.ctrl)
 	s.storage = mock.NewMockuserEmailChanger(s.ctrl)
+	s.revoker = mock.NewMockoperationRevoker(s.ctrl)
 	s.notifierAPI = mock.NewMockNotifier(s.ctrl)
 
 	// транзакция выполняет переданное задание как есть
@@ -51,7 +54,7 @@ func (s *ChangeEmailSuite) SetupTest() {
 		}).
 		AnyTimes()
 
-	s.uc = handler.NewChangeEmail(s.txManager, s.storage, s.notifierAPI)
+	s.uc = handler.NewChangeEmail(s.txManager, s.storage, s.revoker, s.notifierAPI)
 }
 
 func (s *ChangeEmailSuite) payload() []byte {
@@ -63,21 +66,39 @@ func (s *ChangeEmailSuite) payload() []byte {
 	return raw
 }
 
-// TestExecute - email меняется на новый, уведомление о смене уходит на прежний адрес.
+// TestExecute - email меняется на новый, незавершённые операции пользователя отзываются,
+// уведомление о смене уходит на прежний адрес.
 func (s *ChangeEmailSuite) TestExecute() {
 	userID := uuid.New()
+	actor := dto.ActorMeta{VisitorID: userID}
 
-	s.storage.EXPECT().UpdateEmail(gomock.Any(), userID, "new@example.com").Return(nil)
-	s.notifierAPI.EXPECT().
-		Send(gomock.Any(), "user.email.changed", map[string]any{"to": "user@example.com"}).
-		Return(nil)
+	gomock.InOrder(
+		s.storage.EXPECT().UpdateEmail(gomock.Any(), userID, "new@example.com").Return(nil),
+		s.revoker.EXPECT().RevokeAll(gomock.Any(), actor, logreason.EmailChanged).Return(nil),
+		s.notifierAPI.EXPECT().
+			Send(gomock.Any(), "user.email.changed", map[string]any{"to": "user@example.com"}).
+			Return(nil),
+	)
 
-	s.Require().NoError(s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: userID}, s.payload()))
+	s.Require().NoError(s.uc.Execute(s.ctx, actor, s.payload()))
+}
+
+// TestExecuteRevokeError - сбой отзыва операций откатывает смену: ошибка возвращается,
+// уведомление о смене не отправляется.
+func (s *ChangeEmailSuite) TestExecuteRevokeError() {
+	s.storage.EXPECT().UpdateEmail(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.revoker.EXPECT().
+		RevokeAll(gomock.Any(), gomock.Any(), logreason.EmailChanged).
+		Return(errors.ErrInternalStorageQueryFailed.New())
+
+	err := s.uc.Execute(s.ctx, dto.ActorMeta{VisitorID: uuid.New()}, s.payload())
+	s.Require().ErrorIs(err, errors.ErrInternalStorageQueryFailed)
 }
 
 // TestExecuteEmailTaken - новый адрес успели занять за время жизни операции: нарушение
 // уникальности становится пользовательской ошибкой EmailAlreadyExists (400), а не 500,
-// и уведомление о смене не отправляется (мок Send без EXPECT: любой вызов провалит тест).
+// операции не отзываются и уведомление о смене не отправляется (моки без EXPECT: любой
+// вызов провалит тест).
 func (s *ChangeEmailSuite) TestExecuteEmailTaken() {
 	s.storage.EXPECT().
 		UpdateEmail(gomock.Any(), gomock.Any(), gomock.Any()).

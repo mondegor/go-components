@@ -92,7 +92,7 @@ func (s *UserInfoSuite) TestGet() {
 			{RealmID: 2, Kind: "standard", CreatedAt: base, UpdatedAt: base},
 		}, nil)
 
-	// операции личного кабинета попадают в сводку в порядке хранилища, вход - нет
+	// в сводку попадает только шаг 2 смены емаила, прочие операции - нет
 	s.opFetcher.EXPECT().FetchByUserIDAndTypes(gomock.Any(), userID, unit.PendingOperationTypes()).Return([]secureoperation.SecureOperation{
 		s.confirmedOperation(operationtype.AuthorizeUser, nil),
 		s.confirmedOperation(operationtype.ChangeEmailConfirm, s.emailPayload()),
@@ -131,10 +131,9 @@ func (s *UserInfoSuite) TestGet() {
 	s.Empty(info.Realms[1].LastLocation)
 	s.True(info.Realms[1].LastLoggedAt.IsZero())
 
-	s.Require().Len(info.PendingOperations, 2)
+	s.Require().Len(info.PendingOperations, 1)
 	s.Equal(operationtype.ChangeEmailConfirm, info.PendingOperations[0].Type)
 	s.Equal("new@example.com", info.PendingOperations[0].NewEmail)
-	s.Equal(operationtype.Disable2FA, info.PendingOperations[1].Type)
 }
 
 // TestGetOperationsError - ошибка чтения операций и нечитаемый payload операции не маскируются
