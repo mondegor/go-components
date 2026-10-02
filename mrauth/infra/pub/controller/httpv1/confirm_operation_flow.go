@@ -47,9 +47,10 @@ func (f confirmOperationFlow) confirm(
 		secret,
 	)
 	if err != nil {
-		// все три отказа относятся к самому секрету и отдаются с актуальным состоянием операции
+		// все отказы относятся к самому секрету и отдаются с актуальным состоянием операции
 		if errors.Is(err, mrauth.ErrConfirmCodeIsRequired) ||
 			errors.Is(err, mrauth.ErrConfirmCodeIsIncorrect) ||
+			errors.Is(err, mrauth.ErrRecoveryCodeNotAllowed) ||
 			errors.Is(err, mrauth.ErrNoAttemptsToConfirmOperation) {
 			return op, false, f.sender.Send(
 				w,

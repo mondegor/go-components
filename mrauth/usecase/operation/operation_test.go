@@ -208,6 +208,20 @@ func (s *ConfirmOperationSuite) TestNoAttempts() {
 	s.Equal(logreason.AttemptsExhausted, s.logEntries[0].Reason)
 }
 
+// TestRecoveryNotAllowedKeepsAttempts - аварийный код на звене, где он не допускается: счётчик
+// попыток не трогается (мок UpdateFailedAttempt без EXPECT), клиент получает операцию в прежнем
+// состоянии, а журнал не пишется - отказ бесплатный и не должен его наполнять.
+func (s *ConfirmOperationSuite) TestRecoveryNotAllowedKeepsAttempts() {
+	op := openedEmailOp(s.T())
+	s.expectFetch(op, nil)
+	s.expectPrepare(op, nil, mrauth.ErrRecoveryCodeNotAllowed)
+
+	out, err := s.execute("AAAAAAAA-BBBBBBBB")
+	s.Require().ErrorIs(err, mrauth.ErrRecoveryCodeNotAllowed)
+	s.Equal(op.RemainingAttempts, out.RemainingAttempts)
+	s.Empty(s.logEntries)
+}
+
 func (s *ConfirmOperationSuite) TestWrongCodeAttemptsRemain() {
 	op := openedEmailOp(s.T())
 	s.expectFetch(op, nil)

@@ -201,3 +201,53 @@ func (s *ConfirmCodeSuite) Test2FADisabledLooksLikeMiss() {
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Nil(commitConfirmed)
 }
+
+// TestRecoveryNotAllowedKeepsAttempts - аварийный код на звене, где он не допускается, отклоняется
+// отдельной ошибкой по одному формату ввода, любой длины с разделителем: верификатор не вызывается
+// (мок без EXPECT), поэтому 2FA не читается, а попытка подтверждения не расходуется - пользователь
+// ошибся в выборе доказательства, а не ввёл неверное.
+func (s *ConfirmCodeSuite) TestRecoveryNotAllowedKeepsAttempts() {
+	for _, code := range []string{"AAAAAAAA-BBBBBBBB", "AAAAA-BBBBB"} {
+		s.Run(code, func() {
+			op := s.newOpWithSingleTOTPAction(uuid.New())
+			attempts := op.RemainingAttempts
+
+			out, commitConfirmed, err := s.prepareAsOwner(op, code)
+			s.Require().ErrorIs(err, mrauth.ErrRecoveryCodeNotAllowed)
+			s.Equal(attempts, out.RemainingAttempts)
+			s.False(out.Is(operationstatus.Confirmed))
+			s.Nil(commitConfirmed)
+		})
+	}
+}
+
+// TestRecoveryAllowedGoesToVerifier - на звене, допускающем аварийный код, код в его формате
+// уходит в верификатор.
+func (s *ConfirmCodeSuite) TestRecoveryAllowedGoesToVerifier() {
+	consume := func(context.Context) error { return nil }
+
+	s.verifier.EXPECT().
+		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, true, "AAAAAAAA-BBBBBBBB").
+		Return(true, consume, nil)
+
+	action := totpConfirmAction()
+	action.AllowRecovery = true
+
+	out, commitConfirmed, err := s.prepareAsOwner(s.newOpWithActions(action), "AAAAAAAA-BBBBBBBB")
+	s.Require().NoError(err)
+	s.True(out.Is(operationstatus.Confirmed))
+	s.NotNil(commitConfirmed)
+}
+
+// TestLowercaseRecoveryLikeGoesToVerifier - ввод, отличающийся от формата аварийного кода
+// регистром, аварийным кодом не считается и проверяется как обычное доказательство звена.
+func (s *ConfirmCodeSuite) TestLowercaseRecoveryLikeGoesToVerifier() {
+	s.verifier.EXPECT().
+		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, false, "aaaaaaaa-bbbbbbbb").
+		Return(false, nil, nil)
+
+	out, commitConfirmed, err := s.prepareAsOwner(s.newOpWithSingleTOTPAction(uuid.New()), "aaaaaaaa-bbbbbbbb")
+	s.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
+	s.False(out.Is(operationstatus.Confirmed))
+	s.Nil(commitConfirmed)
+}

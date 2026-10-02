@@ -113,7 +113,7 @@ func (s *VerifierSuite) TestTOTPReplayRejected() {
 }
 
 func (s *VerifierSuite) TestRecoveryFallbackConsumes() {
-	h1, h2 := s.hashed("AAAAABBBBB"), s.hashed("CCCCCDDDDD")
+	h1, h2 := s.hashed("AAAAAAAA-BBBBBBBB"), s.hashed("CCCCCCCC-DDDDDDDD")
 
 	s.expectFetch(entity.Auth2FA{
 		Type:          auth2fatype.TOTP,
@@ -123,7 +123,7 @@ func (s *VerifierSuite) TestRecoveryFallbackConsumes() {
 	// израсходован именно совпавший хеш, и только после фиксации
 	s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, h1).Return(1, nil)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "AAAAAAAA-BBBBBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 
@@ -137,7 +137,7 @@ func (s *VerifierSuite) TestRecoveryFallbackConsumes() {
 // доказательства у звена больше нет, но аварийный код от типа фактора не зависит и обязан быть
 // принят - его приём обещан контрактом (см. contracts/mrauth/paths/v1_signin.yaml).
 func (s *VerifierSuite) TestRecoveryFallbackSurvivesFactorTypeChange() {
-	h1 := s.hashed("AAAAABBBBB")
+	h1 := s.hashed("AAAAAAAA-BBBBBBBB")
 
 	s.expectFetch(entity.Auth2FA{
 		Type:          auth2fatype.TOTP,
@@ -146,7 +146,7 @@ func (s *VerifierSuite) TestRecoveryFallbackSurvivesFactorTypeChange() {
 	})
 	s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, h1).Return(1, nil)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Password, true, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Password, true, "AAAAAAAA-BBBBBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 
@@ -159,10 +159,10 @@ func (s *VerifierSuite) TestInvalidTOTPNoRecoveryMatch() {
 	s.expectFetch(entity.Auth2FA{
 		Type:          auth2fatype.TOTP,
 		Secret:        testTOTPSecret,
-		RecoveryCodes: []string{s.hashed("AAAAABBBBB")},
+		RecoveryCodes: []string{s.hashed("AAAAAAAA-BBBBBBBB")},
 	})
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "ZZZZZYYYYY")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "ZZZZZZZZ-YYYYYYYY")
 	s.Require().NoError(err)
 	s.False(ok)
 	s.Nil(commit)
@@ -187,9 +187,30 @@ func (s *VerifierSuite) TestAllDigitCodeSkipsRecovery() {
 	s.Nil(commit)
 }
 
+// TestRecoveryWithoutSeparatorSkipsHashes - код подходящей длины, но без разделителя посередине
+// не имеет формата аварийного кода: на звене аварийного кода он отклоняется без сверки с хешами.
+func (s *VerifierSuite) TestRecoveryWithoutSeparatorSkipsHashes() {
+	comparer := mock.NewMockpasswordComparer(s.ctrl)
+
+	s.expectFetch(entity.Auth2FA{
+		Type:          auth2fatype.TOTP,
+		Secret:        testTOTPSecret,
+		RecoveryCodes: []string{"hash-1", "hash-2", "hash-3"},
+	})
+	comparer.EXPECT().CompareSecretAndHash(gomock.Any(), gomock.Any()).Times(0)
+
+	v := auth2fa.NewVerifier(s.source, comparer, s.auth)
+
+	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "AAAAAAAABBBBBBBBB")
+	s.Require().NoError(err)
+	s.False(ok)
+	s.Nil(commit)
+}
+
 // TestRecoveryNotAllowedSkipsRecovery - комбинация с аварийным кодом недопустима для текущего
-// действия операции (например, перевыпуск аварийных кодов). Предъявленный код обязан быть
-// отклонён до сравнения хешей: иначе он расходуется на операции, которая его не принимает.
+// действия операции (например, перевыпуск аварийных кодов). Код в формате аварийного проверяется
+// как обычное доказательство, а с хешами аварийных кодов не сравнивается: иначе он расходовался бы
+// на операции, которая его не принимает.
 func (s *VerifierSuite) TestRecoveryNotAllowedSkipsRecovery() {
 	comparer := mock.NewMockpasswordComparer(s.ctrl)
 
@@ -202,15 +223,34 @@ func (s *VerifierSuite) TestRecoveryNotAllowedSkipsRecovery() {
 
 	v := auth2fa.NewVerifier(s.source, comparer, s.auth)
 
-	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, false, "AAAAABBBBB")
+	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, false, "AAAAAAAA-BBBBBBBB")
 	s.Require().NoError(err)
 	s.False(ok)
-
 	s.Nil(commit)
 }
 
+// TestRecoveryCodeLengthBelowSeparatorNormalized - нижняя граница длины короче кода
+// с разделителем поднимается до неё, а верхняя подтягивается к нижней: код минимальной
+// длины с разделителем принимается.
+func (s *VerifierSuite) TestRecoveryCodeLengthBelowSeparatorNormalized() {
+	h1 := s.hashed("AAAAA-BBBBB")
+
+	s.expectFetch(entity.Auth2FA{
+		Type:          auth2fatype.TOTP,
+		Secret:        testTOTPSecret,
+		RecoveryCodes: []string{h1},
+	})
+
+	v := s.newVerifier(auth2fa.WithRecoveryCodeLength(5, 5))
+
+	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "AAAAA-BBBBB")
+	s.Require().NoError(err)
+	s.True(ok)
+	s.NotNil(commit)
+}
+
 func (s *VerifierSuite) TestVerifyRecoveryConsumes() {
-	h1, h2 := s.hashed("AAAAABBBBB"), s.hashed("CCCCCDDDDD")
+	h1, h2 := s.hashed("AAAAAAAA-BBBBBBBB"), s.hashed("CCCCCCCC-DDDDDDDD")
 
 	s.expectFetch(entity.Auth2FA{
 		Type:          auth2fatype.TOTP,
@@ -219,7 +259,7 @@ func (s *VerifierSuite) TestVerifyRecoveryConsumes() {
 	})
 	s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, h2).Return(1, nil)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "CCCCCDDDDD")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "CCCCCCCC-DDDDDDDD")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 
@@ -232,10 +272,10 @@ func (s *VerifierSuite) TestVerifyRecoveryNoMatch() {
 	s.expectFetch(entity.Auth2FA{
 		Type:          auth2fatype.TOTP,
 		Secret:        testTOTPSecret,
-		RecoveryCodes: []string{s.hashed("AAAAABBBBB")},
+		RecoveryCodes: []string{s.hashed("AAAAAAAA-BBBBBBBB")},
 	})
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "ZZZZZYYYYY")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "ZZZZZZZZ-YYYYYYYY")
 	s.Require().NoError(err)
 	s.False(ok)
 	s.Nil(commit)
@@ -270,7 +310,7 @@ func (s *VerifierSuite) TestVerifyRecovery2FADisabled() {
 		FetchOne(gomock.Any(), s.userID).
 		Return(entity.Auth2FA{}, sysmesserrors.ErrEventStorageNoRecordFound)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "AAAAAAAA-BBBBBBBB")
 	s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
 	s.False(ok)
 	s.Nil(commit)
@@ -280,14 +320,14 @@ func (s *VerifierSuite) TestVerifyRecoveryFetchError() {
 	wantErr := errors.New("fetch failed")
 	s.source.EXPECT().FetchOne(gomock.Any(), s.userID).Return(entity.Auth2FA{}, wantErr)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Recovery, false, "AAAAAAAA-BBBBBBBB")
 	s.Require().ErrorIs(err, wantErr)
 	s.False(ok)
 	s.Nil(commit)
 }
 
 func (s *VerifierSuite) TestRecoveryConsumeRace() {
-	h1 := s.hashed("AAAAABBBBB")
+	h1 := s.hashed("AAAAAAAA-BBBBBBBB")
 	consumeErr := errors.New("record not found")
 
 	s.expectFetch(entity.Auth2FA{
@@ -298,7 +338,7 @@ func (s *VerifierSuite) TestRecoveryConsumeRace() {
 	// код уже израсходован параллельной операцией
 	s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, h1).Return(0, consumeErr)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "AAAAAAAA-BBBBBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 	s.Require().NotNil(commit)
@@ -325,7 +365,7 @@ func (s *VerifierSuite) TestPasswordWrong() {
 }
 
 func (s *VerifierSuite) TestPasswordRecoveryFallbackConsumes() {
-	recHash := s.hashed("AAAAABBBBB")
+	recHash := s.hashed("AAAAAAAA-BBBBBBBB")
 
 	s.expectFetch(entity.Auth2FA{
 		Type:          auth2fatype.Password,
@@ -335,7 +375,7 @@ func (s *VerifierSuite) TestPasswordRecoveryFallbackConsumes() {
 	s.source.EXPECT().UpdateRecoveryCode(gomock.Any(), s.userID, recHash).Return(1, nil)
 
 	// пароль не подошёл, но предъявлен валидный аварийный код - он засчитывается и расходуется
-	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Password, true, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Password, true, "AAAAAAAA-BBBBBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 
@@ -348,18 +388,18 @@ func (s *VerifierSuite) TestPasswordWrongNoRecoveryMatch() {
 	s.expectFetch(entity.Auth2FA{
 		Type:          auth2fatype.Password,
 		Secret:        s.hashed("my-secret-password"),
-		RecoveryCodes: []string{s.hashed("AAAAABBBBB")},
+		RecoveryCodes: []string{s.hashed("AAAAAAAA-BBBBBBBB")},
 	})
 
 	// ни пароль, ни аварийный код не совпали - доступ не предоставляется, код не расходуется
-	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Password, true, "ZZZZZYYYYY")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.Password, true, "ZZZZZZZZ-YYYYYYYY")
 	s.Require().NoError(err)
 	s.False(ok)
 	s.Nil(commit)
 }
 
 func (s *VerifierSuite) TestRecoveryConsumedCallsAlerter() {
-	h1 := s.hashed("AAAAABBBBB")
+	h1 := s.hashed("AAAAAAAA-BBBBBBBB")
 
 	s.expectFetch(entity.Auth2FA{
 		Type:          auth2fatype.TOTP,
@@ -377,7 +417,7 @@ func (s *VerifierSuite) TestRecoveryConsumedCallsAlerter() {
 
 	v := s.newVerifier(auth2fa.WithRecoveryAlerter(s.alerter))
 
-	ok, commit, err := v.Verify(s.ctx, actor, confirmmethod.TOTP, true, "AAAAABBBBB")
+	ok, commit, err := v.Verify(s.ctx, actor, confirmmethod.TOTP, true, "AAAAAAAA-BBBBBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 	s.Require().NotNil(commit)
@@ -579,7 +619,7 @@ func (s *VerifierSuite) TestCommitTOTPStepRaceTranslated() {
 // TestCommitRecoveryCodeRaceTranslated - аварийный код израсходован конкурентным
 // подтверждением: тот же перевод, что и для TOTP-шага.
 func (s *VerifierSuite) TestCommitRecoveryCodeRaceTranslated() {
-	h1 := s.hashed("AAAAABBBBB")
+	h1 := s.hashed("AAAAAAAA-BBBBBBBB")
 
 	s.expectFetch(entity.Auth2FA{
 		Type:          auth2fatype.TOTP,
@@ -590,7 +630,7 @@ func (s *VerifierSuite) TestCommitRecoveryCodeRaceTranslated() {
 		UpdateRecoveryCode(gomock.Any(), s.userID, h1).
 		Return(0, sysmesserrors.ErrEventStorageNoRecordFound)
 
-	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "AAAAABBBBB")
+	ok, commit, err := s.newVerifier().Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "AAAAAAAA-BBBBBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 	s.Require().NotNil(commit)
@@ -605,7 +645,7 @@ func (s *VerifierSuite) TestCommitRecoveryCodeRaceTranslated() {
 // дойти как есть: иначе вызывающий код примет сбой alerter'а за повтор второго
 // фактора и отдаст клиенту "неверный код" вместо внутренней ошибки.
 func (s *VerifierSuite) TestAlerterErrorIsNotTranslated() {
-	h1 := s.hashed("AAAAABBBBB")
+	h1 := s.hashed("AAAAAAAA-BBBBBBBB")
 
 	s.expectFetch(entity.Auth2FA{
 		Type:          auth2fatype.TOTP,
@@ -621,7 +661,7 @@ func (s *VerifierSuite) TestAlerterErrorIsNotTranslated() {
 
 	v := s.newVerifier(auth2fa.WithRecoveryAlerter(s.alerter))
 
-	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "AAAAABBBBB")
+	ok, commit, err := v.Verify(s.ctx, dto.ActorMeta{UserID: s.userID}, confirmmethod.TOTP, true, "AAAAAAAA-BBBBBBBB")
 	s.Require().NoError(err)
 	s.Require().True(ok)
 	s.Require().NotNil(commit)

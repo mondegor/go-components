@@ -57,6 +57,20 @@ func (s *ConfirmCodeSuite) TestEmailWrongCodeRejected() {
 	s.Nil(commit)
 }
 
+// TestEmailRecoveryCodeNotAllowed - аварийный код вместо кода с емаила (например, снятие 2FA
+// парой «пароль/TOTP + аварийный код») отклоняется по формату: хеш не сверяется (CompareSecretAndHash
+// без EXPECT), попытка не расходуется.
+func (s *ConfirmCodeSuite) TestEmailRecoveryCodeNotAllowed() {
+	op := s.newOpWithActions(emailConfirmAction("secret1"))
+	attempts := op.RemainingAttempts
+
+	out, commit, err := s.prepareAsOwner(op, "AAAAAAAA-BBBBBBBB")
+	s.Require().ErrorIs(err, mrauth.ErrRecoveryCodeNotAllowed)
+	s.Equal(attempts, out.RemainingAttempts)
+	s.False(out.Is(operationstatus.Confirmed))
+	s.Nil(commit)
+}
+
 func (s *ConfirmCodeSuite) TestFirstOfTwoActionsGeneratesNextCode() {
 	// значения генераторов выбраны так, чтобы было видно: код следующего действия
 	// и токен операции берутся именно из них
@@ -104,7 +118,7 @@ func (s *ConfirmCodeSuite) TestRecoveryChainConfirms() {
 		Verify(gomock.Any(), gomock.Any(), confirmmethod.TOTP, false, "123456").
 		Return(true, nil, nil)
 	s.verifier.EXPECT().
-		Verify(gomock.Any(), gomock.Any(), confirmmethod.Recovery, false, "AAAAABBBBB").
+		Verify(gomock.Any(), gomock.Any(), confirmmethod.Recovery, false, "AAAAAAAA-BBBBBBBB").
 		Return(true, consume, nil)
 
 	op := s.newOpWithActions(totpConfirmAction(), recoveryConfirmAction())
@@ -118,7 +132,7 @@ func (s *ConfirmCodeSuite) TestRecoveryChainConfirms() {
 	s.Require().True(ok)
 	s.Equal(confirmmethod.Recovery, next.Method)
 
-	out, commit, err = s.prepareAsOwner(out, "AAAAABBBBB")
+	out, commit, err = s.prepareAsOwner(out, "AAAAAAAA-BBBBBBBB")
 	s.Require().NoError(err)
 	s.True(out.Is(operationstatus.Confirmed))
 	s.Require().NotNil(commit)
@@ -130,12 +144,12 @@ func (s *ConfirmCodeSuite) TestRecoveryActionWrongCodeRejected() {
 	s.expectGenerators("tok", "code")
 
 	s.verifier.EXPECT().
-		Verify(gomock.Any(), gomock.Any(), confirmmethod.Recovery, false, "ZZZZZYYYYY").
+		Verify(gomock.Any(), gomock.Any(), confirmmethod.Recovery, false, "ZZZZZZZZ-YYYYYYYY").
 		Return(false, nil, nil)
 
 	op := s.newOpWithActions(recoveryConfirmAction())
 
-	out, commit, err := s.prepareAsOwner(op, "ZZZZZYYYYY")
+	out, commit, err := s.prepareAsOwner(op, "ZZZZZZZZ-YYYYYYYY")
 	s.Require().ErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
 	s.False(out.Is(operationstatus.Confirmed))
 	s.Nil(commit)

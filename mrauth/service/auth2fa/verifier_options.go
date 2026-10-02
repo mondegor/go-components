@@ -10,7 +10,8 @@ type (
 )
 
 // WithRecoveryCodeLength - задаёт границы длины строки, принимаемой как аварийный код
-// (вне этого диапазона сверка с хешами аварийных кодов не запускается).
+// (вне этого диапазона сверка с хешами аварийных кодов не запускается). minLength
+// поднимается до crypt.MinRecoveryCodeLengthWithSeparator.
 func WithRecoveryCodeLength(minLength, maxLength int) Option {
 	return func(o *options) {
 		o.verifier.minRecoveryCodeLength = minLength

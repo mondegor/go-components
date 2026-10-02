@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/mondegor/go-components/mrauth/bag/crypt"
@@ -105,5 +106,48 @@ func TestSecretGenerator_GenerateRecoveryCodes(t *testing.T) {
 		ok, err := gen.CompareSecretAndHash(plain[i], hashed[i])
 		require.NoError(t, err)
 		require.True(t, ok)
+	}
+}
+
+func TestIsRecoveryCodeFormat(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name string
+		code string
+		want bool
+	}
+
+	tests := []testCase{
+		{name: "с разделителем посередине", code: "ABCD1234-EFGH5678", want: true},
+		{name: "короче длины с разделителем", code: "ABCD1234", want: false},
+		{name: "пустая строка", code: "", want: false},
+		{name: "нет разделителя у длинного", code: "ABCD1234EEFGH5678", want: false},
+		{name: "разделитель не посередине", code: "ABC-D1234EFGH5678", want: false},
+		{name: "два разделителя", code: "ABCD-234-EFGH5678", want: false},
+		{name: "строчные буквы", code: "abcd1234-efgh5678", want: false},
+		{name: "одна строчная буква", code: "ABCD1234-EFGh5678", want: false},
+		{name: "посторонний символ", code: "ABCD1234-EFGH567!", want: false},
+		{name: "разделитель у короткого", code: "ABCD-234", want: false},
+		{name: "TOTP-код", code: "123456", want: false},
+		{name: "цифровой код подтверждения", code: "18394712", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, crypt.IsRecoveryCodeFormat(tt.code))
+		})
+	}
+}
+
+func TestIsRecoveryCodeFormat_GeneratedCodes(t *testing.T) {
+	t.Parallel()
+
+	for _, length := range []int{11, 16, 17, 32} {
+		code, err := crypt.NewSecretGenerator().GenRecoveryCode(length)
+		require.NoError(t, err)
+		assert.True(t, crypt.IsRecoveryCodeFormat(code), code)
 	}
 }

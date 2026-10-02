@@ -4,6 +4,8 @@ import (
 	"errors"
 
 	"github.com/mondegor/go-core/util/crypt/password"
+
+	"github.com/mondegor/go-components/mrauth/bag/crypt"
 )
 
 // maxGenerateAttempts - предельное число попыток сгенерировать пароль надёжности THE_BEST
@@ -35,16 +37,22 @@ func NewPassword(length int, opts ...PasswordOption) *Password {
 }
 
 // CalcStrength - вычисляет уровень надёжности указанного пароля и сообщает,
-// проходит ли он порог надёжности пароля 2FA.
+// допустим ли он как пароль 2FA (см. IsAcceptable).
 func (sv *Password) CalcStrength(userPassword string) (strength string, acceptable bool) {
 	value := password.CalcStrength(userPassword)
 
-	return value.String(), value >= sv.minStrength
+	return value.String(), sv.isAcceptable(userPassword, value)
 }
 
-// IsAcceptable - сообщает, проходит ли указанный пароль порог надёжности пароля 2FA.
+// IsAcceptable - сообщает, допустим ли указанный пароль как пароль 2FA: он проходит порог
+// надёжности и не имеет формата аварийного кода. Иначе на звене пароля такой ввод
+// неотличим от аварийного кода, который там не принимается.
 func (sv *Password) IsAcceptable(userPassword string) bool {
-	return password.CalcStrength(userPassword) >= sv.minStrength
+	return sv.isAcceptable(userPassword, password.CalcStrength(userPassword))
+}
+
+func (sv *Password) isAcceptable(userPassword string, strength password.PassStrength) bool {
+	return strength >= sv.minStrength && !crypt.IsRecoveryCodeFormat(userPassword)
 }
 
 // Generate - генерирует новый пароль заданной длины, надёжность которого всегда THE_BEST.
@@ -53,8 +61,9 @@ func (sv *Password) Generate() (userPassword string, err error) {
 
 	for range maxGenerateAttempts {
 		value := generator.Generate(sv.length, password.CharAll) // TODO: в настройки
+		strength := password.CalcStrength(value)
 
-		if password.CalcStrength(value) == password.PassStrengthBest {
+		if strength == password.PassStrengthBest && sv.isAcceptable(value, strength) {
 			return value, nil
 		}
 	}

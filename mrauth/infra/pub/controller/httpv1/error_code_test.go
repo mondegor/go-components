@@ -45,6 +45,12 @@ func TestErrorCustomCodeFormat(t *testing.T) {
 		{"код подтверждения неверен", mrauth.ErrConfirmCodeIsIncorrect, "secret", "ConfirmCodeIsIncorrect/secret"},
 		{"попытки подтверждения исчерпаны", mrauth.ErrNoAttemptsToConfirmOperation, "secret", "NoAttemptsToConfirmOperation/secret"},
 		{
+			"аварийный код на звене, где он не допускается",
+			mrauth.ErrRecoveryCodeNotAllowed,
+			"secret",
+			"RecoveryCodeNotAllowed/secret",
+		},
+		{
 			"повторная отправка ограничена",
 			mrauth.ErrSendingNewMessagesIsTemporarilyRestricted,
 			"token",

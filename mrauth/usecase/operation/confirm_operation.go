@@ -49,6 +49,13 @@ type (
 	operationLogger interface {
 		Log(ctx context.Context, entry entity.SecureOperationLog)
 	}
+
+	// confirmRejection - отказ в подтверждении по коду: ошибка для клиента и запись журнала.
+	confirmRejection struct {
+		err       error
+		logStatus logstatus.Enum
+		logReason logreason.Enum
+	}
 )
 
 // NewConfirmOperation - создаёт объект ConfirmOperation.
@@ -69,13 +76,13 @@ func NewConfirmOperation(
 	}
 }
 
-// Execute - подтверждает текущее действие операции по коду; при неверном коде
-// уменьшает счётчик попыток, при успехе сохраняет операцию и отправляет код
-// следующего действия (либо завершает операцию). Весь цикл выполняется в одной
-// транзакции, что сериализует конкурентные попытки подтверждения одного токена
-// и исключает «размножение» попыток. Пустой код по уже подтверждённой операции - успех
-// (подтверждать нечего), по операции с открытым звеном - ErrConfirmCodeIsRequired
-// без расхода попытки.
+// Execute - подтверждает текущее действие операции по коду; при неверном коде уменьшает
+// счётчик попыток, при успехе сохраняет операцию и отправляет код следующего действия
+// (либо завершает операцию). Весь цикл выполняется в одной транзакции, что сериализует
+// конкурентные попытки подтверждения одного токена и исключает «размножение» попыток.
+// Если указан пустой код при открытой операции или указан аварийный код для действия,
+// где аварийный код не допускается, то попытка не расходуется и в журнал не пишется.
+// Но пустой код по уже подтверждённой операции - успех.
 func (co *ConfirmOperation) Execute(
 	ctx context.Context,
 	actor dto.ActorMeta,
@@ -90,9 +97,9 @@ func (co *ConfirmOperation) Execute(
 	}
 
 	var (
-		// confirmCodeErr - бизнес-результат неверного или исчерпанного кода. Транзакция при этом
-		// должна успешно завершиться (commit), иначе зафиксированный инкремент счётчика
-		// попыток откатится; поэтому ошибка возвращается не из замыкания, а после коммита
+		// confirmCodeErr - бизнес-результат отказа по коду. Транзакция при этом должна успешно
+		// завершиться (commit), иначе зафиксированный в ней инкремент счётчика попыток
+		// откатится; поэтому ошибка возвращается не из замыкания, а после коммита
 		confirmCodeErr error
 
 		// тип операции и метод текущего подтверждаемого действия, зафиксированные до модификации op в Prepare
@@ -138,47 +145,15 @@ func (co *ConfirmOperation) Execute(
 
 		op, commitConfirmed, err = co.operationPreparer.Prepare(ctx, actor, op, confirmCode)
 		if err != nil {
-			if errors.Is(err, mrauth.ErrNoAttemptsToConfirmOperation) {
-				confirmCodeErr = err
-				operationLogStatus = logstatus.Blocked
-				operationLogReason = logreason.AttemptsExhausted
+			var rejection confirmRejection
 
-				return nil
+			if rejection, err = co.classifyPrepareError(ctx, operationToken, &op, err); err != nil {
+				return err
 			}
 
-			if !errors.Is(err, mrauth.ErrConfirmCodeIsIncorrect) {
-				return co.errorWrapper.Wrap(err)
-			}
-
-			// далее обрабатывается ситуация связанная конкретно с ошибкой ErrConfirmCodeIsIncorrect
-
-			attempts, errUpdate := co.storageOperation.UpdateFailedAttempt(ctx, operationToken)
-			if errUpdate != nil {
-				return co.errorWrapper.Wrap(errUpdate)
-			}
-
-			op.RemainingAttempts = attempts
-
-			if attempts > 0 {
-				confirmCodeErr = err
-				operationLogStatus = logstatus.ConfirmFailed
-				operationLogReason = logreason.WrongCode
-
-				return nil
-			}
-
-			// TODO: при исчерпании попыток уведомить пользователя.
-			// co.eventEmitter.Emit(
-			// 	 ctx,
-			// 	 "Confirm",
-			// 	 "userLogin", nextConfirm.Address,
-			//	 "loginType", nextConfirm.Method,
-			//	 "secretCode", generateSecretCode,
-			// )
-
-			confirmCodeErr = mrauth.ErrNoAttemptsToConfirmOperation.Wrap(err)
-			operationLogStatus = logstatus.Blocked
-			operationLogReason = logreason.AttemptsExhausted
+			confirmCodeErr = rejection.err
+			operationLogStatus = rejection.logStatus
+			operationLogReason = rejection.logReason
 
 			return nil
 		}
@@ -248,7 +223,7 @@ func (co *ConfirmOperation) Execute(
 		return secureoperation.SecureOperation{}, co.errorWrapper.Wrap(err)
 	}
 
-	if operationType != 0 {
+	if operationType != 0 && operationLogStatus != 0 {
 		// транзакция зафиксирована: пишем намеченную запись журнала вне транзакции
 		co.logOperation.Log(
 			ctx,
@@ -258,11 +233,69 @@ func (co *ConfirmOperation) Execute(
 		)
 	}
 
-	// неверный или исчерпанный код: транзакция уже зафиксировала декремент счётчика попыток,
-	// поэтому возвращается бизнес-ошибка вместе с актуальным состоянием операции
+	// отказ по коду (неверный, исчерпаны попытки, аварийный код там, где он не допускается):
+	// транзакция уже зафиксирована, поэтому возвращается бизнес-ошибка вместе с актуальным
+	// состоянием операции
 	if confirmCodeErr != nil {
 		return op, confirmCodeErr // WARNING: 'op' используется с этой ошибкой
 	}
 
 	return op, nil
+}
+
+// classifyPrepareError - разбирает ошибку Prepare. Отказ по коду возвращается как confirmRejection
+// (ошибка для клиента и, если нужна, запись журнала), при неверном коде счётчик попыток уменьшается
+// в хранилище и в op. Прочие ошибки возвращаются как err и откатывают транзакцию.
+func (co *ConfirmOperation) classifyPrepareError(
+	ctx context.Context,
+	operationToken string,
+	op *secureoperation.SecureOperation,
+	prepareErr error,
+) (confirmRejection, error) {
+	if errors.Is(prepareErr, mrauth.ErrNoAttemptsToConfirmOperation) {
+		return confirmRejection{
+			err:       prepareErr,
+			logStatus: logstatus.Blocked,
+			logReason: logreason.AttemptsExhausted,
+		}, nil
+	}
+
+	// ошибка в выборе доказательства, а не попытка подбора
+	if errors.Is(prepareErr, mrauth.ErrRecoveryCodeNotAllowed) {
+		return confirmRejection{err: prepareErr}, nil
+	}
+
+	if !errors.Is(prepareErr, mrauth.ErrConfirmCodeIsIncorrect) {
+		return confirmRejection{}, co.errorWrapper.Wrap(prepareErr)
+	}
+
+	attempts, err := co.storageOperation.UpdateFailedAttempt(ctx, operationToken)
+	if err != nil {
+		return confirmRejection{}, co.errorWrapper.Wrap(err)
+	}
+
+	op.RemainingAttempts = attempts
+
+	if attempts > 0 {
+		return confirmRejection{
+			err:       prepareErr,
+			logStatus: logstatus.ConfirmFailed,
+			logReason: logreason.WrongCode,
+		}, nil
+	}
+
+	// TODO: при исчерпании попыток уведомить пользователя.
+	// co.eventEmitter.Emit(
+	// 	 ctx,
+	// 	 "Confirm",
+	// 	 "userLogin", nextConfirm.Address,
+	//	 "loginType", nextConfirm.Method,
+	//	 "secretCode", generateSecretCode,
+	// )
+
+	return confirmRejection{
+		err:       mrauth.ErrNoAttemptsToConfirmOperation.Wrap(prepareErr),
+		logStatus: logstatus.Blocked,
+		logReason: logreason.AttemptsExhausted,
+	}, nil
 }
