@@ -39,6 +39,11 @@ var (
 	// требует предварительного отключения текущего 2FA (нельзя менять активный фактор на месте).
 	ErrAuth2FAMustBeDisabledFirst = errors.NewUserError("Auth2FAMustBeDisabledFirst", "disable current 2fa before setting a new one")
 
+	// ErrRecoveryCodeNotAllowed - аварийный код предъявлен на звене, где он не принимается
+	// (код с емаила, пароль или TOTP-код без допуска аварийного). Попытка подтверждения
+	// не расходуется, аварийный код не гасится.
+	ErrRecoveryCodeNotAllowed = errors.NewUserError("RecoveryCodeNotAllowed", "recovery code is not accepted at this step")
+
 	// ErrAuth2FAIsDisabled - действие требует включённой 2FA, а она выключена.
 	ErrAuth2FAIsDisabled = errors.NewUserError("Auth2FAIsDisabled", "2fa is disabled")
 
@@ -64,7 +69,7 @@ var (
 	// ErrConfirmCodeIsIncorrect - confirm code is incorrect.
 	ErrConfirmCodeIsIncorrect = errors.NewUserError("ConfirmCodeIsIncorrect", "confirm code is incorrect")
 
-	// ErrTOTPCodeIsIncorrect - введённый TOTP код не совпал с кодом, ожидаемым для
+	// ErrTOTPCodeIsIncorrect - введённый TOTP-код не совпал с кодом, ожидаемым для
 	// секрета операции (или его time-step уже был использован).
 	ErrTOTPCodeIsIncorrect = errors.NewUserError("TOTPCodeIsIncorrect", "totp code is incorrect")
 

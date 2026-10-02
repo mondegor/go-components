@@ -70,6 +70,24 @@ func TestPassword_MinStrength(t *testing.T) {
 			want:         true,
 		},
 		{
+			name:         "recovery code format is never acceptable",
+			opts:         []check.PasswordOption{check.WithMinStrength(password.PassStrengthMedium)},
+			userPassword: "ABCD1234-EFGH5678",
+			want:         false,
+		},
+		{
+			name:         "recovery code format with one lowercase letter is acceptable",
+			opts:         []check.PasswordOption{check.WithMinStrength(password.PassStrengthMedium)},
+			userPassword: "ABCD1234-EFGh5678",
+			want:         true,
+		},
+		{
+			name:         "dash not in the middle is acceptable",
+			opts:         []check.PasswordOption{check.WithMinStrength(password.PassStrengthMedium)},
+			userPassword: "ABCD-1234EFGH5678",
+			want:         true,
+		},
+		{
 			name:         "NOT_RATED threshold falls back to default",
 			opts:         []check.PasswordOption{check.WithMinStrength(password.PassStrengthNotRated)},
 			userPassword: "abcdefgh1234",

@@ -9,7 +9,9 @@ import (
 )
 
 const (
-	minRecoveryCodeLengthWithSeparator = 11
+	// MinRecoveryCodeLengthWithSeparator - длина, начиная с которой GenRecoveryCode выпускает код
+	// с разделителем: по нему ввод аварийного кода отличается от пароля и TOTP-кода.
+	MinRecoveryCodeLengthWithSeparator = 11
 )
 
 //nolint:gochecknoglobals
@@ -71,11 +73,37 @@ func (c *SecretGenerator) GenRecoveryCode(length int) (string, error) {
 		return "", fmt.Errorf("invalid GenRecoveryCode: %w", err)
 	}
 
-	if len(code) >= minRecoveryCodeLengthWithSeparator {
+	if len(code) >= MinRecoveryCodeLengthWithSeparator {
 		code[len(code)/2] = '-'
 	}
 
 	return string(code), nil
+}
+
+// IsRecoveryCodeFormat - сообщает, имеет ли code формат аварийного кода, который выпускает
+// GenRecoveryCode при длине с разделителем: латиница в верхнем регистре и цифры, ровно один
+// разделитель посередине.
+func IsRecoveryCodeFormat(code string) bool {
+	if len(code) < MinRecoveryCodeLengthWithSeparator {
+		return false
+	}
+
+	sepIndex := len(code) / 2
+	if code[sepIndex] != '-' {
+		return false
+	}
+
+	for i := range len(code) {
+		if i != sepIndex && !isRecoveryCodeChar(code[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func isRecoveryCodeChar(c byte) bool {
+	return (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 }
 
 // HashedSecret - возвращает bcrypt-хеш переданного секрета.

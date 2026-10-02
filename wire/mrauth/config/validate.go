@@ -10,6 +10,7 @@ import (
 	"github.com/mondegor/go-core/util/crypt/password"
 	timezonecfg "github.com/mondegor/go-core/util/timezone/config"
 
+	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/model/usergroup"
 )
 
@@ -32,9 +33,10 @@ const (
 	// defaultRecoveryCodeLength - длина одного аварийного кода по умолчанию.
 	defaultRecoveryCodeLength = 17
 
-	// minRecoveryCodeLength, maxRecoveryCodeLength - границы длины аварийного кода: повторяют
-	// умолчания auth2fa.Verifier и ограничение RECOVERY в спеке (поле secret).
-	minRecoveryCodeLength = 8
+	// minRecoveryCodeLength, maxRecoveryCodeLength - границы длины аварийного кода: нижняя -
+	// длина, с которой генератор ставит разделитель (без него код не примет верификатор),
+	// верхняя - ограничение RECOVERY в спеке (поле secret).
+	minRecoveryCodeLength = crypt.MinRecoveryCodeLengthWithSeparator
 	maxRecoveryCodeLength = 32
 
 	// minConfirmCodeLength, maxConfirmCodeLength - границы длины кода подтверждения

@@ -323,8 +323,8 @@ func TestValidateAuth2FARecoveryCodeLength(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "not set", length: 0, wantErr: false},
-		{name: "below min", length: 7, wantErr: true},
-		{name: "exactly min", length: 8, wantErr: false},
+		{name: "below min", length: 10, wantErr: true},
+		{name: "exactly min", length: 11, wantErr: false},
 		{name: "exactly max", length: 32, wantErr: false},
 		{name: "above max", length: 33, wantErr: true},
 	}

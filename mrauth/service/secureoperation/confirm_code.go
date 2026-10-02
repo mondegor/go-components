@@ -6,6 +6,7 @@ import (
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
@@ -48,7 +49,8 @@ func NewConfirmCode(
 // или погашенный аварийный код), который должен быть вызван в транзакции подтверждения.
 // actor - клиент, подтверждающий операцию, с владельцем операции в UserID (подставляет
 // вызывающий, см. dto.ActorMeta.WithUser): по нему проверяется 2FA, а контекст клиента
-// попадает в оповещение о расходе аварийного кода.
+// попадает в оповещение о расходе аварийного кода. Аварийный код на звене, где он
+// не допускается, отклоняется ошибкой mrauth.ErrRecoveryCodeNotAllowed без расхода попытки.
 func (o *ConfirmCode) Prepare(
 	ctx context.Context,
 	actor dto.ActorMeta,
@@ -67,6 +69,12 @@ func (o *ConfirmCode) Prepare(
 
 	confirmed, confirmCodeErr := op.ConfirmAction(
 		func(action secureoperation.ConfirmAction) (bool, error) {
+			// аварийный код на звене, где он не допускается, отклоняется по одному формату ввода -
+			// до сверки и до чтения 2FA, поэтому ответ не зависит от состояния 2FA аккаунта
+			if !action.AllowRecovery && action.Method != confirmmethod.Recovery && crypt.IsRecoveryCodeFormat(confirmCode) {
+				return false, mrauth.ErrRecoveryCodeNotAllowed
+			}
+
 			switch action.Method {
 			case confirmmethod.Email, confirmmethod.Phone:
 				return o.codeGenerator.CompareSecretAndHash(confirmCode, action.ConfirmCode)

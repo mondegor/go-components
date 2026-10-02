@@ -7,6 +7,7 @@ import (
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/bag/crypt"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
@@ -14,7 +15,7 @@ import (
 )
 
 const (
-	defaultMinRecoveryCodeLength = 8
+	defaultMinRecoveryCodeLength = crypt.MinRecoveryCodeLengthWithSeparator
 	defaultMaxRecoveryCodeLength = 32
 
 	// defaultDecoyPasswordHash - хеш в формате и стоимости, которые принимает comparer, подключаемый
@@ -96,7 +97,7 @@ func NewVerifier(
 	}
 
 	// нормализация границ длины после применения опций
-	if o.verifier.minRecoveryCodeLength < 1 {
+	if o.verifier.minRecoveryCodeLength < defaultMinRecoveryCodeLength {
 		o.verifier.minRecoveryCodeLength = defaultMinRecoveryCodeLength
 	}
 
@@ -258,7 +259,7 @@ func (v *Verifier) verifyDecoy(method confirmmethod.Enum, code string) {
 }
 
 func (v *Verifier) looksLikeRecoveryCode(s string) bool {
-	return len(s) >= v.minRecoveryCodeLength && len(s) <= v.maxRecoveryCodeLength
+	return len(s) >= v.minRecoveryCodeLength && len(s) <= v.maxRecoveryCodeLength && crypt.IsRecoveryCodeFormat(s)
 }
 
 // tryRecovery - перебирает аварийные коды и при совпадении возвращает commit,
