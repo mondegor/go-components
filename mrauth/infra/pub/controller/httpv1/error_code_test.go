@@ -29,6 +29,12 @@ func TestErrorCustomCodeFormat(t *testing.T) {
 		{"смена емаила: емаил занят", mrauth.ErrEmailAlreadyExists, "new_email", "EmailAlreadyExists/new_email"},
 		{"смена телефона: телефон занят", mrauth.ErrPhoneAlreadyExists, "new_phone", "PhoneAlreadyExists/new_phone"},
 		{"пароль 2FA: слишком слабый", mrauth.ErrPasswordIsTooWeak, "new_password", "PasswordIsTooWeak/new_password"},
+		{
+			"пароль 2FA: формат аварийного кода",
+			mrauth.ErrPasswordHasRecoveryCodeFormat,
+			"new_password",
+			"PasswordHasRecoveryCodeFormat/new_password",
+		},
 		{"привязка TOTP: код не совпал", mrauth.ErrTOTPCodeIsIncorrect, "totp_code", "TOTPCodeIsIncorrect/totp_code"},
 		{"токен операции недействителен", mrauth.ErrOperationInvalid, "token", "OperationInvalid/token"},
 		{"повторные отправки исчерпаны", mrauth.ErrNoAttemptsToResendCode, "token", "NoAttemptsToResendCode/token"},

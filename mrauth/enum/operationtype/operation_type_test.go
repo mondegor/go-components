@@ -9,9 +9,9 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 )
 
-// TestParseStringRoundTrip - строки клиентских типов совпадают с enum контракта Auth.Enum.OperationType,
-// строки остальных типов переживают разбор и сериализацию.
-func TestParseStringRoundTrip(t *testing.T) {
+// TestStringMarshalScan - строки клиентских типов совпадают с enum контракта Auth.Enum.OperationType,
+// все типы сериализуются в JSON строкой и переживают запись в хранилище и чтение из него.
+func TestStringMarshalScan(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -36,18 +36,18 @@ func TestParseStringRoundTrip(t *testing.T) {
 
 			require.Equal(t, c.str, c.value.String())
 
-			parsed, err := operationtype.Parse(c.str)
-			require.NoError(t, err)
-			require.Equal(t, c.value, parsed)
-
 			data, err := json.Marshal(c.value)
 			require.NoError(t, err)
 			require.JSONEq(t, `"`+c.str+`"`, string(data))
 
-			var unmarshaled operationtype.Enum
+			dbValue, err := c.value.Value()
+			require.NoError(t, err)
+			require.IsType(t, uint8(0), dbValue)
 
-			require.NoError(t, json.Unmarshal(data, &unmarshaled))
-			require.Equal(t, c.value, unmarshaled)
+			var scanned operationtype.Enum
+
+			require.NoError(t, scanned.Scan(int64(dbValue.(uint8))))
+			require.Equal(t, c.value, scanned)
 		})
 	}
 }
@@ -66,11 +66,9 @@ func TestSetBounds(t *testing.T) {
 	require.Equal(t, operationtype.AuthorizeUser, e)
 }
 
-// TestUnknown - неизвестное значение не парсится, нулевое значение печатается как UNKNOWN.
+// TestUnknown - нулевое значение печатается как UNKNOWN.
 func TestUnknown(t *testing.T) {
 	t.Parallel()
 
-	_, err := operationtype.Parse("NOPE")
-	require.Error(t, err)
 	require.Equal(t, "UNKNOWN", operationtype.Enum(0).String())
 }

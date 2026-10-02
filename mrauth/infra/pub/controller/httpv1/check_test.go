@@ -8,9 +8,13 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
+	"github.com/mondegor/go-components/mrauth/enum/passwordacceptstatus"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/mock"
+	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 )
+
+//go:generate mockgen -source=check.go -destination=mock/check.go -package=mock
 
 type CheckSuite struct {
 	suite.Suite
@@ -95,4 +99,56 @@ func (s *CheckSuite) TestHandlersJwksRegistered() {
 	}
 
 	s.True(hasJwks)
+}
+
+// TestCalcPasswordStrength - клиент получает статус приёма пароля 2FA от сервиса как есть,
+// а уровень надёжности передаётся независимо от статуса.
+func (s *CheckSuite) TestCalcPasswordStrength() {
+	tests := []struct {
+		name         string
+		strength     string
+		acceptStatus passwordacceptstatus.Enum
+	}{
+		{"допустимый пароль", "STRONG", passwordacceptstatus.Accepted},
+		{"слабый пароль", "WEAK", passwordacceptstatus.TooWeak},
+		{"формат аварийного кода", "STRONG", passwordacceptstatus.RecoveryCodeFormat},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			// s.sender запрещает Send (см. SetupTest), поэтому у подтеста свои моки
+			ctrl := gomock.NewController(s.T())
+			parser := mock.NewMockRequestParser(ctrl)
+			sender := mock.NewMockResponseSender(ctrl)
+			service := mock.NewMockpasswordService(ctrl)
+
+			parser.EXPECT().
+				Validate(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ *http.Request, structPointer any) error {
+					*structPointer.(*model.CalcPasswordStrengthRequest) = model.CalcPasswordStrengthRequest{Password: "password"}
+
+					return nil
+				})
+			service.EXPECT().CalcStrength("password").Return(tt.strength, tt.acceptStatus)
+
+			var sent any
+
+			sender.EXPECT().
+				Send(gomock.Any(), http.StatusOK, gomock.Any()).
+				DoAndReturn(func(_ http.ResponseWriter, _ int, structure any) error {
+					sent = structure
+
+					return nil
+				})
+
+			controller := httpv1.NewCheck(parser, sender, nil, service, nil)
+
+			err := controller.CalcPasswordStrength(
+				httptest.NewRecorder(),
+				httptest.NewRequest(http.MethodPost, "/v1/check/calc-password-strength", http.NoBody),
+			)
+			s.Require().NoError(err)
+			s.Equal(model.CalcPasswordStrengthResponse{Strength: tt.strength, AcceptStatus: tt.acceptStatus}, sent)
+		})
+	}
 }

@@ -1,4 +1,4 @@
-description: |
+description: |-
   Тип криптографического ключа (JWK 'kty', RFC 7517):
   - RSA - RSA ключ
   - EC - ключ на эллиптических кривых

@@ -83,44 +83,60 @@ func TestSecurityChangePhoneNormalizesNumber(t *testing.T) {
 	)
 }
 
-// TestSecurityChangePasswordTooWeakBoundToField - слабый пароль - ошибка значения поля,
-// поэтому код привязан к new_password и ложится под поле ввода, как обещает контракт.
-func TestSecurityChangePasswordTooWeakBoundToField(t *testing.T) {
+// TestSecurityChangePasswordRejectedBoundToField - отказ политики паролей - ошибка значения поля,
+// поэтому код привязан к new_password и ложится под поле ввода, как обещает контракт; причины
+// отказа различаются кодом.
+func TestSecurityChangePasswordRejectedBoundToField(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	parser := mock.NewMockRequestParser(ctrl)
-	useCase := mock.NewMockchangePasswordUseCase(ctrl)
+	tests := []struct {
+		name      string
+		rejectErr error
+		wantCode  string
+	}{
+		{"слабый пароль", mrauth.ErrPasswordIsTooWeak, "PasswordIsTooWeak/new_password"},
+		{"формат аварийного кода", mrauth.ErrPasswordHasRecoveryCodeFormat, "PasswordHasRecoveryCodeFormat/new_password"},
+	}
 
-	parser.EXPECT().
-		Validate(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ *http.Request, structPointer any) error {
-			*structPointer.(*model.ChangePasswordRequest) = model.ChangePasswordRequest{NewPassword: "aaaaaaaa"}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-			return nil
+			ctrl := gomock.NewController(t)
+			parser := mock.NewMockRequestParser(ctrl)
+			useCase := mock.NewMockchangePasswordUseCase(ctrl)
+
+			parser.EXPECT().
+				Validate(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ *http.Request, structPointer any) error {
+					*structPointer.(*model.ChangePasswordRequest) = model.ChangePasswordRequest{NewPassword: "aaaaaaaa"}
+
+					return nil
+				})
+			parser.EXPECT().UserID(gomock.Any()).Return(uuid.New())
+			parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{})
+			parser.EXPECT().Location(gomock.Any()).Return(time.UTC)
+
+			useCase.EXPECT().
+				Execute(gomock.Any(), gomock.Any(), "aaaaaaaa").
+				Return(secureoperation.SecureOperation{}, tt.rejectErr)
+
+			controller := httpv1.NewSecurity(
+				parser, nil, nil, nil, nil, nil, nil, useCase, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+			)
+
+			err := controller.ChangePassword(
+				httptest.NewRecorder(),
+				httptest.NewRequest(http.MethodPost, "/v1/security/password", http.NoBody),
+			)
+
+			var customErr errors.CustomError
+
+			require.ErrorAs(t, err, &customErr)
+			assert.Equal(t, tt.wantCode, customErr.CustomCode())
+			require.ErrorIs(t, err, tt.rejectErr)
 		})
-	parser.EXPECT().UserID(gomock.Any()).Return(uuid.New())
-	parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{})
-	parser.EXPECT().Location(gomock.Any()).Return(time.UTC)
-
-	useCase.EXPECT().
-		Execute(gomock.Any(), gomock.Any(), "aaaaaaaa").
-		Return(secureoperation.SecureOperation{}, mrauth.ErrPasswordIsTooWeak)
-
-	controller := httpv1.NewSecurity(
-		parser, nil, nil, nil, nil, nil, nil, useCase, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-	)
-
-	err := controller.ChangePassword(
-		httptest.NewRecorder(),
-		httptest.NewRequest(http.MethodPost, "/v1/security/password", http.NoBody),
-	)
-
-	var customErr errors.CustomError
-
-	require.ErrorAs(t, err, &customErr)
-	assert.Equal(t, "PasswordIsTooWeak/new_password", customErr.CustomCode())
-	require.ErrorIs(t, err, mrauth.ErrPasswordIsTooWeak)
+	}
 }
 
 // TestSecurityApplyEmail - применение первого шага смены емаила отвечает 200 с операцией

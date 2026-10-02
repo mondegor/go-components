@@ -27,7 +27,7 @@ type (
 	}
 
 	passwordPolicy interface {
-		IsAcceptable(userPassword string) bool
+		Check(userPassword string) error
 	}
 )
 
@@ -48,10 +48,10 @@ func NewChangePasswordProperty(
 }
 
 // Execute - создаёт операцию установки пароля как 2FA и в той же транзакции отправляет
-// пользователю код её подтверждения. Пароль, который политика паролей не принимает
-// (надёжность ниже порога или формат аварийного кода), отклоняется ошибкой
-// mrauth.ErrPasswordIsTooWeak; состояние 2FA проверяется раньше, чтобы пользователь
-// с активным фактором не подбирал пароль, который всё равно не применится.
+// пользователю код её подтверждения. Пароль, который политика паролей не принимает, отклоняется
+// её ошибкой (mrauth.ErrPasswordIsTooWeak или mrauth.ErrPasswordHasRecoveryCodeFormat);
+// состояние 2FA проверяется раньше, чтобы пользователь с активным фактором не подбирал пароль,
+// который всё равно не применится.
 func (uc *ChangePasswordProperty) Execute(
 	ctx context.Context,
 	actor dto.ActorMeta,
@@ -75,8 +75,8 @@ func (uc *ChangePasswordProperty) Execute(
 		return secureoperation.SecureOperation{}, mrauth.ErrAuth2FAMustBeDisabledFirst
 	}
 
-	if !uc.passwordPolicy.IsAcceptable(newPassword) {
-		return secureoperation.SecureOperation{}, mrauth.ErrPasswordIsTooWeak
+	if err = uc.passwordPolicy.Check(newPassword); err != nil {
+		return secureoperation.SecureOperation{}, err
 	}
 
 	op, err := uc.factoryOperationPassword.Create(user2FA, newPassword)

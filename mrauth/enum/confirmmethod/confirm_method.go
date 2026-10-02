@@ -1,10 +1,8 @@
 package confirmmethod
 
 import (
-	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"math"
 )
 
 // Методы подтверждения подлинности пользователя.
@@ -18,7 +16,6 @@ const (
 )
 
 const (
-	enumLast = uint8(Recovery)
 	enumName = "ConfirmMethod"
 )
 
@@ -47,17 +44,6 @@ var (
 		"RECOVERY":    Recovery,
 	}
 )
-
-// Set - устанавливает указанное значение, если оно является enum значением.
-func (e *Enum) Set(value uint8) error {
-	if value <= enumLast {
-		*e = Enum(value)
-
-		return nil
-	}
-
-	return fmt.Errorf("value '%d' is not found in enum set '%s'", value, enumName)
-}
 
 // String - возвращает значение в виде строки.
 func (e Enum) String() string {
@@ -96,21 +82,7 @@ func (e *Enum) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Scan implements the Scanner interface.
-func (e *Enum) Scan(value any) error {
-	if val, ok := value.(int64); ok && val >= 0 && val <= math.MaxUint8 {
-		return e.Set(uint8(val))
-	}
-
-	return fmt.Errorf("invalid type assertion (type='%s', value='%+v')", enumName, value)
-}
-
-// Value implements the driver.Valuer interface.
-func (e Enum) Value() (driver.Value, error) {
-	return uint8(e), nil
-}
-
-// Parse - парсит указанное значение и если оно валидно, то устанавливает его числовое значение.
+// Parse - парсит указанное значение и если оно валидно, то возвращает его числовое значение.
 func Parse(value string) (Enum, error) {
 	if parsedValue, ok := enumValues[value]; ok {
 		return parsedValue, nil

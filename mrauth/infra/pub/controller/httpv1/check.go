@@ -9,6 +9,7 @@ import (
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth"
+	"github.com/mondegor/go-components/mrauth/enum/passwordacceptstatus"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/validate"
@@ -36,7 +37,7 @@ type (
 	}
 
 	passwordService interface {
-		CalcStrength(userPassword string) (strength string, acceptable bool)
+		CalcStrength(userPassword string) (strength string, acceptStatus passwordacceptstatus.Enum)
 		Generate() (userPassword string, err error)
 	}
 )
@@ -94,8 +95,8 @@ func (ht *Check) CheckLogin(w http.ResponseWriter, r *http.Request) error {
 	return ht.sender.SendNoContent(w)
 }
 
-// CalcPasswordStrength - оценивает надёжность переданного пароля и сообщает,
-// проходит ли он порог надёжности пароля 2FA.
+// CalcPasswordStrength - оценивает надёжность переданного пароля и сообщает, примет ли
+// его установка пароля 2FA, а если нет - по какой причине.
 func (ht *Check) CalcPasswordStrength(w http.ResponseWriter, r *http.Request) error {
 	req := model.CalcPasswordStrengthRequest{}
 
@@ -103,14 +104,14 @@ func (ht *Check) CalcPasswordStrength(w http.ResponseWriter, r *http.Request) er
 		return err
 	}
 
-	strength, acceptable := ht.servicePassword.CalcStrength(req.Password)
+	strength, acceptStatus := ht.servicePassword.CalcStrength(req.Password)
 
 	return ht.sender.Send(
 		w,
 		http.StatusOK,
 		model.CalcPasswordStrengthResponse{
-			Strength:   strength,
-			Acceptable: acceptable,
+			Strength:     strength,
+			AcceptStatus: acceptStatus,
 		},
 	)
 }

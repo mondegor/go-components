@@ -302,7 +302,7 @@ func (ht *Security) ChangePassword(w http.ResponseWriter, r *http.Request) error
 
 	op, err := ht.useCaseChangePasswordProperty.Execute(r.Context(), ht.userActor(r), req.NewPassword)
 	if err != nil {
-		if errors.Is(err, mrauth.ErrPasswordIsTooWeak) {
+		if errors.Is(err, mrauth.ErrPasswordIsTooWeak) || errors.Is(err, mrauth.ErrPasswordHasRecoveryCodeFormat) {
 			return errors.WithCustomCode(err, "new_password")
 		}
 
