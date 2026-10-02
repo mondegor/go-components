@@ -1,5 +1,9 @@
 package model
 
+import (
+	"github.com/mondegor/go-components/mrauth/enum/passwordacceptstatus"
+)
+
 type (
 	// CheckLoginRequest - запрос на проверку свободен ли указанный емаил/телефон.
 	CheckLoginRequest struct {
@@ -13,10 +17,10 @@ type (
 	}
 
 	// CalcPasswordStrengthResponse - информация о надёжности пароля.
-	// Acceptable - проходит ли пароль порог надёжности пароля 2FA.
+	// AcceptStatus - примет ли пароль установка пароля 2FA, а если нет - причина отказа.
 	CalcPasswordStrengthResponse struct {
-		Strength   string `json:"strength"`
-		Acceptable bool   `json:"acceptable"`
+		Strength     string                    `json:"strength"`
+		AcceptStatus passwordacceptstatus.Enum `json:"accept_status"`
 	}
 
 	// GeneratedPasswordResponse - сгенерированный пароль.

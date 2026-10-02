@@ -80,16 +80,16 @@ func (m *MockpasswordPolicy) EXPECT() *MockpasswordPolicyMockRecorder {
 	return m.recorder
 }
 
-// IsAcceptable mocks base method.
-func (m *MockpasswordPolicy) IsAcceptable(userPassword string) bool {
+// Check mocks base method.
+func (m *MockpasswordPolicy) Check(userPassword string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IsAcceptable", userPassword)
-	ret0, _ := ret[0].(bool)
+	ret := m.ctrl.Call(m, "Check", userPassword)
+	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// IsAcceptable indicates an expected call of IsAcceptable.
-func (mr *MockpasswordPolicyMockRecorder) IsAcceptable(userPassword any) *gomock.Call {
+// Check indicates an expected call of Check.
+func (mr *MockpasswordPolicyMockRecorder) Check(userPassword any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsAcceptable", reflect.TypeOf((*MockpasswordPolicy)(nil).IsAcceptable), userPassword)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Check", reflect.TypeOf((*MockpasswordPolicy)(nil).Check), userPassword)
 }

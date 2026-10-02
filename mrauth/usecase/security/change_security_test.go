@@ -161,13 +161,14 @@ func (s *ChangeSecuritySuite) newChangeEmailByRecovery() *security.ChangeEmailBy
 }
 
 func (s *ChangeSecuritySuite) newChangePassword() *security.ChangePasswordProperty {
-	return security.NewChangePasswordProperty(s.opener, s.factory2FA, s.secretFactory, s.passwordPolicy(true))
+	return security.NewChangePasswordProperty(s.opener, s.factory2FA, s.secretFactory, s.passwordPolicy(nil))
 }
 
-// passwordPolicy - порог надёжности пароля, который пропускает либо отклоняет любой пароль.
-func (s *ChangeSecuritySuite) passwordPolicy(acceptable bool) *mock.MockpasswordPolicy {
+// passwordPolicy - политика паролей, которая пропускает любой пароль (rejectErr = nil)
+// либо отклоняет любой пароль ошибкой rejectErr.
+func (s *ChangeSecuritySuite) passwordPolicy(rejectErr error) *mock.MockpasswordPolicy {
 	policy := mock.NewMockpasswordPolicy(s.ctrl)
-	policy.EXPECT().IsAcceptable(gomock.Any()).Return(acceptable).AnyTimes()
+	policy.EXPECT().Check(gomock.Any()).Return(rejectErr).AnyTimes()
 
 	return policy
 }
@@ -308,18 +309,23 @@ func (s *ChangeSecuritySuite) TestChangePasswordPropertyRejectedWhen2FAActive() 
 	}
 }
 
-// TestChangePasswordPropertyTooWeak - пароль, не прошедший порог надёжности, не становится
-// вторым фактором: операция не создаётся, код подтверждения не отправляется.
-func (s *ChangeSecuritySuite) TestChangePasswordPropertyTooWeak() {
-	s.expectOpen(nil)
-	s.expect2FA(userWithEmail(), nil)
-	s.expectValueFactory(openedEmailOp(s.T()), nil)
+// TestChangePasswordPropertyRejected - пароль, который политика паролей не принимает, не
+// становится вторым фактором: операция не создаётся, код подтверждения не отправляется,
+// а клиент получает причину отказа из политики.
+func (s *ChangeSecuritySuite) TestChangePasswordPropertyRejected() {
+	for _, rejectErr := range []error{mrauth.ErrPasswordIsTooWeak, mrauth.ErrPasswordHasRecoveryCodeFormat} {
+		s.Run(rejectErr.Error(), func() {
+			s.expectOpen(nil)
+			s.expect2FA(userWithEmail(), nil)
+			s.expectValueFactory(openedEmailOp(s.T()), nil)
 
-	uc := security.NewChangePasswordProperty(s.opener, s.factory2FA, s.secretFactory, s.passwordPolicy(false))
+			uc := security.NewChangePasswordProperty(s.opener, s.factory2FA, s.secretFactory, s.passwordPolicy(rejectErr))
 
-	_, err := uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, strongPassword)
-	s.Require().ErrorIs(err, mrauth.ErrPasswordIsTooWeak)
-	s.False(s.opened)
+			_, err := uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, strongPassword)
+			s.Require().ErrorIs(err, rejectErr)
+			s.False(s.opened)
+		})
+	}
 }
 
 // новое значение свойства провалидировано на границе ввода,

@@ -21,7 +21,7 @@ const (
 )
 
 type (
-	// Enum - статус элемента.
+	// Enum - статус пользователя.
 	Enum uint8
 )
 
@@ -32,13 +32,6 @@ var (
 		Enabled:  "ENABLED",
 		Disabled: "DISABLED",
 		Blocked:  "BLOCKED",
-	}
-
-	enumValues = map[string]Enum{
-		"DRAFT":    Draft,
-		"ENABLED":  Enabled,
-		"DISABLED": Disabled,
-		"BLOCKED":  Blocked,
 	}
 )
 
@@ -72,24 +65,6 @@ func (e Enum) MarshalJSON() ([]byte, error) {
 	return bytes, nil
 }
 
-// UnmarshalJSON - переводит строковое значение в enum представление.
-func (e *Enum) UnmarshalJSON(data []byte) error {
-	var value string
-
-	if err := json.Unmarshal(data, &value); err != nil {
-		return fmt.Errorf("unmarshal error (source='%s'): %w", enumName, err)
-	}
-
-	val, err := Parse(value)
-	if err != nil {
-		return err
-	}
-
-	*e = val
-
-	return nil
-}
-
 // Scan implements the Scanner interface.
 func (e *Enum) Scan(value any) error {
 	if val, ok := value.(int64); ok && val >= 0 && val <= math.MaxUint8 {
@@ -102,13 +77,4 @@ func (e *Enum) Scan(value any) error {
 // Value implements the driver.Valuer interface.
 func (e Enum) Value() (driver.Value, error) {
 	return uint8(e), nil
-}
-
-// Parse - парсит указанное значение и если оно валидно, то устанавливает его числовое значение.
-func Parse(value string) (Enum, error) {
-	if parsedValue, ok := enumValues[value]; ok {
-		return parsedValue, nil
-	}
-
-	return 0, fmt.Errorf("key is not found in source (source='%s', key='%s')", enumName, value)
 }

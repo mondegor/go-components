@@ -24,6 +24,10 @@ var (
 	// ErrPasswordIsTooWeak - надёжность нового пароля ниже порога, заданного приложением.
 	ErrPasswordIsTooWeak = errors.NewUserError("PasswordIsTooWeak", "password is too weak")
 
+	// ErrPasswordHasRecoveryCodeFormat - новый пароль имеет формат аварийного кода: на звене
+	// пароля такой ввод неотличим от аварийного кода, который там не принимается.
+	ErrPasswordHasRecoveryCodeFormat = errors.NewUserError("PasswordHasRecoveryCodeFormat", "password has recovery code format")
+
 	// ErrEmailAlreadyExists - entity already exists.
 	ErrEmailAlreadyExists = errors.NewUserError("EmailAlreadyExists", "email already exists")
 

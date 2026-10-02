@@ -44,18 +44,6 @@ var (
 		Disable2FA:         "DISABLE_2FA",
 		RegenerateRecovery: "REGENERATE_RECOVERY",
 	}
-
-	enumValues = map[string]Enum{
-		"AUTHORIZE_USER":       AuthorizeUser,
-		"CREATE_USER":          CreateUser,
-		"CHANGE_EMAIL":         ChangeEmail,
-		"CHANGE_EMAIL_CONFIRM": ChangeEmailConfirm,
-		"CHANGE_PHONE":         ChangePhone,
-		"CHANGE_PASSWORD":      ChangePassword,
-		"CHANGE_TOTP":          ChangeTOTP,
-		"DISABLE_2FA":          Disable2FA,
-		"REGENERATE_RECOVERY":  RegenerateRecovery,
-	}
 )
 
 // Set - устанавливает указанное значение, если оно является enum значением.
@@ -88,24 +76,6 @@ func (e Enum) MarshalJSON() ([]byte, error) {
 	return bytes, nil
 }
 
-// UnmarshalJSON - переводит строковое значение в enum представление.
-func (e *Enum) UnmarshalJSON(data []byte) error {
-	var value string
-
-	if err := json.Unmarshal(data, &value); err != nil {
-		return fmt.Errorf("unmarshal error (source='%s'): %w", enumName, err)
-	}
-
-	val, err := Parse(value)
-	if err != nil {
-		return err
-	}
-
-	*e = val
-
-	return nil
-}
-
 // Scan implements the Scanner interface.
 func (e *Enum) Scan(value any) error {
 	if val, ok := value.(int64); ok && val >= 0 && val <= math.MaxUint8 {
@@ -118,13 +88,4 @@ func (e *Enum) Scan(value any) error {
 // Value implements the driver.Valuer interface.
 func (e Enum) Value() (driver.Value, error) {
 	return uint8(e), nil
-}
-
-// Parse - парсит указанное значение и если оно валидно, то возвращает его числовое значение.
-func Parse(value string) (Enum, error) {
-	if parsedValue, ok := enumValues[value]; ok {
-		return parsedValue, nil
-	}
-
-	return 0, fmt.Errorf("key is not found in source (source='%s', key='%s')", enumName, value)
 }
