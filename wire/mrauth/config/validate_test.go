@@ -307,6 +307,7 @@ func TestValidateAuth2FAPasswordMinStrength(t *testing.T) {
 
 	require.NoError(t, config.ValidateAuth2FA(config.Auth2FA{DecoyFactorSalt: salt}))
 	require.NoError(t, config.ValidateAuth2FA(config.Auth2FA{DecoyFactorSalt: salt, PasswordMinStrength: "THE_BEST"}))
+	require.NoError(t, config.ValidateAuth2FA(config.Auth2FA{DecoyFactorSalt: salt, PasswordMinStrength: "WEAK"}))
 	require.Error(t, config.ValidateAuth2FA(config.Auth2FA{DecoyFactorSalt: salt, PasswordMinStrength: "NOT_RATED"}))
 	require.Error(t, config.ValidateAuth2FA(config.Auth2FA{DecoyFactorSalt: salt, PasswordMinStrength: "HARD"}))
 }
