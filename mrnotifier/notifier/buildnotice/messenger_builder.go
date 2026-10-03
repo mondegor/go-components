@@ -74,7 +74,7 @@ func (b *messengerBuilder) Build(vars map[string]string, messenger *templateenti
 
 	contentBilder.WriteString(messenger.Content)
 
-	content, err := b.noticeRenderer.Render(contentBilder.String(), vars) // TODO: временно
+	content, err := b.noticeRenderer.Render(contentBilder.String(), vars)
 	if err != nil {
 		return nil, errors.WrapInternalError(err, "content rendering failed")
 	}

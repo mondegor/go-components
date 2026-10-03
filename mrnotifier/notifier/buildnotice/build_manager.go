@@ -13,7 +13,7 @@ const (
 
 type (
 	// BuildManager - собирает уведомление/уведомления с использованием шаблона
-	// в email письмо для отправки получателям.
+	// для отправки получателям по всем включённым каналам (email, messenger, sms).
 	BuildManager struct {
 		mailBuilder      *MailBuilder
 		messengerBuilder *messengerBuilder
@@ -26,11 +26,14 @@ type (
 )
 
 // NewBuildManager - создаёт объект BuildManager.
-func NewBuildManager(noticeRenderer noticeRenderer) *BuildManager {
+// Параметры:
+//   - textRenderer - рендерер без экранирования значений: тема письма, тело не HTML письма, messenger, sms;
+//   - htmlRenderer - рендерер с HTML экранированием значений: тело письма типа text/html;
+func NewBuildManager(textRenderer, htmlRenderer noticeRenderer) *BuildManager {
 	return &BuildManager{
-		mailBuilder:      newMailBuilder(noticeRenderer, channelEmail),
-		messengerBuilder: newMessengerBuilder(noticeRenderer, channelMessenger),
-		smsBuilder:       newSMSBuilder(noticeRenderer, channelSMS),
+		mailBuilder:      newMailBuilder(textRenderer, htmlRenderer, channelEmail),
+		messengerBuilder: newMessengerBuilder(textRenderer, channelMessenger),
+		smsBuilder:       newSMSBuilder(textRenderer, channelSMS),
 	}
 }
 
