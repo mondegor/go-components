@@ -24,7 +24,7 @@ type (
 
 	// ChangePasswordRequest - запрос на установку/изменение пароля пользователя (2FA).
 	ChangePasswordRequest struct {
-		NewPassword string `json:"new_password" validate:"required,min=8,max=32,tag_password"`
+		NewPassword string `json:"new_password" validate:"required,min=10,max=32,tag_password"`
 	}
 
 	// ApplyPasswordRequest - запрос на применение подтверждённой операции смены пароля
@@ -37,7 +37,7 @@ type (
 	// Метод принимает только 6-значный цифровой TOTP-код (аварийные коды здесь не используются).
 	ApplyTOTPGeneratorRequest struct {
 		Token string `json:"token" validate:"required,min=64,max=128"`
-		Code  string `json:"totp_code" validate:"required,len=6,numeric"`
+		Code  string `json:"totp_code" validate:"required,len=6,number"`
 	}
 
 	// ApplyRecoveryCodesRequest - запрос на применение подтверждённой операции перевыпуска

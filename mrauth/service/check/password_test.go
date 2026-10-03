@@ -60,7 +60,7 @@ func TestPassword_MinStrength(t *testing.T) {
 	}{
 		{
 			name:         "default threshold: one char class",
-			userPassword: "aaaaaaaa",
+			userPassword: "aaaaaaaaaa",
 			wantStatus:   passwordacceptstatus.TooWeak,
 			wantErr:      mrauth.ErrPasswordIsTooWeak,
 		},
@@ -70,6 +70,13 @@ func TestPassword_MinStrength(t *testing.T) {
 			wantStatus:   passwordacceptstatus.TooWeak,
 			wantErr:      mrauth.ErrPasswordIsTooWeak,
 		},
+		{
+			name:         "default threshold: 10 chars of all classes, 9 unique",
+			userPassword: "abcDEF12!!",
+			wantStatus:   passwordacceptstatus.TooWeak,
+			wantErr:      mrauth.ErrPasswordIsTooWeak,
+		},
+		{name: "default threshold: 10 unique chars of all classes", userPassword: "abcDEF12!?", wantStatus: passwordacceptstatus.Accepted},
 		{name: "default threshold: strong", userPassword: "abcdEFGH1234", wantStatus: passwordacceptstatus.Accepted},
 		{
 			name:         "threshold THE_BEST: strong is not enough",

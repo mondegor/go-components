@@ -491,12 +491,6 @@ the directory — the two always move together:
 
 `<kind>` is `fields` / `enums` / `models` / `responses` / `parameters` / `headers`.
 
-- **No `allOf` (nor `oneOf`/`anyOf`) in contracts.** Every schema is a plain object or a plain
-  `$ref`. When two models share fields, repeat them inline with identical descriptions rather than
-  composing. When a property needs a description different from the one its `$ref` target carries,
-  don't wrap the `$ref` in `allOf` to attach it. Put the note in the enclosing model's
-  `description`, or add a dedicated component. Composition makes the bundled spec and the generated
-  clients harder to read, and it is not worth it for the few fields it saves.
 - **`allOf` yes, `oneOf`/`anyOf` no.** Use `allOf` to compose a model from a shared one (e.g.
   `WaitingConfirmOperation` = `ConfirmOperationState` + its own fields) or to attach a
   `description` on top of a `$ref`. Never use `oneOf`/`anyOf`: a response or request has one
