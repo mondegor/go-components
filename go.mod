@@ -5,9 +5,9 @@ go 1.26.0
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/mondegor/go-core v0.15.4-0.20261003072237-998eee40d901
+	github.com/mondegor/go-core v0.15.4-0.20261003112541-ef58faa1b143
 	github.com/mondegor/go-storage v0.17.2-0.20261003074855-a62019f4f1ef
-	github.com/mondegor/go-webcore v0.29.3-0.20261003072702-ad6afa179c34
+	github.com/mondegor/go-webcore v0.29.3-0.20261003122122-d7e189b9eb49
 	github.com/pquerna/otp v1.5.0
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/mock v0.6.0

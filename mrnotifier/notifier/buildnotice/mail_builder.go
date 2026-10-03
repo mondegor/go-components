@@ -1,6 +1,8 @@
 package buildnotice
 
 import (
+	"mime"
+
 	"github.com/mondegor/go-core/errors"
 
 	"github.com/mondegor/go-components/mrnotifier"
@@ -12,19 +14,24 @@ type (
 	// MailBuilder - собирает уведомление/уведомления с использованием шаблона
 	// в email письмо для отправки получателям.
 	MailBuilder struct {
-		noticeRenderer noticeRenderer
-		channel        string
+		textRenderer noticeRenderer
+		htmlRenderer noticeRenderer
+		channel      string
 	}
 )
 
+const mediaTypeHTML = "text/html"
+
 // newMailBuilder - создаёт объект MailBuilder.
 func newMailBuilder(
-	noticeRenderer noticeRenderer,
+	textRenderer noticeRenderer,
+	htmlRenderer noticeRenderer,
 	channel string,
 ) *MailBuilder {
 	return &MailBuilder{
-		noticeRenderer: noticeRenderer,
-		channel:        channel,
+		textRenderer: textRenderer,
+		htmlRenderer: htmlRenderer,
+		channel:      channel,
 	}
 }
 
@@ -36,12 +43,17 @@ func (b *MailBuilder) Build(vars map[string]string, templMail *templateentity.Da
 		vars[mrnotifier.FieldPreHeader] = templMail.Preheader
 	}
 
-	subject, err := b.noticeRenderer.Render(templMail.Subject, vars) // TODO: временно
+	subject, err := b.textRenderer.Render(templMail.Subject, vars)
 	if err != nil {
 		return nil, errors.WrapInternalError(err, "subject rendering failed")
 	}
 
-	content, err := b.noticeRenderer.Render(templMail.Content, vars) // TODO: временно
+	contentRenderer, err := b.contentRenderer(templMail.ContentType)
+	if err != nil {
+		return nil, err
+	}
+
+	content, err := contentRenderer.Render(templMail.Content, vars)
 	if err != nil {
 		return nil, errors.WrapInternalError(err, "content rendering failed")
 	}
@@ -80,6 +92,25 @@ func (b *MailBuilder) Build(vars map[string]string, templMail *templateentity.Da
 	}
 
 	return notices, nil
+}
+
+// contentRenderer - возвращает рендерер тела письма: HTML рендерер для типа text/html
+// (без учёта параметров и регистра), иначе текстовый.
+func (b *MailBuilder) contentRenderer(contentType string) (noticeRenderer, error) {
+	if contentType == "" {
+		return b.textRenderer, nil
+	}
+
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return nil, errors.WrapInternalError(err, "content type parsing failed", "contentType", contentType)
+	}
+
+	if mediaType == mediaTypeHTML {
+		return b.htmlRenderer, nil
+	}
+
+	return b.textRenderer, nil
 }
 
 func (b *MailBuilder) emailAddressName(varName string, vars map[string]string, defaultAddressName string) string {

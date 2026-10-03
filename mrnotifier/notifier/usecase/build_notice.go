@@ -48,9 +48,12 @@ func New(
 	o := options{
 		builder: &BuildNotice{
 			serviceTemplate: serviceTemplate,
-			noticeBuilder:   buildnotice.NewBuildManager(templater.NewTemplater("{{", "}}")),
-			channelPrefix:   defaultChannelPrefix,
-			errorWrapper:    errors.NewServiceRecordNotFoundWrapper(),
+			noticeBuilder: buildnotice.NewBuildManager(
+				templater.NewTemplater("{{", "}}"),
+				templater.NewTemplater("{{", "}}", templater.WithMode(templater.ModeHTML)),
+			),
+			channelPrefix: defaultChannelPrefix,
+			errorWrapper:  errors.NewServiceRecordNotFoundWrapper(),
 		},
 	}
 
