@@ -11,18 +11,20 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
 type (
 	// Disable2FA - обработчик отключения 2FA пользователя.
 	Disable2FA struct {
-		txManager    mrstorage.DBTxManager
-		storage      user2faDisabler
-		revoker      operationRevoker
-		notifierAPI  mrauth.Notifier
-		actorProps   actorPropsBuilder
-		errorWrapper errors.Wrapper
+		txManager          mrstorage.DBTxManager
+		storage            user2faDisabler
+		revoker            operationRevoker
+		notifierAPI        mrauth.Notifier
+		actorProps         actorPropsBuilder
+		storageSecurityLog securityLogStorage
+		errorWrapper       errors.Wrapper
 	}
 
 	user2faDisabler interface {
@@ -37,20 +39,22 @@ func NewDisable2FA(
 	revoker operationRevoker,
 	notifierAPI mrauth.Notifier,
 	actorProps actorPropsBuilder,
+	storageSecurityLog securityLogStorage,
 ) *Disable2FA {
 	return &Disable2FA{
-		txManager:    txManager,
-		storage:      storage,
-		revoker:      revoker,
-		notifierAPI:  notifierAPI,
-		actorProps:   actorProps,
-		errorWrapper: errors.NewServiceOperationFailedWrapper(),
+		txManager:          txManager,
+		storage:            storage,
+		revoker:            revoker,
+		notifierAPI:        notifierAPI,
+		actorProps:         actorProps,
+		storageSecurityLog: storageSecurityLog,
+		errorWrapper:       errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
 // Execute - применяет подтверждённую операцию отключения 2FA пользователя: удаляет второй
 // фактор, отзывает все незавершённые операции пользователя (их цепочки подтверждения
-// построены при включённой 2FA) и отправляет уведомление.
+// построены при включённой 2FA), записывает снятие 2FA в журнал безопасности и отправляет уведомление.
 func (uc *Disable2FA) Execute(ctx context.Context, actor dto.ActorMeta, payload []byte) error {
 	if actor.UserID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
@@ -79,6 +83,10 @@ func (uc *Disable2FA) Execute(ctx context.Context, actor dto.ActorMeta, payload 
 		// построенные при включённой 2FA, отзываются. Если 2FA уже была снята (ветка выше),
 		// сюда не доходим: операции, открытые после снятия, построены без неё и остаются в силе
 		if err = uc.revoker.RevokeAll(ctx, actor, logreason.Auth2FAStateChanged); err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
+
+		if err = uc.storageSecurityLog.Insert(ctx, actor.NewSecurityEvent(securityevent.Auth2FADisabled, nil)); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

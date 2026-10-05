@@ -1,0 +1,16 @@
+description: Страница журнала безопасности пользователя, от свежих событий к старым
+type: object
+required:
+  - items
+  - cursor
+  - has_next
+properties:
+  items:
+    description: События журнала, не более limit
+    type: array
+    items:
+      $ref: "./Auth.Security.Response.Model.SecurityLogItem.yaml"
+  cursor:
+    $ref: "../../_shared/components/fields/Api.Field.ListCursor.Cursor.yaml"
+  has_next:
+    $ref: "../../_shared/components/fields/Api.Field.ListCursor.HasNext.yaml"

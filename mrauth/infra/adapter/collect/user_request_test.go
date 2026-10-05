@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -20,7 +21,9 @@ import (
 
 //go:generate mockgen -source=user_request.go -destination=mock/user_request.go -package=mock
 //go:generate mockgen -destination=mock/mrauth.go -package=mock github.com/mondegor/go-components/mrauth RealmRegistry
-//go:generate mockgen -destination=mock/mrserver.go -package=mock github.com/mondegor/go-webcore/mrserver/request ParserUser,ParserClientIP
+//go:generate mockgen -destination=mock/mrserver.go -package=mock github.com/mondegor/go-webcore/mrserver/request ParserUser,ParserClient
+
+const testUserAgent = "Mozilla/5.0 (X11)"
 
 // countingLogger - считает вызовы Error; остальные методы остаются no-op от вложенного логгера.
 //
@@ -40,12 +43,12 @@ func (l *countingLogger) Error(context.Context, string, ...any) {
 type UserRequestSuite struct {
 	suite.Suite
 
-	ctrl       *gomock.Controller
-	producer   *mock.MockuserLogProducer
-	parserIP   *mock.MockParserClientIP
-	parserUser *mock.MockParserUser
-	registry   *mock.MockRealmRegistry
-	captured   []dto.UserActivityLogMessage
+	ctrl         *gomock.Controller
+	producer     *mock.MockuserLogProducer
+	parserClient *mock.MockParserClient
+	parserUser   *mock.MockParserUser
+	registry     *mock.MockRealmRegistry
+	captured     []dto.UserActivityLogMessage
 }
 
 func TestUserRequestSuite(t *testing.T) {
@@ -57,7 +60,7 @@ func TestUserRequestSuite(t *testing.T) {
 func (s *UserRequestSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 	s.producer = mock.NewMockuserLogProducer(s.ctrl)
-	s.parserIP = mock.NewMockParserClientIP(s.ctrl)
+	s.parserClient = mock.NewMockParserClient(s.ctrl)
 	s.parserUser = mock.NewMockParserUser(s.ctrl)
 	s.registry = mock.NewMockRealmRegistry(s.ctrl)
 	s.captured = nil
@@ -71,8 +74,9 @@ func (s *UserRequestSuite) SetupTest() {
 		}).
 		AnyTimes()
 
-	s.parserIP.EXPECT().RealIP(gomock.Any()).Return(netip.Addr{}).AnyTimes()
-	s.parserIP.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{}).AnyTimes()
+	s.parserClient.EXPECT().RealIP(gomock.Any()).Return(netip.Addr{}).AnyTimes()
+	s.parserClient.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{}).AnyTimes()
+	s.parserClient.EXPECT().UserAgent(gomock.Any()).Return(testUserAgent).AnyTimes()
 }
 
 // expectUser - фиксирует пользователя и его группу формата "{realm}/{kind}".
@@ -95,7 +99,7 @@ func (s *UserRequestSuite) expectRealms(ids map[string]uint16) {
 }
 
 func (s *UserRequestSuite) emit(logger mrlog.Logger) {
-	rs := collect.NewUserRequest(s.producer, logger, s.parserIP, s.parserUser, s.registry)
+	rs := collect.NewUserRequest(s.producer, logger, s.parserClient, s.parserUser, s.registry)
 	rs.Emit(httptest.NewRequest(http.MethodGet, "/x", http.NoBody), nil, 0, nil, 0, 0, http.StatusOK)
 }
 
@@ -138,7 +142,7 @@ func (s *UserRequestSuite) TestEmitErrorsOnceOnUnknownRealm() {
 	s.expectUser(uuid.New(), "unknown/kind", "")
 	s.expectRealms(map[string]uint16{})
 
-	rs := collect.NewUserRequest(s.producer, logger, s.parserIP, s.parserUser, s.registry)
+	rs := collect.NewUserRequest(s.producer, logger, s.parserClient, s.parserUser, s.registry)
 
 	for range 3 {
 		rs.Emit(httptest.NewRequest(http.MethodGet, "/x", http.NoBody), nil, 0, nil, 0, 0, http.StatusOK)
@@ -168,4 +172,49 @@ func (s *UserRequestSuite) TestEmitSkipsAnonymous() {
 	s.emit(mrlog.NopLogger())
 
 	s.Empty(s.captured)
+}
+
+// TestEmitTakesUserAgentFromParser - user agent в сообщение активности берётся из парсера
+// запроса (он приводит заголовок к безопасному виду), а не из сырого заголовка.
+func (s *UserRequestSuite) TestEmitTakesUserAgentFromParser() {
+	s.expectUser(uuid.New(), "site/kind", "")
+	s.expectRealms(map[string]uint16{"site": 1})
+
+	r := httptest.NewRequest(http.MethodGet, "/x", http.NoBody)
+	r.Header.Set("User-Agent", "raw-agent")
+
+	collect.NewUserRequest(s.producer, mrlog.NopLogger(), s.parserClient, s.parserUser, s.registry).
+		Emit(r, nil, 0, nil, 0, 0, http.StatusOK)
+
+	s.Require().Len(s.captured, 1)
+	s.Equal(testUserAgent, s.captured[0].UserAgent)
+}
+
+// TestEmitSanitizesRequestPath - путь запроса в сообщении активности приведён к виду, пригодному
+// для колонки журнала: без невалидного UTF-8 и NUL и не длиннее её ширины.
+func (s *UserRequestSuite) TestEmitSanitizesRequestPath() {
+	s.expectUser(uuid.New(), "site/kind", "")
+	s.expectRealms(map[string]uint16{"site": 1})
+
+	tests := []struct {
+		name   string
+		target string
+		want   string
+	}{
+		{name: "plain", target: "/v1/user/settings", want: "/v1/user/settings"},
+		{name: "invalid utf8 and nul", target: "/a%FFb%00c", want: "/abc"},
+		{name: "too long", target: "/" + strings.Repeat("a", 300), want: "/" + strings.Repeat("a", 255)},
+	}
+
+	for _, tt := range tests {
+		s.captured = nil
+
+		r := httptest.NewRequest(http.MethodGet, tt.target, http.NoBody)
+
+		collect.NewUserRequest(s.producer, mrlog.NopLogger(), s.parserClient, s.parserUser, s.registry).
+			Emit(r, nil, 0, nil, 0, 0, http.StatusOK)
+
+		s.Require().Len(s.captured, 1, tt.name)
+		s.Equal(tt.want, s.captured[0].RequestPath, tt.name)
+	}
 }

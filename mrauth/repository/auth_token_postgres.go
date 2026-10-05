@@ -527,27 +527,31 @@ func (re *AuthTokenPostgres) RevokeSessionByRefreshToken(ctx context.Context, us
 
 // RevokeTokensBySessionID - отзывает все действующие токены указанной сессии пользователя
 // (используется при обнаружении повторного использования отозванного refresh токена).
+// Если действующих токенов у сессии нет, возвращает errors.ErrEventStorageRecordsNotAffected.
 func (re *AuthTokenPostgres) RevokeTokensBySessionID(ctx context.Context, userID uuid.UUID, sessionID uint32) error {
 	return re.RevokeTokensBySessionIDs(ctx, userID, []uint32{sessionID})
 }
 
-// RevokeTokensBySessionIDs - отзывает все действующие токены указанных сессий пользователя (идемпотентно:
-// отсутствие подходящих токенов не считается ошибкой). Используется при закрытии сессий по их списку.
+// RevokeTokensBySessionIDs - отзывает все действующие (не отозванные и не истёкшие) токены указанных
+// сессий пользователя. Используется при закрытии сессий по их списку. Если ни у одной из сессий действующих
+// токенов нет (сессии чужие, неизвестные, уже закрыты или истекли), возвращает errors.ErrEventStorageRecordsNotAffected:
+// для вызывающего, которому важен лишь итог, отзыв идемпотентен, и сентинел он проглатывает.
+// Истёкшие токены не трогаются: они и так не действуют, их строки уберёт очистка.
 func (re *AuthTokenPostgres) RevokeTokensBySessionIDs(ctx context.Context, userID uuid.UUID, sessionIDs []uint32) error {
 	if len(sessionIDs) == 0 {
-		return nil
+		return errors.ErrEventStorageRecordsNotAffected
 	}
 
 	sql := `
-        UPDATE
-            ` + re.tableName + `
-        SET
+		UPDATE
+			` + re.tableName + `
+		SET
 			token_status = $4,
 			expires_at = NOW()
-        WHERE
-            user_id = $1 AND session_id = ANY($2::int8[]) AND token_status = $3;`
+		WHERE
+			user_id = $1 AND session_id = ANY($2::int8[]) AND token_status = $3 AND expires_at > NOW();`
 
-	_, err := re.client.Conn(ctx).ExecAffected(
+	err := re.client.Conn(ctx).Exec(
 		ctx,
 		sql,
 		userID,

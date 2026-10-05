@@ -14,10 +14,12 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
@@ -120,7 +122,7 @@ func (s *ApplyEmailSuite) SetupTest() {
 }
 
 func (s *ApplyEmailSuite) newUseCase() *security.ApplyEmail {
-	return security.NewApplyEmail(s.txManager, s.storage, s.checker, s.factory, s.opener, s.notes, s.actorProps, s.logOperation)
+	return security.NewApplyEmail(s.txManager, s.storage, s.checker, s.factory, s.opener, s.notes, s.actorProps, s.logOperation, s.securityLog)
 }
 
 func (s *ApplyEmailSuite) actor() dto.ActorMeta {
@@ -160,6 +162,12 @@ func (s *ApplyEmailSuite) TestSuccess() {
 	// время события - в том же поясе пользователя, устройство - по User-Agent
 	s.Contains(s.sent[0].props["occurredAt"], "(MSK)")
 	s.Equal("TestApp, TestDevice", s.sent[0].props["device"])
+
+	// запрос смены записывается в журнал безопасности с прежним и новым адресом
+	s.Require().Len(s.securityEvents, 1)
+	s.Equal(s.userID, s.securityEvents[0].UserID)
+	s.Equal(securityevent.EmailChangeRequested, s.securityEvents[0].EventType)
+	s.Equal(&entity.SecurityLogExtra{OldValue: "user@example.com", NewValue: "new@example.com"}, s.securityEvents[0].Extra)
 
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(operationtype.ChangeEmail.String(), s.logEntries[0].SourceName)

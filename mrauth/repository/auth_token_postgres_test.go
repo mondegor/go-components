@@ -197,3 +197,66 @@ func (ts *AuthTokenPostgresTestSuite) TestRevokeSessionByRefreshTokenKeepsOtherS
 	ts.Require().NoError(err)
 	ts.Equal(0, count)
 }
+
+// TestRevokeTokensBySessionIDs - отзываются действующие токены своих сессий из списка, чужие
+// не затрагиваются; если закрывать нечего (сессии чужие, неизвестные или уже закрыты),
+// возвращается ErrEventStorageRecordsNotAffected.
+func (ts *AuthTokenPostgresTestSuite) TestRevokeTokensBySessionIDs() {
+	userID := uuid.New()
+	otherUserID := uuid.New()
+
+	ts.seedSession(userID, 1)
+	ts.seedSession(userID, 2)
+	_, refreshClosed := ts.seedSession(userID, 3)
+	ts.seedSession(otherUserID, 4)
+
+	ts.Require().NoError(ts.repo.RevokeSessionByRefreshToken(ts.ctx, userID, refreshClosed))
+
+	ts.Require().NoError(ts.repo.RevokeTokensBySessionIDs(ts.ctx, userID, []uint32{1, 2, 3, 4, 99}))
+
+	count, err := ts.repo.FetchOpenSessionCount(ts.ctx, userID, 1)
+	ts.Require().NoError(err)
+	ts.Equal(0, count)
+
+	// чужая сессия не тронута
+	count, err = ts.repo.FetchOpenSessionCount(ts.ctx, otherUserID, 1)
+	ts.Require().NoError(err)
+	ts.Equal(1, count)
+
+	// повторный отзыв, чужая и неизвестная сессии: закрывать нечего
+	err = ts.repo.RevokeTokensBySessionIDs(ts.ctx, userID, []uint32{1, 2, 3, 4, 99})
+	ts.Require().ErrorIs(err, errors.ErrEventStorageRecordsNotAffected)
+
+	err = ts.repo.RevokeTokensBySessionIDs(ts.ctx, userID, nil)
+	ts.Require().ErrorIs(err, errors.ErrEventStorageRecordsNotAffected)
+}
+
+// TestRevokeTokensBySessionIDsSkipsExpired - истёкшая, но ещё не вычищенная сессия открытой
+// не считается: закрывать нечего, возвращается ErrEventStorageRecordsNotAffected.
+func (ts *AuthTokenPostgresTestSuite) TestRevokeTokensBySessionIDsSkipsExpired() {
+	userID := uuid.New()
+	expiresAt := time.Now().UTC().Add(-time.Minute)
+
+	err := ts.repo.Insert(ts.ctx, []entity.AuthToken{
+		{
+			Token:     "access-" + uuid.NewString(),
+			Type:      authtokentype.Access,
+			UserID:    userID,
+			RealmID:   1,
+			SessionID: 1,
+			ExpiresAt: expiresAt,
+		},
+		{
+			Token:     "refresh-" + uuid.NewString(),
+			Type:      authtokentype.Refresh,
+			UserID:    userID,
+			RealmID:   1,
+			SessionID: 1,
+			ExpiresAt: expiresAt,
+		},
+	})
+	ts.Require().NoError(err)
+
+	err = ts.repo.RevokeTokensBySessionIDs(ts.ctx, userID, []uint32{1})
+	ts.Require().ErrorIs(err, errors.ErrEventStorageRecordsNotAffected)
+}

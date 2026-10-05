@@ -17,6 +17,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
@@ -39,6 +40,7 @@ type (
 		notifierAPI        mrauth.Notifier
 		actorProps         actorPropsBuilder
 		logOperation       operationLogger
+		storageSecurityLog securityLogStorage
 		errorWrapper       errors.Wrapper
 		recoveryCount      int
 		recoveryCodeLength int
@@ -68,6 +70,7 @@ func NewApplyTOTPGenerator(
 	notifierAPI mrauth.Notifier,
 	actorProps actorPropsBuilder,
 	logOperation operationLogger,
+	storageSecurityLog securityLogStorage,
 	recoveryCount int,
 	recoveryCodeLength int,
 ) *ApplyTOTPGenerator {
@@ -83,6 +86,7 @@ func NewApplyTOTPGenerator(
 		notifierAPI:        notifierAPI,
 		actorProps:         actorProps,
 		logOperation:       logOperation,
+		storageSecurityLog: storageSecurityLog,
 		errorWrapper:       errors.NewServiceOperationFailedWrapper(),
 		recoveryCount:      recoveryCount,
 		recoveryCodeLength: recoveryCodeLength,
@@ -91,7 +95,8 @@ func NewApplyTOTPGenerator(
 
 // Execute - проверяет TOTP-код, введённый пользователем, против секрета операции
 // и при успехе в одной транзакции привязывает TOTP-генератор, удаляет операцию, отзывает
-// все незавершённые операции пользователя, отправляет уведомление о включении 2FA и возвращает аварийные коды
+// все незавершённые операции пользователя, записывает включение 2FA в журнал безопасности,
+// отправляет уведомление о нём и возвращает аварийные коды
 // в открытом виде (показываются один раз).
 // Если к моменту применения 2FA уже включена (её успели включить другим способом после
 // создания операции), возвращает mrauth.ErrAuth2FAMustBeDisabledFirst.
@@ -202,6 +207,13 @@ func (uc *ApplyTOTPGenerator) Execute(
 		// включение 2FA делает недействительными цепочки подтверждения всех прочих
 		// незавершённых операций пользователя: они построены без второго фактора
 		if err = uc.revoker.RevokeAll(ctx, actor, logreason.Auth2FAStateChanged); err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
+
+		if err = uc.storageSecurityLog.Insert(
+			ctx,
+			actor.NewSecurityEvent(securityevent.Auth2FAEnabled, &entity.SecurityLogExtra{Factor: auth2fatype.TOTP.String()}),
+		); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

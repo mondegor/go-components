@@ -320,7 +320,7 @@ func (s *AuthSuite) TestChangeSettings() {
 
 // TestSignup - язык и пояс в теле запроса не передаются: они определяются по самому
 // запросу и в таком виде доезжают до usecase, который фиксирует их в payload операции.
-// Метаданные клиента (IP, User-Agent, пояс) доезжают анонимным actor'ом.
+// Метаданные клиента (IP, User-Agent, пояс) берутся из парсера запроса и доезжают анонимным actor'ом.
 func (s *AuthSuite) TestSignup() {
 	s.expectRequestSettings("en-US", "Asia/Tokyo")
 	expectValidate(s, model.CreateUserRequest{Realm: "shop", UserEmail: "user@example.com"})
@@ -329,6 +329,7 @@ func (s *AuthSuite) TestSignup() {
 
 	s.localizer.EXPECT().Translate(gomock.Any()).Return("confirm it")
 	s.parser.EXPECT().DetailedIP(gomock.Any()).Return(clientIP)
+	s.parser.EXPECT().UserAgent(gomock.Any()).Return("test-agent")
 	s.useCaseCreateUser.EXPECT().
 		Execute(gomock.Any(), gomock.Any(), "shop", "en-US", contactaddress.NewEmail("user@example.com")).
 		DoAndReturn(func(
@@ -349,7 +350,6 @@ func (s *AuthSuite) TestSignup() {
 		Return(model.WaitingConfirmOperationResponse{})
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/signup", http.NoBody)
-	request.Header.Set("User-Agent", "test-agent")
 
 	s.Require().NoError(s.newController().Signup(s.rec, request))
 }
@@ -394,6 +394,7 @@ func (s *AuthSuite) TestSignupThrottledSetsRetryAfter() {
 			s.expectRequestSettings("en-US", "Asia/Tokyo")
 			expectValidate(s, model.CreateUserRequest{Realm: "shop", UserEmail: "user@example.com"})
 			s.parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{})
+			s.parser.EXPECT().UserAgent(gomock.Any()).Return("test-agent")
 			s.useCaseCreateUser.EXPECT().
 				Execute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(secureoperation.SecureOperation{}, tt.err)
@@ -412,6 +413,7 @@ func (s *AuthSuite) TestSignupEmailAlreadyExistsWithoutRetryAfter() {
 	s.expectRequestSettings("en-US", "Asia/Tokyo")
 	expectValidate(s, model.CreateUserRequest{Realm: "shop", UserEmail: "user@example.com"})
 	s.parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{})
+	s.parser.EXPECT().UserAgent(gomock.Any()).Return("test-agent")
 	s.useCaseCreateUser.EXPECT().
 		Execute(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(secureoperation.SecureOperation{}, mrauth.ErrEmailAlreadyExists)
@@ -431,6 +433,7 @@ func (s *AuthSuite) TestOpenSessionWithoutSecret() {
 	s.expectRequestSettings("en-US", "Asia/Tokyo")
 	expectValidate(s, model.LoginByTokenRequest{Token: "op-token", Secret: nil})
 	s.parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{}).AnyTimes()
+	s.parser.EXPECT().UserAgent(gomock.Any()).Return("test-agent").AnyTimes()
 	s.useCaseConfirmOp.EXPECT().
 		Execute(gomock.Any(), gomock.Any(), gomock.Any(), "op-token", "").
 		Return(confirmedOp, nil)
@@ -476,6 +479,7 @@ func (s *AuthSuite) TestOpenSessionWithoutSecretOnOpenedOperation() {
 	s.expectRequestSettings("en-US", "Asia/Tokyo")
 	expectValidate(s, model.LoginByTokenRequest{Token: "op-token", Secret: nil})
 	s.parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{}).AnyTimes()
+	s.parser.EXPECT().UserAgent(gomock.Any()).Return("test-agent").AnyTimes()
 	s.localizer.EXPECT().TranslateError(gomock.Any()).Return("confirm code is required")
 	s.useCaseConfirmOp.EXPECT().
 		Execute(gomock.Any(), gomock.Any(), gomock.Any(), "op-token", "").
@@ -513,6 +517,7 @@ func (s *AuthSuite) TestOpenSessionLimitExceededSetsRetryAfter() {
 	s.expectRequestSettings("en-US", "Asia/Tokyo")
 	expectValidate(s, model.LoginByTokenRequest{Token: "op-token", Secret: ptr("123456")})
 	s.parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{}).AnyTimes()
+	s.parser.EXPECT().UserAgent(gomock.Any()).Return("test-agent").AnyTimes()
 	s.useCaseConfirmOp.EXPECT().
 		Execute(gomock.Any(), gomock.Any(), gomock.Any(), "op-token", "123456").
 		Return(confirmedOp, nil)
@@ -536,6 +541,7 @@ func (s *AuthSuite) TestSignin() {
 	s.localizer.EXPECT().Translate(gomock.Any()).Return("confirm it")
 	s.parser.EXPECT().Localizer(gomock.Any()).Return(s.localizer)
 	s.parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{})
+	s.parser.EXPECT().UserAgent(gomock.Any()).Return("test-agent")
 	s.parser.EXPECT().Location(gomock.Any()).Return(time.UTC)
 	s.useCaseAuthUser.EXPECT().
 		Execute(gomock.Any(), gomock.Any(), "shop", "en-US", gomock.Any()).
@@ -563,6 +569,7 @@ func (s *AuthSuite) TestSigninByRecovery() {
 	s.localizer.EXPECT().Translate(gomock.Any()).Return("confirm it")
 	s.parser.EXPECT().Localizer(gomock.Any()).Return(s.localizer)
 	s.parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{})
+	s.parser.EXPECT().UserAgent(gomock.Any()).Return("test-agent")
 	s.parser.EXPECT().Location(gomock.Any()).Return(time.UTC)
 	s.useCaseAuthUserByRec.EXPECT().
 		Execute(gomock.Any(), gomock.Any(), "shop", "en-US", gomock.Any()).
@@ -788,6 +795,7 @@ func (s *AuthSuite) TestContinueSessionErrorIsNotFieldBound() {
 			s.refreshCookie.EXPECT().GetValue(gomock.Any()).Return("")
 			expectValidate(s, model.ContinueSessionRequest{RefreshToken: "rt"})
 			s.parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{}).AnyTimes()
+			s.parser.EXPECT().UserAgent(gomock.Any()).Return("test-agent").AnyTimes()
 			s.parser.EXPECT().Location(gomock.Any()).Return(time.UTC).AnyTimes()
 			s.parser.EXPECT().Localizer(gomock.Any()).Return(s.localizer).AnyTimes()
 			s.localizer.EXPECT().Language().Return("en-US").AnyTimes()

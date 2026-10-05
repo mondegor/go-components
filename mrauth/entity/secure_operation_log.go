@@ -14,7 +14,7 @@ import (
 type (
 	// SecureOperationLog - запись журнала защищённых операций.
 	SecureOperationLog struct {
-		RecordID      uint64
+		RecordID      int64
 		VisitorID     uuid.UUID
 		SourceName    string
 		ConfirmMethod confirmmethod.Enum

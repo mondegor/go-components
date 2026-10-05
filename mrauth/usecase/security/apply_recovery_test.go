@@ -16,6 +16,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
@@ -78,7 +79,7 @@ func (s *ApplyRecoverySuite) SetupTest() {
 func (s *ApplyRecoverySuite) newUseCase() *security.ApplyRecovery {
 	return security.NewApplyRecovery(
 		s.txManager, s.updater, s.verifier,
-		crypt.NewSecretGenerator(), s.notifierAPI, s.actorProps, s.logOperation, 8, 10,
+		crypt.NewSecretGenerator(), s.notifierAPI, s.actorProps, s.logOperation, s.securityLog, 8, 10,
 	)
 }
 
@@ -97,6 +98,10 @@ func (s *ApplyRecoverySuite) TestConfirmedReplacesAndReturnsCodes() {
 	s.Equal("user.recovery_codes.changed", s.notifiedKey)
 	s.Equal("TestApp, TestDevice", s.notifiedWith["device"])
 	s.Contains(s.notifiedWith, "occurredAt")
+	s.Require().Len(s.securityEvents, 1)
+	s.Equal(userID, s.securityEvents[0].UserID)
+	s.Equal(securityevent.RecoveryCodesRegenerated, s.securityEvents[0].EventType)
+	s.Nil(s.securityEvents[0].Extra)
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Applied, s.logEntries[0].LogStatus)
 	s.Equal(operationtype.RegenerateRecovery.String(), s.logEntries[0].SourceName)

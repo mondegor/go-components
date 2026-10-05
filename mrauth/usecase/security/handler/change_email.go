@@ -10,7 +10,9 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
@@ -18,12 +20,13 @@ type (
 	// ChangeEmail - обработчик смены email пользователя: применяет операцию второго шага
 	// (operationtype.ChangeEmailConfirm), когда владение новым адресом уже подтверждено.
 	ChangeEmail struct {
-		txManager    mrstorage.DBTxManager
-		storage      userEmailChanger
-		revoker      operationRevoker
-		notifierAPI  mrauth.Notifier
-		actorProps   actorPropsBuilder
-		errorWrapper errors.Wrapper
+		txManager          mrstorage.DBTxManager
+		storage            userEmailChanger
+		revoker            operationRevoker
+		notifierAPI        mrauth.Notifier
+		actorProps         actorPropsBuilder
+		storageSecurityLog securityLogStorage
+		errorWrapper       errors.Wrapper
 	}
 
 	userEmailChanger interface {
@@ -38,19 +41,21 @@ func NewChangeEmail(
 	revoker operationRevoker,
 	notifierAPI mrauth.Notifier,
 	actorProps actorPropsBuilder,
+	storageSecurityLog securityLogStorage,
 ) *ChangeEmail {
 	return &ChangeEmail{
-		txManager:    txManager,
-		storage:      storage,
-		revoker:      revoker,
-		notifierAPI:  notifierAPI,
-		actorProps:   actorProps,
-		errorWrapper: errors.NewServiceOperationFailedWrapper(),
+		txManager:          txManager,
+		storage:            storage,
+		revoker:            revoker,
+		notifierAPI:        notifierAPI,
+		actorProps:         actorProps,
+		storageSecurityLog: storageSecurityLog,
+		errorWrapper:       errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
-// Execute - меняет email пользователя на новый, отзывает незавершённые операции пользователя
-// и отправляет уведомления о состоявшейся смене на прежний и на новый адреса. Если новый адрес успели занять
+// Execute - меняет email пользователя на новый, отзывает незавершённые операции пользователя,
+// записывает смену в журнал безопасности и отправляет уведомления о ней на прежний и на новый адреса. Если новый адрес успели занять
 // за время жизни операции, возвращает mrauth.ErrEmailAlreadyExists: гонка с другим пользователем
 // за адрес проявляется ошибкой дубликата от UpdateEmail.
 func (uc *ChangeEmail) Execute(ctx context.Context, actor dto.ActorMeta, payload []byte) error {
@@ -75,6 +80,16 @@ func (uc *ChangeEmail) Execute(ctx context.Context, actor dto.ActorMeta, payload
 		// коды подтверждения и уведомления незавершённых операций привязаны к прежнему адресу,
 		// поэтому операции отзываются: их нужно начать заново
 		if err = uc.revoker.RevokeAll(ctx, actor, logreason.EmailChanged); err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
+
+		if err = uc.storageSecurityLog.Insert(
+			ctx,
+			actor.NewSecurityEvent(
+				securityevent.EmailChanged,
+				&entity.SecurityLogExtra{OldValue: payloadDTO.Email, NewValue: payloadDTO.NewEmail},
+			),
+		); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

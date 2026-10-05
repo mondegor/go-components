@@ -2,6 +2,7 @@ package consume
 
 import (
 	"context"
+	"strings"
 
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/errors/kind"
@@ -35,6 +36,12 @@ type (
 	crashedItemStorage interface {
 		InsertOne(ctx context.Context, row entity.CrashedItem) error
 	}
+)
+
+const (
+	// errorMessageMaxLength - предельная длина текста ошибки в журнале ошибок (в символах):
+	// текст может нести внешний ввод (например, ответ почтового сервера) неограниченной длины.
+	errorMessageMaxLength = 4096
 )
 
 var errSystemNoProcessingRowFound = errors.NewSystemProto("no processing row found")
@@ -142,7 +149,7 @@ func (sv *QueueConsumer) Reject(ctx context.Context, itemID uint64, causeErr err
 		if sv.storageCrashed != nil {
 			crashedItem := entity.CrashedItem{
 				ID:    itemID,
-				Cause: causeErr.Error(),
+				Cause: storableErrorMessage(causeErr.Error()),
 			}
 
 			if err := sv.storageCrashed.InsertOne(ctx, crashedItem); err != nil {
@@ -152,4 +159,24 @@ func (sv *QueueConsumer) Reject(ctx context.Context, itemID uint64, causeErr err
 
 		return nil
 	})
+}
+
+// storableErrorMessage - приводит текст ошибки к виду, пригодному для записи в журнал ошибок:
+// удаляет невалидный UTF-8 и NUL (их не принимает текстовая колонка, и запись откатила бы
+// транзакцию отклонения элемента) и обрезает текст по границе символа до errorMessageMaxLength.
+// Переводы строк сохраняются - они значимы в многострочных ошибках.
+func storableErrorMessage(message string) string {
+	message = strings.ReplaceAll(strings.ToValidUTF8(message, ""), "\x00", "")
+
+	count := 0
+
+	for i := range message {
+		if count == errorMessageMaxLength {
+			return message[:i]
+		}
+
+		count++
+	}
+
+	return message
 }

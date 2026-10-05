@@ -48,6 +48,7 @@ func initUnitAuthController(
 	storageAuthToken *repository.AuthTokenPostgres,
 	storageSessionExcessQueue *repository.SessionExcessQueuePostgres,
 	storageSecureOperation *repository.SecureOperationPostgres,
+	storageSecurityLog *repository.UserSecurityLogPostgres,
 	useCaseConfirmOperation *operation.ConfirmOperation,
 	operationLogger *collect.SecureOperationLogger,
 	locker mrlock.Locker,
@@ -153,6 +154,7 @@ func initUnitAuthController(
 		storageSecureOperation,
 		realmRegistry,
 		operationLogger,
+		storageSecurityLog,
 		logger,
 		mapping.OptionUserRealmsToSessionLimitRealms(userRealms),
 		int(sessionSoftThreshold),
@@ -164,6 +166,7 @@ func initUnitAuthController(
 		serviceAuthToken,
 		eventEmitter,
 		operationLogger,
+		storageSecurityLog,
 		logger,
 	)
 

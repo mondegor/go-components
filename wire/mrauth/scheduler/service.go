@@ -20,7 +20,10 @@ import (
 const (
 	defaultCaptionPrefix = "Auth"
 	defaultCleanLimit    = 100
-	defaultLogLifeTime   = 7 * 24 * time.Hour
+
+	defaultOperationLogLifeTime = 30 * 24 * time.Hour
+	defaultActivityLogLifeTime  = 7 * 24 * time.Hour
+	defaultSecurityLogLifeTime  = 365 * 24 * time.Hour
 
 	defaultCleanRecordsCaption = "CleanRecords"
 
@@ -58,6 +61,7 @@ func NewService(
 	secureOperationTableName,
 	secureOperationLogTableName,
 	usersActivityLogTableName,
+	usersSecurityLogTableName,
 	sessionsTableName,
 	sessionsCleanupQueueTableName,
 	sessionsExcessQueueTableName string,
@@ -65,7 +69,6 @@ func NewService(
 ) *schedule.TaskScheduler {
 	o := options{
 		captionPrefix: defaultCaptionPrefix,
-		logLifeTime:   defaultLogLifeTime,
 		taskCleanerOpts: []task.Option{
 			task.WithCaptionPrefix(defaultCaptionPrefix),
 			task.WithCaption(defaultCleanRecordsCaption),
@@ -88,6 +91,18 @@ func NewService(
 		o.cleanLimit = defaultCleanLimit
 	}
 
+	if o.operationLogLifeTime < 1 {
+		o.operationLogLifeTime = defaultOperationLogLifeTime
+	}
+
+	if o.activityLogLifeTime < 1 {
+		o.activityLogLifeTime = defaultActivityLogLifeTime
+	}
+
+	if o.securityLogLifeTime < 1 {
+		o.securityLogLifeTime = defaultSecurityLogLifeTime
+	}
+
 	authTokenStorage := repository.NewAuthTokenPostgres(
 		client,
 		authTokensTableName,
@@ -106,18 +121,22 @@ func NewService(
 		eventEmitter,
 	)
 
-	// клинер операций крутится в цикле до опустошения/таймаута:
-	// бандлит удаление просроченных операций и старых записей их лога
+	// клинер просроченных операций крутится в цикле до опустошения/таймаута
 	operationCleaner := clean.InitOperationCleaner(
 		repository.NewSecureOperationPostgres(
 			client,
 			secureOperationTableName,
 		),
+		eventEmitter,
+	)
+
+	// клинер журнала защищённых операций крутится в цикле до опустошения/таймаута
+	operationLogCleaner := clean.InitOperationLogCleaner(
 		repository.NewSecureOperationLogPostgres(
 			client,
 			secureOperationLogTableName,
 		),
-		o.logLifeTime,
+		o.operationLogLifeTime,
 		eventEmitter,
 	)
 
@@ -127,7 +146,17 @@ func NewService(
 			client,
 			usersActivityLogTableName,
 		),
-		o.logLifeTime,
+		o.activityLogLifeTime,
+		eventEmitter,
+	)
+
+	// клинер журнала безопасности пользователей крутится в цикле до опустошения/таймаута
+	securityLogCleaner := clean.InitSecurityLogCleaner(
+		repository.NewUserSecurityLogPostgres(
+			client,
+			usersSecurityLogTableName,
+		),
+		o.securityLogLifeTime,
 		eventEmitter,
 	)
 
@@ -162,7 +191,15 @@ func NewService(
 				return err
 			}
 
+			if err := operationLogCleaner.Execute(ctx, o.cleanLimit); err != nil {
+				return err
+			}
+
 			if err := userCleaner.Execute(ctx, o.cleanLimit); err != nil {
+				return err
+			}
+
+			if err := securityLogCleaner.Execute(ctx, o.cleanLimit); err != nil {
 				return err
 			}
 

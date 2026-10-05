@@ -209,13 +209,18 @@ func (s *FactorySuite) TestChangePhoneCreate() {
 
 	f := unit.NewChangePhone(s.tokenGen, testTokenLength, s.codeGen)
 
-	op, err := f.Create(userWithout2FA(), contactaddress.NewPhone("79991234567"))
+	user := userWithout2FA()
+	user.Phone = 79007654321
+
+	op, err := f.Create(user, contactaddress.NewPhone("79991234567"))
 	s.Require().NoError(err)
 	s.Equal(operationtype.ChangePhone, op.Type)
 
+	// прежний номер сохраняется в операции: при её применении смена пишется в журнал безопасности
 	var p dto.ChangePhoneOperation
 	s.Require().NoError(json.Unmarshal(op.Payload, &p))
 	s.Equal(uint64(79991234567), p.NewPhone)
+	s.Equal(uint64(79007654321), p.Phone)
 	s.Equal("user@example.com", p.Email)
 
 	// код уходит на текущий емаил, а не на новый телефон: отправка на телефон не поддерживается

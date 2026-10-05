@@ -1,0 +1,28 @@
+description: |-
+  Тип события журнала безопасности пользователя:
+  - SIGNED_IN - вход в аккаунт (в том числе завершающий регистрацию);
+  - AUTH_2FA_ENABLED - включение 2FA (`factor` - тип второго фактора);
+  - AUTH_2FA_DISABLED - снятие 2FA;
+  - RECOVERY_CODE_USED - трата аварийного кода (`remaining` - остаток кодов);
+  - RECOVERY_CODES_REGENERATED - перевыпуск аварийных кодов;
+  - EMAIL_CHANGE_REQUESTED - запрошена смена емаила (`old_value`, `new_value` - прежний и новый адрес);
+  - EMAIL_CHANGED - смена емаила завершена (`old_value`, `new_value` - прежний и новый адрес);
+  - EMAIL_CHANGE_REVOKED - запрос смены емаила отозван пользователем (`new_value` - отменённый адрес);
+  - PHONE_CHANGED - смена телефона (`old_value`, `new_value` - прежний и новый номер, прежний
+    отсутствует, если номера не было);
+  - SESSIONS_CLOSED - пользователь закрыл сессии из списка открытых сессий;
+  - TOKEN_REUSE_DETECTED - повторно предъявлен уже использованный токен обновления открытой сессии, сессия закрывается;
+type: string
+enum:
+  - SIGNED_IN
+  - AUTH_2FA_ENABLED
+  - AUTH_2FA_DISABLED
+  - RECOVERY_CODE_USED
+  - RECOVERY_CODES_REGENERATED
+  - EMAIL_CHANGE_REQUESTED
+  - EMAIL_CHANGED
+  - EMAIL_CHANGE_REVOKED
+  - PHONE_CHANGED
+  - SESSIONS_CLOSED
+  - TOKEN_REUSE_DETECTED
+example: "SIGNED_IN"

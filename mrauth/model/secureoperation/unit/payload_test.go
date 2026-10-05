@@ -198,6 +198,7 @@ func TestChangePhonePayload(t *testing.T) {
 
 	valid := dto.ChangePhoneOperation{
 		NewPhone: 79001234567,
+		Phone:    79007654321,
 		Email:    "user@example.com",
 	}
 

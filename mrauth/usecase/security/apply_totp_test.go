@@ -20,6 +20,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/service/notify"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
@@ -42,6 +43,11 @@ type baseSuite struct {
 	logOperation *mock.MockoperationLogger
 	logEntries   []entity.SecureOperationLog
 	actorProps   *notify.ActorProps
+
+	securityLog    *mock.MocksecurityLogStorage
+	securityEvents []entity.SecurityLogEvent // записанные в журнал безопасности события
+	securityLogErr error                     // ошибка, которую вернёт запись в журнал безопасности
+
 	notified     bool
 	notifiedKey  string
 	notifiedWith map[string]any
@@ -57,6 +63,9 @@ func (s *baseSuite) SetupTest() {
 	s.actorProps = notify.NewActorProps(func(string) (string, string) {
 		return "TestApp", "TestDevice"
 	})
+	s.securityLog = mock.NewMocksecurityLogStorage(s.ctrl)
+	s.securityEvents = nil
+	s.securityLogErr = nil
 	s.notified = false
 	s.notifiedKey = ""
 	s.notifiedWith = nil
@@ -84,6 +93,19 @@ func (s *baseSuite) SetupTest() {
 		Log(gomock.Any(), gomock.Any()).
 		Do(func(_ context.Context, entry entity.SecureOperationLog) {
 			s.logEntries = append(s.logEntries, entry)
+		}).
+		AnyTimes()
+
+	s.securityLog.EXPECT().
+		Insert(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, row entity.SecurityLogEvent) error {
+			if s.securityLogErr != nil {
+				return s.securityLogErr
+			}
+
+			s.securityEvents = append(s.securityEvents, row)
+
+			return nil
 		}).
 		AnyTimes()
 }
@@ -168,7 +190,7 @@ func (s *ApplyTOTPSuite) TestValidCodeBindsAndReturnsCodes() {
 	auth := totp.NewAuthenticator("TestIssuer", 20)
 	uc := security.NewApplyTOTPGenerator(
 		s.txManager, s.binder, s.verifier, s.revoker,
-		crypt.NewSecretGenerator(), auth, s.notifierAPI, s.actorProps, s.logOperation, 10, 10,
+		crypt.NewSecretGenerator(), auth, s.notifierAPI, s.actorProps, s.logOperation, s.securityLog, 10, 10,
 	)
 
 	code, err := auth.GenerateCode(testTotpSecret, time.Now())
@@ -185,6 +207,11 @@ func (s *ApplyTOTPSuite) TestValidCodeBindsAndReturnsCodes() {
 	s.True(s.notified)
 	s.Equal("user.2fa.enabled", s.notifiedKey)
 	s.Equal(auth2fatype.TOTP.String(), s.notifiedWith["factor"])
+	// включение 2FA записывается в журнал безопасности с типом фактора
+	s.Require().Len(s.securityEvents, 1)
+	s.Equal(userID, s.securityEvents[0].UserID)
+	s.Equal(securityevent.Auth2FAEnabled, s.securityEvents[0].EventType)
+	s.Equal(&entity.SecurityLogExtra{Factor: auth2fatype.TOTP.String()}, s.securityEvents[0].Extra)
 	// включение 2FA отзывает все незавершённые операции пользователя
 	s.Equal(userID, s.revokedFor)
 	s.Equal(logreason.Auth2FAStateChanged, s.revokeReason)
@@ -206,7 +233,7 @@ func (s *ApplyTOTPSuite) TestActive2FAConflictNoApply() {
 	auth := totp.NewAuthenticator("TestIssuer", 20)
 	uc := security.NewApplyTOTPGenerator(
 		s.txManager, s.binder, s.verifier, s.revoker,
-		crypt.NewSecretGenerator(), auth, s.notifierAPI, s.actorProps, s.logOperation, 10, 10,
+		crypt.NewSecretGenerator(), auth, s.notifierAPI, s.actorProps, s.logOperation, s.securityLog, 10, 10,
 	)
 
 	code, err := auth.GenerateCode(testTotpSecret, time.Now())
@@ -219,6 +246,7 @@ func (s *ApplyTOTPSuite) TestActive2FAConflictNoApply() {
 	s.Empty(s.deleted, "операция не должна применяться")
 	s.Equal(uuid.Nil, s.revokedFor, "операции не отзываются: 2FA не включилась")
 	s.False(s.notified)
+	s.Empty(s.securityEvents)
 	// гонка с включением 2FA другим способом фиксируется в журнале как блокировка
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
@@ -234,7 +262,7 @@ func (s *ApplyTOTPSuite) TestInvalidCodeNoBind() {
 	uc := security.NewApplyTOTPGenerator(
 		s.txManager, s.binder, s.verifier, s.revoker,
 		crypt.NewSecretGenerator(), totp.NewAuthenticator("TestIssuer", 20),
-		s.notifierAPI, s.actorProps, s.logOperation, 10, 10,
+		s.notifierAPI, s.actorProps, s.logOperation, s.securityLog, 10, 10,
 	)
 
 	codes, err := uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token", "000000")

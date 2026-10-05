@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/mrlog"
+	"github.com/mondegor/go-core/util/xstrings"
 	"github.com/mondegor/go-webcore/mrserver/request"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -21,6 +22,11 @@ const (
 	// Emit вызывается на каждый http-ответ, поэтому лог без ограничения залил бы вывод; но и
 	// разовое сообщение не годится - оно навсегда скрыло бы разъезд реестра, случившийся позже.
 	unknownRealmLogPeriod = 1 * time.Hour
+
+	// requestPathMaxLength - предельная длина пути запроса в символах, равная ширине колонки
+	// users_activity_log.request_path (см. _sample/migrations). Связь неявная - при изменении
+	// ширины колонки константу нужно править вручную.
+	requestPathMaxLength = 256
 )
 
 type (
@@ -29,11 +35,11 @@ type (
 	// запросы с неизвестным realm'ом уходят с RealmID = 0 (сессия и журнал сохраняются,
 	// статистика по realm'у не ведётся, см. dto.UserActivityLogMessage.RealmID).
 	UserRequest struct {
-		producer       userLogProducer
-		parserClientIP request.ParserClientIP
-		parserUser     request.ParserUser
-		realmRegistry  mrauth.RealmRegistry
-		logger         mrlog.Logger
+		producer      userLogProducer
+		parserClient  request.ParserClient
+		parserUser    request.ParserUser
+		realmRegistry mrauth.RealmRegistry
+		logger        mrlog.Logger
 
 		// unknownRealmLogAt - время (unix nano), начиная с которого о неизвестном realm'е
 		// можно сообщить снова; нулевое значение разрешает сообщить немедленно
@@ -49,16 +55,16 @@ type (
 func NewUserRequest(
 	producer userLogProducer,
 	logger mrlog.Logger,
-	parserClientIP request.ParserClientIP,
+	parserClient request.ParserClient,
 	parserUser request.ParserUser,
 	realmRegistry mrauth.RealmRegistry,
 ) *UserRequest {
 	return &UserRequest{
-		producer:       producer,
-		parserClientIP: parserClientIP,
-		parserUser:     parserUser,
-		realmRegistry:  realmRegistry,
-		logger:         logger,
+		producer:      producer,
+		parserClient:  parserClient,
+		parserUser:    parserUser,
+		realmRegistry: realmRegistry,
+		logger:        logger,
 	}
 }
 
@@ -98,9 +104,9 @@ func (rs *UserRequest) Emit(r *http.Request, _ []byte, _ int, _ []byte, _ int, _
 		SessionID: rs.parseSessionID(r.Context(), rs.parserUser.SessionID(r)),
 		// инвариант: real IP всегда задан - источник RemoteAddr, который в поддерживаемых
 		// конфигурациях (tcp-listener) всегда парсится; получатели сообщения на это полагаются
-		UserIP:        rs.parserClientIP.DetailedIP(r),
-		UserAgent:     r.UserAgent(),
-		RequestPath:   r.URL.Path,
+		UserIP:        rs.parserClient.DetailedIP(r),
+		UserAgent:     rs.parserClient.UserAgent(r),
+		RequestPath:   xstrings.SanitizePrintable(r.URL.Path, requestPathMaxLength),
 		RequestStatus: uint32(status),
 		VisitedAt:     time.Now().UTC(),
 	}

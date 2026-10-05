@@ -18,6 +18,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
@@ -103,7 +104,7 @@ func (s *ApplyPasswordSuite) SetupTest() {
 func (s *ApplyPasswordSuite) newUseCase() *security.ApplyPassword {
 	return security.NewApplyPassword(
 		s.txManager, s.binder, s.verifier, s.revoker,
-		crypt.NewSecretGenerator(), s.notifierAPI, s.actorProps, s.logOperation, 8, 10,
+		crypt.NewSecretGenerator(), s.notifierAPI, s.actorProps, s.logOperation, s.securityLog, 8, 10,
 	)
 }
 
@@ -130,6 +131,11 @@ func (s *ApplyPasswordSuite) TestConfirmedBindsAndReturnsCodes() {
 	s.Equal("TestApp, TestDevice", s.notifiedWith["device"])
 	s.Contains(s.notifiedWith, "occurredAt")
 	s.Contains(s.notifiedWith, "ip")
+	// включение 2FA записывается в журнал безопасности с типом фактора
+	s.Require().Len(s.securityEvents, 1)
+	s.Equal(userID, s.securityEvents[0].UserID)
+	s.Equal(securityevent.Auth2FAEnabled, s.securityEvents[0].EventType)
+	s.Equal(&entity.SecurityLogExtra{Factor: auth2fatype.Password.String()}, s.securityEvents[0].Extra)
 	// включение 2FA отзывает все незавершённые операции пользователя
 	s.Equal(userID, s.revokedFor)
 	s.Equal(logreason.Auth2FAStateChanged, s.revokeReason)
@@ -228,6 +234,22 @@ func (s *ApplyPasswordSuite) TestRevokeError() {
 
 	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
 	s.Require().Error(err)
+	s.Nil(codes)
+	s.False(s.notified)
+}
+
+// TestSecurityLogError - запись в журнал безопасности входит в применение: её ошибка отменяет
+// применение целиком (транзакция откатывается, уведомление не отправляется, коды не выдаются).
+func (s *ApplyPasswordSuite) TestSecurityLogError() {
+	userID := uuid.New()
+	s.securityLogErr = errors.ErrInternalStorageQueryFailed.New()
+
+	s.verifier.EXPECT().
+		FetchOneForUpdate(gomock.Any(), gomock.Any()).
+		Return(confirmedPasswordOp(userID, `{"new_password":"hashed-pwd","email":"u@e"}`), nil)
+
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
+	s.Require().ErrorIs(err, errors.ErrInternalStorageQueryFailed)
 	s.Nil(codes)
 	s.False(s.notified)
 }

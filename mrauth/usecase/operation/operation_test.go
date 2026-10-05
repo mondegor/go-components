@@ -21,7 +21,9 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
+	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/usecase/operation"
 	"github.com/mondegor/go-components/mrauth/usecase/operation/mock"
 )
@@ -516,7 +518,9 @@ type RevokeOperationSuite struct {
 
 	ctrl         *gomock.Controller
 	ctx          context.Context
+	txManager    *mock.MockDBTxManager
 	storage      *mock.MockoperationRevoker
+	securityLog  *mock.MocksecurityLogStorage
 	logStorage   *mock.MockoperationLogStorage
 	logOperation *mock.MockoperationLogger
 	logEntries   []entity.SecureOperationLog
@@ -532,7 +536,9 @@ func TestRevokeOperationSuite(t *testing.T) {
 func (s *RevokeOperationSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 	s.ctx = context.Background()
+	s.txManager = mock.NewMockDBTxManager(s.ctrl)
 	s.storage = mock.NewMockoperationRevoker(s.ctrl)
+	s.securityLog = mock.NewMocksecurityLogStorage(s.ctrl)
 	s.logStorage = mock.NewMockoperationLogStorage(s.ctrl)
 	s.logOperation = mock.NewMockoperationLogger(s.ctrl)
 	s.logEntries = nil
@@ -544,7 +550,28 @@ func (s *RevokeOperationSuite) SetupTest() {
 		}).
 		AnyTimes()
 
-	s.uc = operation.NewRevokeOperation(s.storage, s.logOperation)
+	expectPassThroughTx(s.txManager)
+
+	s.uc = operation.NewRevokeOperation(s.txManager, s.storage, s.securityLog, s.logOperation)
+}
+
+// changeEmailConfirmOp - операция подтверждения нового емаила, ожидающая пользователя.
+func (s *RevokeOperationSuite) changeEmailConfirmOp() secureoperation.SecureOperation {
+	payload, err := unit.BuildChangeEmailPayload(dto.ChangeEmailOperation{NewEmail: "new@example.com", Email: "old@example.com"})
+	s.Require().NoError(err)
+
+	op, err := secureoperation.NewOperation(
+		"token",
+		operationtype.ChangeEmailConfirm,
+		uuid.New(),
+		[]secureoperation.ConfirmAction{
+			{Method: confirmmethod.Email, CodeLength: 6, MaxAttempts: 3, Expiry: time.Hour, Address: "new@example.com"},
+		},
+		payload,
+	)
+	s.Require().NoError(err)
+
+	return op
 }
 
 // пустым токеном не может быть найдена ни одна операция: снаружи это неотличимо
@@ -565,6 +592,8 @@ func (s *RevokeOperationSuite) TestSuccess() {
 	op := openedEmailOp(s.T())
 	s.storage.EXPECT().FetchOne(gomock.Any(), "token").Return(op, nil)
 	s.storage.EXPECT().Delete(gomock.Any(), "token").Return(nil)
+	// отказ от незавершённого step-up событием безопасности не является
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).Times(0)
 
 	s.Require().NoError(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: op.UserID}, "token"))
 	// операция читается перед удалением, поэтому в журнал попадает, что именно отозвано
@@ -573,6 +602,50 @@ func (s *RevokeOperationSuite) TestSuccess() {
 	s.Equal(op.Type.String(), s.logEntries[0].SourceName)
 	s.Equal(confirmmethod.Email, s.logEntries[0].ConfirmMethod)
 	s.Equal(op.UserID, s.logEntries[0].VisitorID)
+}
+
+// отзыв смены емаила записывается в журнал безопасности с отменённым адресом.
+func (s *RevokeOperationSuite) TestChangeEmailConfirmLogsSecurityEvent() {
+	op := s.changeEmailConfirmOp()
+	s.storage.EXPECT().FetchOne(gomock.Any(), "token").Return(op, nil)
+	s.storage.EXPECT().Delete(gomock.Any(), "token").Return(nil)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, row entity.SecurityLogEvent) error {
+			s.Equal(op.UserID, row.UserID)
+			s.Equal(securityevent.EmailChangeRevoked, row.EventType)
+			s.Equal(&entity.SecurityLogExtra{NewValue: "new@example.com"}, row.Extra)
+
+			return nil
+		},
+	)
+
+	s.Require().NoError(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: op.UserID}, "token"))
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logstatus.Revoked, s.logEntries[0].LogStatus)
+}
+
+// сбой записи в журнал безопасности откатывает отзыв: операция не считается отозванной.
+func (s *RevokeOperationSuite) TestChangeEmailConfirmSecurityLogError() {
+	wantErr := errors.New("insert failed")
+
+	op := s.changeEmailConfirmOp()
+	s.storage.EXPECT().FetchOne(gomock.Any(), "token").Return(op, nil)
+	s.storage.EXPECT().Delete(gomock.Any(), "token").Return(nil)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(wantErr)
+
+	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: op.UserID}, "token"), wantErr)
+	s.Empty(s.logEntries)
+}
+
+// повреждённый payload смены емаила обнаруживается до транзакции: операция не удаляется
+// (мок Delete без EXPECT: любой вызов провалит тест), в журналы ничего не пишется.
+func (s *RevokeOperationSuite) TestChangeEmailConfirmBrokenPayload() {
+	op := s.changeEmailConfirmOp()
+	op.Payload = []byte("not-json")
+	s.storage.EXPECT().FetchOne(gomock.Any(), "token").Return(op, nil)
+
+	s.Require().Error(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: op.UserID}, "token"))
+	s.Empty(s.logEntries)
 }
 
 func (s *RevokeOperationSuite) TestFetchError() {
@@ -592,6 +665,18 @@ func (s *RevokeOperationSuite) TestDeleteError() {
 	s.storage.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(wantErr)
 
 	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: op.UserID}, "token"), wantErr)
+	s.Empty(s.logEntries)
+}
+
+// конкурентный отзыв удалил операцию между выборкой и удалением: это тот же «токен больше
+// не действует», а не сбой; в журнал безопасности ничего не пишется.
+func (s *RevokeOperationSuite) TestDeleteRaceIsOperationInvalid() {
+	op := s.changeEmailConfirmOp()
+	s.storage.EXPECT().FetchOne(gomock.Any(), "token").Return(op, nil)
+	s.storage.EXPECT().Delete(gomock.Any(), "token").Return(sysmesserrors.ErrEventStorageNoRecordFound)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).Times(0)
+
+	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: op.UserID}, "token"), mrauth.ErrOperationInvalid)
 	s.Empty(s.logEntries)
 }
 

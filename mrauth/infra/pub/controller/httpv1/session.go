@@ -32,7 +32,7 @@ type (
 
 	sessionUseCase interface {
 		GetList(ctx context.Context, userID uuid.UUID, currentAccessToken, realm string) ([]dto.UserSession, error)
-		Close(ctx context.Context, userID uuid.UUID, sessionIDs []uint32) error
+		Close(ctx context.Context, actor dto.ActorMeta, sessionIDs []uint32) error
 	}
 )
 
@@ -122,7 +122,7 @@ func (ht *Session) Close(w http.ResponseWriter, r *http.Request) error {
 		sessionIDs = append(sessionIDs, uint32(id))
 	}
 
-	if err := ht.useCase.Close(r.Context(), ht.parser.UserID(r), sessionIDs); err != nil {
+	if err := ht.useCase.Close(r.Context(), newUserActor(ht.parser, r), sessionIDs); err != nil {
 		return err
 	}
 

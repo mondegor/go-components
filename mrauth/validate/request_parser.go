@@ -15,10 +15,11 @@ type (
 		request.ParserString
 		request.ParserUUID
 		request.ParserValidate
-		request.ParserClientIP
+		request.ParserClient
 		request.ParserUser
 		request.ParserLocale
 		request.ParserTimeZone
+		request.ParserListCursor
 	}
 
 	// Parser - реализация RequestParser на основе парсеров go-webcore.
@@ -28,10 +29,11 @@ type (
 		*parser.String
 		*parser.UUID
 		*parser.Validator
-		*parser.ClientIP
+		*parser.Client
 		*parser.User
 		*parser.Locale
 		*parser.TimeZone
+		*parser.ListCursor
 	}
 )
 
@@ -42,20 +44,22 @@ func NewParser(
 	p3 *parser.String,
 	p4 *parser.UUID,
 	p5 *parser.Validator,
-	p6 *parser.ClientIP,
+	p6 *parser.Client,
 	p7 *parser.User,
 	p8 *parser.Locale,
 	p9 *parser.TimeZone,
+	p10 *parser.ListCursor,
 ) *Parser {
 	return &Parser{
-		Int64:     p1,
-		Uint64:    p2,
-		String:    p3,
-		UUID:      p4,
-		Validator: p5,
-		ClientIP:  p6,
-		User:      p7,
-		Locale:    p8,
-		TimeZone:  p9,
+		Int64:      p1,
+		Uint64:     p2,
+		String:     p3,
+		UUID:       p4,
+		Validator:  p5,
+		Client:     p6,
+		User:       p7,
+		Locale:     p8,
+		TimeZone:   p9,
+		ListCursor: p10,
 	}
 }

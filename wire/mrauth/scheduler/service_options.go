@@ -13,7 +13,9 @@ type (
 	options struct {
 		captionPrefix        string
 		cleanLimit           int
-		logLifeTime          time.Duration
+		operationLogLifeTime time.Duration
+		activityLogLifeTime  time.Duration
+		securityLogLifeTime  time.Duration
 		taskCleanerOpts      []task.Option
 		taskTrimSessionsOpts []task.Option
 	}
@@ -33,10 +35,27 @@ func WithCleanLimit(value int) Option {
 	}
 }
 
-// WithLogLifeTime - устанавливает опцию cleanLimit для ComponentService.
-func WithLogLifeTime(value time.Duration) Option {
+// WithOperationLogLifeTime - устанавливает срок хранения записей журнала защищённых операций
+// (0 - срок по умолчанию).
+func WithOperationLogLifeTime(value time.Duration) Option {
 	return func(o *options) {
-		o.logLifeTime = value
+		o.operationLogLifeTime = value
+	}
+}
+
+// WithActivityLogLifeTime - устанавливает срок хранения записей журнала активности пользователей
+// (0 - срок по умолчанию).
+func WithActivityLogLifeTime(value time.Duration) Option {
+	return func(o *options) {
+		o.activityLogLifeTime = value
+	}
+}
+
+// WithSecurityLogLifeTime - устанавливает срок хранения записей журнала безопасности пользователей
+// (0 - срок по умолчанию).
+func WithSecurityLogLifeTime(value time.Duration) Option {
+	return func(o *options) {
+		o.securityLogLifeTime = value
 	}
 }
 

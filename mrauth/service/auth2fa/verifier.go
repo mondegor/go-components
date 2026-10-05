@@ -12,6 +12,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/auth2fatype"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 )
 
 const (
@@ -39,6 +40,7 @@ type (
 		passwordComparer      passwordComparer
 		totpValidator         totpValidator
 		recoveryAlerter       recoveryAlerter // OPTIONAL
+		securityLog           securityLogStorage
 		minRecoveryCodeLength int
 		maxRecoveryCodeLength int
 		decoyPasswordHash     string
@@ -67,6 +69,12 @@ type (
 	recoveryAlerter interface {
 		SendAlert(ctx context.Context, actor dto.ActorMeta, codeRemaining int) error
 	}
+
+	// securityLogStorage - хранилище журнала безопасности пользователя. Insert вызывается из commit
+	// внутри транзакции подтверждения, поэтому трата кода фиксируется вместе с его гашением.
+	securityLogStorage interface {
+		Insert(ctx context.Context, row entity.SecurityLogEvent) error
+	}
 )
 
 // NewVerifier - создаёт объект Verifier.
@@ -74,6 +82,7 @@ func NewVerifier(
 	storage user2faSource,
 	passwordComparer passwordComparer,
 	totpValidator totpValidator,
+	securityLog securityLogStorage,
 	opts ...Option,
 ) *Verifier {
 	o := options{
@@ -81,6 +90,7 @@ func NewVerifier(
 			storage:               storage,
 			passwordComparer:      passwordComparer,
 			totpValidator:         totpValidator,
+			securityLog:           securityLog,
 			minRecoveryCodeLength: defaultMinRecoveryCodeLength,
 			maxRecoveryCodeLength: defaultMaxRecoveryCodeLength,
 			decoyPasswordHash:     defaultDecoyPasswordHash,
@@ -289,6 +299,13 @@ func (v *Verifier) tryRecovery(
 					return mrauth.ErrEventAuth2FACodeAlreadyUsed
 				}
 
+				return err
+			}
+
+			if err = v.securityLog.Insert(
+				ctx,
+				actor.NewSecurityEvent(securityevent.RecoveryCodeUsed, &entity.SecurityLogExtra{Remaining: &remaining}),
+			); err != nil {
 				return err
 			}
 

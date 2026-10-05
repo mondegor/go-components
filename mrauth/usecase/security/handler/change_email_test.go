@@ -14,7 +14,9 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/service/notify"
 	"github.com/mondegor/go-components/mrauth/usecase/security/handler"
@@ -32,6 +34,7 @@ type ChangeEmailSuite struct {
 	storage     *mock.MockuserEmailChanger
 	revoker     *mock.MockoperationRevoker
 	notifierAPI *mock.MockNotifier
+	securityLog *mock.MocksecurityLogStorage
 	uc          *handler.ChangeEmail
 }
 
@@ -48,6 +51,7 @@ func (s *ChangeEmailSuite) SetupTest() {
 	s.storage = mock.NewMockuserEmailChanger(s.ctrl)
 	s.revoker = mock.NewMockoperationRevoker(s.ctrl)
 	s.notifierAPI = mock.NewMockNotifier(s.ctrl)
+	s.securityLog = mock.NewMocksecurityLogStorage(s.ctrl)
 
 	// транзакция выполняет переданное задание как есть
 	s.txManager.EXPECT().
@@ -65,6 +69,7 @@ func (s *ChangeEmailSuite) SetupTest() {
 		notify.NewActorProps(func(string) (string, string) {
 			return "TestApp", "TestDevice"
 		}),
+		s.securityLog,
 	)
 }
 
@@ -78,7 +83,7 @@ func (s *ChangeEmailSuite) payload() []byte {
 }
 
 // TestExecute - email меняется на новый, незавершённые операции пользователя отзываются,
-// уведомления о смене уходят на прежний и на новый адреса под разными ключами,
+// смена записывается в журнал безопасности с прежним и новым адресом, уведомления о смене уходят на прежний и на новый адреса под разными ключами,
 // оба - с контекстом клиента (время, IP, устройство).
 func (s *ChangeEmailSuite) TestExecute() {
 	userID := uuid.New()
@@ -98,6 +103,16 @@ func (s *ChangeEmailSuite) TestExecute() {
 	gomock.InOrder(
 		s.storage.EXPECT().UpdateEmail(gomock.Any(), userID, "new@example.com").Return(nil),
 		s.revoker.EXPECT().RevokeAll(gomock.Any(), actor, logreason.EmailChanged).Return(nil),
+		s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, row entity.SecurityLogEvent) error {
+				s.Equal(userID, row.UserID)
+				s.Equal(securityevent.EmailChanged, row.EventType)
+				s.Equal(actor.ClientIP, row.ClientIP)
+				s.Equal(&entity.SecurityLogExtra{OldValue: "user@example.com", NewValue: "new@example.com"}, row.Extra)
+
+				return nil
+			},
+		),
 		s.notifierAPI.EXPECT().Send(gomock.Any(), "user.email.changed", gomock.Any()).DoAndReturn(capture),
 		s.notifierAPI.EXPECT().Send(gomock.Any(), "user.email.changed.new", gomock.Any()).DoAndReturn(capture),
 	)
@@ -123,12 +138,24 @@ func (s *ChangeEmailSuite) TestExecute() {
 func (s *ChangeEmailSuite) TestExecuteNotifyNewError() {
 	s.storage.EXPECT().UpdateEmail(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 	s.revoker.EXPECT().RevokeAll(gomock.Any(), gomock.Any(), logreason.EmailChanged).Return(nil)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
 	gomock.InOrder(
 		s.notifierAPI.EXPECT().Send(gomock.Any(), "user.email.changed", gomock.Any()).Return(nil),
 		s.notifierAPI.EXPECT().
 			Send(gomock.Any(), "user.email.changed.new", gomock.Any()).
 			Return(errors.ErrInternalStorageQueryFailed.New()),
 	)
+
+	err := s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, s.payload())
+	s.Require().ErrorIs(err, errors.ErrInternalStorageQueryFailed)
+}
+
+// TestExecuteSecurityLogError - сбой записи в журнал безопасности откатывает смену:
+// ошибка возвращается, уведомления о смене не отправляются.
+func (s *ChangeEmailSuite) TestExecuteSecurityLogError() {
+	s.storage.EXPECT().UpdateEmail(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.revoker.EXPECT().RevokeAll(gomock.Any(), gomock.Any(), logreason.EmailChanged).Return(nil)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(errors.ErrInternalStorageQueryFailed.New())
 
 	err := s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, s.payload())
 	s.Require().ErrorIs(err, errors.ErrInternalStorageQueryFailed)
