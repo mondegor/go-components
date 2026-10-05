@@ -33,6 +33,7 @@ func initSecurityController(
 	storageUserRealm *repository.UserRealmPostgres,
 	storageAuth2fa *repository.Auth2FAPostgres,
 	storageSecureOperation *repository.SecureOperationPostgres,
+	storageSecurityLog *repository.UserSecurityLogPostgres,
 	operationLogger *collect.SecureOperationLogger,
 	requestParser *validate.Parser,
 	responseFileSender mrserver.FileResponseSender,
@@ -41,6 +42,8 @@ func initSecurityController(
 	userRealms []authcfg.UserRealm,
 	operationConfig authcfg.OperationConfirm,
 	auth2faConfig authcfg.Auth2FA,
+	appResolver mrauth.AppResolver, // OPTIONAL
+	locationResolver mrauth.LocationResolver, // OPTIONAL
 	debugFunc func(value any) string,
 ) (mrserver.HttpController, error) {
 	checkUserService := check.NewUserLogin(
@@ -117,6 +120,7 @@ func initSecurityController(
 		notifierAPI,
 		actorProps,
 		operationLogger,
+		storageSecurityLog,
 	)
 
 	useCaseChangePhoneProperty := security.NewChangePhoneProperty(
@@ -182,12 +186,14 @@ func initSecurityController(
 				operationRevoker,
 				notifierAPI,
 				actorProps,
+				storageSecurityLog,
 			),
 			operationtype.ChangePhone: handler.NewChangePhone(
 				dbConnManager,
 				storageUser,
 				notifierAPI,
 				actorProps,
+				storageSecurityLog,
 			),
 			operationtype.Disable2FA: handler.NewDisable2FA(
 				dbConnManager,
@@ -195,6 +201,7 @@ func initSecurityController(
 				operationRevoker,
 				notifierAPI,
 				actorProps,
+				storageSecurityLog,
 			),
 		},
 	)
@@ -219,6 +226,7 @@ func initSecurityController(
 		notifierAPI,
 		actorProps,
 		operationLogger,
+		storageSecurityLog,
 		int(auth2faConfig.RecoveryCount),
 		int(auth2faConfig.RecoveryCodeLength),
 	)
@@ -232,6 +240,7 @@ func initSecurityController(
 		notifierAPI,
 		actorProps,
 		operationLogger,
+		storageSecurityLog,
 		int(auth2faConfig.RecoveryCount),
 		int(auth2faConfig.RecoveryCodeLength),
 	)
@@ -255,8 +264,15 @@ func initSecurityController(
 		notifierAPI,
 		actorProps,
 		operationLogger,
+		storageSecurityLog,
 		int(auth2faConfig.RecoveryCount),
 		int(auth2faConfig.RecoveryCodeLength),
+	)
+
+	useCaseGetSecurityLog := security.NewGetSecurityLog(
+		storageSecurityLog,
+		appResolver,
+		locationResolver,
 	)
 
 	controller := httpv1.NewSecurity(
@@ -276,6 +292,7 @@ func initSecurityController(
 		useCaseRegenerateRecovery,
 		useCaseApplyRecovery,
 		useCaseDisable2FA,
+		useCaseGetSecurityLog,
 		bag.NewOperationResponse(debugFunc),
 	)
 

@@ -39,6 +39,29 @@ func TestValidateRealmsKindNameSeparator(t *testing.T) {
 	require.ErrorContains(t, config.ValidateRealms(makeRealms("manager/ro"), []string{"guests"}), "must not contain separator")
 }
 
+// TestValidateRealmsKindNameLength - имя вида пользователя длиннее колонки users_realms.user_kind
+// отвергается на старте, а не при первой регистрации пользователя этого вида.
+func TestValidateRealmsKindNameLength(t *testing.T) {
+	t.Parallel()
+
+	makeRealms := func(kindName string) []config.UserRealm {
+		return []config.UserRealm{
+			{
+				ID:               1,
+				Name:             "site",
+				RegisterUserKind: kindName,
+				AuthToken:        config.Token{AccessType: "jwt", Length: 64},
+				UserKinds: []config.UserKind{
+					{Name: kindName, Roles: []string{"guests"}},
+				},
+			},
+		}
+	}
+
+	require.NoError(t, config.ValidateRealms(makeRealms(strings.Repeat("k", 16)), []string{"guests"}))
+	require.ErrorContains(t, config.ValidateRealms(makeRealms(strings.Repeat("k", 17)), []string{"guests"}), "is not storable")
+}
+
 func TestValidateSessionThresholds(t *testing.T) {
 	t.Parallel()
 

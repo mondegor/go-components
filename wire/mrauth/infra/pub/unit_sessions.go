@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-webcore/mrserver"
 
 	module "github.com/mondegor/go-components/mrauth"
@@ -24,9 +25,11 @@ type (
 )
 
 func initSessionsController(
+	dbConnManager mrstorage.DBConnManager,
 	storageSession *repository.SessionPostgres,
 	storageAuthToken *repository.AuthTokenPostgres,
 	storageUserRealm *repository.UserRealmPostgres,
+	storageSecurityLog *repository.UserSecurityLogPostgres,
 	requestParser *validate.Parser,
 	responseSender mrserver.ResponseSender,
 	appResolver module.AppResolver,
@@ -43,9 +46,11 @@ func initSessionsController(
 	}
 
 	useCaseSessionList := session.NewList(
+		dbConnManager,
 		storageSession,   // sessionLister
 		storageAuthToken, // openSessionFetcher
 		storageAuthToken, // sessionCloser
+		storageSecurityLog,
 		resolver,
 		storageUserRealm, // userRealmFetcher
 		mapping.OptionUserRealmsToRealmRegistry(userRealms),

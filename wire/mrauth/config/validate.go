@@ -110,6 +110,12 @@ const (
 	// Реальные IANA-имена вдвое короче, поэтому это структурный предохранитель на случай
 	// имени-самоделки, а не ограничение выбора: существующий пояс в этот предел укладывается.
 	maxStorableTimeZone = 64
+
+	// maxStorableUserKind - предельная длина имени вида пользователя в байтах (имена видов - ASCII),
+	// равная ширине колонки users_realms.user_kind (см. _sample/migrations). Связь неявная - при
+	// изменении ширины колонки константу нужно править вручную. Без проверки на старте слишком длинное
+	// имя проявилось бы лишь при регистрации пользователя этого вида - ошибкой вставки в БД.
+	maxStorableUserKind = 16
 )
 
 // regexpStorableLang - формат языка, пригодного для хранения в колонке lang_code:
@@ -345,6 +351,15 @@ func validateRealm(realm UserRealm, allRoles []string) error {
 		// статистику, поэтому отвергается на старте (см. ограничение в описании UserRealm)
 		if err := usergroup.ValidateKind(kind.Name); err != nil {
 			return fmt.Errorf("invalid user kind name for realm (kind='%s', realm='%s'): %w", kind.Name, realm.Name, err)
+		}
+
+		if len(kind.Name) > maxStorableUserKind {
+			return fmt.Errorf(
+				"user kind name is not storable for realm (kind='%s', realm='%s'): expected at most %d characters",
+				kind.Name,
+				realm.Name,
+				maxStorableUserKind,
+			)
 		}
 
 		if uniqKinds[kind.Name] {

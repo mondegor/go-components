@@ -1,5 +1,9 @@
 package model
 
+import (
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
+)
+
 type (
 	// ChangeEmailRequest - запрос на изменение емаила пользователя.
 	ChangeEmailRequest struct {
@@ -56,5 +60,27 @@ type (
 	TOTPGeneratorSecretResponse struct {
 		Secret     string `json:"secret"`
 		OTPAuthURI string `json:"otpauth_uri"`
+	}
+
+	// SecurityLogResponse - страница журнала безопасности пользователя, от свежих событий к старым.
+	SecurityLogResponse struct {
+		Items   []SecurityLogItem `json:"items"`
+		Cursor  string            `json:"cursor"`
+		HasNext bool              `json:"has_next"`
+	}
+
+	// SecurityLogItem - событие журнала безопасности пользователя.
+	SecurityLogItem struct {
+		ID         string             `json:"id"`
+		EventType  securityevent.Enum `json:"event_type"`
+		IP         string             `json:"ip"`
+		Location   string             `json:"location,omitempty"`
+		AppName    string             `json:"app_name"`
+		DeviceName string             `json:"device_name"`
+		OldValue   string             `json:"old_value,omitempty"`
+		NewValue   string             `json:"new_value,omitempty"`
+		Factor     string             `json:"factor,omitempty"`
+		Remaining  *int               `json:"remaining,omitempty"`
+		CreatedAt  string             `json:"created_at"`
 	}
 )

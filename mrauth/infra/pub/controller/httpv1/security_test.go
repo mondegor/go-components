@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/mrtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,7 @@ import (
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/enum/addresstype"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/mock"
 	"github.com/mondegor/go-components/mrauth/infra/pub/controller/httpv1/model"
@@ -52,6 +54,7 @@ func TestSecurityChangePhoneNormalizesNumber(t *testing.T) {
 		})
 	parser.EXPECT().UserID(gomock.Any()).Return(uuid.New())
 	parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{})
+	parser.EXPECT().UserAgent(gomock.Any()).Return("test-agent")
 	parser.EXPECT().Location(gomock.Any()).Return(time.UTC)
 	parser.EXPECT().Localizer(gomock.Any()).Return(localizer)
 	localizer.EXPECT().Translate(gomock.Any()).Return("confirm it")
@@ -71,7 +74,7 @@ func TestSecurityChangePhoneNormalizesNumber(t *testing.T) {
 	sender.EXPECT().Send(gomock.Any(), http.StatusOK, gomock.Any()).Return(nil)
 
 	controller := httpv1.NewSecurity(
-		parser, sender, nil, nil, nil, useCase, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, operationResponse,
+		parser, sender, nil, nil, nil, useCase, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, operationResponse,
 	)
 
 	require.NoError(
@@ -115,6 +118,7 @@ func TestSecurityChangePasswordRejectedBoundToField(t *testing.T) {
 				})
 			parser.EXPECT().UserID(gomock.Any()).Return(uuid.New())
 			parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{})
+			parser.EXPECT().UserAgent(gomock.Any()).Return("test-agent")
 			parser.EXPECT().Location(gomock.Any()).Return(time.UTC)
 
 			useCase.EXPECT().
@@ -122,7 +126,7 @@ func TestSecurityChangePasswordRejectedBoundToField(t *testing.T) {
 				Return(secureoperation.SecureOperation{}, tt.rejectErr)
 
 			controller := httpv1.NewSecurity(
-				parser, nil, nil, nil, nil, nil, nil, useCase, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+				parser, nil, nil, nil, nil, nil, nil, useCase, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 			)
 
 			err := controller.ChangePassword(
@@ -179,8 +183,9 @@ func TestSecurityApplyEmail(t *testing.T) {
 				})
 			parser.EXPECT().UserID(gomock.Any()).Return(uuid.New())
 			parser.EXPECT().DetailedIP(gomock.Any()).Return(mrtype.DetailedIP{})
+			parser.EXPECT().UserAgent(gomock.Any()).Return("test-agent")
 
-			// пояс пользователя и User-Agent из запроса доходят до usecase в метаданных клиента:
+			// пояс пользователя и User-Agent от парсера запроса доходят до usecase в метаданных клиента:
 			// в поясе выводятся время события и срок в уведомлении, по User-Agent - устройство
 			userLocation := time.FixedZone("MSK", 3*60*60)
 			parser.EXPECT().Location(gomock.Any()).Return(userLocation)
@@ -206,11 +211,10 @@ func TestSecurityApplyEmail(t *testing.T) {
 			}
 
 			controller := httpv1.NewSecurity(
-				parser, sender, nil, nil, useCase, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, operationResponse,
+				parser, sender, nil, nil, useCase, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, operationResponse,
 			)
 
 			request := httptest.NewRequest(http.MethodPost, "/v1/security/apply-email", http.NoBody)
-			request.Header.Set("User-Agent", "test-agent")
 
 			err := controller.ApplyEmail(httptest.NewRecorder(), request)
 
@@ -245,7 +249,7 @@ func TestSecurityTOTPRoutes(t *testing.T) {
 
 	// зависимости не нужны: Handlers() лишь собирает список, обработчики не вызываются
 	controller := httpv1.NewSecurity(
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 
 	handlerByURL := make(map[string]string)
@@ -272,4 +276,137 @@ func handlerName(fn any) string {
 	name := full[strings.LastIndexByte(full, '.')+1:]
 
 	return strings.TrimSuffix(name, "-fm")
+}
+
+// TestSecurityGetSecurityLog - страница журнала отдаётся с курсором на последнюю запись и признаком
+// продолжения; время - в поясе клиента, подробности событий - только у тех, к которым они относятся.
+func TestSecurityGetSecurityLog(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	parser := mock.NewMockRequestParser(ctrl)
+	sender := mock.NewMockFileResponseSender(ctrl)
+	useCase := mock.NewMockgetSecurityLogUseCase(ctrl)
+
+	userID := uuid.New()
+	msk := time.FixedZone("MSK", 3*60*60)
+	at := time.Date(2026, 10, 4, 9, 0, 0, 0, time.UTC)
+	remaining := 4
+
+	parser.EXPECT().UserID(gomock.Any()).Return(userID)
+	parser.EXPECT().CursorParams(gomock.Any()).Return(mrtype.CursorParams{Value: "100", Limit: 2})
+	parser.EXPECT().Location(gomock.Any()).Return(msk)
+
+	useCase.EXPECT().
+		Execute(gomock.Any(), userID, mrstorage.IDCursor{ID: 100, Limit: 2}).
+		Return(
+			[]dto.SecurityLogItem{
+				{
+					RecordID:   99,
+					EventType:  securityevent.EmailChanged,
+					AppName:    "Web",
+					DeviceName: "Firefox",
+					IP:         "192.0.2.1",
+					OldValue:   "old@example.com",
+					NewValue:   "new@example.com",
+					CreatedAt:  at,
+				},
+				{
+					RecordID:  97,
+					EventType: securityevent.RecoveryCodeUsed,
+					IP:        "192.0.2.2",
+					Remaining: &remaining,
+					CreatedAt: at,
+				},
+			},
+			true,
+			nil,
+		)
+
+	var got model.SecurityLogResponse
+
+	sender.EXPECT().
+		Send(gomock.Any(), http.StatusOK, gomock.Any()).
+		DoAndReturn(func(_ http.ResponseWriter, _ int, structResponse any) error {
+			got = structResponse.(model.SecurityLogResponse)
+
+			return nil
+		})
+
+	controller := httpv1.NewSecurity(
+		parser, sender, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, useCase, nil,
+	)
+
+	require.NoError(
+		t,
+		controller.GetSecurityLog(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/security/log", http.NoBody)),
+	)
+
+	assert.Equal(
+		t,
+		model.SecurityLogResponse{
+			Items: []model.SecurityLogItem{
+				{
+					ID:         "99",
+					EventType:  securityevent.EmailChanged,
+					IP:         "192.0.2.1",
+					AppName:    "Web",
+					DeviceName: "Firefox",
+					OldValue:   "old@example.com",
+					NewValue:   "new@example.com",
+					CreatedAt:  "2026-10-04T12:00:00+03:00",
+				},
+				{
+					ID:        "97",
+					EventType: securityevent.RecoveryCodeUsed,
+					IP:        "192.0.2.2",
+					Remaining: &remaining,
+					CreatedAt: "2026-10-04T12:00:00+03:00",
+				},
+			},
+			Cursor:  "97",
+			HasNext: true,
+		},
+		got,
+	)
+}
+
+// TestSecurityGetSecurityLogEmpty - пустая страница: курсор пустой, продолжения нет,
+// список - пустой массив, а не null.
+func TestSecurityGetSecurityLogEmpty(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	parser := mock.NewMockRequestParser(ctrl)
+	sender := mock.NewMockFileResponseSender(ctrl)
+	useCase := mock.NewMockgetSecurityLogUseCase(ctrl)
+
+	parser.EXPECT().UserID(gomock.Any()).Return(uuid.New())
+	parser.EXPECT().CursorParams(gomock.Any()).Return(mrtype.CursorParams{Limit: 20})
+	parser.EXPECT().Location(gomock.Any()).Return(time.UTC)
+	useCase.EXPECT().Execute(gomock.Any(), gomock.Any(), mrstorage.IDCursor{Limit: 20}).Return(nil, false, nil)
+
+	var got model.SecurityLogResponse
+
+	sender.EXPECT().
+		Send(gomock.Any(), http.StatusOK, gomock.Any()).
+		DoAndReturn(func(_ http.ResponseWriter, _ int, structResponse any) error {
+			got = structResponse.(model.SecurityLogResponse)
+
+			return nil
+		})
+
+	controller := httpv1.NewSecurity(
+		parser, sender, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, useCase, nil,
+	)
+
+	require.NoError(
+		t,
+		controller.GetSecurityLog(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/security/log", http.NoBody)),
+	)
+
+	assert.NotNil(t, got.Items)
+	assert.Empty(t, got.Items)
+	assert.Empty(t, got.Cursor)
+	assert.False(t, got.HasNext)
 }

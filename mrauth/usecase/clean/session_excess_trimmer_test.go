@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	sysmesserrors "github.com/mondegor/go-core/errors"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -345,4 +346,38 @@ func TestSessionExcessTrimmer_Execute_RevokeErrorSkipsAck(t *testing.T) {
 
 	_, err := m.uc.Execute(context.Background(), 100)
 	require.Error(t, err)
+}
+
+// сессии успели закрыть конкурентно после выборки: отзывать нечего, это не сбой -
+// осиротевшие строки не удаляются (их уберёт штатный конвейер очистки), пользователь
+// снимается с очереди.
+func TestSessionExcessTrimmer_Execute_AlreadyRevokedIsNotError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+
+	m := newExcessTrimmerMocks(ctrl)
+
+	userID := uuid.New()
+	now := time.Now()
+
+	sessions := []entity.Session{
+		{UserID: userID, SessionID: 1, UserAgent: "A", CreatedAt: now.Add(-1 * time.Minute)},
+		{UserID: userID, SessionID: 2, UserAgent: "B", CreatedAt: now.Add(-2 * time.Minute)},
+	}
+
+	gomock.InOrder(
+		m.consumer.EXPECT().Fetch(gomock.Any(), 100).
+			Return([]entity.SessionExcessItem{{UserID: userID, RealmID: testRealmID, SessionMax: 1}}, nil),
+		m.openFetcher.EXPECT().FetchOpenSessions(gomock.Any(), userID, testRealmID).Return(testOpenSessions(1, 2), nil),
+		m.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), userID, []uint32{1, 2}, 0).Return(sessions, nil),
+		m.closer.EXPECT().RevokeTokensBySessionIDs(gomock.Any(), userID, gomock.Any()).
+			Return(sysmesserrors.ErrEventStorageRecordsNotAffected),
+		// DeleteOrphaned не вызывается
+		m.consumer.EXPECT().Delete(gomock.Any(), []entity.SessionExcessPK{{UserID: userID, RealmID: testRealmID}}).Return(nil),
+	)
+
+	count, err := m.uc.Execute(context.Background(), 100)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
 }

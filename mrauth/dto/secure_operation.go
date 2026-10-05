@@ -49,6 +49,7 @@ type (
 	// ChangePhoneOperation - payload операции смены телефона.
 	ChangePhoneOperation struct {
 		NewPhone uint64 `json:"new_phone"`
+		Phone    uint64 `json:"phone,omitempty"` // прежний номер на момент создания операции (0 - номера не было)
 		Email    string `json:"email"`
 	}
 )

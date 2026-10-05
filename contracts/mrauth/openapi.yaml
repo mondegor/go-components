@@ -169,6 +169,8 @@ paths:
     $ref: "./paths/v1_security_apply-operation.yaml"
   /v1/security/disable2fa:
     $ref: "./paths/v1_security_disable2fa.yaml"
+  /v1/security/log:
+    $ref: "./paths/v1_security_log.yaml"
 
   /v1/sessions:
     $ref: "./paths/v1_sessions.yaml"

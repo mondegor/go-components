@@ -20,6 +20,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/service/realm"
 	"github.com/mondegor/go-components/mrauth/usecase/session"
@@ -106,6 +107,10 @@ type OpenSessionSuite struct {
 	logEntries   []entity.SecureOperationLog
 	uc           *session.OpenSession
 	notifyCount  int
+
+	securityLog    *mock.MocksecurityLogStorage
+	securityEvents []entity.SecurityLogEvent // записанные в журнал безопасности события
+	securityLogErr error                     // ошибка, которую вернёт запись в журнал безопасности
 }
 
 // buildUC - пересобирает OpenSession с лимитом limit для realm/kind из okScopes() ("site/admin"/"admin")
@@ -127,6 +132,7 @@ func (s *OpenSessionSuite) buildUCThresholds(limit, soft, hard int) {
 		s.storageOp,
 		testRealmRegistry(),
 		s.logOperation,
+		s.securityLog,
 		mrlog.NopLogger(),
 		[]session.LimitRealm{{
 			ID:         testRealmID,
@@ -163,6 +169,21 @@ func (s *OpenSessionSuite) SetupTest() {
 		}).
 		AnyTimes()
 	s.notifyCount = 0
+	s.securityLog = mock.NewMocksecurityLogStorage(s.ctrl)
+	s.securityEvents = nil
+	s.securityLogErr = nil
+	s.securityLog.EXPECT().
+		Insert(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, row entity.SecurityLogEvent) error {
+			if s.securityLogErr != nil {
+				return s.securityLogErr
+			}
+
+			s.securityEvents = append(s.securityEvents, row)
+
+			return nil
+		}).
+		AnyTimes()
 	s.buildUC(4) // soft=4, hard=8
 }
 
@@ -202,7 +223,9 @@ func (s *OpenSessionSuite) TestNotConfirmed() {
 // happy: открытых сессий нет (soft=4 не достигнут) -> сигнал на чистку не ставится, вход проходит.
 func (s *OpenSessionSuite) TestCreateUserHappy() {
 	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(0, nil)
-	s.expectOpenSession(okScopes())
+
+	scopes := okScopes()
+	s.expectOpenSession(scopes)
 	// excessQueue.Enqueue НЕ вызывается
 
 	got, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
@@ -211,15 +234,48 @@ func (s *OpenSessionSuite) TestCreateUserHappy() {
 	s.Equal(1, s.notifyCount, "login-alert должен уйти ровно один раз после commit'а")
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.SessionOpened, s.logEntries[0].LogStatus)
+	// вход, завершающий регистрацию, записывается в журнал безопасности как обычный вход
+	s.Require().Len(s.securityEvents, 1)
+	s.Equal(securityevent.SignedIn, s.securityEvents[0].EventType)
+	s.Equal(scopes.UserID, s.securityEvents[0].UserID)
 }
 
 func (s *OpenSessionSuite) TestAuthorizeUserHappy() {
 	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(0, nil)
-	s.expectOpenSession(okScopes())
 
-	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.AuthorizeUser))
+	scopes := okScopes()
+	s.expectOpenSession(scopes)
+
+	actor := dto.ActorMeta{UserAgent: "test-agent"}
+
+	_, err := s.uc.Execute(s.ctx, actor, confirmedOp(operationtype.AuthorizeUser))
 	s.Require().NoError(err)
 	s.Equal(1, s.notifyCount, "login-alert должен уйти ровно один раз после commit'а")
+	// поток входа анонимный: событие записывается за пользователем, ставшим известным после входа
+	s.Require().Len(s.securityEvents, 1)
+	s.Equal(securityevent.SignedIn, s.securityEvents[0].EventType)
+	s.Equal(scopes.UserID, s.securityEvents[0].UserID)
+	s.Equal("test-agent", s.securityEvents[0].UserAgent)
+	s.Nil(s.securityEvents[0].Extra)
+}
+
+// сбой записи входа в журнал безопасности откатывает открытие сессии:
+// токены не выдаются, login-alert не уходит.
+func (s *OpenSessionSuite) TestSecurityLogErrorRollsBack() {
+	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), gomock.Any(), gomock.Any()).Return(0, nil)
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(okScopes(), s.authSuccessNotify(), nil)
+	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
+	s.issuer.EXPECT().Issue(gomock.Any(), gomock.Any()).Return(uint32(1), nil)
+	s.creator.EXPECT().Create(gomock.Any(), gomock.Any()).Return(okPair(), nil)
+	s.storageOp.EXPECT().Delete(gomock.Any(), "op-token").Return(nil)
+
+	s.securityLogErr = errors.New("insert failed")
+
+	got, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.AuthorizeUser))
+	s.Require().Error(err)
+	s.Equal(dto.AuthTokenPair{}, got)
+	s.Zero(s.notifyCount)
+	s.Empty(s.logEntries)
 }
 
 // при достижении soft (N+1 >= 4) пользователь ставится в очередь на фоновую чистку, вход проходит.
@@ -474,6 +530,7 @@ type ContinueSessionSuite struct {
 	emitter      *mock.MockEmitter
 	logOperation *mock.MockoperationLogger
 	logEntries   []entity.SecureOperationLog
+	securityLog  *mock.MocksecurityLogStorage
 	uc           *session.ContinueSession
 }
 
@@ -497,7 +554,8 @@ func (s *ContinueSessionSuite) SetupTest() {
 			s.logEntries = append(s.logEntries, entry)
 		}).
 		AnyTimes()
-	s.uc = session.NewContinueSession(s.storage, s.recreator, s.emitter, s.logOperation, mrlog.NopLogger())
+	s.securityLog = mock.NewMocksecurityLogStorage(s.ctrl)
+	s.uc = session.NewContinueSession(s.storage, s.recreator, s.emitter, s.logOperation, s.securityLog, mrlog.NopLogger())
 }
 
 func (s *ContinueSessionSuite) TestEmptyToken() {
@@ -518,6 +576,14 @@ func (s *ContinueSessionSuite) TestReuseRevokesSession() {
 	s.recreator.EXPECT().Recreate(gomock.Any(), "rt").Return(dto.AuthTokenPair{}, mrauth.NewTokenAlreadyRevokedError(userID, 123))
 	s.storage.EXPECT().RevokeTokensBySessionID(gomock.Any(), userID, uint32(123)).Return(nil)
 	s.emitter.EXPECT().Emit(gomock.Any(), "RevokeAlert", "userId", userID)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, row entity.SecurityLogEvent) error {
+			s.Equal(userID, row.UserID)
+			s.Equal(securityevent.TokenReuseDetected, row.EventType)
+
+			return nil
+		},
+	)
 
 	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "rt")
 	s.Require().ErrorIs(err, mrauth.ErrTokenNotFoundOrExpired)
@@ -525,6 +591,54 @@ func (s *ContinueSessionSuite) TestReuseRevokesSession() {
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
 	s.Equal(logreason.TokenReuse, s.logEntries[0].Reason)
 	s.Equal(userID, s.logEntries[0].VisitorID)
+}
+
+// сессию уже закрыли до повтора токена (выход, закрытие из списка): закрывать нечего, это
+// неудачная попытка - в журнал безопасности не пишется, блокировка фиксируется лишь в журнале
+// защищённых операций, клиент получает тот же отказ по токену.
+func (s *ContinueSessionSuite) TestReuseSessionAlreadyClosed() {
+	userID := uuid.New()
+	s.recreator.EXPECT().Recreate(gomock.Any(), "rt").Return(dto.AuthTokenPair{}, mrauth.NewTokenAlreadyRevokedError(userID, 123))
+	s.storage.EXPECT().RevokeTokensBySessionID(gomock.Any(), userID, uint32(123)).Return(errors.ErrEventStorageRecordsNotAffected)
+	s.emitter.EXPECT().Emit(gomock.Any(), "RevokeAlert", "userId", userID)
+
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "rt")
+	s.Require().ErrorIs(err, mrauth.ErrTokenNotFoundOrExpired)
+	s.Require().Len(s.logEntries, 1)
+	s.Equal(logreason.TokenReuse, s.logEntries[0].Reason)
+}
+
+// сбой отзыва сессии: открыта ли она была, неизвестно - событие в журнал безопасности
+// всё равно пишется, чтобы не потерять предупреждение.
+func (s *ContinueSessionSuite) TestReuseRevokeErrorStillRecords() {
+	userID := uuid.New()
+	s.recreator.EXPECT().Recreate(gomock.Any(), "rt").Return(dto.AuthTokenPair{}, mrauth.NewTokenAlreadyRevokedError(userID, 123))
+	s.storage.EXPECT().RevokeTokensBySessionID(gomock.Any(), userID, uint32(123)).Return(errors.New("db down"))
+	s.emitter.EXPECT().Emit(gomock.Any(), "RevokeAlert", "userId", userID)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, row entity.SecurityLogEvent) error {
+			s.Equal(securityevent.TokenReuseDetected, row.EventType)
+
+			return nil
+		},
+	)
+
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "rt")
+	s.Require().ErrorIs(err, mrauth.ErrTokenNotFoundOrExpired)
+	s.Require().Len(s.logEntries, 1)
+}
+
+// сбой записи в журнал безопасности ответ не подменяет: клиент получает тот же отказ по токену,
+// сессия отозвана, событие о повторе всё равно эмитируется.
+func (s *ContinueSessionSuite) TestReuseSecurityLogErrorKeepsResponse() {
+	userID := uuid.New()
+	s.recreator.EXPECT().Recreate(gomock.Any(), "rt").Return(dto.AuthTokenPair{}, mrauth.NewTokenAlreadyRevokedError(userID, 123))
+	s.storage.EXPECT().RevokeTokensBySessionID(gomock.Any(), userID, uint32(123)).Return(nil)
+	s.emitter.EXPECT().Emit(gomock.Any(), "RevokeAlert", "userId", userID)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(errors.New("insert failed"))
+
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "rt")
+	s.Require().ErrorIs(err, mrauth.ErrTokenNotFoundOrExpired)
 }
 
 func (s *ContinueSessionSuite) TestNoRecordFound() {
@@ -616,9 +730,11 @@ type ListSuite struct {
 
 	ctrl      *gomock.Controller
 	ctx       context.Context
+	tx        *mock.MockDBTxManager
 	lister    *mock.MocksessionLister
 	opener    *mock.MockopenSessionFetcher
 	closer    *mock.MocksessionCloser
+	secLog    *mock.MocksecurityLogStorage
 	resolver  *mock.MocksessionResolver
 	userRealm *mock.MockuserRealmFetcher
 	userID    uuid.UUID
@@ -637,10 +753,13 @@ func (s *ListSuite) SetupTest() {
 	s.lister = mock.NewMocksessionLister(s.ctrl)
 	s.opener = mock.NewMockopenSessionFetcher(s.ctrl)
 	s.closer = mock.NewMocksessionCloser(s.ctrl)
+	s.tx = mock.NewMockDBTxManager(s.ctrl)
+	s.tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob).AnyTimes()
+	s.secLog = mock.NewMocksecurityLogStorage(s.ctrl)
 	s.resolver = mock.NewMocksessionResolver(s.ctrl)
 	s.userRealm = mock.NewMockuserRealmFetcher(s.ctrl)
 	s.userID = uuid.New()
-	s.uc = session.NewList(s.lister, s.opener, s.closer, s.resolver, s.userRealm, testRealmRegistry(), nil, nil, nil)
+	s.uc = session.NewList(s.tx, s.lister, s.opener, s.closer, s.secLog, s.resolver, s.userRealm, testRealmRegistry(), nil, nil, nil)
 }
 
 func (s *ListSuite) TestGetListFiltersAndMaps() {
@@ -688,9 +807,11 @@ func (s *ListSuite) TestGetListFiltersAndMaps() {
 // текущая сессия принадлежит realm токена, поэтому IsCurrent во всей выдаче false.
 func (s *ListSuite) TestGetListForeignRealm() {
 	uc := session.NewList(
+		s.tx,
 		s.lister,
 		s.opener,
 		s.closer,
+		s.secLog,
 		s.resolver,
 		s.userRealm,
 		testRealmRegistry(),
@@ -778,9 +899,11 @@ func (s *ListSuite) TestGetListCurrentSessionNotOpenFails() {
 // последнюю (наименее активную) строку - в выдаче она присутствует с IsCurrent=true.
 func (s *ListSuite) TestGetListCurrentSessionOutsideLimitRefetched() {
 	uc := session.NewList(
+		s.tx,
 		s.lister,
 		s.opener,
 		s.closer,
+		s.secLog,
 		s.resolver,
 		s.userRealm,
 		testRealmRegistry(),
@@ -821,9 +944,11 @@ func (s *ListSuite) TestGetListCurrentSessionOutsideLimitRefetched() {
 
 func (s *ListSuite) TestGetListCurrentSessionRefetchEmptyFails() {
 	uc := session.NewList(
+		s.tx,
 		s.lister,
 		s.opener,
 		s.closer,
+		s.secLog,
 		s.resolver,
 		s.userRealm,
 		testRealmRegistry(),
@@ -854,9 +979,11 @@ func (s *ListSuite) TestGetListCurrentSessionRefetchEmptyFails() {
 
 func (s *ListSuite) TestGetListResolversEnrich() {
 	uc := session.NewList(
+		s.tx,
 		s.lister,
 		s.opener,
 		s.closer,
+		s.secLog,
 		s.resolver,
 		s.userRealm,
 		testRealmRegistry(),
@@ -904,9 +1031,11 @@ func (s *ListSuite) TestGetListResolverErrorFatal() {
 // при превышении лимита показываются только новейшие сессии в его рамках.
 func (s *ListSuite) TestGetListPassesLimitAndPreservesOrder() {
 	uc := session.NewList(
+		s.tx,
 		s.lister,
 		s.opener,
 		s.closer,
+		s.secLog,
 		s.resolver,
 		s.userRealm,
 		testRealmRegistry(),
@@ -967,7 +1096,7 @@ func (s *ListSuite) TestEmptyUserID() {
 	})
 
 	s.Run("Close", func() {
-		err := s.uc.Close(s.ctx, uuid.Nil, []uint32{1})
+		err := s.uc.Close(s.ctx, dto.ActorMeta{}, []uint32{1})
 		s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
 	})
 }
@@ -975,19 +1104,47 @@ func (s *ListSuite) TestEmptyUserID() {
 // пустой список закрывать нечего - метод идемпотентен, поэтому это успех,
 // closer.RevokeTokensBySessionIDs при этом НЕ вызывается.
 func (s *ListSuite) TestCloseEmptyInputIsNoOp() {
-	s.Require().NoError(s.uc.Close(s.ctx, s.userID, nil))
+	s.Require().NoError(s.uc.Close(s.ctx, dto.ActorMeta{UserID: s.userID}, nil))
 }
 
+// закрытие сессий записывается в журнал безопасности.
 func (s *ListSuite) TestCloseSuccess() {
 	ids := []uint32{0x1f3bc817, 0x0000babc}
 	s.closer.EXPECT().RevokeTokensBySessionIDs(gomock.Any(), s.userID, ids).Return(nil)
+	s.secLog.EXPECT().Insert(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, row entity.SecurityLogEvent) error {
+			s.Equal(s.userID, row.UserID)
+			s.Equal(securityevent.SessionsClosed, row.EventType)
+			s.Nil(row.Extra)
 
-	s.Require().NoError(s.uc.Close(s.ctx, s.userID, ids))
+			return nil
+		},
+	)
+
+	s.Require().NoError(s.uc.Close(s.ctx, dto.ActorMeta{UserID: s.userID}, ids))
+}
+
+// закрывать оказалось нечего (все сессии чужие, неизвестные или уже закрыты): это успех,
+// событие в журнал безопасности не записывается (мок журнала без EXPECT).
+func (s *ListSuite) TestCloseNothingClosedNoEvent() {
+	ids := []uint32{1}
+	s.closer.EXPECT().RevokeTokensBySessionIDs(gomock.Any(), s.userID, ids).Return(errors.ErrEventStorageRecordsNotAffected)
+
+	s.Require().NoError(s.uc.Close(s.ctx, dto.ActorMeta{UserID: s.userID}, ids))
 }
 
 func (s *ListSuite) TestCloseError() {
 	ids := []uint32{1}
 	s.closer.EXPECT().RevokeTokensBySessionIDs(gomock.Any(), s.userID, ids).Return(errors.New("db down"))
 
-	s.Require().Error(s.uc.Close(s.ctx, s.userID, ids))
+	s.Require().Error(s.uc.Close(s.ctx, dto.ActorMeta{UserID: s.userID}, ids))
+}
+
+// сбой записи в журнал безопасности откатывает закрытие сессий.
+func (s *ListSuite) TestCloseSecurityLogError() {
+	ids := []uint32{1}
+	s.closer.EXPECT().RevokeTokensBySessionIDs(gomock.Any(), s.userID, ids).Return(nil)
+	s.secLog.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(errors.New("insert failed"))
+
+	s.Require().Error(s.uc.Close(s.ctx, dto.ActorMeta{UserID: s.userID}, ids))
 }

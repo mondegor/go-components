@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/mrstorage"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
@@ -18,6 +19,8 @@ import (
 
 //go:generate mockgen -source=auth_tokens_cleaner.go -destination=mock/auth_tokens_cleaner.go -package=mock
 //go:generate mockgen -source=operation_cleaner.go -destination=mock/operation_cleaner.go -package=mock
+//go:generate mockgen -source=operation_log_cleaner.go -destination=mock/operation_log_cleaner.go -package=mock
+//go:generate mockgen -source=security_log_cleaner.go -destination=mock/security_log_cleaner.go -package=mock
 //go:generate mockgen -source=user_cleaner.go -destination=mock/user_cleaner.go -package=mock
 //go:generate mockgen -source=session_drainer.go -destination=mock/session_drainer.go -package=mock
 //go:generate mockgen -destination=mock/mrstorage.go -package=mock github.com/mondegor/go-core/mrstorage DBTxManager
@@ -97,22 +100,80 @@ func TestAuthTokenCleaner_Execute_EnqueueErrorPropagates(t *testing.T) {
 
 // ----- OperationCleaner -----
 
-func TestOperationCleaner_Execute_SumsCounts(t *testing.T) {
+func TestOperationCleaner_Execute(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
 
 	storage := mock.NewMockOperationStorage(ctrl)
-	storageLog := mock.NewMockOperationLogStorage(ctrl)
-
 	storage.EXPECT().DeleteExpired(gomock.Any(), 100).Return(3, nil)
-	storageLog.EXPECT().DeleteBeforeDate(gomock.Any(), gomock.Any(), 100).Return(4, nil)
 
-	uc := clean.NewOperationCleaner(storage, storageLog, time.Hour)
+	uc := clean.NewOperationCleaner(storage)
 
 	count, err := uc.Execute(context.Background(), 100)
 	require.NoError(t, err)
-	require.Equal(t, 7, count)
+	require.Equal(t, 3, count)
+}
+
+// ----- OperationLogCleaner -----
+
+func TestOperationLogCleaner_Execute(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+
+	before := time.Now().UTC().Add(-time.Hour)
+
+	storageLog := mock.NewMockOperationLogStorage(ctrl)
+	storageLog.EXPECT().DeleteBeforeDate(gomock.Any(), gomock.Any(), 100).DoAndReturn(
+		func(_ context.Context, datetime time.Time, _ int) (int, error) {
+			// граница удаления отсчитывается от текущего момента на срок хранения назад
+			assert.WithinDuration(t, before, datetime, time.Minute)
+
+			return 4, nil
+		},
+	)
+
+	uc := clean.NewOperationLogCleaner(storageLog, time.Hour)
+
+	count, err := uc.Execute(context.Background(), 100)
+	require.NoError(t, err)
+	require.Equal(t, 4, count)
+}
+
+// ----- SecurityLogCleaner -----
+
+func TestSecurityLogCleaner_Execute(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+
+	before := time.Now().UTC().Add(-time.Hour)
+
+	storageLog := mock.NewMockSecurityLogStorage(ctrl)
+	storageLog.EXPECT().DeleteBeforeDate(gomock.Any(), gomock.Any(), 100).DoAndReturn(
+		func(_ context.Context, datetime time.Time, _ int) (int, error) {
+			// граница удаления отсчитывается от текущего момента на срок хранения назад
+			assert.WithinDuration(t, before, datetime, time.Minute)
+
+			return 5, nil
+		},
+	)
+
+	uc := clean.NewSecurityLogCleaner(storageLog, time.Hour)
+
+	count, err := uc.Execute(context.Background(), 100)
+	require.NoError(t, err)
+	require.Equal(t, 5, count)
+}
+
+func TestSecurityLogCleaner_Execute_InvalidLimit(t *testing.T) {
+	t.Parallel()
+
+	uc := clean.NewSecurityLogCleaner(mock.NewMockSecurityLogStorage(gomock.NewController(t)), time.Hour)
+
+	_, err := uc.Execute(context.Background(), 0)
+	require.Error(t, err)
 }
 
 // ----- UserCleaner -----

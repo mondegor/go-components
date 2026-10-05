@@ -10,11 +10,13 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/contactaddress"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
@@ -26,15 +28,16 @@ type (
 	// шага - подтверждения владения новым адресом, а на прежний адрес уходит уведомление
 	// о запросе смены.
 	ApplyEmail struct {
-		txManager        mrstorage.DBTxManager
-		storageOperation operationDeleter
-		emailChecker     userEmailChecker
-		factoryConfirm   changeEmailCreator
-		opener           operationOpener
-		notifierAPI      mrauth.Notifier
-		actorProps       actorPropsBuilder
-		logOperation     operationLogger
-		errorWrapper     errors.Wrapper
+		txManager          mrstorage.DBTxManager
+		storageOperation   operationDeleter
+		emailChecker       userEmailChecker
+		factoryConfirm     changeEmailCreator
+		opener             operationOpener
+		notifierAPI        mrauth.Notifier
+		actorProps         actorPropsBuilder
+		logOperation       operationLogger
+		storageSecurityLog securityLogStorage
+		errorWrapper       errors.Wrapper
 	}
 
 	// changeEmailCreator - фабрика операции второго шага смены емаила.
@@ -53,24 +56,26 @@ func NewApplyEmail(
 	notifierAPI mrauth.Notifier,
 	actorProps actorPropsBuilder,
 	logOperation operationLogger,
+	storageSecurityLog securityLogStorage,
 ) *ApplyEmail {
 	return &ApplyEmail{
-		txManager:        txManager,
-		storageOperation: storageOperation,
-		emailChecker:     emailChecker,
-		factoryConfirm:   factoryConfirm,
-		opener:           opener,
-		notifierAPI:      notifierAPI,
-		actorProps:       actorProps,
-		logOperation:     logOperation,
-		errorWrapper:     errors.NewServiceOperationFailedWrapper(),
+		txManager:          txManager,
+		storageOperation:   storageOperation,
+		emailChecker:       emailChecker,
+		factoryConfirm:     factoryConfirm,
+		opener:             opener,
+		notifierAPI:        notifierAPI,
+		actorProps:         actorProps,
+		logOperation:       logOperation,
+		storageSecurityLog: storageSecurityLog,
+		errorWrapper:       errors.NewServiceOperationFailedWrapper(),
 	}
 }
 
 // Execute - проверяет, что операция первого шага смены емаила подтверждена и принадлежит
 // пользователю, и в одной транзакции удаляет её, открывает операцию второго шага (код уходит
-// на новый адрес; прежняя операция второго шага, если была, вытесняется) и отправляет на
-// прежний адрес уведомление о запросе смены. Возвращает операцию второго шага.
+// на новый адрес; прежняя операция второго шага, если была, вытесняется), записывает запрос
+// смены в журнал безопасности и отправляет на прежний адрес уведомление о нём. Возвращает операцию второго шага.
 // Если новый адрес успели занять, пока шло подтверждение, возвращает mrauth.ErrEmailAlreadyExists.
 // Срок действия новой операции в уведомлении выводится в часовом поясе клиента из actor,
 // тем же, в котором пользователю отдаются даты в ответах.
@@ -147,6 +152,16 @@ func (uc *ApplyEmail) Execute(
 		// транзакция вложенная: Open выполняется в текущей, поэтому операция второго шага,
 		// код на новый адрес и уведомление на прежний фиксируются вместе с удалением первой
 		if err = uc.opener.Open(ctx, actor, confirmOp, "confirm.change.email", nil); err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
+
+		if err = uc.storageSecurityLog.Insert(
+			ctx,
+			actor.NewSecurityEvent(
+				securityevent.EmailChangeRequested,
+				&entity.SecurityLogExtra{OldValue: payload.Email, NewValue: payload.NewEmail},
+			),
+		); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

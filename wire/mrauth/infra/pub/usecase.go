@@ -20,6 +20,7 @@ func initConfirmOperationUseCase(
 	storageSecureOperation *repository.SecureOperationPostgres,
 	storageAuth2fa *repository.Auth2FAPostgres,
 	storageUser *repository.UserPostgres,
+	storageSecurityLog *repository.UserSecurityLogPostgres,
 	notifierAPI mrauth.Notifier,
 	actorProps *notify.ActorProps,
 	operationLogger *collect.SecureOperationLogger,
@@ -39,6 +40,7 @@ func initConfirmOperationUseCase(
 				storageAuth2fa,
 				secretGenerator,
 				totp.NewAuthenticator(auth2faConfig.TOTPIssuer, 64),
+				storageSecurityLog,
 				// аварийный код имеет фиксированную длину recoveryCodeLength - сужаем окно для дешёвой отбраковки
 				auth2fa.WithRecoveryCodeLength(recoveryCodeLength, recoveryCodeLength),
 				auth2fa.WithRecoveryAlerter(

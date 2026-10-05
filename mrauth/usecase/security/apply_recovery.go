@@ -15,6 +15,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
@@ -29,6 +30,7 @@ type (
 		notifierAPI        mrauth.Notifier
 		actorProps         actorPropsBuilder
 		logOperation       operationLogger
+		storageSecurityLog securityLogStorage
 		errorWrapper       errors.Wrapper
 		recoveryCount      int
 		recoveryCodeLength int
@@ -48,6 +50,7 @@ func NewApplyRecovery(
 	notifierAPI mrauth.Notifier,
 	actorProps actorPropsBuilder,
 	logOperation operationLogger,
+	storageSecurityLog securityLogStorage,
 	recoveryCount int,
 	recoveryCodeLength int,
 ) *ApplyRecovery {
@@ -61,6 +64,7 @@ func NewApplyRecovery(
 		notifierAPI:        notifierAPI,
 		actorProps:         actorProps,
 		logOperation:       logOperation,
+		storageSecurityLog: storageSecurityLog,
 		errorWrapper:       errors.NewServiceOperationFailedWrapper(),
 		recoveryCount:      recoveryCount,
 		recoveryCodeLength: recoveryCodeLength,
@@ -68,8 +72,8 @@ func NewApplyRecovery(
 }
 
 // Execute - проверяет, что операция перевыпуска подтверждена, и в одной транзакции
-// заменяет набор аварийных кодов пользователя на новый, удаляет операцию, отправляет
-// уведомление и возвращает новые коды в открытом виде (показываются один раз).
+// заменяет набор аварийных кодов пользователя на новый, удаляет операцию, записывает перевыпуск
+// в журнал безопасности, отправляет уведомление и возвращает новые коды в открытом виде (показываются один раз).
 func (uc *ApplyRecovery) Execute(
 	ctx context.Context,
 	actor dto.ActorMeta,
@@ -144,6 +148,10 @@ func (uc *ApplyRecovery) Execute(
 		}
 
 		if err = uc.storageOperation.Delete(ctx, op.Token); err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
+
+		if err = uc.storageSecurityLog.Insert(ctx, actor.NewSecurityEvent(securityevent.RecoveryCodesRegenerated, nil)); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

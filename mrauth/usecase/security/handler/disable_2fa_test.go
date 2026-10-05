@@ -11,7 +11,9 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/service/notify"
 	"github.com/mondegor/go-components/mrauth/usecase/security/handler"
@@ -29,6 +31,7 @@ type Disable2FASuite struct {
 	storage     *mock.Mockuser2faDisabler
 	revoker     *mock.MockoperationRevoker
 	notifierAPI *mock.MockNotifier
+	securityLog *mock.MocksecurityLogStorage
 	uc          *handler.Disable2FA
 }
 
@@ -45,6 +48,7 @@ func (s *Disable2FASuite) SetupTest() {
 	s.storage = mock.NewMockuser2faDisabler(s.ctrl)
 	s.revoker = mock.NewMockoperationRevoker(s.ctrl)
 	s.notifierAPI = mock.NewMockNotifier(s.ctrl)
+	s.securityLog = mock.NewMocksecurityLogStorage(s.ctrl)
 
 	// транзакция выполняет переданное задание как есть
 	s.txManager.EXPECT().
@@ -54,7 +58,7 @@ func (s *Disable2FASuite) SetupTest() {
 		}).
 		AnyTimes()
 
-	s.uc = handler.NewDisable2FA(s.txManager, s.storage, s.revoker, s.notifierAPI, notify.NewActorProps(nil))
+	s.uc = handler.NewDisable2FA(s.txManager, s.storage, s.revoker, s.notifierAPI, notify.NewActorProps(nil), s.securityLog)
 }
 
 func (s *Disable2FASuite) payload() []byte {
@@ -67,13 +71,23 @@ func (s *Disable2FASuite) payload() []byte {
 }
 
 // 2FA отключается, все незавершённые операции пользователя отзываются (их цепочки построены
-// при включённой 2FA), пользователю уходит уведомление с контекстом клиента.
+// при включённой 2FA), снятие записывается в журнал безопасности, пользователю уходит
+// уведомление с контекстом клиента.
 func (s *Disable2FASuite) TestExecute() {
 	userID := uuid.New()
 	actor := dto.ActorMeta{UserID: userID}
 
 	s.storage.EXPECT().Delete(gomock.Any(), userID).Return(nil)
 	s.revoker.EXPECT().RevokeAll(gomock.Any(), actor, logreason.Auth2FAStateChanged).Return(nil)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, row entity.SecurityLogEvent) error {
+			s.Equal(userID, row.UserID)
+			s.Equal(securityevent.Auth2FADisabled, row.EventType)
+			s.Nil(row.Extra)
+
+			return nil
+		},
+	)
 	s.notifierAPI.EXPECT().
 		Send(gomock.Any(), "user.2fa.disabled", gomock.Any()).
 		DoAndReturn(func(_ context.Context, _ string, props map[string]any) error {
@@ -95,6 +109,18 @@ func (s *Disable2FASuite) TestExecuteRevokeError() {
 
 	s.storage.EXPECT().Delete(gomock.Any(), userID).Return(nil)
 	s.revoker.EXPECT().RevokeAll(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.New("storage is down"))
+
+	s.Require().Error(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, s.payload()))
+}
+
+// ошибка записи в журнал безопасности отменяет применение: уведомление не отправляется
+// (мок Send без EXPECT: любой вызов провалит тест), транзакция откатывается целиком.
+func (s *Disable2FASuite) TestExecuteSecurityLogError() {
+	userID := uuid.New()
+
+	s.storage.EXPECT().Delete(gomock.Any(), userID).Return(nil)
+	s.revoker.EXPECT().RevokeAll(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(errors.New("storage is down"))
 
 	s.Require().Error(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, s.payload()))
 }

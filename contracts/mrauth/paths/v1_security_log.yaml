@@ -1,0 +1,44 @@
+get:
+  summary: Auth/SC/R8. Метод получения журнала безопасности пользователя
+  description: |-
+    Метод возвращает журнал безопасности текущего пользователя постранично, от самых свежих
+    событий к старым. В журнал попадают только состоявшиеся значимые события (вход, включение
+    и снятие 2FA, трата и перевыпуск аварийных кодов, смена емаила и телефона, закрытие сессий,
+    повторное использование токена обновления); неудачные попытки подтверждения по отдельности
+    не записываются. У каждого события — время, IP, приложение и устройство.
+
+    Пользователь удалить журнал не может; записи старше срока хранения, заданного приложением,
+    удаляются автоматически.
+
+    ### Пагинация
+    Первая страница запрашивается без `cursor`. Следующая — с `cursor` из предыдущего ответа,
+    пока `has_next` равен `true`. Некорректные `cursor` и `limit` не приводят к ошибке:
+    при некорректном `cursor` возвращается первая страница; при некорректном `limit` (в том
+    числе больше максимума) — первая страница размера по умолчанию, `cursor` при этом
+    не учитывается.
+
+    ### Причины ответа `403`
+    - общие причины отказа — см. «Аутентификация и доступ» в описании API;
+  operationId: getSecurityLog
+  tags:
+    - Auth.Security
+  x-auth-scopes:
+    - any-users
+
+  parameters:
+    - $ref: "../_shared/components/parameters/Api.Request.Query.ListCursor.Cursor.yaml"
+    - $ref: "../_shared/components/parameters/Api.Request.Query.ListCursor.Limit.yaml"
+
+  responses:
+    "200":
+      description: Сформирован ответ со страницей журнала безопасности пользователя
+      content:
+        application/json;charset=UTF-8:
+          schema:
+            $ref: "../components/models/Auth.Security.Response.Model.SecurityLog.yaml"
+    "401":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error401.yaml"
+    "403":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error403.yaml"
+    "500":
+      $ref: "../_shared/components/responses/Api.ResponseJson.Error5xx.yaml"

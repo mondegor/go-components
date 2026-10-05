@@ -46,6 +46,20 @@ func (m *MockRequestParser) EXPECT() *MockRequestParserMockRecorder {
 	return m.recorder
 }
 
+// CursorParams mocks base method.
+func (m *MockRequestParser) CursorParams(r *http.Request) mrtype.CursorParams {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CursorParams", r)
+	ret0, _ := ret[0].(mrtype.CursorParams)
+	return ret0
+}
+
+// CursorParams indicates an expected call of CursorParams.
+func (mr *MockRequestParserMockRecorder) CursorParams(r any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CursorParams", reflect.TypeOf((*MockRequestParser)(nil).CursorParams), r)
+}
+
 // DetailedIP mocks base method.
 func (m *MockRequestParser) DetailedIP(r *http.Request) mrtype.DetailedIP {
 	m.ctrl.T.Helper()
@@ -324,6 +338,20 @@ func (m *MockRequestParser) TimeZoneName(r *http.Request) string {
 func (mr *MockRequestParserMockRecorder) TimeZoneName(r any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TimeZoneName", reflect.TypeOf((*MockRequestParser)(nil).TimeZoneName), r)
+}
+
+// UserAgent mocks base method.
+func (m *MockRequestParser) UserAgent(r *http.Request) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UserAgent", r)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// UserAgent indicates an expected call of UserAgent.
+func (mr *MockRequestParserMockRecorder) UserAgent(r any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UserAgent", reflect.TypeOf((*MockRequestParser)(nil).UserAgent), r)
 }
 
 // UserAndGroup mocks base method.

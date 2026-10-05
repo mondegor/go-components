@@ -160,7 +160,9 @@ type (
 		// Caption           string        `yaml:"caption"`
 		CleanRecords             processcfg.SchedulerTask    `yaml:"clean_records"`
 		CleanRecordsLimit        uint32                      `yaml:"clean_records_limit"`
-		LogsLifeTime             time.Duration               `yaml:"logs_life_time"`
+		OperationLogLifeTime     time.Duration               `yaml:"operation_log_life_time"` // срок хранения журнала операций, 0 - по умолчанию
+		ActivityLogLifeTime      time.Duration               `yaml:"activity_log_life_time"`  // срок хранения журнала активности, 0 - по умолчанию
+		SecurityLogLifeTime      time.Duration               `yaml:"security_log_life_time"`  // срок хранения журнала безопасности, 0 - по умолчанию
 		UserStatRequestCollector processcfg.MessageCollector `yaml:"user_stat_request_collector"`
 		OperationLogCollector    processcfg.MessageCollector `yaml:"operation_log_collector"`
 

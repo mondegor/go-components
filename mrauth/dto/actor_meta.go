@@ -10,6 +10,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
 	"github.com/mondegor/go-components/mrauth/enum/logreason"
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 )
 
 type (
@@ -21,7 +22,8 @@ type (
 		// ClientIP - недоверенный ввод, контролируемый клиентом.
 		ClientIP mrtype.DetailedIP
 
-		// UserAgent - недоверенный ввод, контролируемый клиентом.
+		// UserAgent - недоверенный ввод, контролируемый клиентом; приходит с границы ввода
+		// уже приведённым к безопасному виду (см. request.ParserClient).
 		UserAgent string
 
 		location *time.Location
@@ -75,4 +77,11 @@ func (m ActorMeta) NewOperationLog(
 	reason logreason.Enum,
 ) entity.SecureOperationLog {
 	return entity.NewSecureOperationLog(m.UserID, m.ClientIP, sourceName, method, status, reason)
+}
+
+// NewSecurityEvent - собирает запись журнала безопасности от имени этого актора
+// (подставляет UserID, ClientIP и UserAgent). Поток должен быть уже залогиненным
+// либо с известным владельцем (см. WithUser): журнал ведётся по пользователю.
+func (m ActorMeta) NewSecurityEvent(eventType securityevent.Enum, extra *entity.SecurityLogExtra) entity.SecurityLogEvent {
+	return entity.NewSecurityLogEvent(m.UserID, m.ClientIP, m.UserAgent, eventType, extra)
 }

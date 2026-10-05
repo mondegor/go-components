@@ -43,17 +43,17 @@ func (m *MocksessionUseCase) EXPECT() *MocksessionUseCaseMockRecorder {
 }
 
 // Close mocks base method.
-func (m *MocksessionUseCase) Close(ctx context.Context, userID uuid.UUID, sessionIDs []uint32) error {
+func (m *MocksessionUseCase) Close(ctx context.Context, actor dto.ActorMeta, sessionIDs []uint32) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Close", ctx, userID, sessionIDs)
+	ret := m.ctrl.Call(m, "Close", ctx, actor, sessionIDs)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Close indicates an expected call of Close.
-func (mr *MocksessionUseCaseMockRecorder) Close(ctx, userID, sessionIDs any) *gomock.Call {
+func (mr *MocksessionUseCaseMockRecorder) Close(ctx, actor, sessionIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MocksessionUseCase)(nil).Close), ctx, userID, sessionIDs)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MocksessionUseCase)(nil).Close), ctx, actor, sessionIDs)
 }
 
 // GetList mocks base method.

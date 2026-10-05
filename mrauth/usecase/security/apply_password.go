@@ -17,6 +17,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 )
 
@@ -32,6 +33,7 @@ type (
 		notifierAPI        mrauth.Notifier
 		actorProps         actorPropsBuilder
 		logOperation       operationLogger
+		storageSecurityLog securityLogStorage
 		errorWrapper       errors.Wrapper
 		recoveryCount      int
 		recoveryCodeLength int
@@ -54,6 +56,7 @@ func NewApplyPassword(
 	notifierAPI mrauth.Notifier,
 	actorProps actorPropsBuilder,
 	logOperation operationLogger,
+	storageSecurityLog securityLogStorage,
 	recoveryCount int,
 	recoveryCodeLength int,
 ) *ApplyPassword {
@@ -68,6 +71,7 @@ func NewApplyPassword(
 		notifierAPI:        notifierAPI,
 		actorProps:         actorProps,
 		logOperation:       logOperation,
+		storageSecurityLog: storageSecurityLog,
 		errorWrapper:       errors.NewServiceOperationFailedWrapper(),
 		recoveryCount:      recoveryCount,
 		recoveryCodeLength: recoveryCodeLength,
@@ -75,8 +79,8 @@ func NewApplyPassword(
 }
 
 // Execute - проверяет, что операция смены пароля подтверждена, и в одной транзакции
-// привязывает пароль как 2FA, удаляет операцию, отзывает незавершённые операции пользователя, отправляет
-// уведомление о включении 2FA и возвращает новые аварийные коды в открытом виде (показываются один раз).
+// привязывает пароль как 2FA, удаляет операцию, отзывает незавершённые операции пользователя, записывает
+// включение 2FA в журнал безопасности, отправляет уведомление о нём и возвращает новые аварийные коды в открытом виде (показываются один раз).
 // Если к моменту применения 2FA уже включена (её успели включить другим способом после
 // создания операции), возвращает mrauth.ErrAuth2FAMustBeDisabledFirst.
 func (uc *ApplyPassword) Execute(
@@ -168,6 +172,13 @@ func (uc *ApplyPassword) Execute(
 		// включение 2FA делает недействительными цепочки подтверждения всех прочих
 		// незавершённых операций пользователя: они построены без второго фактора
 		if err = uc.revoker.RevokeAll(ctx, actor, logreason.Auth2FAStateChanged); err != nil {
+			return uc.errorWrapper.Wrap(err)
+		}
+
+		if err = uc.storageSecurityLog.Insert(
+			ctx,
+			actor.NewSecurityEvent(securityevent.Auth2FAEnabled, &entity.SecurityLogExtra{Factor: auth2fatype.Password.String()}),
+		); err != nil {
 			return uc.errorWrapper.Wrap(err)
 		}
 

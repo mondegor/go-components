@@ -326,3 +326,41 @@ func (mr *MockoperationLoggerMockRecorder) Log(ctx, entry any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Log", reflect.TypeOf((*MockoperationLogger)(nil).Log), ctx, entry)
 }
+
+// MocksecurityLogStorage is a mock of securityLogStorage interface.
+type MocksecurityLogStorage struct {
+	ctrl     *gomock.Controller
+	recorder *MocksecurityLogStorageMockRecorder
+	isgomock struct{}
+}
+
+// MocksecurityLogStorageMockRecorder is the mock recorder for MocksecurityLogStorage.
+type MocksecurityLogStorageMockRecorder struct {
+	mock *MocksecurityLogStorage
+}
+
+// NewMocksecurityLogStorage creates a new mock instance.
+func NewMocksecurityLogStorage(ctrl *gomock.Controller) *MocksecurityLogStorage {
+	mock := &MocksecurityLogStorage{ctrl: ctrl}
+	mock.recorder = &MocksecurityLogStorageMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MocksecurityLogStorage) EXPECT() *MocksecurityLogStorageMockRecorder {
+	return m.recorder
+}
+
+// Insert mocks base method.
+func (m *MocksecurityLogStorage) Insert(ctx context.Context, row entity.SecurityLogEvent) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Insert", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Insert indicates an expected call of Insert.
+func (mr *MocksecurityLogStorageMockRecorder) Insert(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Insert", reflect.TypeOf((*MocksecurityLogStorage)(nil).Insert), ctx, row)
+}

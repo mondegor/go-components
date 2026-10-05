@@ -39,7 +39,7 @@ func (f confirmOperationFlow) confirm(
 		r.Context(),
 		dto.NewAnonymousActorMeta(
 			f.parser.DetailedIP(r),
-			r.UserAgent(),
+			f.parser.UserAgent(r),
 			f.parser.Location(r),
 		),
 		lz.Language(),

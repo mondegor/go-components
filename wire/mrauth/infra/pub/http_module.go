@@ -57,7 +57,8 @@ func InitHttpModule(
 	// usersActivityLogTableName,
 	usersActivityStatTableName,
 	usersAuth2faTableName,
-	usersRealmsTableName string,
+	usersRealmsTableName,
+	usersSecurityLogTableName string,
 	debugFunc func(value any) string,
 ) initing.HttpModule {
 	storageAuthToken := initAuthTokenPostgres(dbConnManager, authTokensTableName)
@@ -71,6 +72,7 @@ func InitHttpModule(
 	// storageUserActivityLog := initUserActivityLogPostgres(dbConnManager, usersActivityLogTableName)
 	storageAuth2fa := initAuth2faPostgres(dbConnManager, usersAuth2faTableName)
 	storageUserRealm := initUserRealmPostgres(dbConnManager, usersRealmsTableName)
+	storageSecurityLog := initUserSecurityLogPostgres(dbConnManager, usersSecurityLogTableName)
 
 	auth2faConfig = authcfg.CorrectValuesAuth2FA(auth2faConfig)
 
@@ -92,6 +94,7 @@ func InitHttpModule(
 		storageSecureOperation,
 		storageAuth2fa,
 		storageUser,
+		storageSecurityLog,
 		notifierAPI,
 		actorProps,
 		operationLogger,
@@ -118,6 +121,7 @@ func InitHttpModule(
 						storageAuthToken,
 						storageSessionExcessQueue,
 						storageSecureOperation,
+						storageSecurityLog,
 						useCaseConfirmOperation,
 						operationLogger,
 						locker,
@@ -155,6 +159,7 @@ func InitHttpModule(
 					return initOperationController(
 						dbConnManager,
 						storageSecureOperation,
+						storageSecurityLog,
 						useCaseConfirmOperation,
 						operationLogger,
 						requestParser,
@@ -174,6 +179,7 @@ func InitHttpModule(
 						storageUserRealm,
 						storageAuth2fa,
 						storageSecureOperation,
+						storageSecurityLog,
 						operationLogger,
 						requestParser,
 						responseFileSender,
@@ -182,6 +188,8 @@ func InitHttpModule(
 						userRealms,
 						operationConfig,
 						auth2faConfig,
+						appResolver,
+						locationResolver,
 						debugFunc,
 					)
 				},
@@ -189,9 +197,11 @@ func InitHttpModule(
 			{
 				Create: func() (mrserver.HttpController, error) {
 					return initSessionsController(
+						dbConnManager,
 						storageSession,
 						storageAuthToken,
 						storageUserRealm,
+						storageSecurityLog,
 						requestParser,
 						responseSender,
 						appResolver,

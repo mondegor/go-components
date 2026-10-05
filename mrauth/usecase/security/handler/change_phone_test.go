@@ -6,12 +6,15 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-core/mrtype"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation/unit"
 	"github.com/mondegor/go-components/mrauth/service/notify"
 	"github.com/mondegor/go-components/mrauth/usecase/security/handler"
@@ -28,6 +31,7 @@ type ChangePhoneSuite struct {
 	txManager   *mock.MockDBTxManager
 	storage     *mock.MockuserPhoneChanger
 	notifierAPI *mock.MockNotifier
+	securityLog *mock.MocksecurityLogStorage
 	uc          *handler.ChangePhone
 }
 
@@ -43,6 +47,7 @@ func (s *ChangePhoneSuite) SetupTest() {
 	s.txManager = mock.NewMockDBTxManager(s.ctrl)
 	s.storage = mock.NewMockuserPhoneChanger(s.ctrl)
 	s.notifierAPI = mock.NewMockNotifier(s.ctrl)
+	s.securityLog = mock.NewMocksecurityLogStorage(s.ctrl)
 
 	// транзакция выполняет переданное задание как есть
 	s.txManager.EXPECT().
@@ -59,20 +64,22 @@ func (s *ChangePhoneSuite) SetupTest() {
 		notify.NewActorProps(func(string) (string, string) {
 			return "TestApp", "TestDevice"
 		}),
+		s.securityLog,
 	)
 }
 
 func (s *ChangePhoneSuite) payload() []byte {
 	s.T().Helper()
 
-	raw, err := unit.BuildChangePhonePayload(dto.ChangePhoneOperation{NewPhone: 79991234567, Email: "user@example.com"})
+	raw, err := unit.BuildChangePhonePayload(dto.ChangePhoneOperation{NewPhone: 79991234567, Phone: 79001112233, Email: "user@example.com"})
 	s.Require().NoError(err)
 
 	return raw
 }
 
-// TestExecute - телефон меняется на новый, уведомление о смене уходит на email пользователя
-// с контекстом клиента (время, IP, устройство).
+// TestExecute - телефон меняется на новый, смена записывается в журнал безопасности с прежним
+// и новым номером, уведомление о смене уходит на email пользователя с контекстом клиента
+// (время, IP, устройство).
 func (s *ChangePhoneSuite) TestExecute() {
 	userID := uuid.New()
 	actor := dto.ActorMeta{
@@ -82,6 +89,15 @@ func (s *ChangePhoneSuite) TestExecute() {
 
 	gomock.InOrder(
 		s.storage.EXPECT().UpdatePhone(gomock.Any(), userID, uint64(79991234567)).Return(nil),
+		s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(_ context.Context, row entity.SecurityLogEvent) error {
+				s.Equal(userID, row.UserID)
+				s.Equal(securityevent.PhoneChanged, row.EventType)
+				s.Equal(&entity.SecurityLogExtra{OldValue: "+79001112233", NewValue: "+79991234567"}, row.Extra)
+
+				return nil
+			},
+		),
 		s.notifierAPI.EXPECT().
 			Send(gomock.Any(), "user.phone.changed", gomock.Any()).
 			DoAndReturn(func(_ context.Context, _ string, props map[string]any) error {
@@ -95,4 +111,14 @@ func (s *ChangePhoneSuite) TestExecute() {
 	)
 
 	s.Require().NoError(s.uc.Execute(s.ctx, actor, s.payload()))
+}
+
+// TestExecuteSecurityLogError - сбой записи в журнал безопасности откатывает смену:
+// ошибка возвращается, уведомление не отправляется.
+func (s *ChangePhoneSuite) TestExecuteSecurityLogError() {
+	s.storage.EXPECT().UpdatePhone(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(errors.ErrInternalStorageQueryFailed.New())
+
+	err := s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, s.payload())
+	s.Require().ErrorIs(err, errors.ErrInternalStorageQueryFailed)
 }

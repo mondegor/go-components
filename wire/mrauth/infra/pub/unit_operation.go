@@ -18,6 +18,7 @@ import (
 func initOperationController(
 	dbConnManager mrstorage.DBConnManager,
 	storageSecureOperation *repository.SecureOperationPostgres,
+	storageSecurityLog *repository.UserSecurityLogPostgres,
 	useCaseConfirmOperation *operation.ConfirmOperation,
 	operationLogger *collect.SecureOperationLogger,
 	requestParser *validate.Parser,
@@ -35,7 +36,12 @@ func initOperationController(
 		operationLogger,
 	)
 
-	useCaseRevokeOperation := operation.NewRevokeOperation(storageSecureOperation, operationLogger)
+	useCaseRevokeOperation := operation.NewRevokeOperation(
+		dbConnManager,
+		storageSecureOperation,
+		storageSecurityLog,
+		operationLogger,
+	)
 
 	controller := httpv1.NewOperation(
 		requestParser,

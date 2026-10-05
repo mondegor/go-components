@@ -23,9 +23,7 @@ type (
 // в уведомлениях остаётся пустым.
 func NewActorProps(appResolver mrauth.AppResolver) *ActorProps {
 	if appResolver == nil {
-		appResolver = func(_ string) (string, string) {
-			return "", ""
-		}
+		appResolver = mrauth.DefaultAppResolver
 	}
 
 	return &ActorProps{

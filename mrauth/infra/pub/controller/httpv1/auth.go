@@ -193,7 +193,7 @@ func (ht *Auth) Signup(w http.ResponseWriter, r *http.Request) error {
 		r.Context(),
 		dto.NewAnonymousActorMeta(
 			ht.parser.DetailedIP(r),
-			r.UserAgent(),
+			ht.parser.UserAgent(r),
 			ht.parser.Location(r),
 		),
 		req.Realm,
@@ -261,7 +261,7 @@ func (ht *Auth) signin(
 		r.Context(),
 		dto.NewAnonymousActorMeta(
 			ht.parser.DetailedIP(r),
-			r.UserAgent(),
+			ht.parser.UserAgent(r),
 			ht.parser.Location(r),
 		),
 		req.Realm,
@@ -314,7 +314,7 @@ func (ht *Auth) OpenSession(w http.ResponseWriter, r *http.Request) error {
 		// пользователь выводится из операции внутри usecase
 		dto.NewAnonymousActorMeta(
 			ht.parser.DetailedIP(r),
-			r.UserAgent(),
+			ht.parser.UserAgent(r),
 			ht.parser.Location(r),
 		),
 		op,
@@ -368,7 +368,7 @@ func (ht *Auth) ContinueSession(w http.ResponseWriter, r *http.Request) error {
 		// пользователь выводится из токена внутри usecase
 		dto.NewAnonymousActorMeta(
 			ht.parser.DetailedIP(r),
-			r.UserAgent(),
+			ht.parser.UserAgent(r),
 			ht.parser.Location(r),
 		),
 		ht.parser.Localizer(r).Language(),

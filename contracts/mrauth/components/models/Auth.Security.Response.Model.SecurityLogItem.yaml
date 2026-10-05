@@ -1,0 +1,58 @@
+description: Событие журнала безопасности пользователя
+type: object
+required:
+  - id
+  - event_type
+  - ip
+  - app_name
+  - device_name
+  - created_at
+properties:
+  id:
+    description: Идентификатор записи журнала
+    type: string
+    example: "40279"
+  event_type:
+    $ref: "../enums/Auth.Enum.SecurityEvent.yaml"
+  ip:
+    description: IP адрес, с которого выполнено действие
+    type: string
+    example: "95.165.1.1"
+  location:
+    description: Местоположение (только если было вычислено)
+    type: string
+    example: "Moscow, Russia"
+  app_name:
+    description: Приложение, из которого выполнено действие (пустая строка, если не определено)
+    type: string
+    example: "Web, Firefox"
+  device_name:
+    description: Устройство, с которого выполнено действие (пустая строка, если не определено)
+    type: string
+    example: "Device 1"
+  old_value:
+    description: Прежнее значение (адрес или номер телефона); только у событий смены емаила и телефона
+    type: string
+    example: "old@example.com"
+  new_value:
+    description: Новое значение (адрес или номер телефона); только у событий смены емаила и телефона
+    type: string
+    example: "new@example.com"
+  factor:
+    description: Тип второго фактора; только у события AUTH_2FA_ENABLED
+    type: string
+    enum:
+      - PASSWORD
+      - TOTP
+    example: "TOTP"
+  remaining:
+    description: Остаток аварийных кодов после траты; только у события RECOVERY_CODE_USED
+    type: integer
+    format: int32
+    minimum: 0
+    example: 9
+  created_at:
+    description: Дата и время события в часовом поясе пользователя (RFC3339 со смещением; по умолчанию UTC)
+    type: string
+    format: date-time
+    example: "2020-01-01T15:00:00+03:00"

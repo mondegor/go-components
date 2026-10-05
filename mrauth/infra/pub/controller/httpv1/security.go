@@ -3,11 +3,13 @@ package httpv1
 import (
 	"context"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mraccess"
 	modelmedia "github.com/mondegor/go-core/mrmodel/media"
+	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-webcore/mrserver"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -33,6 +35,7 @@ const (
 	securityRecoveryCodesURL       = "/v1/security/recovery-codes"
 	securityApplyRecoveryCodesURL  = "/v1/security/apply-recovery-codes"
 	securityDisable2FAURL          = "/v1/security/disable2fa"
+	securityLogURL                 = "/v1/security/log"
 )
 
 type (
@@ -54,6 +57,7 @@ type (
 		useCaseRegenerateRecovery            regenerateRecoveryUseCase
 		useCaseApplyRecovery                 applyRecoveryUseCase
 		useCaseDisable2FA                    disable2FAUseCase
+		useCaseGetSecurityLog                getSecurityLogUseCase
 		operationResponse                    confirmOperationResponse
 	}
 
@@ -108,6 +112,10 @@ type (
 	disable2FAUseCase interface {
 		Execute(ctx context.Context, actor dto.ActorMeta) (secureoperation.SecureOperation, error)
 	}
+
+	getSecurityLogUseCase interface {
+		Execute(ctx context.Context, userID uuid.UUID, cursor mrstorage.IDCursor) (items []dto.SecurityLogItem, hasNext bool, err error)
+	}
 )
 
 // NewSecurity - создаёт объект Security.
@@ -128,6 +136,7 @@ func NewSecurity(
 	useCaseRegenerateRecovery regenerateRecoveryUseCase,
 	useCaseApplyRecovery applyRecoveryUseCase,
 	useCaseDisable2FA disable2FAUseCase,
+	useCaseGetSecurityLog getSecurityLogUseCase,
 	operationResponse confirmOperationResponse,
 ) *Security {
 	return &Security{
@@ -147,6 +156,7 @@ func NewSecurity(
 		useCaseRegenerateRecovery:            useCaseRegenerateRecovery,
 		useCaseApplyRecovery:                 useCaseApplyRecovery,
 		useCaseDisable2FA:                    useCaseDisable2FA,
+		useCaseGetSecurityLog:                useCaseGetSecurityLog,
 		operationResponse:                    operationResponse,
 	}
 }
@@ -168,6 +178,7 @@ func (ht *Security) Handlers() []mrserver.HttpHandler {
 		{Method: http.MethodPost, URL: securityRecoveryCodesURL, Permission: mraccess.PermissionAnyUser, Func: ht.RegenerateRecoveryCodes},
 		{Method: http.MethodPost, URL: securityApplyRecoveryCodesURL, Permission: mraccess.PermissionAnyUser, Func: ht.ApplyRecoveryCodes},
 		{Method: http.MethodPost, URL: securityDisable2FAURL, Permission: mraccess.PermissionAnyUser, Func: ht.Disable2FA},
+		{Method: http.MethodGet, URL: securityLogURL, Permission: mraccess.PermissionAnyUser, Func: ht.GetSecurityLog},
 	}
 }
 
@@ -456,6 +467,51 @@ func (ht *Security) Disable2FA(w http.ResponseWriter, r *http.Request) error {
 	)
 }
 
+// GetSecurityLog - возвращает страницу журнала безопасности текущего пользователя
+// (курсорная пагинация: cursor - позиция последней полученной записи, limit - размер страницы).
+func (ht *Security) GetSecurityLog(w http.ResponseWriter, r *http.Request) error {
+	items, hasNext, err := ht.useCaseGetSecurityLog.Execute(
+		r.Context(),
+		ht.parser.UserID(r),
+		mrstorage.NewIDCursor(ht.parser.CursorParams(r)),
+	)
+	if err != nil {
+		return err
+	}
+
+	loc := ht.parser.Location(r)
+	response := model.SecurityLogResponse{
+		Items:   make([]model.SecurityLogItem, 0, len(items)),
+		HasNext: hasNext,
+	}
+
+	for _, item := range items {
+		response.Items = append(
+			response.Items,
+			model.SecurityLogItem{
+				ID:         strconv.FormatInt(item.RecordID, 10),
+				EventType:  item.EventType,
+				IP:         item.IP,
+				Location:   item.Location,
+				AppName:    item.AppName,
+				DeviceName: item.DeviceName,
+				OldValue:   item.OldValue,
+				NewValue:   item.NewValue,
+				Factor:     item.Factor,
+				Remaining:  item.Remaining,
+				CreatedAt:  formatTimeIn(item.CreatedAt, loc),
+			},
+		)
+	}
+
+	// курсор следующей страницы - позиция последней отданной записи
+	if len(response.Items) > 0 {
+		response.Cursor = response.Items[len(response.Items)-1].ID
+	}
+
+	return ht.sender.Send(w, http.StatusOK, response)
+}
+
 func (ht *Security) getRawToken(r *http.Request) string {
 	return ht.parser.PathParamString(r, "token")
 }
@@ -463,10 +519,16 @@ func (ht *Security) getRawToken(r *http.Request) string {
 // userActor - собирает метаданные клиента для журнала защищённых операций и уведомлений о них.
 // Поток аутентифицирован (PermissionAnyUser), поэтому UserID - это сам пользователь.
 func (ht *Security) userActor(r *http.Request) dto.ActorMeta {
+	return newUserActor(ht.parser, r)
+}
+
+// newUserActor - собирает метаданные залогиненного клиента запроса (пользователь, IP,
+// User-Agent и часовой пояс) для журналов и уведомлений.
+func newUserActor(parser validate.RequestParser, r *http.Request) dto.ActorMeta {
 	return dto.NewActorMeta(
-		ht.parser.UserID(r),
-		ht.parser.DetailedIP(r),
-		r.UserAgent(),
-		ht.parser.Location(r),
+		parser.UserID(r),
+		parser.DetailedIP(r),
+		parser.UserAgent(r),
+		parser.Location(r),
 	)
 }

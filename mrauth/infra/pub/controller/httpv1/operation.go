@@ -120,7 +120,7 @@ func (ht *Operation) Resend(w http.ResponseWriter, r *http.Request) error {
 		r.Context(),
 		dto.NewAnonymousActorMeta(
 			ht.parser.DetailedIP(r),
-			r.UserAgent(),
+			ht.parser.UserAgent(r),
 			ht.parser.Location(r),
 		),
 		lz.Language(),
@@ -175,7 +175,7 @@ func (ht *Operation) Revoke(w http.ResponseWriter, r *http.Request) error {
 		dto.NewActorMeta(
 			ht.parser.UserID(r),
 			ht.parser.DetailedIP(r),
-			r.UserAgent(),
+			ht.parser.UserAgent(r),
 			ht.parser.Location(r),
 		),
 		req.Token,

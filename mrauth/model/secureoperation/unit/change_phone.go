@@ -54,6 +54,7 @@ func (o *ChangePhone) Create(user2FA dto.User2FA, newPhone contactaddress.Contac
 	payload, err := BuildChangePhonePayload(
 		dto.ChangePhoneOperation{
 			NewPhone: newPhone.DigitValue(),
+			Phone:    user2FA.Phone,
 			Email:    user2FA.Email,
 		},
 	)

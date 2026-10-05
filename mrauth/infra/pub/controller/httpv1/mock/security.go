@@ -18,6 +18,7 @@ import (
 	contactaddress "github.com/mondegor/go-components/mrauth/model/contactaddress"
 	secureoperation "github.com/mondegor/go-components/mrauth/model/secureoperation"
 	media "github.com/mondegor/go-core/mrmodel/media"
+	mrstorage "github.com/mondegor/go-core/mrstorage"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -525,4 +526,44 @@ func (m *Mockdisable2FAUseCase) Execute(ctx context.Context, actor dto.ActorMeta
 func (mr *Mockdisable2FAUseCaseMockRecorder) Execute(ctx, actor any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*Mockdisable2FAUseCase)(nil).Execute), ctx, actor)
+}
+
+// MockgetSecurityLogUseCase is a mock of getSecurityLogUseCase interface.
+type MockgetSecurityLogUseCase struct {
+	ctrl     *gomock.Controller
+	recorder *MockgetSecurityLogUseCaseMockRecorder
+	isgomock struct{}
+}
+
+// MockgetSecurityLogUseCaseMockRecorder is the mock recorder for MockgetSecurityLogUseCase.
+type MockgetSecurityLogUseCaseMockRecorder struct {
+	mock *MockgetSecurityLogUseCase
+}
+
+// NewMockgetSecurityLogUseCase creates a new mock instance.
+func NewMockgetSecurityLogUseCase(ctrl *gomock.Controller) *MockgetSecurityLogUseCase {
+	mock := &MockgetSecurityLogUseCase{ctrl: ctrl}
+	mock.recorder = &MockgetSecurityLogUseCaseMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockgetSecurityLogUseCase) EXPECT() *MockgetSecurityLogUseCaseMockRecorder {
+	return m.recorder
+}
+
+// Execute mocks base method.
+func (m *MockgetSecurityLogUseCase) Execute(ctx context.Context, userID uuid.UUID, cursor mrstorage.IDCursor) ([]dto.SecurityLogItem, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Execute", ctx, userID, cursor)
+	ret0, _ := ret[0].([]dto.SecurityLogItem)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// Execute indicates an expected call of Execute.
+func (mr *MockgetSecurityLogUseCaseMockRecorder) Execute(ctx, userID, cursor any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Execute", reflect.TypeOf((*MockgetSecurityLogUseCase)(nil).Execute), ctx, userID, cursor)
 }

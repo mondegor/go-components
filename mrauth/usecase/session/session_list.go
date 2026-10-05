@@ -6,18 +6,22 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
+	"github.com/mondegor/go-core/mrstorage"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/dto"
 	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 )
 
 type (
 	// List - получение списка открытых сессий пользователя и их закрытие.
 	List struct {
+		txManager        mrstorage.DBTxManager
 		storage          sessionLister
 		openFetcher      openSessionFetcher
 		closer           sessionCloser
+		securityLog      securityLogStorage
 		resolver         sessionResolver
 		userRealmFetcher userRealmFetcher
 		realmRegistry    mrauth.RealmRegistry
@@ -50,9 +54,11 @@ type (
 
 // NewList - создаёт объект List.
 func NewList(
+	txManager mrstorage.DBTxManager,
 	storage sessionLister,
 	openFetcher openSessionFetcher,
 	closer sessionCloser,
+	securityLog securityLogStorage,
 	resolver sessionResolver,
 	userRealmFetcher userRealmFetcher,
 	realmRegistry mrauth.RealmRegistry,
@@ -61,9 +67,7 @@ func NewList(
 	allowedRealms []LimitRealm,
 ) *List {
 	if appResolver == nil {
-		appResolver = func(_ string) (string, string) {
-			return "", ""
-		}
+		appResolver = mrauth.DefaultAppResolver
 	}
 
 	if locationResolver == nil {
@@ -71,9 +75,11 @@ func NewList(
 	}
 
 	return &List{
+		txManager:        txManager,
 		storage:          storage,
 		openFetcher:      openFetcher,
 		closer:           closer,
+		securityLog:      securityLog,
 		resolver:         resolver,
 		userRealmFetcher: userRealmFetcher,
 		realmRegistry:    realmRegistry,
@@ -198,9 +204,11 @@ func (uc *List) GetList(ctx context.Context, userID uuid.UUID, currentAccessToke
 	return list, nil
 }
 
-// Close - закрывает указанные сессии пользователя (идемпотентно: чужие/несуществующие игнорируются).
-func (uc *List) Close(ctx context.Context, userID uuid.UUID, sessionIDs []uint32) error {
-	if userID == uuid.Nil {
+// Close - закрывает указанные сессии пользователя (идемпотентно: чужие/несуществующие/уже закрытые
+// игнорируются) и в той же транзакции записывает закрытие в журнал безопасности; если закрывать
+// оказалось нечего, событие не записывается.
+func (uc *List) Close(ctx context.Context, actor dto.ActorMeta, sessionIDs []uint32) error {
+	if actor.UserID == uuid.Nil {
 		return errors.ErrInternalIncorrectInputData.WithDetails("userId is empty")
 	}
 
@@ -209,7 +217,19 @@ func (uc *List) Close(ctx context.Context, userID uuid.UUID, sessionIDs []uint32
 		return nil
 	}
 
-	if err := uc.closer.RevokeTokensBySessionIDs(ctx, userID, sessionIDs); err != nil {
+	err := uc.txManager.Do(ctx, func(ctx context.Context) error {
+		if err := uc.closer.RevokeTokensBySessionIDs(ctx, actor.UserID, sessionIDs); err != nil {
+			// закрывать оказалось нечего: метод идемпотентен, событие не записывается
+			if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+				return nil
+			}
+
+			return err
+		}
+
+		return uc.securityLog.Insert(ctx, actor.NewSecurityEvent(securityevent.SessionsClosed, nil))
+	})
+	if err != nil {
 		return uc.errorWrapper.Wrap(err)
 	}
 

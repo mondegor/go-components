@@ -33,6 +33,12 @@ type (
 	AppResolver func(userAgent string) (appName, deviceName string)
 )
 
+// DefaultAppResolver - резолвер, используемый когда хост не задал свой:
+// приложение и устройство не определяются.
+func DefaultAppResolver(_ string) (appName, deviceName string) {
+	return "", ""
+}
+
 // DefaultLocationResolver - резолвер, используемый когда хост не задал свой.
 // Просто отдаёт исходный IP, для не заданного адреса - пустая строка.
 func DefaultLocationResolver(ip netip.Addr, mode LocationMode) string {

@@ -75,3 +75,10 @@ func initSecureOperationPostgres(
 ) *repository.SecureOperationPostgres {
 	return repository.NewSecureOperationPostgres(dbConnManager, tableName)
 }
+
+func initUserSecurityLogPostgres(
+	dbConnManager mrstorage.DBConnManager,
+	tableName string,
+) *repository.UserSecurityLogPostgres {
+	return repository.NewUserSecurityLogPostgres(dbConnManager, tableName)
+}

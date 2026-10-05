@@ -1,6 +1,7 @@
 package dto_test
 
 import (
+	"net/netip"
 	"testing"
 	"time"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/mondegor/go-components/mrauth/dto"
+	"github.com/mondegor/go-components/mrauth/entity"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 )
 
 func TestActorMeta_Location(t *testing.T) {
@@ -64,4 +67,22 @@ func TestNewAnonymousActorMeta(t *testing.T) {
 	assert.Equal(t, uuid.Nil, actor.UserID)
 	assert.Equal(t, "test-agent", actor.UserAgent)
 	assert.Equal(t, time.UTC, actor.Location())
+}
+
+// TestActorMeta_NewSecurityEvent - запись журнала безопасности получает пользователя,
+// IP и user agent актора.
+func TestActorMeta_NewSecurityEvent(t *testing.T) {
+	t.Parallel()
+
+	userID := uuid.New()
+	ip := mrtype.NewIP(netip.MustParseAddr("192.0.2.1"))
+	extra := &entity.SecurityLogExtra{NewValue: "new@example.com"}
+
+	got := dto.NewActorMeta(userID, ip, "test-agent", nil).NewSecurityEvent(securityevent.EmailChangeRequested, extra)
+
+	assert.Equal(t, userID, got.UserID)
+	assert.Equal(t, ip, got.ClientIP)
+	assert.Equal(t, "test-agent", got.UserAgent)
+	assert.Equal(t, securityevent.EmailChangeRequested, got.EventType)
+	assert.Same(t, extra, got.Extra)
 }

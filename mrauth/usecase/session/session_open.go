@@ -16,6 +16,7 @@ import (
 	"github.com/mondegor/go-components/mrauth/enum/logstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
+	"github.com/mondegor/go-components/mrauth/enum/securityevent"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
 
@@ -32,6 +33,7 @@ type (
 		storageOperation    operationConsumer
 		realmRegistry       mrauth.RealmRegistry
 		logOperation        operationLogger
+		storageSecurityLog  securityLogStorage
 		logger              mrlog.Logger
 		limiter             *sessionLimiter
 		errorWrapper        errors.Wrapper
@@ -79,6 +81,12 @@ type (
 	operationLogger interface {
 		Log(ctx context.Context, entry entity.SecureOperationLog)
 	}
+
+	// securityLogStorage - хранилище журнала безопасности пользователя; запись выполняется
+	// в транзакции вызывающего, если она открыта.
+	securityLogStorage interface {
+		Insert(ctx context.Context, row entity.SecurityLogEvent) error
+	}
 )
 
 // NewOpenSession - создаёт объект OpenSession.
@@ -93,6 +101,7 @@ func NewOpenSession(
 	storageOperation operationConsumer,
 	realmRegistry mrauth.RealmRegistry,
 	logOperation operationLogger,
+	storageSecurityLog securityLogStorage,
 	logger mrlog.Logger,
 	allowedRealms []LimitRealm,
 	softThreshold, hardThreshold int,
@@ -108,6 +117,7 @@ func NewOpenSession(
 		storageOperation:    storageOperation,
 		realmRegistry:       realmRegistry,
 		logOperation:        logOperation,
+		storageSecurityLog:  storageSecurityLog,
 		logger:              logger,
 		limiter:             newSessionLimiter(allowedRealms, softThreshold, hardThreshold),
 		errorWrapper:        errors.NewServiceOperationFailedWrapper(),
@@ -115,8 +125,8 @@ func NewOpenSession(
 }
 
 // Execute - открывает новую сессию: сохраняет сессию (с генерацией её идентификатора),
-// выпускает пару токенов, фиксирует активность пользователя и отправляет login-alert
-// с контекстом клиента actor.
+// выпускает пару токенов, записывает вход в журнал безопасности (в той же транзакции),
+// фиксирует активность пользователя и отправляет login-alert с контекстом клиента actor.
 func (uc *OpenSession) Execute(ctx context.Context, actor dto.ActorMeta, op secureoperation.SecureOperation) (authToken dto.AuthTokenPair, err error) {
 	if op.Type != operationtype.CreateUser && op.Type != operationtype.AuthorizeUser {
 		return dto.AuthTokenPair{}, errors.ErrAccessForbidden
@@ -199,7 +209,11 @@ func (uc *OpenSession) Execute(ctx context.Context, actor dto.ActorMeta, op secu
 			return err
 		}
 
-		return nil
+		// вход, завершающий регистрацию, записывается так же: это тот же вход в аккаунт
+		return uc.storageSecurityLog.Insert(
+			ctx,
+			actor.WithUser(userScopes.UserID).NewSecurityEvent(securityevent.SignedIn, nil),
+		)
 	})
 	if err != nil {
 		return dto.AuthTokenPair{}, uc.errorWrapper.Wrap(err)

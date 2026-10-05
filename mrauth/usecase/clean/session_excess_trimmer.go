@@ -142,6 +142,12 @@ func (co *SessionExcessTrimmer) trimUser(ctx context.Context, item entity.Sessio
 
 	return co.txManager.Do(ctx, func(ctx context.Context) error {
 		if err = co.closer.RevokeTokensBySessionIDs(ctx, item.UserID, toRevoke); err != nil {
+			// все выбранные сессии успели закрыть другим путём или они истекли после выборки: отзывать нечего,
+			// а их строки уберёт штатный конвейер очистки (истёкший refresh -> очередь -> SessionDrainer)
+			if errors.Is(err, errors.ErrEventStorageRecordsNotAffected) {
+				return nil
+			}
+
 			return err
 		}
 
