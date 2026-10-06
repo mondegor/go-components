@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/mrtype"
-	"github.com/mondegor/go-storage/mrtests/infra"
+	"github.com/mondegor/go-storage/mrtests/pgtest"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -37,7 +37,7 @@ type SecureOperationLogPostgresTestSuite struct {
 	suite.Suite
 
 	ctx  context.Context
-	pgt  *infra.PostgresTester
+	pgt  *pgtest.Tester
 	repo *repository.SecureOperationLogPostgres
 }
 
@@ -49,17 +49,13 @@ func TestSecureOperationLogPostgresTestSuite(t *testing.T) {
 
 func (ts *SecureOperationLogPostgresTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
-	ts.pgt = infra.NewPostgresTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
-	ts.pgt.ApplyMigrations(tests.AppWorkDir() + "/mrauth/_sample/migrations")
+	ts.pgt = pgtest.NewTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
+	ts.pgt.ApplyMigrations(ts.T(), tests.AppWorkDir()+"/mrauth/_sample/migrations")
 	ts.repo = repository.NewSecureOperationLogPostgres(ts.pgt.ConnManager(), secureOperationsLogTableName)
 }
 
-func (ts *SecureOperationLogPostgresTestSuite) TearDownSuite() {
-	ts.pgt.Destroy(ts.ctx)
-}
-
 func (ts *SecureOperationLogPostgresTestSuite) SetupTest() {
-	ts.pgt.TruncateTables(ts.ctx)
+	ts.pgt.TruncateTables(ts.T(), ts.ctx)
 }
 
 // fetchAll - сырой SELECT всех записей журнала в порядке record_id.

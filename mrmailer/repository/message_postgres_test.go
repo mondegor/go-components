@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/mondegor/go-core/mrstorage/mrsql"
-	"github.com/mondegor/go-storage/mrtests/infra"
+	"github.com/mondegor/go-storage/mrtests/pgtest"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/mondegor/go-components/mrmailer"
@@ -14,24 +14,24 @@ import (
 	"github.com/mondegor/go-components/tests"
 )
 
-type RepositoryTestSuite struct {
+type MessagePostgresTestSuite struct {
 	suite.Suite
 
 	ctx  context.Context
-	pgt  *infra.PostgresTester
+	pgt  *pgtest.Tester
 	repo *repository.MessagePostgres
 }
 
 // ВНИМАНИЕ: t.Parallel() здесь не ставится - каждый suite поднимает свой контейнер
 // Postgres, одновременный запуск нескольких suite'ов исчерпывает память Docker.
 func TestMessagePostgresTestSuite(t *testing.T) {
-	suite.Run(t, new(RepositoryTestSuite))
+	suite.Run(t, new(MessagePostgresTestSuite))
 }
 
-func (ts *RepositoryTestSuite) SetupSuite() {
+func (ts *MessagePostgresTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
-	ts.pgt = infra.NewPostgresTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
-	ts.pgt.ApplyMigrations(tests.AppWorkDir() + "/mrmailer/_sample/migrations")
+	ts.pgt = pgtest.NewTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
+	ts.pgt.ApplyMigrations(ts.T(), tests.AppWorkDir()+"/mrmailer/_sample/migrations")
 
 	ts.repo = repository.NewMessagePostgres(
 		ts.pgt.ConnManager(),
@@ -42,16 +42,12 @@ func (ts *RepositoryTestSuite) SetupSuite() {
 	)
 }
 
-func (ts *RepositoryTestSuite) TearDownSuite() {
-	ts.pgt.Destroy(ts.ctx)
+func (ts *MessagePostgresTestSuite) SetupTest() {
+	ts.pgt.TruncateTables(ts.T(), ts.ctx)
 }
 
-func (ts *RepositoryTestSuite) SetupTest() {
-	ts.pgt.TruncateTables(ts.ctx)
-}
-
-func (ts *RepositoryTestSuite) Test_Fetch() {
-	ts.pgt.ApplyFixtures("testdata/Fetch")
+func (ts *MessagePostgresTestSuite) Test_Fetch() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/Fetch")
 
 	expected := entity.Message{
 		ID:      2,
@@ -78,8 +74,8 @@ func (ts *RepositoryTestSuite) Test_Fetch() {
 	ts.Equal(expected, got[0])
 }
 
-func (ts *RepositoryTestSuite) Test_Insert() {
-	ts.pgt.ApplyFixtures("testdata/Insert")
+func (ts *MessagePostgresTestSuite) Test_Insert() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/Insert")
 
 	expected := entity.Message{
 		ID:      2,

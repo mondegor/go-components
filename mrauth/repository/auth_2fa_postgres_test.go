@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	sysmesserrors "github.com/mondegor/go-core/errors"
-	"github.com/mondegor/go-storage/mrtests/infra"
+	"github.com/mondegor/go-storage/mrtests/pgtest"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -21,7 +21,7 @@ type Auth2FAPostgresTestSuite struct {
 	suite.Suite
 
 	ctx       context.Context
-	pgt       *infra.PostgresTester
+	pgt       *pgtest.Tester
 	tableName string
 }
 
@@ -33,18 +33,14 @@ func TestAuth2FAPostgresTestSuite(t *testing.T) {
 
 func (ts *Auth2FAPostgresTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
-	ts.pgt = infra.NewPostgresTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
-	ts.pgt.ApplyMigrations(tests.AppWorkDir() + "/mrauth/_sample/migrations")
+	ts.pgt = pgtest.NewTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
+	ts.pgt.ApplyMigrations(ts.T(), tests.AppWorkDir()+"/mrauth/_sample/migrations")
 
 	ts.tableName = auth2faTableName
 }
 
-func (ts *Auth2FAPostgresTestSuite) TearDownSuite() {
-	ts.pgt.Destroy(ts.ctx)
-}
-
 func (ts *Auth2FAPostgresTestSuite) SetupTest() {
-	ts.pgt.TruncateTables(ts.ctx)
+	ts.pgt.TruncateTables(ts.T(), ts.ctx)
 }
 
 // seedUser - вставляет запись в users и возвращает её user_id.
