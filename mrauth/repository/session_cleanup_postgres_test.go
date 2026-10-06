@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
-	"github.com/mondegor/go-storage/mrtests/infra"
+	"github.com/mondegor/go-storage/mrtests/pgtest"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -31,7 +31,7 @@ type SessionCleanupPostgresTestSuite struct {
 	suite.Suite
 
 	ctx context.Context
-	pgt *infra.PostgresTester
+	pgt *pgtest.Tester
 }
 
 // ВНИМАНИЕ: t.Parallel() здесь не ставится - каждый suite поднимает свой контейнер
@@ -42,16 +42,12 @@ func TestSessionCleanupPostgresTestSuite(t *testing.T) {
 
 func (ts *SessionCleanupPostgresTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
-	ts.pgt = infra.NewPostgresTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
-	ts.pgt.ApplyMigrations(tests.AppWorkDir() + "/mrauth/_sample/migrations")
-}
-
-func (ts *SessionCleanupPostgresTestSuite) TearDownSuite() {
-	ts.pgt.Destroy(ts.ctx)
+	ts.pgt = pgtest.NewTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
+	ts.pgt.ApplyMigrations(ts.T(), tests.AppWorkDir()+"/mrauth/_sample/migrations")
 }
 
 func (ts *SessionCleanupPostgresTestSuite) SetupTest() {
-	ts.pgt.TruncateTables(ts.ctx)
+	ts.pgt.TruncateTables(ts.T(), ts.ctx)
 }
 
 func (ts *SessionCleanupPostgresTestSuite) seedSession(userID uuid.UUID, sessionID uint32) {

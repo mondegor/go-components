@@ -1,5 +1,12 @@
-# GoStorage Changelog
+# GoComponents Changelog
 Все изменения библиотеки GoComponents будут документироваться на этой странице.
+
+
+## 2026-10-07
+### Changed
+- Обновлена зависимость `go-storage`: интеграционные тесты репозиториев переведены
+  с `infra.PostgresTester` на `pgtest.Tester` (ресурсы освобождаются через `t.Cleanup`);
+- Из косвенных зависимостей ушли модули тестовой инфраструктуры `go-storage` (minio, redis и др.);
 
 
 ## 2026-10-03

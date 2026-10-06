@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	sysmesserrors "github.com/mondegor/go-core/errors"
-	"github.com/mondegor/go-storage/mrtests/infra"
+	"github.com/mondegor/go-storage/mrtests/pgtest"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/mondegor/go-components/mrauth"
@@ -25,7 +25,7 @@ type SecureOperationPostgresTestSuite struct {
 	suite.Suite
 
 	ctx  context.Context
-	pgt  *infra.PostgresTester
+	pgt  *pgtest.Tester
 	repo *repository.SecureOperationPostgres
 }
 
@@ -37,17 +37,13 @@ func TestSecureOperationPostgresTestSuite(t *testing.T) {
 
 func (ts *SecureOperationPostgresTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
-	ts.pgt = infra.NewPostgresTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
-	ts.pgt.ApplyMigrations(tests.AppWorkDir() + "/mrauth/_sample/migrations")
+	ts.pgt = pgtest.NewTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
+	ts.pgt.ApplyMigrations(ts.T(), tests.AppWorkDir()+"/mrauth/_sample/migrations")
 	ts.repo = repository.NewSecureOperationPostgres(ts.pgt.ConnManager(), secureOperationsTableName)
 }
 
-func (ts *SecureOperationPostgresTestSuite) TearDownSuite() {
-	ts.pgt.Destroy(ts.ctx)
-}
-
 func (ts *SecureOperationPostgresTestSuite) SetupTest() {
-	ts.pgt.TruncateTables(ts.ctx)
+	ts.pgt.TruncateTables(ts.T(), ts.ctx)
 }
 
 // seedOperation - сохраняет операцию указанного типа для указанного владельца.

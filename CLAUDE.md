@@ -21,7 +21,7 @@ It builds on sibling libraries that you will see imported everywhere; understand
 
 The two other sibling modules are now narrowly scoped:
 - `go-webcore` — the HTTP layer only (`mrserver`, `mrclient`, `mrview`, request parsers/responses), used by the `infra/pub/controller/httpv1` adapters.
-- `go-storage` — test infrastructure only: `go-storage/mrtests/infra.PostgresTester` for repository integration tests.
+- `go-storage` — test infrastructure only: `go-storage/mrtests/pgtest.Tester` for repository integration tests.
 
 > Note: an earlier reorg moved these packages around. The DB, worker/scheduler, errors and event packages used to live in `go-storage`/`go-webcore` (`mrworker`, `mrworker/process/schedule`, …) and were consolidated into `go-core` (`mrprocess`, `mrprocess/schedule`, …). When you see stale `mrworker`/`go-storage/mrstorage`/`go-webcore/mrworker` references, they should be the `go-core` equivalents.
 
@@ -65,7 +65,7 @@ Direct Go usage when `mrcmd` is unavailable:
 
 Tests are sparse and primarily two kinds:
 - Pure unit tests on domain models (e.g. `mrauth/model/secureoperation/*_test.go`).
-- **Integration tests** for repositories (e.g. `mrmailer/repository/message_postgres_test.go`) using `go-storage/mrtests/infra.PostgresTester`, which spins up Postgres via testcontainers, applies the component's `_sample/migrations`, and runs against `tests.DBSchemas()` (currently `sample_schema`). These need Docker available.
+- **Integration tests** for repositories (e.g. `mrmailer/repository/message_postgres_test.go`) using `go-storage/mrtests/pgtest.Tester`, which spins up Postgres via testcontainers (released automatically via `t.Cleanup`; methods take the calling test's `t`), applies the component's `_sample/migrations`, and runs against `tests.DBSchemas()` (currently `sample_schema`). These need Docker available.
 
 ## Notes
 

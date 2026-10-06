@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mondegor/go-core/errors"
-	"github.com/mondegor/go-storage/mrtests/infra"
+	"github.com/mondegor/go-storage/mrtests/pgtest"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/mondegor/go-components/mrauth/dto"
@@ -23,7 +23,7 @@ type UserActivityStatPostgresTestSuite struct {
 	suite.Suite
 
 	ctx  context.Context
-	pgt  *infra.PostgresTester
+	pgt  *pgtest.Tester
 	repo *repository.UserActivityStatPostgres
 }
 
@@ -35,17 +35,13 @@ func TestUserActivityStatPostgresTestSuite(t *testing.T) {
 
 func (ts *UserActivityStatPostgresTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
-	ts.pgt = infra.NewPostgresTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
-	ts.pgt.ApplyMigrations(tests.AppWorkDir() + "/mrauth/_sample/migrations")
+	ts.pgt = pgtest.NewTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
+	ts.pgt.ApplyMigrations(ts.T(), tests.AppWorkDir()+"/mrauth/_sample/migrations")
 	ts.repo = repository.NewUserActivityStatPostgres(ts.pgt.ConnManager(), usersActivityStatTableName)
 }
 
-func (ts *UserActivityStatPostgresTestSuite) TearDownSuite() {
-	ts.pgt.Destroy(ts.ctx)
-}
-
 func (ts *UserActivityStatPostgresTestSuite) SetupTest() {
-	ts.pgt.TruncateTables(ts.ctx)
+	ts.pgt.TruncateTables(ts.T(), ts.ctx)
 }
 
 // baseTime - опорное время тестов без наносекунд: timestamptz хранит микросекунды.

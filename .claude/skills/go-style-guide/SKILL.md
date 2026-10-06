@@ -493,8 +493,8 @@ identifier names its own sentinels the same way.
   interface parameter structurally — the unexported type name is never written in the test.
 - `t.Parallel()` at the top of every test and subtest (`tparallel`). Test helpers call
   `t.Helper()` (`thelper`).
-- **Exception: integration suites on `PostgresTester` never call `t.Parallel()`.**
-  `infra.NewPostgresTester` starts a *fresh* container per suite, so N parallel suites in
+- **Exception: integration suites on `pgtest.Tester` never call `t.Parallel()`.**
+  `pgtest.NewTester` starts a *fresh* container per suite, so N parallel suites in
   one package means N live Postgres instances — enough of them and the containers stop
   coming up (`wait until ready … context deadline exceeded`), which reads exactly like a
   broken migration. Drop `t.Parallel()` and say why in a comment above the entry point, so
