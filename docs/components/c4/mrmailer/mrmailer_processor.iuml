@@ -1,0 +1,1 @@
+Component(mrmailer_processor, "MessageProcessor", "go-core/mrprocess/consume", "Периодически читает порции сообщений из очереди и передаёт их обработчику пулом воркеров")

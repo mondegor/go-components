@@ -1,0 +1,1 @@
+Component(mrnotifier_template, "Template", "mrnotifier/template/service", "Отдаёт шаблон уведомления и его переменные по ключу и языку")

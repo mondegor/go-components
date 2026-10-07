@@ -1,1 +1,1 @@
-Component(mrsettings_setter, "Setter", "mrsettings", "Компонент сохранения значений настроек в хранилище")
+Component(mrsettings_setter, "SettingsSetter", "mrsettings/service", "Компонент сохранения значений настроек в хранилище")

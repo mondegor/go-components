@@ -1,0 +1,1 @@
+Component(mrmailer_handler, "SendMessage", "mrmailer/infra/handler", "Обработчик, отправляющий сообщение конечному получателю")

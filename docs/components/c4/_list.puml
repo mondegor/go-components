@@ -7,6 +7,49 @@
 !include components/c4/mrsettings/mrsettings_setter.iuml
 !include components/c4/containers/infrastructure/db_abstract.iuml
 
+' mrqueue
+!include components/c4/mrqueue/mrqueue_producer.iuml
+!include components/c4/mrqueue/mrqueue_consumer.iuml
+!include components/c4/mrqueue/mrqueue_tasks.iuml
+
+' mrmailer
+!include components/c4/mrmailer/mrmailer_message_producer.iuml
+!include components/c4/mrmailer/mrmailer_producer.iuml
+!include components/c4/mrmailer/mrmailer_processor.iuml
+!include components/c4/mrmailer/mrmailer_handler.iuml
+!include components/c4/mrmailer/mrmailer_router.iuml
+!include components/c4/mrmailer/mrmailer_senders.iuml
+
+' mrnotifier
+!include components/c4/mrnotifier/mrnotifier_producer.iuml
+!include components/c4/mrnotifier/mrnotifier_processor.iuml
+!include components/c4/mrnotifier/mrnotifier_handler.iuml
+!include components/c4/mrnotifier/mrnotifier_builder.iuml
+!include components/c4/mrnotifier/mrnotifier_template.iuml
+!include components/c4/mrnotifier/mrnotifier_notice_sender.iuml
+
+' mrauth
+!include components/c4/mrauth/mrauth_controllers.iuml
+!include components/c4/mrauth/mrauth_usecases.iuml
+!include components/c4/mrauth/mrauth_services.iuml
+!include components/c4/mrauth/mrauth_user_provider.iuml
+!include components/c4/mrauth/mrauth_request_tracer.iuml
+!include components/c4/mrauth/mrauth_operation_logger.iuml
+!include components/c4/mrauth/mrauth_userstat.iuml
+!include components/c4/mrauth/mrauth_oplog.iuml
+!include components/c4/mrauth/mrauth_cleaners.iuml
+
+' ext
+!include components/c4/ext/user.iuml
+!include components/c4/ext/notifier.iuml
+!include components/c4/ext/mailer.iuml
+!include components/c4/ext/mail_server.iuml
+!include components/c4/ext/messenger.iuml
+!include components/c4/ext/sms_gateway.iuml
+
+' wire
+!include components/c4/wire/wire_notice_adapter.iuml
+
 ' scheduler
 !include components/c4/scheduler/scheduler_task.iuml
 

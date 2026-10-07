@@ -1,0 +1,59 @@
+@startuml
+!include <C4/C4_Component>
+
+'LAYOUT_LEFT_RIGHT()
+LAYOUT_WITH_LEGEND()
+
+' title Верхнеуровневая архитектура работы системы с пакетом mrauth
+
+!include components/c4/ext/user.iuml
+!include components/c4/ext/notifier.iuml
+
+Boundary(app, "Приложение/Сервис") {
+  !include components/c4/app/app_component.iuml
+
+  Boundary(scheduler, "Планировщик задач") {
+    !include components/c4/scheduler/scheduler_task.iuml
+  }
+
+  Boundary(mrauth, "Пакет аутентификации и безопасности аккаунта") {
+    !include components/c4/mrauth/mrauth_controllers.iuml
+    !include components/c4/mrauth/mrauth_usecases.iuml
+    !include components/c4/mrauth/mrauth_services.iuml
+    !include components/c4/mrauth/mrauth_user_provider.iuml
+    !include components/c4/mrauth/mrauth_request_tracer.iuml
+    !include components/c4/mrauth/mrauth_operation_logger.iuml
+    !include components/c4/mrauth/mrauth_userstat.iuml
+    !include components/c4/mrauth/mrauth_oplog.iuml
+    !include components/c4/mrauth/mrauth_cleaners.iuml
+  }
+
+  !include components/c4/containers/infrastructure/db_abstract.iuml
+}
+
+Rel(user, mrauth_controllers, "Регистрируется, входит, подтверждает операции, управляет сессиями и безопасностью аккаунта")
+Rel(user, app_component, "Обращается к защищённым ресурсам с access токеном")
+
+Rel(mrauth_controllers, mrauth_usecases, "Вызывает сценарии")
+Rel(mrauth_usecases, mrauth_services, "Использует")
+Rel(mrauth_usecases, db_abstract, "Читает и сохраняет пользователей, сессии, токены, настройки 2FA, журнал безопасности")
+Rel(mrauth_services, db_abstract, "Сохраняет защищённые операции и токены")
+Rel(mrauth_services, notifier, "Отправляет коды подтверждения и уведомления о событиях безопасности")
+Rel(mrauth_usecases, notifier, "Отправляет коды подтверждения и уведомления о событиях безопасности")
+
+Rel(app_component, mrauth_user_provider, "Получает пользователя и его права по access токену (mraccess)")
+Rel(mrauth_user_provider, db_abstract, "Проверяет токен сессии (при JWT проверяется подпись без обращения к БД)")
+
+Rel(app_component, mrauth_request_tracer, "HTTP сервер приложения сообщает о каждом ответе (наблюдатель mrserver)")
+Rel(mrauth_request_tracer, mrauth_userstat, "Передаёт сообщения об активности")
+Rel(mrauth_userstat, db_abstract, "Сохраняет лог и статистику активности, время активности сессий")
+
+Rel(mrauth_usecases, mrauth_operation_logger, "Фиксирует события защищённых операций")
+Rel(mrauth_services, mrauth_operation_logger, "Фиксирует открытие защищённых операций")
+Rel(mrauth_operation_logger, mrauth_oplog, "Передаёт записи журнала")
+Rel(mrauth_oplog, db_abstract, "Сохраняет журнал защищённых операций")
+
+Rel(scheduler_task, mrauth_cleaners, "Периодически запускает очистку")
+Rel(mrauth_cleaners, db_abstract, "Удаляет устаревшие записи, обрабатывает очереди удаления и урезания сессий")
+
+@enduml

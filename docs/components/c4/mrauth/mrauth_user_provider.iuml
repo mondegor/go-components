@@ -1,0 +1,1 @@
+Component(mrauth_user_provider, "UserProvider", "mrauth/infra/adapter/tokenauth", "Предоставляет пользователя с его правами доступа по access токену (JWT или токен сессии в БД)")

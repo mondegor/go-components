@@ -1,0 +1,1 @@
+Component(mrqueue_tasks, "Changers + Cleaners", "mrqueue/usecase", "Обслуживание очереди: возврат элементов из RETRY в READY, перевод зависших PROCESSING в RETRY, очистка забытых элементов, журналов обработанных и ошибок")

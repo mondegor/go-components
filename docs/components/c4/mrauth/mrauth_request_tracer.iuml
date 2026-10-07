@@ -1,0 +1,1 @@
+Component(mrauth_request_tracer, "UserRequest", "mrauth/infra/adapter/collect", "Формирует по каждому HTTP ответу сообщение об активности авторизованного пользователя")

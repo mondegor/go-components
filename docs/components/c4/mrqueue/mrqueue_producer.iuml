@@ -1,0 +1,1 @@
+Component(mrqueue_producer, "QueueProducer", "mrqueue/service/produce", "Размещает элементы в очереди для последующей их обработки")

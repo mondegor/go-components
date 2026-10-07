@@ -1,0 +1,1 @@
+Component(mrnotifier_handler, "SendNotice", "mrnotifier/notifier/infra/handler", "Обработчик, собирающий уведомление в готовые сообщения и передающий их на отправку")

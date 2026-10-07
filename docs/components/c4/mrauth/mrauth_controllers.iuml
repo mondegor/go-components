@@ -1,0 +1,1 @@
+Component(mrauth_controllers, "HTTP Controllers v1", "mrauth/infra/pub/controller/httpv1", "Auth, Check, Operation, Security, Session; контракт описан в contracts/mrauth")

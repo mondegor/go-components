@@ -1,1 +1,1 @@
-Component(mrsettings_cachegetter, "CacheGetter", "mrsettings", "Компонент отдающий значения настроек из кэша")
+Component(mrsettings_cachegetter, "SettingsGetter", "mrsettings/service/cacheget", "Компонент отдающий значения настроек из кэша")

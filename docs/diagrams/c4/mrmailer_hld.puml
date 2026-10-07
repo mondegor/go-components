@@ -1,0 +1,58 @@
+@startuml
+!include <C4/C4_Component>
+
+'LAYOUT_LEFT_RIGHT()
+LAYOUT_WITH_LEGEND()
+
+' title Верхнеуровневая архитектура работы системы с пакетом mrmailer
+
+!include components/c4/ext/notifier.iuml
+!include components/c4/ext/mail_server.iuml
+!include components/c4/ext/messenger.iuml
+!include components/c4/ext/sms_gateway.iuml
+
+Boundary(app, "Приложение/Сервис") {
+  !include components/c4/app/app_component.iuml
+
+  Boundary(scheduler, "Планировщик задач") {
+    !include components/c4/scheduler/scheduler_task.iuml
+  }
+
+  Boundary(mrmailer, "Пакет массовой отправки сообщений") {
+    !include components/c4/mrmailer/mrmailer_message_producer.iuml
+    !include components/c4/mrmailer/mrmailer_producer.iuml
+    !include components/c4/mrmailer/mrmailer_processor.iuml
+    !include components/c4/mrmailer/mrmailer_handler.iuml
+    !include components/c4/mrmailer/mrmailer_router.iuml
+    !include components/c4/mrmailer/mrmailer_senders.iuml
+  }
+
+  Boundary(mrqueue, "Очередь элементов на основе БД") {
+    !include components/c4/mrqueue/mrqueue_producer.iuml
+    !include components/c4/mrqueue/mrqueue_consumer.iuml
+    !include components/c4/mrqueue/mrqueue_tasks.iuml
+  }
+
+  !include components/c4/containers/infrastructure/db_abstract.iuml
+}
+
+Rel(app_component, mrmailer_message_producer, "Отправляет сообщения (канал, получатель, содержимое, задержка отправки)")
+Rel(notifier, mrmailer_message_producer, "Отправляет собранные уведомления в виде сообщений")
+Rel(mrmailer_producer, mrmailer_message_producer, "Реализует")
+Rel(mrmailer_producer, db_abstract, "Сохраняет сообщения")
+Rel(mrmailer_producer, mrqueue_producer, "Ставит сообщения в очередь")
+Rel(mrqueue_producer, db_abstract, "Добавляет элементы очереди")
+
+Rel(mrmailer_processor, mrqueue_consumer, "Читает порцию сообщений, фиксирует результат обработки")
+Rel(mrqueue_consumer, db_abstract, "Захватывает элементы очереди, читает сообщения, переносит элементы в журналы")
+Rel(mrmailer_processor, mrmailer_handler, "Передаёт сообщение на обработку")
+Rel(mrmailer_handler, mrmailer_router, "Подбирает отправителя")
+Rel(mrmailer_router, mrmailer_senders, "Передаёт сообщение отправителю канала")
+Rel(mrmailer_senders, mail_server, "Отправляет письма")
+Rel(mrmailer_senders, messenger, "Отправляет сообщения в чат")
+Rel(mrmailer_senders, sms_gateway, "Отправляет SMS")
+
+Rel(scheduler_task, mrqueue_tasks, "Периодически запускает обслуживание очереди")
+Rel(mrqueue_tasks, db_abstract, "Меняет статусы элементов, удаляет устаревшие элементы и связанные с ними сообщения")
+
+@enduml

@@ -1,0 +1,58 @@
+@startuml
+!include <C4/C4_Component>
+
+'LAYOUT_LEFT_RIGHT()
+LAYOUT_WITH_LEGEND()
+
+' title Верхнеуровневая архитектура работы системы с пакетом mrnotifier
+
+!include components/c4/ext/mailer.iuml
+
+Boundary(app, "Приложение/Сервис") {
+  !include components/c4/app/app_component.iuml
+
+  Boundary(scheduler, "Планировщик задач") {
+    !include components/c4/scheduler/scheduler_task.iuml
+  }
+
+  Boundary(mrnotifier, "Пакет отправки персонализированных уведомлений") {
+    !include components/c4/mrnotifier/mrnotifier_producer.iuml
+    !include components/c4/mrnotifier/mrnotifier_processor.iuml
+    !include components/c4/mrnotifier/mrnotifier_handler.iuml
+    !include components/c4/mrnotifier/mrnotifier_builder.iuml
+    !include components/c4/mrnotifier/mrnotifier_template.iuml
+    !include components/c4/mrnotifier/mrnotifier_notice_sender.iuml
+  }
+
+  Boundary(wire, "Фабрики компонентов (wire)") {
+    !include components/c4/wire/wire_notice_adapter.iuml
+  }
+
+  Boundary(mrqueue, "Очередь элементов на основе БД") {
+    !include components/c4/mrqueue/mrqueue_producer.iuml
+    !include components/c4/mrqueue/mrqueue_consumer.iuml
+    !include components/c4/mrqueue/mrqueue_tasks.iuml
+  }
+
+  !include components/c4/containers/infrastructure/db_abstract.iuml
+}
+
+Rel(app_component, mrnotifier_producer, "Отправляет уведомление: ключ шаблона и переменные (язык, получатель, данные)")
+Rel(mrnotifier_producer, db_abstract, "Сохраняет уведомления")
+Rel(mrnotifier_producer, mrqueue_producer, "Ставит уведомления в очередь")
+Rel(mrqueue_producer, db_abstract, "Добавляет элементы очереди")
+
+Rel(mrnotifier_processor, mrqueue_consumer, "Читает порцию уведомлений, фиксирует результат обработки")
+Rel(mrqueue_consumer, db_abstract, "Захватывает элементы очереди, читает уведомления, переносит элементы в журналы")
+Rel(mrnotifier_processor, mrnotifier_handler, "Передаёт уведомление на обработку")
+Rel(mrnotifier_handler, mrnotifier_builder, "Собирает уведомление в сообщения")
+Rel(mrnotifier_builder, mrnotifier_template, "Получает шаблон по ключу и языку")
+Rel(mrnotifier_template, db_abstract, "Читает шаблоны и их переменные")
+Rel(mrnotifier_handler, mrnotifier_notice_sender, "Передаёт готовые сообщения на отправку")
+Rel(wire_notice_adapter, mrnotifier_notice_sender, "Реализует")
+Rel(wire_notice_adapter, mailer, "Отправляет уведомления в виде сообщений (mrmailer.MessageProducer)")
+
+Rel(scheduler_task, mrqueue_tasks, "Периодически запускает обслуживание очереди")
+Rel(mrqueue_tasks, db_abstract, "Меняет статусы элементов, удаляет устаревшие элементы и связанные с ними уведомления")
+
+@enduml

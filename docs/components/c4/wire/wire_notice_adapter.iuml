@@ -1,0 +1,1 @@
+Component(wire_notice_adapter, "NoticeToMessageAdapterFunc", "wire/mrmailer", "Реализация NoticeSender: преобразует уведомления в сообщения и передаёт их в MessageProducer")
