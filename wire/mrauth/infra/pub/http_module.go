@@ -10,6 +10,7 @@ import (
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/mondegor/go-webcore/mrcore/initing"
 	"github.com/mondegor/go-webcore/mrserver"
+	"github.com/mondegor/go-webcore/mrserver/request/parser"
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/entity"
@@ -18,6 +19,12 @@ import (
 	"github.com/mondegor/go-components/mrauth/service/secureoperation"
 	"github.com/mondegor/go-components/mrauth/validate"
 	authcfg "github.com/mondegor/go-components/wire/mrauth/config"
+)
+
+const (
+	// Размеры страницы журнала безопасности (согласованы с контрактом GET /v1/security/log).
+	securityLogPageSizeDefault = 10
+	securityLogPageSizeMax     = 100
 )
 
 type (
@@ -181,7 +188,15 @@ func InitHttpModule(
 						storageSecureOperation,
 						storageSecurityLog,
 						operationLogger,
-						requestParser,
+						requestParser.WithListCursor(
+							parser.NewListCursor(
+								logger,
+								parser.ListCursorOptions{
+									LimitMax:     securityLogPageSizeMax,
+									LimitDefault: securityLogPageSizeDefault,
+								},
+							),
+						),
 						responseFileSender,
 						notifierAPI,
 						actorProps,
