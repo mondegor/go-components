@@ -27,7 +27,7 @@ get:
 
   parameters:
     - $ref: "../_shared/components/parameters/Api.Request.Query.ListCursor.Cursor.yaml"
-    - $ref: "../_shared/components/parameters/Api.Request.Query.ListCursor.Limit.yaml"
+    - $ref: "../components/parameters/Auth.Security.Request.Query.Log.Limit.yaml"
 
   responses:
     "200":

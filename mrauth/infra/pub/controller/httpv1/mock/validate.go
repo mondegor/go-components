@@ -74,6 +74,34 @@ func (mr *MockRequestParserMockRecorder) DetailedIP(r any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DetailedIP", reflect.TypeOf((*MockRequestParser)(nil).DetailedIP), r)
 }
 
+// FilterDateTime mocks base method.
+func (m *MockRequestParser) FilterDateTime(r *http.Request, key string) time.Time {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FilterDateTime", r, key)
+	ret0, _ := ret[0].(time.Time)
+	return ret0
+}
+
+// FilterDateTime indicates an expected call of FilterDateTime.
+func (mr *MockRequestParserMockRecorder) FilterDateTime(r, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterDateTime", reflect.TypeOf((*MockRequestParser)(nil).FilterDateTime), r, key)
+}
+
+// FilterFloat64 mocks base method.
+func (m *MockRequestParser) FilterFloat64(r *http.Request, key string) float64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FilterFloat64", r, key)
+	ret0, _ := ret[0].(float64)
+	return ret0
+}
+
+// FilterFloat64 indicates an expected call of FilterFloat64.
+func (mr *MockRequestParserMockRecorder) FilterFloat64(r, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterFloat64", reflect.TypeOf((*MockRequestParser)(nil).FilterFloat64), r, key)
+}
+
 // FilterInt64 mocks base method.
 func (m *MockRequestParser) FilterInt64(r *http.Request, key string) int64 {
 	m.ctrl.T.Helper()
@@ -100,6 +128,34 @@ func (m *MockRequestParser) FilterInt64List(r *http.Request, key string) []int64
 func (mr *MockRequestParserMockRecorder) FilterInt64List(r, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterInt64List", reflect.TypeOf((*MockRequestParser)(nil).FilterInt64List), r, key)
+}
+
+// FilterNullableBool mocks base method.
+func (m *MockRequestParser) FilterNullableBool(r *http.Request, key string) *bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FilterNullableBool", r, key)
+	ret0, _ := ret[0].(*bool)
+	return ret0
+}
+
+// FilterNullableBool indicates an expected call of FilterNullableBool.
+func (mr *MockRequestParserMockRecorder) FilterNullableBool(r, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterNullableBool", reflect.TypeOf((*MockRequestParser)(nil).FilterNullableBool), r, key)
+}
+
+// FilterRangeFloat64 mocks base method.
+func (m *MockRequestParser) FilterRangeFloat64(r *http.Request, key string) mrtype.RangeFloat64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FilterRangeFloat64", r, key)
+	ret0, _ := ret[0].(mrtype.RangeFloat64)
+	return ret0
+}
+
+// FilterRangeFloat64 indicates an expected call of FilterRangeFloat64.
+func (mr *MockRequestParserMockRecorder) FilterRangeFloat64(r, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FilterRangeFloat64", reflect.TypeOf((*MockRequestParser)(nil).FilterRangeFloat64), r, key)
 }
 
 // FilterRangeInt64 mocks base method.

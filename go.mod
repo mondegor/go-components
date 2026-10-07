@@ -7,7 +7,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/mondegor/go-core v0.15.4-0.20261005141210-be4b633e9d73
 	github.com/mondegor/go-storage v0.17.2-0.20261006205647-54c85c1cc45c
-	github.com/mondegor/go-webcore v0.29.3-0.20261005142656-01d20645ee96
+	github.com/mondegor/go-webcore v0.29.3-0.20261007120318-c1c3c36c8342
 	github.com/pquerna/otp v1.5.0
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/mock v0.6.0
