@@ -1,0 +1,1 @@
+Component(mrnotifier_builder, "BuildNotice", "mrnotifier/notifier/usecase", "Собирает уведомление по шаблону и переменным в сообщения для каналов почты, мессенджера и SMS")

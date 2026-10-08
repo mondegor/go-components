@@ -1,0 +1,1 @@
+Component(mrmailer_router, "Router", "mrmailer/infra/adapter/senderrouter", "Выбирает отправителя по каналу сообщения: почта, мессенджер, SMS")

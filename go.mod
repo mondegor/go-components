@@ -5,9 +5,9 @@ go 1.26.0
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
-	github.com/mondegor/go-core v0.15.4-0.20261005141210-be4b633e9d73
-	github.com/mondegor/go-storage v0.17.2-0.20261006205647-54c85c1cc45c
-	github.com/mondegor/go-webcore v0.29.3-0.20261007120318-c1c3c36c8342
+	github.com/mondegor/go-core v0.15.4-0.20261007232709-c99646f1ba31
+	github.com/mondegor/go-storage v0.17.2-0.20261008014601-fae062a4b887
+	github.com/mondegor/go-webcore v0.29.3-0.20261008013949-c7c90207885f
 	github.com/pquerna/otp v1.5.0
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/mock v0.6.0
@@ -16,7 +16,7 @@ require (
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
-	github.com/Azure/go-ansiterm v0.0.0-20260917205352-e937bb47801a // indirect
+	github.com/Azure/go-ansiterm v0.0.0-20261006220739-8c912ac31dd4 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/boombuler/barcode v1.1.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -71,7 +71,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.47.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/exp v0.0.0-20261005173118-76772065c9b0 // indirect
+	golang.org/x/exp v0.0.0-20261007192929-f45ad48fbe92 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect

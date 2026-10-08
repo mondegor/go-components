@@ -1,0 +1,1 @@
+Component(mrauth_oplog, "MessageCollector + Statistic", "go-core/mrprocess/collect, mrauth/usecase/operation", "Пакетно сохраняет журнал защищённых операций")

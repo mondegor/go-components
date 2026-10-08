@@ -1,0 +1,1 @@
+Component(mrnotifier_producer, "NoteProducer", "mrnotifier/notifier/service", "Сохраняет уведомление (ключ шаблона и переменные) и размещает его в очереди на сборку")

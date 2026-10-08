@@ -1,0 +1,1 @@
+Component(mrauth_operation_logger, "SecureOperationLogger", "mrauth/infra/adapter/collect", "Формирует записи журнала защищённых операций")

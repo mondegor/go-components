@@ -1,0 +1,1 @@
+Component(mrmailer_senders, "MessageSender", "mrmailer/infra/adapter/sender", "Отправители сообщений: почта и мессенджер через клиентов go-webcore/mrclient; отправитель SMS подключается приложением")

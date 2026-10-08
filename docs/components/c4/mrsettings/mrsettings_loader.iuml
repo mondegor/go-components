@@ -1,1 +1,1 @@
-Component(mrsettings_loader, "Loader", "mrsettings", "Компонент загружающий обновлённые значения настроек из хранилища в кэш")
+Component(mrsettings_loader, "SettingsGetter.Reload", "mrsettings/service/cacheget", "Компонент загружающий обновлённые значения настроек из хранилища в кэш")

@@ -1,0 +1,1 @@
+Component(mrauth_userstat, "MessageCollector + UserStatistic", "go-core/mrprocess/collect, mrauth/usecase/auth", "Пакетно сохраняет лог и статистику активности пользователей, обновляет время последней активности сессий")

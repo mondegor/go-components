@@ -1,1 +1,1 @@
-Component(scheduler_task, "Task", "scheduler", "Задача запускаемая в планировщике задач")
+Component(scheduler_task, "JobWrapper", "mrprocess/job/task", "Задача запускаемая в планировщике задач")

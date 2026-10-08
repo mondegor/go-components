@@ -1,0 +1,1 @@
+Component(mrnotifier_notice_sender, "NoticeSender", "mrnotifier, interface", "Передаёт собранные уведомления на отправку; реализуется приложением")

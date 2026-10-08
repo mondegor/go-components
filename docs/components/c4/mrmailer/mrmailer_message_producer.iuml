@@ -1,0 +1,1 @@
+Component(mrmailer_message_producer, "MessageProducer", "mrmailer, interface", "Размещает сообщения в очереди на отправку")
