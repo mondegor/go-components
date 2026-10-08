@@ -206,14 +206,14 @@ func (re *QueuePostgres) UpdateStatusRetryToReady(ctx context.Context, delayed t
 			FOR UPDATE SKIP LOCKED
 		)
 		UPDATE
-			` + re.table.Name + `
+			` + re.table.Name + ` t1
 		SET
 			item_status = $3,
 			updated_at = NOW()
 	   	FROM
 			retry_to_ready rtr
 		WHERE
-			` + re.table.PrimaryKey + ` = rtr.item_id
+			t1.` + re.table.PrimaryKey + ` = rtr.item_id
 		RETURNING
 			rtr.item_id;`
 

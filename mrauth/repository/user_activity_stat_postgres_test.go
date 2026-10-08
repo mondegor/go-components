@@ -36,7 +36,7 @@ func TestUserActivityStatPostgresTestSuite(t *testing.T) {
 func (ts *UserActivityStatPostgresTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
 	ts.pgt = pgtest.NewTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
-	ts.pgt.ApplyMigrations(ts.T(), tests.AppWorkDir()+"/mrauth/_sample/migrations")
+	ts.pgt.ApplyMigrations(ts.T(), tests.MigrationsDir("mrauth"))
 	ts.repo = repository.NewUserActivityStatPostgres(ts.pgt.ConnManager(), usersActivityStatTableName)
 }
 
@@ -44,47 +44,9 @@ func (ts *UserActivityStatPostgresTestSuite) SetupTest() {
 	ts.pgt.TruncateTables(ts.T(), ts.ctx)
 }
 
-// baseTime - опорное время тестов без наносекунд: timestamptz хранит микросекунды.
+// baseTime - опорное время тестов (совпадает со временем в фикстурах) без наносекунд: timestamptz хранит микросекунды.
 func (ts *UserActivityStatPostgresTestSuite) baseTime() time.Time {
 	return time.Date(2026, 6, 14, 12, 0, 0, 0, time.UTC)
-}
-
-// seedUser - вставляет запись в users и возвращает её user_id.
-// TruncateTables вычищает и строки, засеянные миграцией, поэтому родителей FK создаёт сам тест.
-func (ts *UserActivityStatPostgresTestSuite) seedUser() uuid.UUID {
-	userID := uuid.New()
-
-	sql := `
-		INSERT INTO sample_schema.users
-			(user_id, user_email, lang_code, user_timezone, registered_ip, user_status)
-		VALUES
-			($1, $2, $3, $4, $5, $6);`
-
-	err := ts.pgt.ConnManager().Conn(ts.ctx).Exec(
-		ts.ctx,
-		sql,
-		userID,
-		userID.String()+"@localhost",
-		"ru-RU",
-		"Europe/Moscow",
-		"203.0.113.7",
-		2, // ENABLED
-	)
-	ts.Require().NoError(err)
-
-	return userID
-}
-
-// seedUserRealm - привязывает пользователя к realm: без этой строки FK не даст создать статистику.
-func (ts *UserActivityStatPostgresTestSuite) seedUserRealm(userID uuid.UUID, realmID uint16) {
-	sql := `
-		INSERT INTO sample_schema.users_realms
-			(user_id, realm_id, user_kind)
-		VALUES
-			($1, $2, $3);`
-
-	err := ts.pgt.ConnManager().Conn(ts.ctx).Exec(ts.ctx, sql, userID, realmID, "standard")
-	ts.Require().NoError(err)
 }
 
 // stat - собирает строку статистики с указанным realm и IP.
@@ -98,15 +60,11 @@ func (ts *UserActivityStatPostgresTestSuite) stat(userID uuid.UUID, realmID uint
 	}
 }
 
-// TestFetchOrderedByRealm - статистика пользователя выбирается по всем его realm'ам в порядке realm_id.
-func (ts *UserActivityStatPostgresTestSuite) TestFetchOrderedByRealm() {
-	userID := ts.seedUser()
-	ts.seedUserRealm(userID, realmA)
-	ts.seedUserRealm(userID, realmB)
+// Test_Fetch - статистика пользователя выбирается по всем его realm'ам в порядке realm_id.
+func (ts *UserActivityStatPostgresTestSuite) Test_Fetch() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/UserActivityStat/Fetch")
 
-	// realm B вставляется первым, чтобы порядок обеспечивался ORDER BY, а не порядком вставки
-	ts.Require().NoError(ts.repo.InsertOrUpdate(ts.ctx, ts.stat(userID, realmB, "198.51.100.9")))
-	ts.Require().NoError(ts.repo.InsertOrUpdate(ts.ctx, ts.stat(userID, realmA, "203.0.113.7")))
+	userID := uuid.MustParse(fixtureUserA)
 
 	rows, err := ts.repo.Fetch(ts.ctx, userID)
 	ts.Require().NoError(err)
@@ -121,22 +79,25 @@ func (ts *UserActivityStatPostgresTestSuite) TestFetchOrderedByRealm() {
 	ts.Equal("198.51.100.9", rows[1].LastLoginIP.String())
 }
 
-// TestFetchNoRows - у пользователя без статистики Fetch возвращает пустой срез, а не ошибку.
-func (ts *UserActivityStatPostgresTestSuite) TestFetchNoRows() {
-	userID := ts.seedUser()
+// Test_FetchWhenNoRows - у пользователя без статистики Fetch возвращает пустой срез, а не ошибку.
+func (ts *UserActivityStatPostgresTestSuite) Test_FetchWhenNoRows() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/UserActivityStat/FetchWhenNoRows")
+
+	userID := uuid.MustParse(fixtureUserA)
 
 	rows, err := ts.repo.Fetch(ts.ctx, userID)
 	ts.Require().NoError(err)
 	ts.Empty(rows)
 }
 
-// TestInsertOrUpdateRejectsUnsetLoginIP - незаданный IP входа отвергается ограничением NOT NULL,
+// Test_InsertOrUpdateWhenLoginIPUnset - незаданный IP входа отвергается ограничением NOT NULL,
 // а не записывается как NULL: строка статистики заводится только при входе, поэтому IP входа
 // известен всегда (pgx кодирует невалидный netip.Addr как NULL - без ограничения он утёк бы в БД).
 // Вызывающий такой сбой не проваливает: запись активности best-effort, см. OpenSession.Execute.
-func (ts *UserActivityStatPostgresTestSuite) TestInsertOrUpdateRejectsUnsetLoginIP() {
-	userID := ts.seedUser()
-	ts.seedUserRealm(userID, realmA)
+func (ts *UserActivityStatPostgresTestSuite) Test_InsertOrUpdateWhenLoginIPUnset() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/UserActivityStat/InsertOrUpdateWhenLoginIPUnset")
+
+	userID := uuid.MustParse(fixtureUserA)
 
 	row := ts.stat(userID, realmA, "203.0.113.7")
 	row.LastLoginIP = netip.Addr{} // IP клиента не распознан
@@ -149,12 +110,11 @@ func (ts *UserActivityStatPostgresTestSuite) TestInsertOrUpdateRejectsUnsetLogin
 	ts.Empty(rows)
 }
 
-// TestInsertOrUpdateOverwrites - повторный вызов для той же пары (user, realm) обновляет строку.
-func (ts *UserActivityStatPostgresTestSuite) TestInsertOrUpdateOverwrites() {
-	userID := ts.seedUser()
-	ts.seedUserRealm(userID, realmA)
+// Test_InsertOrUpdateWhenExists - повторный вызов для той же пары (user, realm) обновляет строку.
+func (ts *UserActivityStatPostgresTestSuite) Test_InsertOrUpdateWhenExists() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/UserActivityStat/InsertOrUpdateWhenExists")
 
-	ts.Require().NoError(ts.repo.InsertOrUpdate(ts.ctx, ts.stat(userID, realmA, "203.0.113.7")))
+	userID := uuid.MustParse(fixtureUserA)
 
 	updated := ts.stat(userID, realmA, "198.51.100.9")
 	updated.LastLoggedAt = ts.baseTime().Add(time.Hour)
@@ -168,11 +128,11 @@ func (ts *UserActivityStatPostgresTestSuite) TestInsertOrUpdateOverwrites() {
 	ts.WithinDuration(ts.baseTime().Add(time.Hour), rows[0].LastLoggedAt, time.Millisecond)
 }
 
-// TestInsertOrUpdateRealmsAreIndependent - строки разных realm'ов одного пользователя не затирают друг друга.
-func (ts *UserActivityStatPostgresTestSuite) TestInsertOrUpdateRealmsAreIndependent() {
-	userID := ts.seedUser()
-	ts.seedUserRealm(userID, realmA)
-	ts.seedUserRealm(userID, realmB)
+// Test_InsertOrUpdate - строки разных realm'ов одного пользователя не затирают друг друга.
+func (ts *UserActivityStatPostgresTestSuite) Test_InsertOrUpdate() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/UserActivityStat/InsertOrUpdate")
+
+	userID := uuid.MustParse(fixtureUserA)
 
 	ts.Require().NoError(ts.repo.InsertOrUpdate(ts.ctx, ts.stat(userID, realmA, "203.0.113.7")))
 	ts.Require().NoError(ts.repo.InsertOrUpdate(ts.ctx, ts.stat(userID, realmB, "198.51.100.9")))
@@ -184,14 +144,11 @@ func (ts *UserActivityStatPostgresTestSuite) TestInsertOrUpdateRealmsAreIndepend
 	ts.Equal("198.51.100.9", rows[1].LastLoginIP.String())
 }
 
-// TestUpdateLastVisitedBatch - пакет обновляет last_visited_at строго по паре (user, realm).
-func (ts *UserActivityStatPostgresTestSuite) TestUpdateLastVisitedBatch() {
-	userID := ts.seedUser()
-	ts.seedUserRealm(userID, realmA)
-	ts.seedUserRealm(userID, realmB)
+// Test_UpdateLastVisited - пакет обновляет last_visited_at строго по паре (user, realm).
+func (ts *UserActivityStatPostgresTestSuite) Test_UpdateLastVisited() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/UserActivityStat/UpdateLastVisited")
 
-	ts.Require().NoError(ts.repo.InsertOrUpdate(ts.ctx, ts.stat(userID, realmA, "203.0.113.7")))
-	ts.Require().NoError(ts.repo.InsertOrUpdate(ts.ctx, ts.stat(userID, realmB, "198.51.100.9")))
+	userID := uuid.MustParse(fixtureUserA)
 
 	visited := ts.baseTime().Add(time.Hour)
 
@@ -208,12 +165,13 @@ func (ts *UserActivityStatPostgresTestSuite) TestUpdateLastVisitedBatch() {
 	ts.WithinDuration(ts.baseTime(), rows[1].LastVisitedAt, time.Millisecond)
 }
 
-// TestUpdateLastVisitedMissingRow - если ни одна пара пакета не имеет строки статистики,
+// Test_UpdateLastVisitedWhenNoRows - если ни одна пара пакета не имеет строки статистики,
 // возвращается ErrEventStorageRecordsNotAffected (признак деградации, решение за вызывающим,
 // см. auth.UserStatistic.Execute) и ничего не создаётся.
-func (ts *UserActivityStatPostgresTestSuite) TestUpdateLastVisitedMissingRow() {
-	userID := ts.seedUser()
-	ts.seedUserRealm(userID, realmA)
+func (ts *UserActivityStatPostgresTestSuite) Test_UpdateLastVisitedWhenNoRows() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/UserActivityStat/UpdateLastVisitedWhenNoRows")
+
+	userID := uuid.MustParse(fixtureUserA)
 
 	err := ts.repo.UpdateLastVisited(ts.ctx, []dto.UserActivityLastVisited{
 		{UserID: userID, RealmID: realmA, LastVisitedAt: ts.baseTime()},
@@ -225,7 +183,7 @@ func (ts *UserActivityStatPostgresTestSuite) TestUpdateLastVisitedMissingRow() {
 	ts.Empty(rows)
 }
 
-// TestUpdateLastVisitedEmptyBatch - пустой пакет не доходит до БД и не ошибка.
-func (ts *UserActivityStatPostgresTestSuite) TestUpdateLastVisitedEmptyBatch() {
+// Test_UpdateLastVisitedWhenEmpty - пустой пакет не доходит до БД и не ошибка.
+func (ts *UserActivityStatPostgresTestSuite) Test_UpdateLastVisitedWhenEmpty() {
 	ts.Require().NoError(ts.repo.UpdateLastVisited(ts.ctx, nil))
 }

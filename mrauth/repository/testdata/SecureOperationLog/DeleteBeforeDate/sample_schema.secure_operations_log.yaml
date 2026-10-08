@@ -1,0 +1,22 @@
+---
+- visitor_id: a0000000-0000-4000-8000-00000000000a
+  source_name: AUTHORIZE_USER
+  confirm_method: 1 # EMAIL
+  log_status: 1 # OPENED
+  reason: 0 # UNSPECIFIED
+  client_ip: 127.0.0.1
+  created_at: RAW=NOW()
+- visitor_id: b0000000-0000-4000-8000-00000000000b
+  source_name: AUTHORIZE_USER
+  confirm_method: 1 # EMAIL
+  log_status: 1 # OPENED
+  reason: 0 # UNSPECIFIED
+  client_ip: 127.0.0.1
+  created_at: RAW=NOW()
+- visitor_id: a0000000-0000-4000-8000-00000000000a
+  source_name: AUTHORIZE_USER
+  confirm_method: 1 # EMAIL
+  log_status: 1 # OPENED
+  reason: 0 # UNSPECIFIED
+  client_ip: 127.0.0.1
+  created_at: RAW=NOW()

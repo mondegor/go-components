@@ -1,0 +1,18 @@
+---
+# строки идут в перемешанном порядке относительно ожидаемого результата
+# наименее активная
+- user_id: a0000000-0000-4000-8000-00000000000a
+  session_id: 1
+  last_ip: 127.0.0.1
+  updated_at: RAW=NOW() - interval '3 minutes'
+
+# наиболее активная
+- user_id: a0000000-0000-4000-8000-00000000000a
+  session_id: 3
+  last_ip: 127.0.0.1
+  updated_at: RAW=NOW() - interval '1 minute'
+
+- user_id: a0000000-0000-4000-8000-00000000000a
+  session_id: 2
+  last_ip: 127.0.0.1
+  updated_at: RAW=NOW() - interval '2 minutes'

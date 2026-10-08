@@ -1,0 +1,31 @@
+---
+- operation_token: token-opened
+  operation_type: 5 # CHANGE_PHONE
+  user_id: a0000000-0000-4000-8000-00000000000a
+  confirm_actions: '[{"code":"hash","expiry":600000000000,"method":"EMAIL","address":"u@e","code_length":6,"max_resends":5,"max_attempts":3}]'
+  remaining_attempts: 2
+  remaining_resends: 4
+  resends_at: '2099-01-01 00:00:00+00'
+  operation_status: 1 # OPENED
+  expires_at: '2099-01-02 00:00:00+00'
+
+# операция анонимного посетителя (регистрация)
+- operation_token: token-anonymous
+  operation_type: 2 # CREATE_USER
+  confirm_actions: '[{"code":"hash","expiry":600000000000,"method":"EMAIL","address":"u@e","code_length":6,"max_resends":5,"max_attempts":3}]'
+  remaining_attempts: 3
+  remaining_resends: 5
+  resends_at: RAW=NOW()
+  operation_status: 1 # OPENED
+  expires_at: RAW=NOW() + interval '10 minutes'
+
+# истёкшая операция
+- operation_token: token-expired
+  operation_type: 5 # CHANGE_PHONE
+  user_id: a0000000-0000-4000-8000-00000000000a
+  confirm_actions: '[{"code":"hash","expiry":600000000000,"method":"EMAIL","address":"u@e","code_length":6,"max_resends":5,"max_attempts":3}]'
+  remaining_attempts: 3
+  remaining_resends: 5
+  resends_at: RAW=NOW()
+  operation_status: 1 # OPENED
+  expires_at: RAW=NOW() - interval '1 minute'

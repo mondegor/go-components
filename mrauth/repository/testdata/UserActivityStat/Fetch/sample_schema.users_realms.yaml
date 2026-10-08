@@ -1,0 +1,7 @@
+---
+- user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  user_kind: standard
+- user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 2
+  user_kind: standard

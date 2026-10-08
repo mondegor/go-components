@@ -1,0 +1,36 @@
+---
+# список группы 1: 1 -> 2 -> 3
+- node_id: 1
+  group_id: 1
+  node_caption: Node 1
+  next_field_id: 2
+  order_index: 10
+- node_id: 2
+  group_id: 1
+  node_caption: Node 2
+  prev_field_id: 1
+  next_field_id: 3
+  order_index: 20
+- node_id: 3
+  group_id: 1
+  node_caption: Node 3
+  prev_field_id: 2
+  order_index: 30
+
+# элемент группы 1 вне списка
+- node_id: 4
+  group_id: 1
+  node_caption: Node 4
+
+# удалённый элемент группы 1 (скрыт условием хоста) с наименьшим order_index
+- node_id: 5
+  group_id: 1
+  node_caption: Node 5
+  order_index: 5
+  deleted_at: RAW=NOW()
+
+# список группы 2 из одного элемента
+- node_id: 6
+  group_id: 2
+  node_caption: Node 6
+  order_index: 1

@@ -1,0 +1,10 @@
+---
+- message_id: 1
+  message_channel: 'mail'
+  message_data: '{"mail":{"content_type":"text/plain","from":"Ivan Ivanov","to":"Ivan Ivanov <ivan.ivanov@localhost>","subject":"Subject 1","content":"Content 1"}}'
+- message_id: 2
+  message_channel: 'mail'
+  message_data: '{"mail":{"content_type":"text/plain","from":"Ivan Ivanov","to":"Ivan Ivanov <ivan.ivanov@localhost>","subject":"Subject 2","content":"Content 2"}}'
+- message_id: 3
+  message_channel: 'mail'
+  message_data: '{"mail":{"content_type":"text/plain","from":"Ivan Ivanov","to":"Ivan Ivanov <ivan.ivanov@localhost>","subject":"Subject 3","content":"Content 3"}}'

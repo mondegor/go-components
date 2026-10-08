@@ -64,8 +64,8 @@ func (re *CrashedPostgres) InsertOne(ctx context.Context, row entity.CrashedItem
 	return re.Insert(ctx, []entity.CrashedItem{row})
 }
 
-// Delete - удаляет ограниченный список записей из журнала ошибок.
-// Возвращает ID записей, которые были удалены.
+// Delete - удаляет из журнала ошибок все ошибки ограниченного списка записей,
+// последняя ошибка которых старше expiry. Возвращает ID этих записей.
 func (re *CrashedPostgres) Delete(ctx context.Context, expiry time.Duration, limit int) (rowsIDs []uint64, err error) {
 	sql := `
 		WITH crashed_expired_items as (
@@ -80,15 +80,21 @@ func (re *CrashedPostgres) Delete(ctx context.Context, expiry time.Duration, lim
 			ORDER BY
 				MAX(created_at) ASC
 		    ` + mrstorage.NonZeroLimit(limit) + `
+		),
+		deleted_items as (
+			DELETE FROM
+				` + re.table.Name + ` t1
+			USING
+				crashed_expired_items bei
+			WHERE
+				t1.` + re.table.PrimaryKey + ` = bei.item_id
+			RETURNING
+				bei.item_id
 		)
-		DELETE FROM
-			` + re.table.Name + ` t1
-		USING
-			crashed_expired_items bei
-		WHERE
-			t1.` + re.table.PrimaryKey + ` = bei.item_id
-		RETURNING
-			bei.item_id;`
+		SELECT DISTINCT
+			item_id
+		FROM
+			deleted_items;`
 
 	return fetchRowsIDs(
 		ctx,

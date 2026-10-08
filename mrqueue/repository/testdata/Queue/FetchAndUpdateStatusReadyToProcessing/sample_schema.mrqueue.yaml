@@ -1,0 +1,30 @@
+---
+# готовые записи идут в перемешанном порядке относительно очерёдности
+- item_id: 2
+  remaining_attempts: 3
+  item_status: 1 # READY
+  updated_at: RAW=NOW() - interval '2 minutes'
+- item_id: 1
+  remaining_attempts: 3
+  item_status: 1 # READY
+  updated_at: RAW=NOW() - interval '3 minutes'
+- item_id: 3
+  remaining_attempts: 3
+  item_status: 1 # READY
+  updated_at: RAW=NOW() - interval '1 minute'
+
+# отложенная запись
+- item_id: 4
+  remaining_attempts: 3
+  item_status: 1 # READY
+  updated_at: RAW=NOW() + interval '1 hour'
+
+# записи в других статусах
+- item_id: 5
+  remaining_attempts: 3
+  item_status: 2 # PROCESSING
+  updated_at: RAW=NOW() - interval '3 minutes'
+- item_id: 6
+  remaining_attempts: 3
+  item_status: 3 # RETRY
+  updated_at: RAW=NOW() - interval '3 minutes'

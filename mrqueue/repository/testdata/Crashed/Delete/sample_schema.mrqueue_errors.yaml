@@ -1,0 +1,19 @@
+---
+# у записи 1 две ошибки, обе старше срока хранения
+- item_id: 1
+  error_message: first error
+  created_at: RAW=NOW() - interval '3 hours'
+- item_id: 1
+  error_message: second error
+  created_at: RAW=NOW() - interval '2 hours'
+- item_id: 3
+  error_message: error
+  created_at: RAW=NOW() - interval '90 minutes'
+
+# у записи 2 последняя ошибка свежая - журнал записи хранится целиком
+- item_id: 2
+  error_message: old error
+  created_at: RAW=NOW() - interval '3 hours'
+- item_id: 2
+  error_message: new error
+  created_at: RAW=NOW() - interval '1 minute'

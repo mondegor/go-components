@@ -1,0 +1,39 @@
+---
+- operation_token: token-expired-old
+  operation_type: 5 # CHANGE_PHONE
+  user_id: a0000000-0000-4000-8000-00000000000a
+  confirm_actions: '[{"code":"hash","expiry":600000000000,"method":"EMAIL","address":"u@e","code_length":6,"max_resends":5,"max_attempts":3}]'
+  remaining_attempts: 3
+  remaining_resends: 5
+  resends_at: RAW=NOW()
+  operation_status: 1 # OPENED
+  expires_at: RAW=NOW() - interval '3 hours'
+- operation_token: token-expired-mid
+  operation_type: 5 # CHANGE_PHONE
+  user_id: a0000000-0000-4000-8000-00000000000a
+  confirm_actions: '[{"code":"hash","expiry":600000000000,"method":"EMAIL","address":"u@e","code_length":6,"max_resends":5,"max_attempts":3}]'
+  remaining_attempts: 3
+  remaining_resends: 5
+  resends_at: RAW=NOW()
+  operation_status: 1 # OPENED
+  expires_at: RAW=NOW() - interval '2 hours'
+- operation_token: token-expired-new
+  operation_type: 5 # CHANGE_PHONE
+  user_id: a0000000-0000-4000-8000-00000000000a
+  confirm_actions: '[{"code":"hash","expiry":600000000000,"method":"EMAIL","address":"u@e","code_length":6,"max_resends":5,"max_attempts":3}]'
+  remaining_attempts: 3
+  remaining_resends: 5
+  resends_at: RAW=NOW()
+  operation_status: 1 # OPENED
+  expires_at: RAW=NOW() - interval '1 hour'
+
+# действующая операция
+- operation_token: token-live
+  operation_type: 5 # CHANGE_PHONE
+  user_id: a0000000-0000-4000-8000-00000000000a
+  confirm_actions: '[{"code":"hash","expiry":600000000000,"method":"EMAIL","address":"u@e","code_length":6,"max_resends":5,"max_attempts":3}]'
+  remaining_attempts: 3
+  remaining_resends: 5
+  resends_at: RAW=NOW()
+  operation_status: 1 # OPENED
+  expires_at: RAW=NOW() + interval '10 minutes'

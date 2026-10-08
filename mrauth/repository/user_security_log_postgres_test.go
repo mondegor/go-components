@@ -37,25 +37,12 @@ func TestUserSecurityLogPostgresTestSuite(t *testing.T) {
 func (ts *UserSecurityLogPostgresTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
 	ts.pgt = pgtest.NewTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
-	ts.pgt.ApplyMigrations(ts.T(), tests.AppWorkDir()+"/mrauth/_sample/migrations")
+	ts.pgt.ApplyMigrations(ts.T(), tests.MigrationsDir("mrauth"))
 	ts.repo = repository.NewUserSecurityLogPostgres(ts.pgt.ConnManager(), usersSecurityLogTableName)
 }
 
 func (ts *UserSecurityLogPostgresTestSuite) SetupTest() {
 	ts.pgt.TruncateTables(ts.T(), ts.ctx)
-}
-
-// insertEvents - пишет n событий входа пользователя.
-func (ts *UserSecurityLogPostgresTestSuite) insertEvents(userID uuid.UUID, n int) {
-	for range n {
-		ts.Require().NoError(ts.repo.Insert(ts.ctx, entity.NewSecurityLogEvent(
-			userID,
-			mrtype.NewIP(netip.MustParseAddr("192.0.2.1")),
-			"agent",
-			securityevent.SignedIn,
-			nil,
-		)))
-	}
 }
 
 // fetchAll - все записи пользователя одной страницей.
@@ -67,10 +54,10 @@ func (ts *UserSecurityLogPostgresTestSuite) fetchAll(userID uuid.UUID) []entity.
 	return rows
 }
 
-// TestInsertRoundTrip - запись с подробностями и прокси-адресом, а также запись без подробностей,
+// Test_Insert - запись с подробностями и прокси-адресом, а также запись без подробностей,
 // без прокси и с пустым user agent читаются без искажений; время события ставит хранилище при записи.
-func (ts *UserSecurityLogPostgresTestSuite) TestInsertRoundTrip() {
-	userID := uuid.New()
+func (ts *UserSecurityLogPostgresTestSuite) Test_Insert() {
+	userID := uuid.MustParse(fixtureUserA)
 	remaining := 7
 
 	full := entity.SecurityLogEvent{
@@ -117,9 +104,9 @@ func (ts *UserSecurityLogPostgresTestSuite) TestInsertRoundTrip() {
 	ts.Equal(time.UTC, got[1].CreatedAt.Location())
 }
 
-// TestInsertRejectsUnsetClientIP - незаданный real IP отвергается ограничением NOT NULL.
-func (ts *UserSecurityLogPostgresTestSuite) TestInsertRejectsUnsetClientIP() {
-	userID := uuid.New()
+// Test_InsertWhenClientIPUnset - незаданный real IP отвергается ограничением NOT NULL.
+func (ts *UserSecurityLogPostgresTestSuite) Test_InsertWhenClientIPUnset() {
+	userID := uuid.MustParse(fixtureUserA)
 
 	ts.Require().Error(ts.repo.Insert(ts.ctx, entity.NewSecurityLogEvent(
 		userID, mrtype.DetailedIP{}, "", securityevent.SignedIn, nil,
@@ -127,11 +114,12 @@ func (ts *UserSecurityLogPostgresTestSuite) TestInsertRejectsUnsetClientIP() {
 	ts.Empty(ts.fetchAll(userID))
 }
 
-// TestFetchByUserIDCursor - курсор листает журнал страницами от свежих записей к старым,
+// Test_FetchByUserID - курсор листает журнал страницами от свежих записей к старым,
 // признак продолжения выставляется, пока за страницей есть записи, хвост пуст.
-func (ts *UserSecurityLogPostgresTestSuite) TestFetchByUserIDCursor() {
-	userID := uuid.New()
-	ts.insertEvents(userID, 5)
+func (ts *UserSecurityLogPostgresTestSuite) Test_FetchByUserID() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/UserSecurityLog/FetchByUserID")
+
+	userID := uuid.MustParse(fixtureUserA)
 
 	all := ts.fetchAll(userID)
 	ts.Require().Len(all, 5)
@@ -157,13 +145,11 @@ func (ts *UserSecurityLogPostgresTestSuite) TestFetchByUserIDCursor() {
 	ts.Empty(tail)
 }
 
-// TestFetchByUserIDIsolation - выборка не захватывает записи других пользователей.
-func (ts *UserSecurityLogPostgresTestSuite) TestFetchByUserIDIsolation() {
-	userID := uuid.New()
-	otherID := uuid.New()
+// Test_FetchByUserIDWhenOtherUsers - выборка не захватывает записи других пользователей.
+func (ts *UserSecurityLogPostgresTestSuite) Test_FetchByUserIDWhenOtherUsers() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/UserSecurityLog/FetchByUserIDWhenOtherUsers")
 
-	ts.insertEvents(userID, 2)
-	ts.insertEvents(otherID, 3)
+	userID := uuid.MustParse(fixtureUserA)
 
 	got := ts.fetchAll(userID)
 	ts.Require().Len(got, 2)
@@ -173,20 +159,11 @@ func (ts *UserSecurityLogPostgresTestSuite) TestFetchByUserIDIsolation() {
 	}
 }
 
-// TestDeleteBeforeDate - удаляются только записи старше границы и не более limit за вызов.
-func (ts *UserSecurityLogPostgresTestSuite) TestDeleteBeforeDate() {
-	userID := uuid.New()
-	ip := mrtype.NewIP(netip.MustParseAddr("192.0.2.1"))
+// Test_DeleteBeforeDate - удаляются только записи старше границы и не более limit за вызов.
+func (ts *UserSecurityLogPostgresTestSuite) Test_DeleteBeforeDate() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/UserSecurityLog/DeleteBeforeDate")
 
-	// время события ставит хранилище, поэтому возраст записей задаётся после вставки
-	for _, age := range []time.Duration{72 * time.Hour, 48 * time.Hour, 36 * time.Hour, time.Hour} {
-		ts.Require().NoError(ts.repo.Insert(ts.ctx, entity.NewSecurityLogEvent(userID, ip, "", securityevent.SignedIn, nil)))
-		ts.Require().NoError(ts.pgt.ConnManager().Conn(ts.ctx).Exec(
-			ts.ctx,
-			`UPDATE `+usersSecurityLogTableName+` SET created_at = $1 WHERE record_id = (SELECT MAX(record_id) FROM `+usersSecurityLogTableName+`);`,
-			time.Now().Add(-age),
-		))
-	}
+	userID := uuid.MustParse(fixtureUserA)
 
 	border := time.Now().Add(-24 * time.Hour)
 

@@ -63,7 +63,7 @@ func (sv *SettingsSetter) SetList(ctx context.Context, id uint64, value []string
 		return sv.errorWrapper.Wrap(err, "value", value)
 	}
 
-	return sv.setValue(ctx, id, formattedValue, settingtype.IntegerList)
+	return sv.setValue(ctx, id, formattedValue, settingtype.StringList)
 }
 
 // SetInt64 - сохранение целого знакового значения настройки с указанным идентификатором.
@@ -104,11 +104,12 @@ func (sv *SettingsSetter) setValue(ctx context.Context, id uint64, value string,
 	}
 
 	return sv.txManager.Do(ctx, func(ctx context.Context) error {
-		if err := sv.storage.Update(ctx, row); err != nil {
+		// журнал берёт старое значение из хранилища, поэтому пишется до обновления
+		if err := sv.storageLog.Insert(ctx, id, value); err != nil {
 			return sv.errorWrapper.Wrap(err, "itemId", id)
 		}
 
-		if err := sv.storageLog.Insert(ctx, id, value); err != nil {
+		if err := sv.storage.Update(ctx, row); err != nil {
 			return sv.errorWrapper.Wrap(err, "itemId", id)
 		}
 

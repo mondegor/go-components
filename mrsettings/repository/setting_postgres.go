@@ -53,7 +53,7 @@ func NewSettingPostgres(
 }
 
 // Fetch - возвращает список всех настроек. При использовании lastUpdated
-// вернутся только те настройки, которые были обновлены не ранее указанной даты.
+// вернутся только те настройки, которые были обновлены строго позже указанной даты.
 func (re *SettingPostgres) Fetch(ctx context.Context, lastUpdated time.Time) ([]entity.Setting, error) {
 	whereStr, whereArgs := re.condBuilder.BuildFunc(
 		func(w mrstorage.SQLConditionHelper) mrstorage.SQLPartFunc {

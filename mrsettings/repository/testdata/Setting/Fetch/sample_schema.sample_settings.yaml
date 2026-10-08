@@ -1,0 +1,21 @@
+---
+- setting_id: 1
+  setting_name: SampleString
+  setting_type: 1 # STRING
+  setting_value: old
+  setting_description: Sample string setting
+  updated_at: '2026-06-14 12:00:00+00'
+- setting_id: 2
+  setting_name: SampleInteger
+  setting_type: 3 # INTEGER
+  setting_value: '10'
+  setting_description: Sample integer setting
+  updated_at: '2026-06-14 13:00:00+00'
+
+# настройка, скрытая условием репозитория (setting_id < 100)
+- setting_id: 100
+  setting_name: HiddenBoolean
+  setting_type: 5 # BOOLEAN
+  setting_value: 'true'
+  setting_description: Hidden boolean setting
+  updated_at: '2026-06-14 14:00:00+00'

@@ -53,9 +53,10 @@ Direct Go usage when `mrcmd` is unavailable:
 - `service/` and `usecase/` — concrete implementations. Services are lower-level operations; usecases are higher-level orchestrations (often runnable as scheduled batch jobs, e.g. `usecase/clean`, `usecase/completed/clean`).
 - `repository/` — Postgres implementations. Repos take a `DBConnManager` plus a `mrsql.DBTableInfo` (table name + primary key) so the **caller chooses the schema/table** — this is what makes components embeddable.
 - `infra/` — adapters such as HTTP v1 controllers (`infra/pub/controller/httpv1`) and worker handlers.
-- `_sample/migrations/` — example SQL migrations showing the expected table shape; used by integration tests.
 
 **`wire/`** mirrors the component tree and holds the **composition-root factories** (`InitXxx` functions) that assemble a service/usecase from its dependencies (txManager, storage, event emitter, options) and wrap it in a `go-core/mrprocess/helper` worker (e.g. `helper.NewItemBatchPlayerWithDurationLimit`). When adding a new runnable component, add its constructor here.
+
+**`migrations/<component>/`** (root) holds each component's reference DDL in `sample_schema` — the table shape its repositories expect. Host apps copy it into their own migrations with their schema/table names; integration tests apply it via `tests.MigrationsDir("<component>")`. See `migrations/README.md`.
 
 **Functional options pattern** is used throughout: constructors take `opts ...Option`; defaults (including a default `errors.Wrapper` and no-op callbacks) are applied in `New(...)`, then options override them. Optional collaborators are marked `// OPTIONAL` in the struct.
 
@@ -65,7 +66,7 @@ Direct Go usage when `mrcmd` is unavailable:
 
 Tests are sparse and primarily two kinds:
 - Pure unit tests on domain models (e.g. `mrauth/model/secureoperation/*_test.go`).
-- **Integration tests** for repositories (e.g. `mrmailer/repository/message_postgres_test.go`) using `go-storage/mrtests/pgtest.Tester`, which spins up Postgres via testcontainers (released automatically via `t.Cleanup`; methods take the calling test's `t`), applies the component's `_sample/migrations`, and runs against `tests.DBSchemas()` (currently `sample_schema`). These need Docker available.
+- **Integration tests** for repositories (e.g. `mrmailer/repository/message_postgres_test.go`) using `go-storage/mrtests/pgtest.Tester`, which spins up Postgres via testcontainers (released automatically via `t.Cleanup`; methods take the calling test's `t`), applies the component's `migrations/<component>` (`tests.MigrationsDir`), and runs against `tests.DBSchemas()` (currently `sample_schema`). These need Docker available.
 
 ## Notes
 

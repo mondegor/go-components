@@ -14,7 +14,7 @@ const (
 )
 
 type (
-	// SettingLogPostgres - репозиторий для хранения элементов настроек.
+	// SettingLogPostgres - репозиторий журнала изменений настроек.
 	SettingLogPostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper errors.Wrapper
@@ -49,7 +49,10 @@ func NewSettingLogPostgres(
 	}
 }
 
-// Insert - фиксирует изменение настройки.
+// Insert - фиксирует изменение настройки: текущее значение настройки записывается как старое,
+// поэтому вызывается до её обновления и в одной транзакции с ним (строка настройки блокируется
+// до конца транзакции, чтобы конкурентная смена прочитала уже зафиксированное значение).
+// Для неизвестной настройки возвращается ErrEventStorageNoRecordFound.
 func (re *SettingLogPostgres) Insert(ctx context.Context, settingID uint64, newValue string) error {
 	sql := `
 		INSERT INTO ` + re.tableName + `
@@ -67,11 +70,12 @@ func (re *SettingLogPostgres) Insert(ctx context.Context, settingID uint64, newV
 			setting_value,
 			NOW()
 		FROM
-			` + re.tableName + `
+			` + re.tableSource.Name + `
 		WHERE
-			` + re.tableSource.PrimaryKey + ` = $1;`
+			` + re.tableSource.PrimaryKey + ` = $1
+		FOR UPDATE;`
 
-	err := re.client.Conn(ctx).Exec(
+	err := re.client.Conn(ctx).ExecRow(
 		ctx,
 		sql,
 		settingID,

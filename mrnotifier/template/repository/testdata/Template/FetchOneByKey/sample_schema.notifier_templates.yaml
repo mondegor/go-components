@@ -1,0 +1,25 @@
+---
+- template_group: 1 # USERS
+  template_name: user.welcome
+  lang_code: ru-RU
+  template_caption: Приветствие
+  notice_props: '{"mail":{"subject":"Привет","content":"Здравствуйте, {{user_name}}"}}'
+  notice_vars: '["user_name"]'
+  template_status: 2 # ENABLED
+- template_group: 1 # USERS
+  template_name: user.welcome
+  lang_code: en-US
+  template_caption: Welcome
+  notice_props: '{"mail":{"subject":"Hello","content":"Hello, {{user_name}}"},"sms":{"content":"Hi"}}'
+  notice_vars: '["user_name"]'
+  template_status: 1 # DRAFT
+
+# удалённый шаблон
+- template_group: 1 # USERS
+  template_name: user.archived
+  lang_code: ru-RU
+  template_caption: Архив
+  notice_props: '{"sms":{"content":"Архив"}}'
+  notice_vars: '[]'
+  template_status: 2 # ENABLED
+  deleted_at: RAW=NOW()

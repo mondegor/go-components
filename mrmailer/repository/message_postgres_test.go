@@ -31,7 +31,7 @@ func TestMessagePostgresTestSuite(t *testing.T) {
 func (ts *MessagePostgresTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
 	ts.pgt = pgtest.NewTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
-	ts.pgt.ApplyMigrations(ts.T(), tests.AppWorkDir()+"/mrmailer/_sample/migrations")
+	ts.pgt.ApplyMigrations(ts.T(), tests.MigrationsDir("mrmailer"))
 
 	ts.repo = repository.NewMessagePostgres(
 		ts.pgt.ConnManager(),
@@ -46,8 +46,9 @@ func (ts *MessagePostgresTestSuite) SetupTest() {
 	ts.pgt.TruncateTables(ts.T(), ts.ctx)
 }
 
-func (ts *MessagePostgresTestSuite) Test_Fetch() {
-	ts.pgt.ApplyFixtures(ts.T(), "testdata/Fetch")
+// Test_FetchByIDs - сообщение читается по ID без искажений, включая данные из jsonb-колонки.
+func (ts *MessagePostgresTestSuite) Test_FetchByIDs() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/Message/FetchByIDs")
 
 	expected := entity.Message{
 		ID:      2,
@@ -75,7 +76,7 @@ func (ts *MessagePostgresTestSuite) Test_Fetch() {
 }
 
 func (ts *MessagePostgresTestSuite) Test_Insert() {
-	ts.pgt.ApplyFixtures(ts.T(), "testdata/Insert")
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/Message/Insert")
 
 	expected := entity.Message{
 		ID:      2,
@@ -104,4 +105,21 @@ func (ts *MessagePostgresTestSuite) Test_Insert() {
 
 	ts.Require().NoError(err)
 	ts.Equal(expected, got[0])
+}
+
+// Test_DeleteByIDs - удаляются сообщения только с указанными ID, неизвестные ID и пустой
+// список не ошибка (удаление идемпотентно).
+func (ts *MessagePostgresTestSuite) Test_DeleteByIDs() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/Message/DeleteByIDs")
+
+	ts.Require().NoError(ts.repo.DeleteByIDs(ts.ctx, []uint64{1, 3, 99}))
+
+	got, err := ts.repo.FetchByIDs(ts.ctx, []uint64{1, 2, 3})
+	ts.Require().NoError(err)
+	ts.Require().Len(got, 1)
+	ts.Equal(uint64(2), got[0].ID)
+
+	ts.Require().NoError(ts.repo.DeleteByIDs(ts.ctx, []uint64{1, 3}))
+	ts.Require().NoError(ts.repo.DeleteByIDs(ts.ctx, nil))
+	ts.Equal(1, ts.pgt.CountRows(ts.T(), ts.ctx, "sample_schema.mrmailer_messages"))
 }

@@ -1,0 +1,9 @@
+---
+- user_id: a0000000-0000-4000-8000-00000000000a
+  user_email: user-a@localhost
+  user_phone: 9876543210
+  lang_code: ru-RU
+  user_timezone: Europe/Moscow
+  registered_ip: 203.0.113.7
+  user_status: 2 # ENABLED
+  updated_at: '2026-06-14 12:00:00+00'

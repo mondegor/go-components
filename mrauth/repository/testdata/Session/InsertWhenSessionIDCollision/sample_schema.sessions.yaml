@@ -1,0 +1,5 @@
+---
+- user_id: a0000000-0000-4000-8000-00000000000a
+  session_id: 42
+  last_ip: 127.0.0.1
+  user_agent: ua

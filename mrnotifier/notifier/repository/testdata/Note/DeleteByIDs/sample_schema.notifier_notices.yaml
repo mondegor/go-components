@@ -1,0 +1,10 @@
+---
+- notice_id: 1
+  notice_key: user.welcome
+  notice_data: '{"user_name":"Ivan"}'
+- notice_id: 2
+  notice_key: user.farewell
+  notice_data: '{}'
+- notice_id: 3
+  notice_key: user.welcome
+  notice_data: '{"user_name":"Petr","site_name":"Example"}'

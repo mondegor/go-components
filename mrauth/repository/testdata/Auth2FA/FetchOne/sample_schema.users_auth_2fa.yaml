@@ -1,0 +1,6 @@
+---
+- user_id: a0000000-0000-4000-8000-00000000000a
+  auth_2fa_type: 1 # PASSWORD
+  auth_secret: PASSWORD-HASH
+  last_totp_step: 7
+  recovery_codes: '{hash1,hash2}'

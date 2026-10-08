@@ -32,7 +32,7 @@ func TestSessionExcessQueuePostgresTestSuite(t *testing.T) {
 func (ts *SessionExcessQueuePostgresTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
 	ts.pgt = pgtest.NewTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
-	ts.pgt.ApplyMigrations(ts.T(), tests.AppWorkDir()+"/mrauth/_sample/migrations")
+	ts.pgt.ApplyMigrations(ts.T(), tests.MigrationsDir("mrauth"))
 	ts.repo = repository.NewSessionExcessQueuePostgres(ts.pgt.ConnManager(), sessionsExcessQueueTableName)
 }
 
@@ -40,15 +40,10 @@ func (ts *SessionExcessQueuePostgresTestSuite) SetupTest() {
 	ts.pgt.TruncateTables(ts.T(), ts.ctx)
 }
 
-const (
-	realmA uint16 = 1
-	realmB uint16 = 2
-)
-
-// TestEnqueueFetchDelete - постановка пользователей в очередь, выборка пачки и ack обработанного.
-func (ts *SessionExcessQueuePostgresTestSuite) TestEnqueueFetchDelete() {
-	userA := uuid.New()
-	userB := uuid.New()
+// Test_Enqueue - постановка пользователей в очередь, выборка пачки и ack обработанного.
+func (ts *SessionExcessQueuePostgresTestSuite) Test_Enqueue() {
+	userA := uuid.MustParse(fixtureUserA)
+	userB := uuid.MustParse(fixtureUserB)
 
 	ts.Require().NoError(ts.repo.Enqueue(ts.ctx, userA, realmA, 4))
 	ts.Require().NoError(ts.repo.Enqueue(ts.ctx, userB, realmA, 8))
@@ -68,10 +63,10 @@ func (ts *SessionExcessQueuePostgresTestSuite) TestEnqueueFetchDelete() {
 	ts.Equal(userB, items[0].UserID)
 }
 
-// TestEnqueueUpsertUpdatesSessionMax - повтор по той же паре (user_id, realm) не дублирует строку
+// Test_EnqueueWhenAlreadyQueued - повтор по той же паре (user_id, realm) не дублирует строку
 // и обновляет session_max значением последнего вызова.
-func (ts *SessionExcessQueuePostgresTestSuite) TestEnqueueUpsertUpdatesSessionMax() {
-	userID := uuid.New()
+func (ts *SessionExcessQueuePostgresTestSuite) Test_EnqueueWhenAlreadyQueued() {
+	userID := uuid.MustParse(fixtureUserA)
 
 	ts.Require().NoError(ts.repo.Enqueue(ts.ctx, userID, realmA, 4))
 	ts.Require().NoError(ts.repo.Enqueue(ts.ctx, userID, realmA, 7))
@@ -82,10 +77,10 @@ func (ts *SessionExcessQueuePostgresTestSuite) TestEnqueueUpsertUpdatesSessionMa
 	ts.Equal(entity.SessionExcessItem{UserID: userID, RealmID: realmA, SessionMax: 7}, items[0])
 }
 
-// TestEnqueueDistinctPerRealm - один пользователь в двух realm даёт две независимые строки очереди
+// Test_EnqueueWhenOtherRealm - один пользователь в двух realm даёт две независимые строки очереди
 // со своим session_max; ack одного realm не затрагивает другой.
-func (ts *SessionExcessQueuePostgresTestSuite) TestEnqueueDistinctPerRealm() {
-	userID := uuid.New()
+func (ts *SessionExcessQueuePostgresTestSuite) Test_EnqueueWhenOtherRealm() {
+	userID := uuid.MustParse(fixtureUserA)
 
 	ts.Require().NoError(ts.repo.Enqueue(ts.ctx, userID, realmA, 4))
 	ts.Require().NoError(ts.repo.Enqueue(ts.ctx, userID, realmB, 2))
@@ -105,7 +100,29 @@ func (ts *SessionExcessQueuePostgresTestSuite) TestEnqueueDistinctPerRealm() {
 	ts.Equal(entity.SessionExcessItem{UserID: userID, RealmID: realmB, SessionMax: 2}, items[0])
 }
 
-// TestDeleteIdempotent - удаление отсутствующей пары (user_id, realm) не ошибка.
-func (ts *SessionExcessQueuePostgresTestSuite) TestDeleteIdempotent() {
-	ts.Require().NoError(ts.repo.Delete(ts.ctx, []entity.SessionExcessPK{{UserID: uuid.New(), RealmID: realmA}}))
+// Test_DeleteWhenNotQueued - удаление отсутствующей пары (user_id, realm) не ошибка.
+func (ts *SessionExcessQueuePostgresTestSuite) Test_DeleteWhenNotQueued() {
+	ts.Require().NoError(ts.repo.Delete(ts.ctx, []entity.SessionExcessPK{{UserID: uuid.MustParse(fixtureUserC), RealmID: realmA}}))
+}
+
+// Test_Fetch - выбирается не более limit записей, раньше поставленные в очередь первыми.
+func (ts *SessionExcessQueuePostgresTestSuite) Test_Fetch() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/SessionExcessQueue/Fetch")
+
+	items, err := ts.repo.Fetch(ts.ctx, 2)
+	ts.Require().NoError(err)
+	ts.Equal(
+		[]entity.SessionExcessItem{
+			{UserID: uuid.MustParse(fixtureUserB), RealmID: realmA, SessionMax: 8},
+			{UserID: uuid.MustParse(fixtureUserA), RealmID: realmA, SessionMax: 6},
+		},
+		items,
+	)
+}
+
+// Test_FetchWhenEmpty - из пустой очереди выбирается пустой срез, а не ошибка.
+func (ts *SessionExcessQueuePostgresTestSuite) Test_FetchWhenEmpty() {
+	items, err := ts.repo.Fetch(ts.ctx, 100)
+	ts.Require().NoError(err)
+	ts.Empty(items)
 }

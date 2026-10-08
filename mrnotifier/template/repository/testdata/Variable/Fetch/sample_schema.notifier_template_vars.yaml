@@ -1,0 +1,10 @@
+---
+- var_name: user_name
+  default_value: Guest
+  var_description: User name
+- var_name: site_name
+  default_value: Example
+  var_description: Site name
+- var_name: support_email
+  default_value: support@localhost
+  var_description: Support email

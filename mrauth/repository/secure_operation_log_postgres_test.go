@@ -50,7 +50,7 @@ func TestSecureOperationLogPostgresTestSuite(t *testing.T) {
 func (ts *SecureOperationLogPostgresTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
 	ts.pgt = pgtest.NewTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
-	ts.pgt.ApplyMigrations(ts.T(), tests.AppWorkDir()+"/mrauth/_sample/migrations")
+	ts.pgt.ApplyMigrations(ts.T(), tests.MigrationsDir("mrauth"))
 	ts.repo = repository.NewSecureOperationLogPostgres(ts.pgt.ConnManager(), secureOperationsLogTableName)
 }
 
@@ -88,17 +88,17 @@ func (ts *SecureOperationLogPostgresTestSuite) fetchAll() []logRow {
 	return out
 }
 
-// TestInsertEmptyNoop - пустой батч не выполняет запрос и не создаёт строк.
-func (ts *SecureOperationLogPostgresTestSuite) TestInsertEmptyNoop() {
+// Test_InsertWhenEmpty - пустой батч не выполняет запрос и не создаёт строк.
+func (ts *SecureOperationLogPostgresTestSuite) Test_InsertWhenEmpty() {
 	ts.Require().NoError(ts.repo.Insert(ts.ctx, nil))
 	ts.Empty(ts.fetchAll())
 }
 
-// TestInsertRoundTrip - батч из залогиненного и анонимного событий пишется и читается без искажений
+// Test_Insert - батч из залогиненного и анонимного событий пишется и читается без искажений
 // (проверяет корректность UNNEST-приведений uuid/int2/inet/timestamptz, хранение real/proxy IP
 // нативным inet и то, что created_at берётся из времени события, а не из времени вставки пачки).
-func (ts *SecureOperationLogPostgresTestSuite) TestInsertRoundTrip() {
-	visitor := uuid.New()
+func (ts *SecureOperationLogPostgresTestSuite) Test_Insert() {
+	visitor := uuid.MustParse(fixtureUserA)
 	eventAt := time.Now().Add(-2 * time.Hour)
 
 	rows := []entity.SecureOperationLog{
@@ -147,13 +147,13 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertRoundTrip() {
 	ts.WithinDuration(eventAt, got[1].CreatedAt, time.Millisecond)
 }
 
-// TestInsertRejectsUnsetClientIP - незаданный real IP отвергается ограничением NOT NULL,
+// Test_InsertWhenClientIPUnset - незаданный real IP отвергается ограничением NOT NULL,
 // а не пишется как NULL: client_ip берётся из RemoteAddr и известен для любого запроса, включая
 // анонимные потоки (pgx кодирует невалидный netip.Addr как NULL - без ограничения он утёк бы в БД).
-func (ts *SecureOperationLogPostgresTestSuite) TestInsertRejectsUnsetClientIP() {
+func (ts *SecureOperationLogPostgresTestSuite) Test_InsertWhenClientIPUnset() {
 	rows := []entity.SecureOperationLog{
 		entity.NewSecureOperationLog(
-			uuid.New(),
+			uuid.MustParse(fixtureUserA),
 			mrtype.DetailedIP{}, // IP клиента не распознан
 			"AUTHORIZE_USER",
 			confirmmethod.Email,
@@ -166,12 +166,12 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertRejectsUnsetClientIP() 
 	ts.Empty(ts.fetchAll())
 }
 
-// TestInsertIPv6StoredNatively - IPv6-адрес хранится нативным inet наравне с IPv4
+// Test_InsertWhenIPv6 - IPv6-адрес хранится нативным inet наравне с IPv4
 // (в одной пачке с IPv4-записями, без потерь и искажений).
-func (ts *SecureOperationLogPostgresTestSuite) TestInsertIPv6StoredNatively() {
+func (ts *SecureOperationLogPostgresTestSuite) Test_InsertWhenIPv6() {
 	rows := []entity.SecureOperationLog{
 		entity.NewSecureOperationLog(
-			uuid.New(),
+			uuid.MustParse(fixtureUserA),
 			mrtype.NewIP(netip.MustParseAddr("127.0.0.1")),
 			"AUTHORIZE_USER",
 			confirmmethod.Email,
@@ -187,7 +187,7 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertIPv6StoredNatively() {
 			logreason.LoginNotExists,
 		),
 		entity.NewSecureOperationLog(
-			uuid.New(),
+			uuid.MustParse(fixtureUserB),
 			mrtype.NewIP(netip.MustParseAddr("192.0.2.1")),
 			"CREATE_USER",
 			confirmmethod.Email,
@@ -212,25 +212,10 @@ func (ts *SecureOperationLogPostgresTestSuite) TestInsertIPv6StoredNatively() {
 	ts.WithinDuration(time.Now(), got[0].CreatedAt, time.Minute)
 }
 
-// TestDeleteBeforeDate - прунинг удаляет записи старше границы created_at пачками по limit,
+// Test_DeleteBeforeDate - прунинг удаляет записи старше границы created_at пачками по limit,
 // не трогая более новые.
-func (ts *SecureOperationLogPostgresTestSuite) TestDeleteBeforeDate() {
-	rows := make([]entity.SecureOperationLog, 0, 3)
-	for range 3 {
-		rows = append(
-			rows,
-			entity.NewSecureOperationLog(
-				uuid.New(),
-				mrtype.NewIP(netip.MustParseAddr("127.0.0.1")),
-				"AUTHORIZE_USER",
-				confirmmethod.Email,
-				logstatus.Opened,
-				logreason.Unspecified,
-			),
-		)
-	}
-
-	ts.Require().NoError(ts.repo.Insert(ts.ctx, rows))
+func (ts *SecureOperationLogPostgresTestSuite) Test_DeleteBeforeDate() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/SecureOperationLog/DeleteBeforeDate")
 
 	// граница в прошлом: ничего не удаляется (все записи только что созданы)
 	count, err := ts.repo.DeleteBeforeDate(ts.ctx, time.Now().Add(-time.Hour), 100)

@@ -21,6 +21,11 @@ func AppWorkDir() string {
 	return workDir
 }
 
+// MigrationsDir - возвращает директорию с миграциями указанного компонента.
+func MigrationsDir(component string) string {
+	return path.Join(AppWorkDir(), "migrations", component)
+}
+
 // DBSchemas - возвращает массив схем БД, с которыми работает приложение.
 func DBSchemas() []string {
 	return []string{

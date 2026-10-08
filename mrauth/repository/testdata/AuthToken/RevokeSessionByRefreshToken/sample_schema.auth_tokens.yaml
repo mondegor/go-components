@@ -1,0 +1,17 @@
+---
+- auth_token: access-a-1
+  token_type: 1 # ACCESS
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 1
+  token_scopes: '{}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'
+- auth_token: refresh-a-1
+  token_type: 2 # REFRESH
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 1
+  token_scopes: '{}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'

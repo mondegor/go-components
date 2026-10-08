@@ -1,0 +1,5 @@
+---
+- user_id: a0000000-0000-4000-8000-00000000000a
+  auth_2fa_type: 2 # TOTP
+  auth_secret: TOTP-SECRET
+  recovery_codes: '{hash1}'
