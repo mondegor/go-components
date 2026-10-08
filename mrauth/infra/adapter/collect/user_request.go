@@ -24,7 +24,7 @@ const (
 	unknownRealmLogPeriod = 1 * time.Hour
 
 	// requestPathMaxLength - предельная длина пути запроса в символах, равная ширине колонки
-	// users_activity_log.request_path (см. _sample/migrations). Связь неявная - при изменении
+	// users_activity_log.request_path (см. migrations/mrauth). Связь неявная - при изменении
 	// ширины колонки константу нужно править вручную.
 	requestPathMaxLength = 256
 )

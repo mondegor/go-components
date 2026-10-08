@@ -50,9 +50,9 @@ func New(
 	}
 }
 
-// InsertToFirst - вставляет указанный элемент на первое место отсортированного списка с учётом указанного условия.
+// Prepend - вставляет указанный элемент на первое место отсортированного списка с учётом указанного условия.
 // Использовать если есть уверенность, что элемент ещё не привязан к списку (например, он только что был создан).
-func (sv *NodeMover) InsertToFirst(ctx context.Context, nodeID uint64, condition mrstorage.SQLPartFunc) error {
+func (sv *NodeMover) Prepend(ctx context.Context, nodeID uint64, condition mrstorage.SQLPartFunc) error {
 	if nodeID == 0 {
 		return errors.ErrIncorrectInputData.New("nodeId is zero")
 	}
@@ -66,8 +66,10 @@ func (sv *NodeMover) InsertToFirst(ctx context.Context, nodeID uint64, condition
 		return errors.ErrIncorrectInputData.New("nodeId=firstNode.Id", "nodeId", nodeID)
 	}
 
-	if err = sv.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullUint64(nodeID), condition); err != nil {
-		return sv.wrapErrorMustEntityExists(err)
+	if firstNode.ID > 0 {
+		if err = sv.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullUint64(nodeID), condition); err != nil {
+			return sv.wrapErrorMustEntityExists(err)
+		}
 	}
 
 	currentNode := entity.Node{
@@ -78,8 +80,11 @@ func (sv *NodeMover) InsertToFirst(ctx context.Context, nodeID uint64, condition
 	}
 
 	if currentNode.OrderIndex == 0 {
-		if err = sv.storage.RecalcOrderIndex(ctx, 0, 2*uint64(orderIndexStep), condition); err != nil {
-			return sv.errorWrapper.Wrap(err)
+		// в пустом списке сдвигать нечего
+		if firstNode.ID > 0 {
+			if err = sv.storage.RecalcOrderIndex(ctx, 0, 2*uint64(orderIndexStep), condition); err != nil {
+				return sv.errorWrapper.Wrap(err)
+			}
 		}
 
 		currentNode.OrderIndex = orderIndexStep
@@ -89,14 +94,14 @@ func (sv *NodeMover) InsertToFirst(ctx context.Context, nodeID uint64, condition
 		return sv.errorWrapper.Wrap(err)
 	}
 
-	sv.eventEmitter.Emit(ctx, "InsertToFirst", "nodeId", nodeID)
+	sv.eventEmitter.Emit(ctx, "Prepend", "nodeId", nodeID)
 
 	return nil
 }
 
-// InsertToLast - вставляет указанный элемент на последнее место отсортированного списка с учётом указанного условия.
+// Append - вставляет указанный элемент на последнее место отсортированного списка с учётом указанного условия.
 // Использовать если есть уверенность, что элемент ещё не привязан к списку (например, он только что был создан).
-func (sv *NodeMover) InsertToLast(ctx context.Context, nodeID uint64, condition mrstorage.SQLPartFunc) error {
+func (sv *NodeMover) Append(ctx context.Context, nodeID uint64, condition mrstorage.SQLPartFunc) error {
 	if nodeID == 0 {
 		return errors.ErrIncorrectInputData.New("nodeId is zero")
 	}
@@ -110,8 +115,10 @@ func (sv *NodeMover) InsertToLast(ctx context.Context, nodeID uint64, condition 
 		return errors.ErrIncorrectInputData.New("nodeId=lastNode.Id", "nodeId", nodeID)
 	}
 
-	if err = sv.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullUint64(nodeID), condition); err != nil {
-		return sv.wrapErrorMustEntityExists(err)
+	if lastNode.ID > 0 {
+		if err = sv.storage.UpdateNodeNextID(ctx, lastNode.ID, mrentity.ZeronullUint64(nodeID), condition); err != nil {
+			return sv.wrapErrorMustEntityExists(err)
+		}
 	}
 
 	currentNode := entity.Node{
@@ -125,7 +132,7 @@ func (sv *NodeMover) InsertToLast(ctx context.Context, nodeID uint64, condition 
 		return sv.errorWrapper.Wrap(err)
 	}
 
-	sv.eventEmitter.Emit(ctx, "InsertToLast", "nodeId", nodeID)
+	sv.eventEmitter.Emit(ctx, "Append", "nodeId", nodeID)
 
 	return nil
 }
@@ -141,18 +148,8 @@ func (sv *NodeMover) MoveToFirst(ctx context.Context, nodeID uint64, condition m
 		return sv.wrapErrorMustEntityExists(err)
 	}
 
+	// элемент уже первый в списке
 	if firstNode.ID == nodeID {
-		if firstNode.OrderIndex == 0 {
-			currentNode := entity.Node{
-				ID:         nodeID,
-				OrderIndex: orderIndexStep,
-			}
-
-			if err = sv.storage.UpdateNode(ctx, currentNode, condition); err != nil {
-				return sv.wrapErrorMustEntityExists(err)
-			}
-		}
-
 		return nil
 	}
 
@@ -161,18 +158,20 @@ func (sv *NodeMover) MoveToFirst(ctx context.Context, nodeID uint64, condition m
 		return sv.errorWrapper.Wrap(err)
 	}
 
-	if uint64(currentNode.NextID) == firstNode.ID {
-		return errors.NewInternalError(
-			"currentNode.NextID = firstNode.ID",
-			"node", conv.Group{
-				"currentNode.Id":                  currentNode.ID,
-				"currentNode.NextId=firstNode.Id": currentNode.NextID,
-			},
-		)
-	}
+	if firstNode.ID > 0 {
+		if uint64(currentNode.NextID) == firstNode.ID {
+			return errors.NewInternalError(
+				"currentNode.NextID = firstNode.ID",
+				"node", conv.Group{
+					"currentNode.Id":                  currentNode.ID,
+					"currentNode.NextId=firstNode.Id": currentNode.NextID,
+				},
+			)
+		}
 
-	if err = sv.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullUint64(currentNode.ID), condition); err != nil {
-		return sv.wrapErrorMustEntityExists(err)
+		if err = sv.storage.UpdateNodePrevID(ctx, firstNode.ID, mrentity.ZeronullUint64(currentNode.ID), condition); err != nil {
+			return sv.wrapErrorMustEntityExists(err)
+		}
 	}
 
 	if currentNode.PrevID > 0 {
@@ -192,8 +191,11 @@ func (sv *NodeMover) MoveToFirst(ctx context.Context, nodeID uint64, condition m
 	currentNode.OrderIndex = firstNode.OrderIndex / 2
 
 	if currentNode.OrderIndex == 0 {
-		if err = sv.storage.RecalcOrderIndex(ctx, 0, 2*uint64(orderIndexStep), condition); err != nil {
-			return sv.errorWrapper.Wrap(err)
+		// в пустом списке сдвигать нечего
+		if firstNode.ID > 0 {
+			if err = sv.storage.RecalcOrderIndex(ctx, 0, 2*uint64(orderIndexStep), condition); err != nil {
+				return sv.errorWrapper.Wrap(err)
+			}
 		}
 
 		currentNode.OrderIndex = orderIndexStep
@@ -219,18 +221,8 @@ func (sv *NodeMover) MoveToLast(ctx context.Context, nodeID uint64, condition mr
 		return sv.wrapErrorMustEntityExists(err)
 	}
 
+	// элемент уже последний в списке
 	if lastNode.ID == nodeID {
-		if lastNode.OrderIndex == 0 {
-			currentNode := entity.Node{
-				ID:         nodeID,
-				OrderIndex: orderIndexStep,
-			}
-
-			if err = sv.storage.UpdateNode(ctx, currentNode, condition); err != nil {
-				return sv.wrapErrorMustEntityExists(err)
-			}
-		}
-
 		return nil
 	}
 
@@ -281,7 +273,8 @@ func (sv *NodeMover) MoveToLast(ctx context.Context, nodeID uint64, condition mr
 }
 
 // MoveAfterID - перемещает указанный элемент после указанного элемента с учётом указанного условия.
-// Если afterNodeID = 0, то элемент будет перемещён на первое место.
+// Если afterNodeID = 0, то элемент будет перемещён на первое место. Если элемента afterNodeID нет
+// или он не входит в список, возвращается mrordering.ErrAfterNodeNotFound.
 func (sv *NodeMover) MoveAfterID(ctx context.Context, nodeID, afterNodeID uint64, condition mrstorage.SQLPartFunc) error {
 	if afterNodeID == 0 {
 		return sv.MoveToFirst(ctx, nodeID, condition)
@@ -311,6 +304,12 @@ func (sv *NodeMover) MoveAfterID(ctx context.Context, nodeID, afterNodeID uint64
 		}
 
 		return sv.errorWrapper.Wrap(err)
+	}
+
+	// элемент вне списка не может быть опорным: встав после него, текущий элемент выпал бы
+	// из последовательности order_index и сослался бы на элемент, которого нет в списке
+	if afterNode.OrderIndex == 0 {
+		return mrordering.ErrAfterNodeNotFound.New(afterNodeID)
 	}
 
 	afterNextNode := entity.Node{

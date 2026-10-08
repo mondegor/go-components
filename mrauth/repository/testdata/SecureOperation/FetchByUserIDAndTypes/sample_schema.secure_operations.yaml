@@ -1,0 +1,54 @@
+---
+- operation_token: token-opened
+  operation_type: 5 # CHANGE_PHONE
+  user_id: a0000000-0000-4000-8000-00000000000a
+  confirm_actions: '[{"code":"hash","expiry":600000000000,"method":"EMAIL","address":"u@e","code_length":6,"max_resends":5,"max_attempts":3}]'
+  remaining_attempts: 3
+  remaining_resends: 5
+  resends_at: RAW=NOW()
+  operation_status: 1 # OPENED
+  expires_at: RAW=NOW() + interval '10 minutes'
+
+# подтверждённая операция: звенья пройдены, ждёт применения
+- operation_token: token-confirmed
+  operation_type: 4 # CHANGE_EMAIL_CONFIRM
+  user_id: a0000000-0000-4000-8000-00000000000a
+  confirm_actions: '[]'
+  remaining_attempts: 3
+  remaining_resends: 5
+  resends_at: RAW=NOW()
+  operation_status: 2 # CONFIRMED
+  expires_at: RAW=NOW() + interval '10 minutes'
+
+# истёкшая операция
+- operation_token: token-expired
+  operation_type: 8 # DISABLE_2FA
+  user_id: a0000000-0000-4000-8000-00000000000a
+  confirm_actions: '[{"code":"hash","expiry":600000000000,"method":"EMAIL","address":"u@e","code_length":6,"max_resends":5,"max_attempts":3}]'
+  remaining_attempts: 3
+  remaining_resends: 5
+  resends_at: RAW=NOW()
+  operation_status: 1 # OPENED
+  expires_at: RAW=NOW() - interval '1 minute'
+
+# операция другого типа
+- operation_token: token-change-password
+  operation_type: 6 # CHANGE_PASSWORD
+  user_id: a0000000-0000-4000-8000-00000000000a
+  confirm_actions: '[{"code":"hash","expiry":600000000000,"method":"EMAIL","address":"u@e","code_length":6,"max_resends":5,"max_attempts":3}]'
+  remaining_attempts: 3
+  remaining_resends: 5
+  resends_at: RAW=NOW()
+  operation_status: 1 # OPENED
+  expires_at: RAW=NOW() + interval '10 minutes'
+
+# операция того же типа другого пользователя
+- operation_token: token-other-user
+  operation_type: 5 # CHANGE_PHONE
+  user_id: b0000000-0000-4000-8000-00000000000b
+  confirm_actions: '[{"code":"hash","expiry":600000000000,"method":"EMAIL","address":"u@e","code_length":6,"max_resends":5,"max_attempts":3}]'
+  remaining_attempts: 3
+  remaining_resends: 5
+  resends_at: RAW=NOW()
+  operation_status: 1 # OPENED
+  expires_at: RAW=NOW() + interval '10 minutes'

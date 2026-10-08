@@ -1,0 +1,21 @@
+---
+- item_id: 2
+  remaining_attempts: 3
+  item_status: 2 # PROCESSING
+  updated_at: RAW=NOW() - interval '2 hours'
+- item_id: 1
+  remaining_attempts: 3
+  item_status: 2 # PROCESSING
+  updated_at: RAW=NOW() - interval '3 hours'
+
+# обработка ещё не подвисла
+- item_id: 3
+  remaining_attempts: 3
+  item_status: 2 # PROCESSING
+  updated_at: RAW=NOW() - interval '1 minute'
+
+# запись в другом статусе
+- item_id: 4
+  remaining_attempts: 3
+  item_status: 1 # READY
+  updated_at: RAW=NOW() - interval '3 hours'

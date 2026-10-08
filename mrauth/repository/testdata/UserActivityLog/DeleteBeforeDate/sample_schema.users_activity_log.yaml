@@ -1,0 +1,24 @@
+---
+- user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  user_ip: 192.0.2.1
+  user_agent: agent
+  request_path: /v1/user
+  request_status: 200
+  visited_at: RAW=NOW() - interval '2 hours'
+- user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  user_ip: 192.0.2.1
+  user_agent: agent
+  request_path: /v1/user
+  request_status: 200
+  visited_at: RAW=NOW() - interval '3 hours'
+
+# свежая запись
+- user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  user_ip: 192.0.2.1
+  user_agent: agent
+  request_path: /v1/user
+  request_status: 200
+  visited_at: RAW=NOW() - interval '1 minute'

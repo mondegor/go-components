@@ -150,7 +150,10 @@ func (re *SessionPostgres) Insert(ctx context.Context, row entity.Session) error
 }
 
 // UpdateLastActivity - батчем обновляет последнюю активность сессий (IP и время).
-// Целостность не критична: записи без совпадающей сессии просто игнорируются.
+// Целостность не критична: записи без совпадающей сессии просто игнорируются, даже если
+// таких весь пакет. Это штатный случай: сессия может быть уже удалена, а подписанный
+// access токен (access_type: jwt) действует до своего exp, и запросы с ним продолжают
+// приносить активность закрытой сессии.
 func (re *SessionPostgres) UpdateLastActivity(ctx context.Context, rows []dto.SessionLastActivity) error {
 	if len(rows) == 0 {
 		return nil
@@ -184,7 +187,7 @@ func (re *SessionPostgres) UpdateLastActivity(ctx context.Context, rows []dto.Se
 		WHERE
 			t1.user_id = t2.user_id AND t1.session_id = t2.session_id;`
 
-	err := re.client.Conn(ctx).Exec(
+	_, err := re.client.Conn(ctx).ExecAffected(
 		ctx,
 		sql,
 		userIDs,

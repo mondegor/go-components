@@ -1,0 +1,14 @@
+---
+# строки идут в перемешанном порядке относительно очерёдности
+- user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 2
+  session_max: 4
+  created_at: RAW=NOW() - interval '1 minute'
+- user_id: b0000000-0000-4000-8000-00000000000b
+  realm_id: 1
+  session_max: 8
+  created_at: RAW=NOW() - interval '3 minutes'
+- user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_max: 6
+  created_at: RAW=NOW() - interval '2 minutes'

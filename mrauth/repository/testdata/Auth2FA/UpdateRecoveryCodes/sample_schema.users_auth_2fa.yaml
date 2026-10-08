@@ -1,0 +1,6 @@
+---
+- user_id: a0000000-0000-4000-8000-00000000000a
+  auth_2fa_type: 2 # TOTP
+  auth_secret: SECRET
+  recovery_codes: '{old1,old2}'
+  last_recovery_at: RAW=NOW() - interval '1 hour'

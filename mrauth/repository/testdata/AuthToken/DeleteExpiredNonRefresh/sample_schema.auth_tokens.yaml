@@ -1,0 +1,45 @@
+---
+- auth_token: access-old
+  token_type: 1 # ACCESS
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 1
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() - interval '3 hours'
+- auth_token: api-old
+  token_type: 3 # API
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 2
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() - interval '2 hours'
+- auth_token: access-mid
+  token_type: 1 # ACCESS
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 3
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() - interval '1 hour'
+
+# живой токен
+- auth_token: access-live
+  token_type: 1 # ACCESS
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 4
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'
+
+# истёкший refresh токен удаляется отдельной очисткой (DeleteExpiredRefresh)
+- auth_token: refresh-expired
+  token_type: 2 # REFRESH
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 5
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() - interval '4 hours'

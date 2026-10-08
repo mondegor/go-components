@@ -1,0 +1,84 @@
+---
+# открытые сессии realm 1, у первой - дубликат действующего refresh токена
+- auth_token: refresh-a-1
+  token_type: 2 # REFRESH
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 1
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'
+- auth_token: refresh-a-1-dup
+  token_type: 2 # REFRESH
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 1
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'
+- auth_token: access-a-1
+  token_type: 1 # ACCESS
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 1
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'
+- auth_token: refresh-a-2
+  token_type: 2 # REFRESH
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 2
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'
+
+# закрытая сессия
+- auth_token: refresh-a-3
+  token_type: 2 # REFRESH
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 3
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 2 # REVOKED
+  expires_at: RAW=NOW() + interval '1 hour'
+
+# истёкшая сессия
+- auth_token: refresh-a-4
+  token_type: 2 # REFRESH
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 4
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() - interval '1 minute'
+
+# сессия без refresh токена
+- auth_token: access-a-5
+  token_type: 1 # ACCESS
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 5
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'
+
+# сессия другого realm
+- auth_token: refresh-a-6
+  token_type: 2 # REFRESH
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 2
+  session_id: 6
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'
+
+# сессия другого пользователя
+- auth_token: refresh-b-7
+  token_type: 2 # REFRESH
+  user_id: b0000000-0000-4000-8000-00000000000b
+  realm_id: 1
+  session_id: 7
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'

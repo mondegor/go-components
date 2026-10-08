@@ -1,0 +1,25 @@
+---
+- record_id: 1
+  user_id: a0000000-0000-4000-8000-00000000000a
+  event_type: 1 # SIGNED_IN
+  client_ip: 192.0.2.1
+  user_agent: ''
+  created_at: RAW=NOW() - interval '72 hours'
+- record_id: 2
+  user_id: a0000000-0000-4000-8000-00000000000a
+  event_type: 1 # SIGNED_IN
+  client_ip: 192.0.2.1
+  user_agent: ''
+  created_at: RAW=NOW() - interval '48 hours'
+- record_id: 3
+  user_id: a0000000-0000-4000-8000-00000000000a
+  event_type: 1 # SIGNED_IN
+  client_ip: 192.0.2.1
+  user_agent: ''
+  created_at: RAW=NOW() - interval '36 hours'
+- record_id: 4
+  user_id: a0000000-0000-4000-8000-00000000000a
+  event_type: 1 # SIGNED_IN
+  client_ip: 192.0.2.1
+  user_agent: ''
+  created_at: RAW=NOW() - interval '1 hour'

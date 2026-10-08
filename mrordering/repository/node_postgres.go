@@ -19,6 +19,10 @@ type (
 	// - prev_field_id - предыдущий элемент, за которым следует текущий элемент;
 	// - next_field_id - следующий элемент, перед которым расположен текущий элемент;
 	// - order_index - поле порядка следования.
+	// Все три поля допускают NULL: у элемента вне списка они равны NULL (не 0), а у элемента
+	// списка order_index строго больше 0. Нулевое значение репозиторий пишет как NULL и ищет
+	// по order_index через сравнение с NULL, поэтому строка с order_index = 0 не находится,
+	// а MIN/MAX по такой таблице определяют край списка неверно (см. migrations/mrordering).
 	NodePostgres struct {
 		client       mrstorage.DBConnManager
 		errorWrapper errors.Wrapper
@@ -87,6 +91,7 @@ func (re *NodePostgres) FetchNode(ctx context.Context, rowID uint64, condition m
 }
 
 // FetchFirstNode - возвращает первый элемент в списке с учётом указанного условия.
+// Если упорядоченных элементов нет (список пуст), возвращается пустой элемент без ошибки.
 func (re *NodePostgres) FetchFirstNode(ctx context.Context, condition mrstorage.SQLPartFunc) (entity.Node, error) {
 	whereStr, whereArgs := re.whereBuilder.BuildAnd(re.condition, condition).
 		WithPrefix(" WHERE ").
@@ -112,6 +117,10 @@ func (re *NodePostgres) FetchFirstNode(ctx context.Context, condition mrstorage.
 		return entity.Node{}, re.errorWrapper.Wrap(err, "storage-data", "MIN(order_index)")
 	}
 
+	if row.OrderIndex == 0 {
+		return entity.Node{}, nil
+	}
+
 	if err = re.loadNodeByOrderIndex(ctx, &row, condition); err != nil {
 		return entity.Node{}, err
 	}
@@ -128,6 +137,7 @@ func (re *NodePostgres) FetchFirstNode(ctx context.Context, condition mrstorage.
 }
 
 // FetchLastNode - возвращает последний элемент в списке с учётом указанного условия.
+// Если упорядоченных элементов нет (список пуст), возвращается пустой элемент без ошибки.
 func (re *NodePostgres) FetchLastNode(ctx context.Context, condition mrstorage.SQLPartFunc) (entity.Node, error) {
 	whereStr, whereArgs := re.whereBuilder.BuildAnd(re.condition, condition).
 		WithPrefix(" WHERE ").

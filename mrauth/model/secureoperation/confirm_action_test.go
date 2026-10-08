@@ -9,6 +9,7 @@ import (
 
 	"github.com/mondegor/go-components/mrauth"
 	"github.com/mondegor/go-components/mrauth/enum/confirmmethod"
+	"github.com/mondegor/go-components/mrauth/enum/operationstatus"
 	"github.com/mondegor/go-components/mrauth/enum/operationtype"
 	"github.com/mondegor/go-components/mrauth/model/secureoperation"
 )
@@ -60,4 +61,44 @@ func TestConfirmAction_TOTPActionCheckCodeFails(t *testing.T) {
 	require.ErrorIs(t, err, mrauth.ErrConfirmCodeIsIncorrect)
 	require.False(t, confirmed)
 	require.Equal(t, before-1, op.RemainingAttempts)
+}
+
+// TestConfirmAction_ChainCheckCodeFailsKeepsActions - неверное доказательство в цепочке тратит попытку, не сдвигая звенья.
+func TestConfirmAction_ChainCheckCodeFailsKeepsActions(t *testing.T) {
+	t.Parallel()
+
+	op, err := secureoperation.NewOperation(
+		"token",
+		operationtype.AuthorizeUser,
+		uuid.Nil,
+		[]secureoperation.ConfirmAction{
+			{
+				Method:      confirmmethod.Password,
+				MaxAttempts: 3,
+				Expiry:      10 * time.Minute,
+			},
+			{
+				Method:      confirmmethod.Recovery,
+				MaxAttempts: 3,
+				Expiry:      10 * time.Minute,
+			},
+		},
+		nil,
+	)
+	require.NoError(t, err)
+
+	before := op.RemainingAttempts
+
+	confirmed, err := op.ConfirmAction(func(_ secureoperation.ConfirmAction) (bool, error) {
+		return false, nil // имитация неуспешной внешней проверки
+	})
+	require.ErrorIs(t, err, mrauth.ErrConfirmCodeIsIncorrect)
+	require.False(t, confirmed)
+	require.Equal(t, before-1, op.RemainingAttempts)
+	require.True(t, op.Is(operationstatus.Opened))
+
+	actions := op.Actions()
+	require.Len(t, actions, 2)
+	require.Equal(t, confirmmethod.Password, actions[0].Method)
+	require.Equal(t, confirmmethod.Recovery, actions[1].Method)
 }

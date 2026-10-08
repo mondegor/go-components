@@ -20,9 +20,9 @@ const auth2faTableName = "sample_schema.users_auth_2fa"
 type Auth2FAPostgresTestSuite struct {
 	suite.Suite
 
-	ctx       context.Context
-	pgt       *pgtest.Tester
-	tableName string
+	ctx  context.Context
+	pgt  *pgtest.Tester
+	repo *repository.Auth2FAPostgres
 }
 
 // ВНИМАНИЕ: t.Parallel() здесь не ставится - каждый suite поднимает свой контейнер
@@ -34,45 +34,23 @@ func TestAuth2FAPostgresTestSuite(t *testing.T) {
 func (ts *Auth2FAPostgresTestSuite) SetupSuite() {
 	ts.ctx = context.Background()
 	ts.pgt = pgtest.NewTester(ts.T(), tests.DBSchemas(), tests.ExcludedDBTables())
-	ts.pgt.ApplyMigrations(ts.T(), tests.AppWorkDir()+"/mrauth/_sample/migrations")
+	ts.pgt.ApplyMigrations(ts.T(), tests.MigrationsDir("mrauth"))
 
-	ts.tableName = auth2faTableName
+	ts.repo = repository.NewAuth2FAPostgres(ts.pgt.ConnManager(), auth2faTableName)
 }
 
 func (ts *Auth2FAPostgresTestSuite) SetupTest() {
 	ts.pgt.TruncateTables(ts.T(), ts.ctx)
 }
 
-// seedUser - вставляет запись в users и возвращает её user_id.
-func (ts *Auth2FAPostgresTestSuite) seedUser() uuid.UUID {
-	userID := uuid.New()
+// Test_UpdateRecoveryCode - аварийные коды сохраняются и читаются массивом,
+// расходование кода удаляет ровно один элемент.
+func (ts *Auth2FAPostgresTestSuite) Test_UpdateRecoveryCode() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/Auth2FA/UpdateRecoveryCode")
 
-	sql := `
-		INSERT INTO sample_schema.users
-			(user_id, user_email, lang_code, user_timezone, registered_ip, user_status)
-		VALUES
-			($1, $2, $3, $4, $5, $6);`
+	userID := uuid.MustParse(fixtureUserA)
 
-	err := ts.pgt.ConnManager().Conn(ts.ctx).Exec(
-		ts.ctx,
-		sql,
-		userID,
-		userID.String()+"@localhost",
-		"ru-RU",
-		"Europe/Moscow",
-		"203.0.113.7",
-		2, // ENABLED
-	)
-	ts.Require().NoError(err)
-
-	return userID
-}
-
-func (ts *Auth2FAPostgresTestSuite) TestRecoveryCodesRoundTrip() {
-	userID := ts.seedUser()
-	repo := repository.NewAuth2FAPostgres(ts.pgt.ConnManager(), ts.tableName)
-
-	err := repo.Insert(ts.ctx, entity.Auth2FA{
+	err := ts.repo.Insert(ts.ctx, entity.Auth2FA{
 		UserID:        userID,
 		Type:          auth2fatype.TOTP,
 		Secret:        "SECRET",
@@ -80,45 +58,38 @@ func (ts *Auth2FAPostgresTestSuite) TestRecoveryCodesRoundTrip() {
 	})
 	ts.Require().NoError(err)
 
-	got, err := repo.FetchOne(ts.ctx, userID)
+	got, err := ts.repo.FetchOne(ts.ctx, userID)
 	ts.Require().NoError(err)
 	ts.Equal([]string{"hash1", "hash2", "hash3"}, got.RecoveryCodes)
 
 	// расходование одного кода удаляет ровно один элемент и возвращает остаток
-	remaining, err := repo.UpdateRecoveryCode(ts.ctx, userID, "hash1")
+	remaining, err := ts.repo.UpdateRecoveryCode(ts.ctx, userID, "hash1")
 	ts.Require().NoError(err)
 	ts.Equal(2, remaining)
 
-	got, err = repo.FetchOne(ts.ctx, userID)
+	got, err = ts.repo.FetchOne(ts.ctx, userID)
 	ts.Require().NoError(err)
 	ts.Equal([]string{"hash2", "hash3"}, got.RecoveryCodes)
 
 	// повторное расходование того же кода (гонка) не находит запись
-	_, err = repo.UpdateRecoveryCode(ts.ctx, userID, "hash1")
+	_, err = ts.repo.UpdateRecoveryCode(ts.ctx, userID, "hash1")
 	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
 
-	got, err = repo.FetchOne(ts.ctx, userID)
+	got, err = ts.repo.FetchOne(ts.ctx, userID)
 	ts.Require().NoError(err)
 	ts.Equal([]string{"hash2", "hash3"}, got.RecoveryCodes)
 }
 
-// TestInsertOnActive2FAConflicts - повторная привязка при уже активном 2FA отклоняется
+// Test_InsertWhen2FAIsActive - повторная привязка при уже активном 2FA отклоняется
 // нарушением уникальности, а не перезаписывает текущий второй фактор. На этом построена
 // защита apply-password/apply-totp от гонки «2FA включили другим способом между созданием
 // операции и её применением» (mrauth.ErrAuth2FAMustBeDisabledFirst -> 409).
-func (ts *Auth2FAPostgresTestSuite) TestInsertOnActive2FAConflicts() {
-	userID := ts.seedUser()
-	repo := repository.NewAuth2FAPostgres(ts.pgt.ConnManager(), ts.tableName)
+func (ts *Auth2FAPostgresTestSuite) Test_InsertWhen2FAIsActive() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/Auth2FA/InsertWhen2FAIsActive")
 
-	err := repo.Insert(ts.ctx, entity.Auth2FA{
-		UserID:        userID,
-		Type:          auth2fatype.TOTP,
-		Secret:        "TOTP-SECRET",
-		RecoveryCodes: []string{"hash1"},
-	})
-	ts.Require().NoError(err)
+	userID := uuid.MustParse(fixtureUserA)
 
-	err = repo.Insert(ts.ctx, entity.Auth2FA{
+	err := ts.repo.Insert(ts.ctx, entity.Auth2FA{
 		UserID:        userID,
 		Type:          auth2fatype.Password,
 		Secret:        "PASSWORD-HASH",
@@ -127,73 +98,114 @@ func (ts *Auth2FAPostgresTestSuite) TestInsertOnActive2FAConflicts() {
 	ts.Require().ErrorIs(err, sysmesserrors.ErrInternalStorageDuplicateKeyViolation)
 
 	// активный второй фактор остался нетронутым
-	got, err := repo.FetchOne(ts.ctx, userID)
+	got, err := ts.repo.FetchOne(ts.ctx, userID)
 	ts.Require().NoError(err)
 	ts.Equal(auth2fatype.TOTP, got.Type)
 	ts.Equal("TOTP-SECRET", got.Secret)
 	ts.Equal([]string{"hash1"}, got.RecoveryCodes)
 }
 
-func (ts *Auth2FAPostgresTestSuite) TestDelete() {
-	userID := ts.seedUser()
-	repo := repository.NewAuth2FAPostgres(ts.pgt.ConnManager(), ts.tableName)
+// Test_Delete - удаление привязки 2FA; повторное удаление сообщает об отсутствии записи.
+func (ts *Auth2FAPostgresTestSuite) Test_Delete() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/Auth2FA/Delete")
 
-	err := repo.Insert(ts.ctx, entity.Auth2FA{
-		UserID:        userID,
-		Type:          auth2fatype.TOTP,
-		Secret:        "SECRET",
-		RecoveryCodes: []string{"hash1"},
-	})
-	ts.Require().NoError(err)
+	userID := uuid.MustParse(fixtureUserA)
 
-	ts.Require().NoError(repo.Delete(ts.ctx, userID))
+	ts.Require().NoError(ts.repo.Delete(ts.ctx, userID))
 
-	_, err = repo.FetchOne(ts.ctx, userID)
+	_, err := ts.repo.FetchOne(ts.ctx, userID)
 	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
 
 	// повторное удаление сообщает об отсутствии записи: на этом построена
 	// идемпотентность обработчика отключения 2FA
-	err = repo.Delete(ts.ctx, userID)
+	err = ts.repo.Delete(ts.ctx, userID)
 	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
 
 	// удаление по неизвестному пользователю ведёт себя так же
-	err = repo.Delete(ts.ctx, uuid.New())
+	err = ts.repo.Delete(ts.ctx, uuid.MustParse(fixtureUserC))
 	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
 }
 
-func (ts *Auth2FAPostgresTestSuite) TestUpdateTOTPStepMonotonic() {
-	userID := ts.seedUser()
-	repo := repository.NewAuth2FAPostgres(ts.pgt.ConnManager(), ts.tableName)
+// Test_UpdateTOTPStep - TOTP-шаг сдвигается только вперёд (защита от replay).
+func (ts *Auth2FAPostgresTestSuite) Test_UpdateTOTPStep() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/Auth2FA/UpdateTOTPStep")
 
-	err := repo.Insert(ts.ctx, entity.Auth2FA{
-		UserID:        userID,
-		Type:          auth2fatype.TOTP,
-		Secret:        "SECRET",
-		RecoveryCodes: []string{},
-		LastTOTPStep:  100,
-	})
-	ts.Require().NoError(err)
+	userID := uuid.MustParse(fixtureUserA)
 
-	got, err := repo.FetchOne(ts.ctx, userID)
+	got, err := ts.repo.FetchOne(ts.ctx, userID)
 	ts.Require().NoError(err)
 	ts.Equal(int64(100), got.LastTOTPStep)
 
 	// шаг сдвигается вперёд только при строго большем значении
-	ts.Require().NoError(repo.UpdateTOTPStep(ts.ctx, userID, 101))
+	ts.Require().NoError(ts.repo.UpdateTOTPStep(ts.ctx, userID, 101))
 
-	got, err = repo.FetchOne(ts.ctx, userID)
+	got, err = ts.repo.FetchOne(ts.ctx, userID)
 	ts.Require().NoError(err)
 	ts.Equal(int64(101), got.LastTOTPStep)
 
 	// повтор того же шага (replay) отклоняется и не меняет значение
-	err = repo.UpdateTOTPStep(ts.ctx, userID, 101)
+	err = ts.repo.UpdateTOTPStep(ts.ctx, userID, 101)
 	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
 
 	// более старый шаг также отклоняется
-	err = repo.UpdateTOTPStep(ts.ctx, userID, 50)
+	err = ts.repo.UpdateTOTPStep(ts.ctx, userID, 50)
 	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
 
-	got, err = repo.FetchOne(ts.ctx, userID)
+	got, err = ts.repo.FetchOne(ts.ctx, userID)
 	ts.Require().NoError(err)
 	ts.Equal(int64(101), got.LastTOTPStep)
+}
+
+// Test_UpdateRecoveryCodes - перевыпуск заменяет набор аварийных кодов целиком и сбрасывает
+// время последнего расхода кода.
+func (ts *Auth2FAPostgresTestSuite) Test_UpdateRecoveryCodes() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/Auth2FA/UpdateRecoveryCodes")
+
+	userID := uuid.MustParse(fixtureUserA)
+
+	ts.Require().NoError(ts.repo.UpdateRecoveryCodes(ts.ctx, userID, []string{"new1", "new2", "new3"}))
+
+	got, err := ts.repo.FetchOne(ts.ctx, userID)
+	ts.Require().NoError(err)
+	ts.Equal([]string{"new1", "new2", "new3"}, got.RecoveryCodes)
+
+	var isRecoveryReset bool
+
+	err = ts.pgt.ConnManager().Conn(ts.ctx).QueryRow(
+		ts.ctx,
+		`SELECT last_recovery_at IS NULL FROM `+auth2faTableName+` WHERE user_id = $1;`,
+		userID,
+	).Scan(&isRecoveryReset)
+	ts.Require().NoError(err)
+	ts.True(isRecoveryReset)
+}
+
+// Test_UpdateRecoveryCodesWhen2FANotExists - у пользователя без 2FA перевыпускать нечего:
+// возвращается ErrEventStorageNoRecordFound.
+func (ts *Auth2FAPostgresTestSuite) Test_UpdateRecoveryCodesWhen2FANotExists() {
+	err := ts.repo.UpdateRecoveryCodes(ts.ctx, uuid.MustParse(fixtureUserA), []string{"new1"})
+	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
+}
+
+// Test_FetchOne - данные 2FA пользователя читаются без искажений.
+func (ts *Auth2FAPostgresTestSuite) Test_FetchOne() {
+	ts.pgt.ApplyFixtures(ts.T(), "testdata/Auth2FA/FetchOne")
+
+	got, err := ts.repo.FetchOne(ts.ctx, uuid.MustParse(fixtureUserA))
+	ts.Require().NoError(err)
+	ts.Equal(
+		entity.Auth2FA{
+			Type:          auth2fatype.Password,
+			Secret:        "PASSWORD-HASH",
+			LastTOTPStep:  7,
+			RecoveryCodes: []string{"hash1", "hash2"},
+		},
+		got,
+	)
+}
+
+// Test_FetchOneWhenNotExists - у пользователя без 2FA возвращается ErrEventStorageNoRecordFound.
+func (ts *Auth2FAPostgresTestSuite) Test_FetchOneWhenNotExists() {
+	_, err := ts.repo.FetchOne(ts.ctx, uuid.MustParse(fixtureUserA))
+	ts.Require().ErrorIs(err, sysmesserrors.ErrEventStorageNoRecordFound)
 }

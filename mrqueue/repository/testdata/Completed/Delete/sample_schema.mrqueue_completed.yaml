@@ -1,0 +1,9 @@
+---
+- item_id: 2
+  updated_at: RAW=NOW() - interval '2 hours'
+- item_id: 1
+  updated_at: RAW=NOW() - interval '3 hours'
+
+# срок хранения ещё не истёк
+- item_id: 3
+  updated_at: RAW=NOW() - interval '1 minute'

@@ -1,0 +1,69 @@
+---
+- auth_token: access-a-1
+  token_type: 1 # ACCESS
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 1
+  token_scopes: '{}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'
+- auth_token: refresh-a-1
+  token_type: 2 # REFRESH
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 1
+  token_scopes: '{}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'
+- auth_token: access-a-2
+  token_type: 1 # ACCESS
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 2
+  token_scopes: '{}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'
+- auth_token: refresh-a-2
+  token_type: 2 # REFRESH
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 2
+  token_scopes: '{}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'
+
+# уже закрытая сессия
+- auth_token: access-a-3
+  token_type: 1 # ACCESS
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 3
+  token_scopes: '{}'
+  token_status: 2 # REVOKED
+  expires_at: RAW=NOW()
+- auth_token: refresh-a-3
+  token_type: 2 # REFRESH
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 3
+  token_scopes: '{}'
+  token_status: 2 # REVOKED
+  expires_at: RAW=NOW()
+
+# чужая сессия
+- auth_token: access-b-4
+  token_type: 1 # ACCESS
+  user_id: b0000000-0000-4000-8000-00000000000b
+  realm_id: 1
+  session_id: 4
+  token_scopes: '{}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'
+- auth_token: refresh-b-4
+  token_type: 2 # REFRESH
+  user_id: b0000000-0000-4000-8000-00000000000b
+  realm_id: 1
+  session_id: 4
+  token_scopes: '{}'
+  token_status: 1 # ENABLED
+  expires_at: RAW=NOW() + interval '1 hour'

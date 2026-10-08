@@ -53,7 +53,7 @@ const (
 	// minAuthTokenLength, maxAuthTokenLength - границы длины refresh-токена и непрозрачного
 	// access-токена (access_type=session): ограничение refresh_token в спеке
 	// (Auth.Request.Model.ContinueSession) и ширина колонки auth_tokens.auth_token
-	// (см. _sample/migrations, varchar(128)). Связь с колонкой неявная - при изменении её ширины
+	// (см. migrations/mrauth, varchar(128)). Связь с колонкой неявная - при изменении её ширины
 	// константу нужно править вручную.
 	minAuthTokenLength = 64
 	maxAuthTokenLength = 128
@@ -104,7 +104,7 @@ const (
 	maxSessionThreshold int8 = 16
 
 	// maxStorableTimeZone - предельная длина IANA-имени, пригодного для хранения в колонке
-	// user_timezone, равная её ширине (см. _sample/migrations, users.user_timezone varchar(64)).
+	// user_timezone, равная её ширине (см. migrations/mrauth, users.user_timezone varchar(64)).
 	// Связь неявная - при изменении ширины колонки константу нужно править вручную.
 	//
 	// Реальные IANA-имена вдвое короче, поэтому это структурный предохранитель на случай
@@ -112,7 +112,7 @@ const (
 	maxStorableTimeZone = 64
 
 	// maxStorableUserKind - предельная длина имени вида пользователя в байтах (имена видов - ASCII),
-	// равная ширине колонки users_realms.user_kind (см. _sample/migrations). Связь неявная - при
+	// равная ширине колонки users_realms.user_kind (см. migrations/mrauth). Связь неявная - при
 	// изменении ширины колонки константу нужно править вручную. Без проверки на старте слишком длинное
 	// имя проявилось бы лишь при регистрации пользователя этого вида - ошибкой вставки в БД.
 	maxStorableUserKind = 16
@@ -122,7 +122,7 @@ const (
 // двухбуквенный код языка и необязательный двухбуквенный код региона.
 //
 // Пригодность обеспечивается структурно: длиннее 5 символов такая запись быть не может,
-// что и есть ширина колонки (см. _sample/migrations, users.lang_code varchar(5)).
+// что и есть ширина колонки (см. migrations/mrauth, users.lang_code varchar(5)).
 // Связь неявная - при изменении ширины колонки регулярку нужно править вручную.
 //
 // Намеренно строже, чем validate.Lang: тот проверяет лишь форму записи на границе ввода

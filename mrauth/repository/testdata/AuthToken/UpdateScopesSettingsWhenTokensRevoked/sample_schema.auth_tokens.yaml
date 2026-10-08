@@ -1,0 +1,17 @@
+---
+- auth_token: access-a-1
+  token_type: 1 # ACCESS
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 1
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 2 # REVOKED
+  expires_at: RAW=NOW()
+- auth_token: refresh-a-1
+  token_type: 2 # REFRESH
+  user_id: a0000000-0000-4000-8000-00000000000a
+  realm_id: 1
+  session_id: 1
+  token_scopes: '{"realm":"app/users","kind":"regular","lang":"ru-RU","tz":"Europe/Moscow"}'
+  token_status: 2 # REVOKED
+  expires_at: RAW=NOW()
