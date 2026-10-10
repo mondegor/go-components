@@ -153,3 +153,21 @@ func (s *Disable2FASuite) TestExecuteStorageError() {
 
 	s.Require().Error(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, s.payload()))
 }
+
+// нечитаемый payload операции не применяется (моки без EXPECT: любой вызов провалит тест).
+func (s *Disable2FASuite) TestExecuteBrokenPayload() {
+	s.Require().Error(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, []byte(`{`)))
+}
+
+// ошибка постановки уведомления отменяет применение: транзакция откатывается целиком.
+func (s *Disable2FASuite) TestExecuteNotifyError() {
+	userID := uuid.New()
+	errNotify := errors.New("notifier is down")
+
+	s.storage.EXPECT().Delete(gomock.Any(), userID).Return(nil)
+	s.revoker.EXPECT().RevokeAll(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.notifierAPI.EXPECT().Send(gomock.Any(), "user.2fa.disabled", gomock.Any()).Return(errNotify)
+
+	s.Require().ErrorIs(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, s.payload()), errNotify)
+}

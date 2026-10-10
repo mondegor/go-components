@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -71,20 +72,24 @@ func (uc *BuildNotice) Execute(ctx context.Context, note entity.Note) (notices [
 		return nil, uc.errorWrapper.Wrap(err, "noticeKey", note.Key)
 	}
 
+	// копия переменных: note.Data может быть nil и не должна меняться у вызывающего
+	vars := make(map[string]string, len(note.Data)+len(templ.Vars))
+	maps.Copy(vars, note.Data)
+
 	// если значение переменной в уведомлении явно не указано, то оно берётся из шаблона
 	for _, v := range templ.Vars {
-		if _, ok := note.Data[v.Name]; !ok {
-			note.Data[v.Name] = v.DefaultValue
+		if _, ok := vars[v.Name]; !ok {
+			vars[v.Name] = v.DefaultValue
 		}
 	}
 
-	notices, err = uc.noticeBuilder.Build(note.Data, templ.Props)
+	notices, err = uc.noticeBuilder.Build(vars, templ.Props)
 	if err != nil {
 		return nil, uc.errorWrapper.Wrap(err, "noticeKey", note.Key)
 	}
 
 	// значение рассчитывается как можно позже, чтобы уменьшить погрешность
-	sendAfter, err := uc.getSendAfter(note)
+	sendAfter, err := uc.getSendAfter(vars)
 	if err != nil {
 		return nil, uc.errorWrapper.Wrap(err, "noticeKey", note.Key)
 	}
@@ -93,7 +98,7 @@ func (uc *BuildNotice) Execute(ctx context.Context, note entity.Note) (notices [
 		return nil, errors.NewInternalError("notice is not built, no providers", "noticeKey", note.Key)
 	}
 
-	header := uc.header(note.Data)
+	header := uc.header(vars)
 
 	for i := range notices {
 		notices[i].Channel += "/" + uc.channelPrefix + "/" + note.Key + "/" + templ.Lang
@@ -118,8 +123,8 @@ func (uc *BuildNotice) header(vars map[string]string) (header map[string]string)
 	return header
 }
 
-func (uc *BuildNotice) getSendAfter(notice entity.Note) (time.Time, error) {
-	if v := notice.Data[mrnotifier.ConfigDelayTime]; v != "" {
+func (uc *BuildNotice) getSendAfter(vars map[string]string) (time.Time, error) {
+	if v := vars[mrnotifier.ConfigDelayTime]; v != "" {
 		// если указано числовое значение, то это продолжительность в секундах
 		if delayPeriod, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return time.Now().UTC().Add(time.Duration(delayPeriod) * time.Second), nil

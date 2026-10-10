@@ -62,6 +62,10 @@ type (
 		openedOp  secureoperation.SecureOperation
 		openedKey string
 		sent      []sentNote
+
+		deleteErr error // ошибка, которую вернёт удаление операции первого шага
+		openErr   error // ошибка, которую вернёт открытие операции второго шага
+		sendErr   error // ошибка, которую вернёт отправка уведомления
 	}
 )
 
@@ -91,10 +95,17 @@ func (s *ApplyEmailSuite) SetupTest() {
 	s.openedOp = secureoperation.SecureOperation{}
 	s.openedKey = ""
 	s.sent = nil
+	s.deleteErr = nil
+	s.openErr = nil
+	s.sendErr = nil
 
 	s.storage.EXPECT().
 		Delete(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, token string) error {
+			if s.deleteErr != nil {
+				return s.deleteErr
+			}
+
 			s.deleted = token
 
 			return nil
@@ -104,6 +115,10 @@ func (s *ApplyEmailSuite) SetupTest() {
 	s.opener.EXPECT().
 		Open(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, _ dto.ActorMeta, op secureoperation.SecureOperation, noteName string, _ conv.Group) error {
+			if s.openErr != nil {
+				return s.openErr
+			}
+
 			s.openedOp = op
 			s.openedKey = noteName
 
@@ -114,11 +129,20 @@ func (s *ApplyEmailSuite) SetupTest() {
 	s.notes.EXPECT().
 		Send(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, key string, props map[string]any) error {
+			if s.sendErr != nil {
+				return s.sendErr
+			}
+
 			s.sent = append(s.sent, sentNote{key: key, props: props})
 
 			return nil
 		}).
 		AnyTimes()
+}
+
+// SetupSubTest - каждый подтест стартует с собственными моками и состоянием набора.
+func (s *ApplyEmailSuite) SetupSubTest() {
+	s.SetupTest()
 }
 
 func (s *ApplyEmailSuite) newUseCase() *security.ApplyEmail {
@@ -279,4 +303,67 @@ func (s *ApplyEmailSuite) TestInvalidInput() {
 
 	_, err = s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "op-token")
 	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
+}
+
+func (s *ApplyEmailSuite) TestFetchError() {
+	errFetch := errors.New("fetch failed")
+
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(secureoperation.SecureOperation{}, errFetch)
+
+	_, err := s.newUseCase().Execute(s.ctx, s.actor(), "op-token")
+	s.Require().ErrorIs(err, errFetch)
+	s.Require().NotErrorIs(err, mrauth.ErrOperationInvalid)
+	s.Empty(s.logEntries)
+}
+
+func (s *ApplyEmailSuite) TestBrokenPayload() {
+	op := confirmedChangeEmailOp(s.userID)
+	op.Payload = []byte(`{`)
+
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(op, nil)
+
+	_, err := s.newUseCase().Execute(s.ctx, s.actor(), "op-token")
+	s.Require().Error(err)
+	s.Empty(s.deleted)
+	s.Empty(s.openedKey)
+	s.Empty(s.logEntries)
+}
+
+// TestStepError - сбой любого шага после проверки адреса откатывает транзакцию целиком:
+// операция второго шага не возвращается, в журнал операций ничего не пишется.
+func (s *ApplyEmailSuite) TestStepError() {
+	errStep := errors.New("step failed")
+
+	tests := []struct {
+		name  string
+		setup func()
+	}{
+		{
+			name: "create second step operation",
+			setup: func() {
+				s.factory = mock.NewMockchangeEmailCreator(s.ctrl)
+				s.factory.EXPECT().Create(gomock.Any(), gomock.Any()).Return(secureoperation.SecureOperation{}, errStep)
+			},
+		},
+		{name: "delete operation", setup: func() { s.deleteErr = errStep }},
+		{name: "open second step operation", setup: func() { s.openErr = errStep }},
+		{name: "security log", setup: func() { s.securityLogErr = errStep }},
+		{name: "notify", setup: func() { s.sendErr = errStep }},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(confirmedChangeEmailOp(s.userID), nil)
+			s.checker.EXPECT().CheckAvailabilityEmail(gomock.Any(), gomock.Any()).Return(nil)
+			s.factory.EXPECT().Create(gomock.Any(), gomock.Any()).Return(s.confirmOp, nil).AnyTimes()
+
+			tt.setup()
+
+			op, err := s.newUseCase().Execute(s.ctx, s.actor(), "op-token")
+			s.Require().ErrorIs(err, errStep)
+			s.Equal(secureoperation.SecureOperation{}, op)
+			s.Empty(s.sent)
+			s.Empty(s.logEntries)
+		})
+	}
 }

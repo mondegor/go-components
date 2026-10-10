@@ -122,3 +122,33 @@ func (s *ChangePhoneSuite) TestExecuteSecurityLogError() {
 	err := s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, s.payload())
 	s.Require().ErrorIs(err, errors.ErrInternalStorageQueryFailed)
 }
+
+// TestExecuteEmptyUserID - владелец операции известен на момент её применения, поэтому
+// пустой userID - ошибка проводки (мок UpdatePhone без EXPECT: любой вызов провалит тест).
+func (s *ChangePhoneSuite) TestExecuteEmptyUserID() {
+	err := s.uc.Execute(s.ctx, dto.ActorMeta{}, s.payload())
+	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
+}
+
+// TestExecuteBrokenPayload - нечитаемый payload операции не применяется (моки без EXPECT).
+func (s *ChangePhoneSuite) TestExecuteBrokenPayload() {
+	s.Require().Error(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, []byte(`{`)))
+}
+
+// TestExecuteStorageError - сбой смены телефона возвращается: журнал и уведомление не пишутся.
+func (s *ChangePhoneSuite) TestExecuteStorageError() {
+	s.storage.EXPECT().UpdatePhone(gomock.Any(), gomock.Any(), gomock.Any()).Return(errors.ErrInternalStorageQueryFailed.New())
+
+	err := s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, s.payload())
+	s.Require().ErrorIs(err, errors.ErrInternalStorageQueryFailed)
+}
+
+// TestExecuteNotifyError - сбой постановки уведомления откатывает смену: ошибка возвращается.
+func (s *ChangePhoneSuite) TestExecuteNotifyError() {
+	s.storage.EXPECT().UpdatePhone(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.notifierAPI.EXPECT().Send(gomock.Any(), "user.phone.changed", gomock.Any()).Return(errors.ErrInternalStorageQueryFailed.New())
+
+	err := s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, s.payload())
+	s.Require().ErrorIs(err, errors.ErrInternalStorageQueryFailed)
+}

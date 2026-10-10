@@ -1,9 +1,11 @@
 package security_test
 
 import (
+	"image"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/mondegor/go-core/errors"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
 
@@ -14,6 +16,8 @@ import (
 	"github.com/mondegor/go-components/mrauth/usecase/security"
 	"github.com/mondegor/go-components/mrauth/usecase/security/mock"
 )
+
+//go:generate mockgen -source=render_totp_qr.go -destination=mock/render_totp_qr.go -package=mock
 
 // confirmedOp - подтверждённая операция смены TOTP с указанным payload'ом.
 func confirmedOp(userID uuid.UUID, payload string) secureoperation.SecureOperation {
@@ -56,4 +60,46 @@ func (s *RenderTOTPQRSuite) TestRendersQR() {
 	img, err := uc.Execute(s.ctx, userID, "op-token")
 	s.Require().NoError(err)
 	s.Equal("image/png", img.ContentType)
+}
+
+func (s *RenderTOTPQRSuite) TestGateError() {
+	errFetch := errors.New("fetch failed")
+
+	s.fetcher.EXPECT().FetchOne(gomock.Any(), "op-token").Return(secureoperation.SecureOperation{}, errFetch)
+
+	// рендерер не вызывается: операция не прошла проверку
+	uc := security.NewRenderTOTPGeneratorQR(s.fetcher, mock.NewMocktotpQRRenderer(s.ctrl))
+
+	_, err := uc.Execute(s.ctx, uuid.New(), "op-token")
+	s.Require().ErrorIs(err, errFetch)
+}
+
+func (s *RenderTOTPQRSuite) TestRendererError() {
+	userID := uuid.New()
+	errRender := errors.New("render failed")
+
+	s.fetcher.EXPECT().
+		FetchOne(gomock.Any(), "op-token").
+		Return(confirmedOp(userID, `{"email":"u@e","secret":"`+testTotpSecret+`"}`), nil)
+
+	renderer := mock.NewMocktotpQRRenderer(s.ctrl)
+	renderer.EXPECT().QRImage("u@e", testTotpSecret, gomock.Any(), gomock.Any()).Return(nil, errRender)
+
+	_, err := security.NewRenderTOTPGeneratorQR(s.fetcher, renderer).Execute(s.ctx, userID, "op-token")
+	s.Require().ErrorIs(err, errRender)
+}
+
+// TestImageEncodeError - изображение, которое нельзя закодировать в png, возвращается ошибкой.
+func (s *RenderTOTPQRSuite) TestImageEncodeError() {
+	userID := uuid.New()
+
+	s.fetcher.EXPECT().
+		FetchOne(gomock.Any(), "op-token").
+		Return(confirmedOp(userID, `{"email":"u@e","secret":"`+testTotpSecret+`"}`), nil)
+
+	renderer := mock.NewMocktotpQRRenderer(s.ctrl)
+	renderer.EXPECT().QRImage(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(image.NewRGBA(image.Rectangle{}), nil)
+
+	_, err := security.NewRenderTOTPGeneratorQR(s.fetcher, renderer).Execute(s.ctx, userID, "op-token")
+	s.Require().Error(err)
 }

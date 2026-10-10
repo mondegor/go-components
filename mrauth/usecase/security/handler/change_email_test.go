@@ -197,3 +197,29 @@ func (s *ChangeEmailSuite) TestExecuteStorageError() {
 	s.Require().Error(err)
 	s.Require().NotErrorIs(err, mrauth.ErrEmailAlreadyExists)
 }
+
+// TestExecuteEmptyUserID - владелец операции известен на момент её применения, поэтому
+// пустой userID - ошибка проводки (мок UpdateEmail без EXPECT: любой вызов провалит тест).
+func (s *ChangeEmailSuite) TestExecuteEmptyUserID() {
+	err := s.uc.Execute(s.ctx, dto.ActorMeta{}, s.payload())
+	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
+}
+
+// TestExecuteBrokenPayload - нечитаемый payload операции не применяется (моки без EXPECT).
+func (s *ChangeEmailSuite) TestExecuteBrokenPayload() {
+	s.Require().Error(s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, []byte(`{`)))
+}
+
+// TestExecuteNotifyOldError - сбой постановки письма на прежний адрес откатывает смену:
+// ошибка возвращается, письмо на новый адрес не ставится.
+func (s *ChangeEmailSuite) TestExecuteNotifyOldError() {
+	s.storage.EXPECT().UpdateEmail(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
+	s.revoker.EXPECT().RevokeAll(gomock.Any(), gomock.Any(), logreason.EmailChanged).Return(nil)
+	s.securityLog.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil)
+	s.notifierAPI.EXPECT().
+		Send(gomock.Any(), "user.email.changed", gomock.Any()).
+		Return(errors.ErrInternalStorageQueryFailed.New())
+
+	err := s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, s.payload())
+	s.Require().ErrorIs(err, errors.ErrInternalStorageQueryFailed)
+}

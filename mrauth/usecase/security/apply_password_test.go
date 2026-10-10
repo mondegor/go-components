@@ -44,6 +44,8 @@ type ApplyPasswordSuite struct {
 	deleted  string
 	bindErr  error // ошибка, которую вернёт привязка 2FA (по умолчанию привязка успешна)
 
+	deleteErr error // ошибка, которую вернёт удаление операции
+
 	revokedFor   uuid.UUID      // пользователь, чьи операции отозваны (uuid.Nil - не отзывали)
 	revokeReason logreason.Enum // причина отзыва
 	revokeErr    error          // ошибка, которую вернёт отзыв операций
@@ -64,6 +66,7 @@ func (s *ApplyPasswordSuite) SetupTest() {
 	s.saved = entity.Auth2FA{}
 	s.deleted = ""
 	s.bindErr = nil
+	s.deleteErr = nil
 	s.revokedFor = uuid.Nil
 	s.revokeReason = logreason.Unspecified
 	s.revokeErr = nil
@@ -94,11 +97,20 @@ func (s *ApplyPasswordSuite) SetupTest() {
 	s.verifier.EXPECT().
 		Delete(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, token string) error {
+			if s.deleteErr != nil {
+				return s.deleteErr
+			}
+
 			s.deleted = token
 
 			return nil
 		}).
 		AnyTimes()
+}
+
+// SetupSubTest - каждый подтест стартует с собственными моками и состоянием набора.
+func (s *ApplyPasswordSuite) SetupSubTest() {
+	s.SetupTest()
 }
 
 func (s *ApplyPasswordSuite) newUseCase() *security.ApplyPassword {
@@ -252,4 +264,142 @@ func (s *ApplyPasswordSuite) TestSecurityLogError() {
 	s.Require().ErrorIs(err, errors.ErrInternalStorageQueryFailed)
 	s.Nil(codes)
 	s.False(s.notified)
+}
+
+// TestInvalidInput - некорректный вход отклоняется до обращения к хранилищу.
+func (s *ApplyPasswordSuite) TestInvalidInput() {
+	tests := []struct {
+		name    string
+		userID  uuid.UUID
+		token   string
+		wantErr error
+	}{
+		{name: "nil user", token: "op-token", wantErr: errors.ErrInternalIncorrectInputData},
+		{name: "empty token", userID: uuid.New(), wantErr: mrauth.ErrOperationInvalid},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			// FetchOneForUpdate не вызывается
+			codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: tt.userID}, tt.token)
+			s.Require().ErrorIs(err, tt.wantErr)
+			s.Nil(codes)
+			s.Empty(s.logEntries)
+		})
+	}
+}
+
+// TestUnknownTokenIsDomainError - отсутствующая операция - это недействительный токен клиента.
+func (s *ApplyPasswordSuite) TestUnknownTokenIsDomainError() {
+	s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(
+		secureoperation.SecureOperation{}, errors.ErrEventStorageNoRecordFound,
+	)
+
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, "op-token")
+	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
+	s.Nil(codes)
+	s.Empty(s.logEntries)
+}
+
+func (s *ApplyPasswordSuite) TestFetchError() {
+	errFetch := errors.New("fetch failed")
+
+	s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(secureoperation.SecureOperation{}, errFetch)
+
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, "op-token")
+	s.Require().ErrorIs(err, errFetch)
+	s.Require().NotErrorIs(err, mrauth.ErrOperationInvalid)
+	s.Nil(codes)
+	s.Empty(s.logEntries)
+}
+
+// TestUnsuitableOperationIsBlocked - чужая или неподтверждённая операция отклоняется
+// и фиксируется в журнале как блокировка.
+func (s *ApplyPasswordSuite) TestUnsuitableOperationIsBlocked() {
+	userID := uuid.New()
+	payload := `{"new_password":"hashed-pwd","email":"u@e"}`
+
+	notConfirmedOp := confirmedPasswordOp(userID, payload)
+	notConfirmedOp.Status = operationstatus.Opened
+
+	tests := []struct {
+		name       string
+		op         secureoperation.SecureOperation
+		wantErr    error
+		wantReason logreason.Enum
+	}{
+		{name: "other user", op: confirmedPasswordOp(uuid.New(), payload), wantErr: errors.ErrAccessForbidden, wantReason: logreason.AccessForbidden},
+		{name: "not confirmed", op: notConfirmedOp, wantErr: mrauth.ErrOperationIsNotConfirmed, wantReason: logreason.NotConfirmed},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(tt.op, nil)
+
+			codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
+			s.Require().ErrorIs(err, tt.wantErr)
+			s.Nil(codes)
+			s.Equal(entity.Auth2FA{}, s.saved)
+			s.Require().Len(s.logEntries, 1)
+			s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+			s.Equal(tt.wantReason, s.logEntries[0].Reason)
+		})
+	}
+}
+
+func (s *ApplyPasswordSuite) TestRecoveryCodesGeneratorError() {
+	userID := uuid.New()
+	errGenerate := errors.New("generate failed")
+
+	generator := mock.NewMockrecoveryCodesGenerator(s.ctrl)
+	generator.EXPECT().GenerateRecoveryCodes(8, 10).Return(nil, nil, errGenerate)
+
+	s.verifier.EXPECT().
+		FetchOneForUpdate(gomock.Any(), "op-token").
+		Return(confirmedPasswordOp(userID, `{"new_password":"hashed-pwd","email":"u@e"}`), nil)
+
+	uc := security.NewApplyPassword(
+		s.txManager, s.binder, s.verifier, s.revoker,
+		generator, s.notifierAPI, s.actorProps, s.logOperation, s.securityLog, 8, 10,
+	)
+
+	codes, err := uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
+	s.Require().ErrorIs(err, errGenerate)
+	s.Nil(codes)
+	s.Equal(entity.Auth2FA{}, s.saved)
+	s.Empty(s.logEntries)
+}
+
+// TestStepError - сбой привязки (кроме конфликта с активной 2FA), удаления операции или
+// отправки уведомления откатывает применение целиком: коды не возвращаются, в журнал
+// операций ничего не пишется.
+func (s *ApplyPasswordSuite) TestStepError() {
+	errStep := errors.New("step failed")
+
+	tests := []struct {
+		name  string
+		setup func()
+	}{
+		{name: "bind", setup: func() { s.bindErr = errStep }},
+		{name: "delete operation", setup: func() { s.deleteErr = errStep }},
+		{name: "notify", setup: func() { s.notifyErr = errStep }},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			userID := uuid.New()
+
+			tt.setup()
+			s.verifier.EXPECT().
+				FetchOneForUpdate(gomock.Any(), "op-token").
+				Return(confirmedPasswordOp(userID, `{"new_password":"hashed-pwd","email":"u@e"}`), nil)
+
+			codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
+			s.Require().ErrorIs(err, errStep)
+			s.Require().NotErrorIs(err, mrauth.ErrAuth2FAMustBeDisabledFirst)
+			s.Nil(codes)
+			s.False(s.notified)
+			s.Empty(s.logEntries)
+		})
+	}
 }

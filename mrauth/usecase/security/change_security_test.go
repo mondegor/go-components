@@ -109,6 +109,11 @@ func (s *ChangeSecuritySuite) SetupTest() {
 	s.openedNote = ""
 }
 
+// SetupSubTest - каждый подтест стартует с собственными моками и состоянием набора.
+func (s *ChangeSecuritySuite) SetupSubTest() {
+	s.SetupTest()
+}
+
 // expectOpen - открытие операции проходит успешно либо возвращает ошибку; попутно
 // запоминается имя шаблона уведомления, которое usecase передал компоненту.
 func (s *ChangeSecuritySuite) expectOpen(err error) {
@@ -551,4 +556,111 @@ func (s *ChangeSecuritySuite) TestUserRowIsMissingIsInternal() {
 
 func (s *ChangeSecuritySuite) newRegenerateRecovery() *security.RegenerateRecoveryProperty {
 	return security.NewRegenerateRecoveryProperty(s.opener, s.factory2FA, s.opFactory)
+}
+
+func (s *ChangeSecuritySuite) TestChangeEmailPropertyFactoryError() {
+	errFactory := errors.New("factory failed")
+
+	s.expectOpen(nil)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectValueFactory(secureoperation.SecureOperation{}, errFactory)
+	s.expectEmailChecker(nil)
+
+	_, err := s.newChangeEmail().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, contactaddress.NewEmail("new@example.com"))
+	s.Require().ErrorIs(err, errFactory)
+	s.False(s.opened)
+}
+
+func (s *ChangeSecuritySuite) TestChangePhonePropertyFactoryError() {
+	errFactory := errors.New("factory failed")
+
+	s.expectOpen(nil)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectValueFactory(secureoperation.SecureOperation{}, errFactory)
+	s.expectPhoneChecker(nil)
+
+	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, contactaddress.NewPhone("79991234567"))
+	s.Require().ErrorIs(err, errFactory)
+	s.False(s.opened)
+}
+
+func (s *ChangeSecuritySuite) TestChangePhonePropertyOpenError() {
+	errOpen := errors.New("open failed")
+
+	s.expectOpen(errOpen)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectValueFactory(openedEmailOp(s.T()), nil)
+	s.expectPhoneChecker(nil)
+
+	_, err := s.newChangePhone().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, contactaddress.NewPhone("79991234567"))
+	s.Require().ErrorIs(err, errOpen)
+}
+
+func (s *ChangeSecuritySuite) TestChangePasswordPropertyOpenError() {
+	errOpen := errors.New("open failed")
+
+	s.expectOpen(errOpen)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectValueFactory(openedEmailOp(s.T()), nil)
+
+	_, err := s.newChangePassword().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, strongPassword)
+	s.Require().ErrorIs(err, errOpen)
+}
+
+func (s *ChangeSecuritySuite) TestDisable2FAOpenError() {
+	errOpen := errors.New("open failed")
+
+	s.expectOpen(errOpen)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectOpFactory(openedEmailOp(s.T()), nil)
+
+	_, err := s.newDisable2FA().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()})
+	s.Require().ErrorIs(err, errOpen)
+}
+
+func (s *ChangeSecuritySuite) TestRegenerateRecoveryPropertyNilUserID() {
+	s.expectOpen(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectOpFactory(secureoperation.SecureOperation{}, nil)
+
+	_, err := s.newRegenerateRecovery().Execute(s.ctx, dto.ActorMeta{})
+	s.Require().ErrorIs(err, coreerrors.ErrInternalIncorrectInputData)
+	s.False(s.opened)
+}
+
+func (s *ChangeSecuritySuite) TestRegenerateRecoveryPropertySuccess() {
+	op := openedEmailOp(s.T())
+
+	s.expectOpen(nil)
+	s.expect2FA(userWith2FA(confirmmethod.TOTP), nil)
+	s.expectOpFactory(op, nil)
+
+	got, err := s.newRegenerateRecovery().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()})
+	s.Require().NoError(err)
+	s.Equal(op.Token, got.Token)
+	s.True(s.opened)
+	s.Equal("confirm.regenerate.recovery", s.openedNote)
+}
+
+// TestRegenerateRecoveryPropertyFactoryError - фабрика операции отказывает (например, 2FA
+// не включена): ошибка возвращается как есть, операция не открывается.
+func (s *ChangeSecuritySuite) TestRegenerateRecoveryPropertyFactoryError() {
+	s.expectOpen(nil)
+	s.expect2FA(userWithEmail(), nil)
+	s.expectOpFactory(secureoperation.SecureOperation{}, mrauth.ErrAuth2FAIsDisabled)
+
+	_, err := s.newRegenerateRecovery().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()})
+	s.Require().ErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
+	s.False(s.opened)
+}
+
+func (s *ChangeSecuritySuite) TestRegenerateRecoveryPropertyOpenError() {
+	errOpen := errors.New("open failed")
+
+	s.expectOpen(errOpen)
+	s.expect2FA(userWith2FA(confirmmethod.TOTP), nil)
+	s.expectOpFactory(openedEmailOp(s.T()), nil)
+
+	_, err := s.newRegenerateRecovery().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()})
+	s.Require().ErrorIs(err, errOpen)
 }

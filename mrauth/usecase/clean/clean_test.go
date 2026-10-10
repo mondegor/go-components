@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	sysmesserrors "github.com/mondegor/go-core/errors"
 	"github.com/mondegor/go-core/mrstorage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -167,15 +168,6 @@ func TestSecurityLogCleaner_Execute(t *testing.T) {
 	require.Equal(t, 5, count)
 }
 
-func TestSecurityLogCleaner_Execute_InvalidLimit(t *testing.T) {
-	t.Parallel()
-
-	uc := clean.NewSecurityLogCleaner(mock.NewMockSecurityLogStorage(gomock.NewController(t)), time.Hour)
-
-	_, err := uc.Execute(context.Background(), 0)
-	require.Error(t, err)
-}
-
 // ----- UserCleaner -----
 
 func TestUserCleaner_Execute(t *testing.T) {
@@ -273,4 +265,194 @@ func TestSessionDrainer_Execute_FetchError(t *testing.T) {
 
 	_, err := uc.Execute(context.Background(), 100)
 	require.Error(t, err)
+}
+
+// ----- общие для очистителей проверки -----
+
+// TestCleaners_Execute_InvalidLimit - нулевой или отрицательный размер пачки - ошибка проводки:
+// хранилища не вызываются (моки без EXPECT: любой вызов провалит тест).
+func TestCleaners_Execute_InvalidLimit(t *testing.T) {
+	t.Parallel()
+
+	type executor interface {
+		Execute(ctx context.Context, limit int) (int, error)
+	}
+
+	tests := []struct {
+		name  string
+		newUC func(ctrl *gomock.Controller) executor
+	}{
+		{
+			name: "auth token cleaner",
+			newUC: func(ctrl *gomock.Controller) executor {
+				return clean.NewAuthTokenCleaner(
+					mock.NewMockDBTxManager(ctrl), mock.NewMockAuthTokenStorage(ctrl), mock.NewMockSessionCleanupQueue(ctrl),
+				)
+			},
+		},
+		{
+			name: "operation cleaner",
+			newUC: func(ctrl *gomock.Controller) executor {
+				return clean.NewOperationCleaner(mock.NewMockOperationStorage(ctrl))
+			},
+		},
+		{
+			name: "operation log cleaner",
+			newUC: func(ctrl *gomock.Controller) executor {
+				return clean.NewOperationLogCleaner(mock.NewMockOperationLogStorage(ctrl), time.Hour)
+			},
+		},
+		{
+			name: "security log cleaner",
+			newUC: func(ctrl *gomock.Controller) executor {
+				return clean.NewSecurityLogCleaner(mock.NewMockSecurityLogStorage(ctrl), time.Hour)
+			},
+		},
+		{
+			name: "user cleaner",
+			newUC: func(ctrl *gomock.Controller) executor {
+				return clean.NewUserCleaner(mock.NewMockUserActivityLogStorage(ctrl), time.Hour)
+			},
+		},
+		{
+			name: "session drainer",
+			newUC: func(ctrl *gomock.Controller) executor {
+				return clean.NewSessionDrainer(mock.NewMockSessionCleanupQueueConsumer(ctrl), mock.NewMockOrphanSessionDeleter(ctrl))
+			},
+		},
+		{
+			name: "session excess trimmer",
+			newUC: func(ctrl *gomock.Controller) executor {
+				return newExcessTrimmerMocks(ctrl).uc
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			uc := tt.newUC(gomock.NewController(t))
+
+			for _, limit := range []int{0, -1} {
+				count, err := uc.Execute(context.Background(), limit)
+				require.ErrorIs(t, err, sysmesserrors.ErrInternalIncorrectInputData)
+				assert.Zero(t, count)
+			}
+		})
+	}
+}
+
+// TestLogCleaners_Execute_StorageError - сбой хранилища возвращается ошибкой, count = 0.
+func TestLogCleaners_Execute_StorageError(t *testing.T) {
+	t.Parallel()
+
+	errStorage := errors.New("storage failed")
+
+	type executor interface {
+		Execute(ctx context.Context, limit int) (int, error)
+	}
+
+	tests := []struct {
+		name  string
+		newUC func(ctrl *gomock.Controller) executor
+	}{
+		{
+			name: "operation cleaner",
+			newUC: func(ctrl *gomock.Controller) executor {
+				storage := mock.NewMockOperationStorage(ctrl)
+				storage.EXPECT().DeleteExpired(gomock.Any(), 100).Return(0, errStorage)
+
+				return clean.NewOperationCleaner(storage)
+			},
+		},
+		{
+			name: "operation log cleaner",
+			newUC: func(ctrl *gomock.Controller) executor {
+				storage := mock.NewMockOperationLogStorage(ctrl)
+				storage.EXPECT().DeleteBeforeDate(gomock.Any(), gomock.Any(), 100).Return(0, errStorage)
+
+				return clean.NewOperationLogCleaner(storage, time.Hour)
+			},
+		},
+		{
+			name: "security log cleaner",
+			newUC: func(ctrl *gomock.Controller) executor {
+				storage := mock.NewMockSecurityLogStorage(ctrl)
+				storage.EXPECT().DeleteBeforeDate(gomock.Any(), gomock.Any(), 100).Return(0, errStorage)
+
+				return clean.NewSecurityLogCleaner(storage, time.Hour)
+			},
+		},
+		{
+			name: "user cleaner",
+			newUC: func(ctrl *gomock.Controller) executor {
+				storage := mock.NewMockUserActivityLogStorage(ctrl)
+				storage.EXPECT().DeleteBeforeDate(gomock.Any(), gomock.Any(), 100).Return(0, errStorage)
+
+				return clean.NewUserCleaner(storage, time.Hour)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			count, err := tt.newUC(gomock.NewController(t)).Execute(context.Background(), 100)
+			require.ErrorIs(t, err, errStorage)
+			assert.Zero(t, count)
+		})
+	}
+}
+
+// TestAuthTokenCleaner_Execute_RefreshErrorSkipsEnqueue - сбой удаления refresh токенов
+// откатывает транзакцию: кандидаты в очередь не ставятся.
+func TestAuthTokenCleaner_Execute_RefreshErrorSkipsEnqueue(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+
+	tx := mock.NewMockDBTxManager(ctrl)
+	storage := mock.NewMockAuthTokenStorage(ctrl)
+	queue := mock.NewMockSessionCleanupQueue(ctrl)
+
+	errRefresh := errors.New("refresh failed")
+
+	storage.EXPECT().DeleteExpiredNonRefresh(gomock.Any(), 100).Return(5, nil)
+	tx.EXPECT().Do(gomock.Any(), gomock.Any()).DoAndReturn(runJob)
+	storage.EXPECT().DeleteExpiredRefresh(gomock.Any(), 100).Return(nil, errRefresh)
+	// queue.Enqueue не должен вызываться
+
+	uc := clean.NewAuthTokenCleaner(tx, storage, queue)
+
+	count, err := uc.Execute(context.Background(), 100)
+	require.ErrorIs(t, err, errRefresh)
+	assert.Zero(t, count)
+}
+
+// TestSessionDrainer_Execute_AckError - сбой ack возвращается ошибкой: пачка будет
+// переобработана на следующем проходе (удаление идемпотентно).
+func TestSessionDrainer_Execute_AckError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+
+	consumer := mock.NewMockSessionCleanupQueueConsumer(ctrl)
+	deleter := mock.NewMockOrphanSessionDeleter(ctrl)
+
+	pks := []entity.SessionPK{{UserID: uuid.New(), SessionID: 1}}
+	errAck := errors.New("ack failed")
+
+	gomock.InOrder(
+		consumer.EXPECT().Fetch(gomock.Any(), 100).Return(pks, nil),
+		deleter.EXPECT().DeleteOrphaned(gomock.Any(), pks).Return(nil),
+		consumer.EXPECT().Delete(gomock.Any(), pks).Return(errAck),
+	)
+
+	uc := clean.NewSessionDrainer(consumer, deleter)
+
+	count, err := uc.Execute(context.Background(), 100)
+	require.ErrorIs(t, err, errAck)
+	assert.Zero(t, count)
 }

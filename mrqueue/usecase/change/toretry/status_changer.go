@@ -77,8 +77,11 @@ func (uc *ProcessingToRetryChanger) Execute(ctx context.Context, limit int) (cou
 		if uc.storageCrashed != nil {
 			items := make([]entity.CrashedItem, count)
 
-			for i := range itemsIDs {
-				items[i].Cause = causeProcessingToRetryByTimeout
+			for i, id := range itemsIDs {
+				items[i] = entity.CrashedItem{
+					ID:    id,
+					Cause: causeProcessingToRetryByTimeout,
+				}
 			}
 
 			if err = uc.storageCrashed.Insert(ctx, items); err != nil {

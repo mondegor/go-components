@@ -381,3 +381,100 @@ func TestSessionExcessTrimmer_Execute_AlreadyRevokedIsNotError(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 }
+
+// сбой выборки открытых сессий прерывает обработку до ack (пользователь останется в очереди).
+func TestSessionExcessTrimmer_Execute_OpenSessionsErrorSkipsAck(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+
+	m := newExcessTrimmerMocks(ctrl)
+
+	userID := uuid.New()
+	errFetch := errors.New("fetch open sessions failed")
+
+	m.consumer.EXPECT().Fetch(gomock.Any(), 100).
+		Return([]entity.SessionExcessItem{{UserID: userID, RealmID: testRealmID, SessionMax: 1}}, nil)
+	m.openFetcher.EXPECT().FetchOpenSessions(gomock.Any(), userID, testRealmID).Return(nil, errFetch)
+	// FetchOrderedListByUserIDAndSessionIDs и consumer.Delete (ack) не должны вызываться
+
+	count, err := m.uc.Execute(context.Background(), 100)
+	require.ErrorIs(t, err, errFetch)
+	require.Zero(t, count)
+}
+
+// сбой выборки списка сессий прерывает обработку до ack (пользователь останется в очереди).
+func TestSessionExcessTrimmer_Execute_ListErrorSkipsAck(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+
+	m := newExcessTrimmerMocks(ctrl)
+
+	userID := uuid.New()
+	errList := errors.New("list failed")
+
+	m.consumer.EXPECT().Fetch(gomock.Any(), 100).
+		Return([]entity.SessionExcessItem{{UserID: userID, RealmID: testRealmID, SessionMax: 1}}, nil)
+	m.openFetcher.EXPECT().FetchOpenSessions(gomock.Any(), userID, testRealmID).Return(testOpenSessions(1, 2), nil)
+	m.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), userID, []uint32{1, 2}, 0).Return(nil, errList)
+	// RevokeTokensBySessionIDs и consumer.Delete (ack) не должны вызываться
+
+	count, err := m.uc.Execute(context.Background(), 100)
+	require.ErrorIs(t, err, errList)
+	require.Zero(t, count)
+}
+
+// сбой ack возвращается ошибкой: пачка будет переобработана на следующем проходе (идемпотентно).
+func TestSessionExcessTrimmer_Execute_AckError(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+
+	m := newExcessTrimmerMocks(ctrl)
+
+	userID := uuid.New()
+	errAck := errors.New("ack failed")
+
+	gomock.InOrder(
+		m.consumer.EXPECT().Fetch(gomock.Any(), 100).
+			Return([]entity.SessionExcessItem{{UserID: userID, RealmID: testRealmID, SessionMax: 4}}, nil),
+		m.openFetcher.EXPECT().FetchOpenSessions(gomock.Any(), userID, testRealmID).Return(entity.OpenSessions{}, nil),
+		m.consumer.EXPECT().Delete(gomock.Any(), []entity.SessionExcessPK{{UserID: userID, RealmID: testRealmID}}).Return(errAck),
+	)
+
+	count, err := m.uc.Execute(context.Background(), 100)
+	require.ErrorIs(t, err, errAck)
+	require.Zero(t, count)
+}
+
+// не заданный (нулевой) лимит сессий трактуется как одна сессия, а не как «ревокать все».
+func TestSessionExcessTrimmer_Execute_ZeroSessionMaxKeepsOne(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+
+	m := newExcessTrimmerMocks(ctrl)
+
+	userID := uuid.New()
+	now := time.Now()
+
+	sessions := []entity.Session{
+		{UserID: userID, SessionID: 1, UserAgent: "A", CreatedAt: now.Add(-1 * time.Minute)},
+		{UserID: userID, SessionID: 2, UserAgent: "B", CreatedAt: now.Add(-2 * time.Minute)},
+	}
+
+	gomock.InOrder(
+		m.consumer.EXPECT().Fetch(gomock.Any(), 100).
+			Return([]entity.SessionExcessItem{{UserID: userID, RealmID: testRealmID, SessionMax: 0}}, nil),
+		m.openFetcher.EXPECT().FetchOpenSessions(gomock.Any(), userID, testRealmID).Return(testOpenSessions(1, 2), nil),
+		m.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), userID, []uint32{1, 2}, 0).Return(sessions, nil),
+		m.closer.EXPECT().RevokeTokensBySessionIDs(gomock.Any(), userID, []uint32{2}).Return(nil),
+		m.deleter.EXPECT().DeleteOrphaned(gomock.Any(), []entity.SessionPK{{UserID: userID, SessionID: 2}}).Return(nil),
+		m.consumer.EXPECT().Delete(gomock.Any(), []entity.SessionExcessPK{{UserID: userID, RealmID: testRealmID}}).Return(nil),
+	)
+
+	count, err := m.uc.Execute(context.Background(), 100)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+}

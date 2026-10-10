@@ -9,9 +9,10 @@ import (
 // Границы клампа отклонений soft/hard дублируются в domain-слое
 // (mrauth/usecase/session: minSessionThreshold/maxSessionThreshold, тип int) и здесь
 // (тип int8). Оба набора неэкспортируемы, поэтому сравнить напрямую нельзя; вместо этого
-// обе стороны пришпилены к одному документированному эталону -4/16. Парный тест на стороне
-// domain - TestSessionThresholdBounds_MirrorConfig (mrauth/usecase/session). Любая
-// односторонняя правка ломает соответствующий тест и заставляет синхронизировать вторую сторону.
+// обе стороны пришпилены к одному документированному эталону -4/16. Парные тесты на стороне
+// domain - TestThreshold*Clamped* в OpenSessionSuite (mrauth/usecase/session, через публичный
+// API). Любая односторонняя правка ломает соответствующий тест и заставляет синхронизировать
+// вторую сторону.
 const (
 	expectedMinSessionThreshold int8 = -4
 	expectedMaxSessionThreshold int8 = 16

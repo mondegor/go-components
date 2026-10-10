@@ -269,3 +269,9 @@ func (s *AuthFlowSuite) TestActorNotOwnerRejected() {
 		s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
 	}
 }
+
+// операция, не относящаяся к входу, - ошибка проводки: сервис не вызывается.
+func (s *AuthFlowSuite) TestUnsupportedOperationType() {
+	_, _, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, s.confirmedOp(operationtype.ChangeEmail, uuid.New()))
+	s.Require().ErrorIs(err, sysmesserrors.ErrInternalIncorrectInputData)
+}

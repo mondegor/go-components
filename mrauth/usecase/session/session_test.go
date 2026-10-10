@@ -116,7 +116,7 @@ type OpenSessionSuite struct {
 // buildUC - пересобирает OpenSession с лимитом limit для realm/kind из okScopes() ("site/admin"/"admin")
 // и дефолтными порогами (soft=0, hard=4).
 func (s *OpenSessionSuite) buildUC(limit int) {
-	s.buildUCThresholds(limit, 0, 0)
+	s.buildUCThresholds(limit, 0, 4)
 }
 
 // buildUCThresholds - как buildUC, но с явными soft/hard порогами.
@@ -185,6 +185,11 @@ func (s *OpenSessionSuite) SetupTest() {
 		}).
 		AnyTimes()
 	s.buildUC(4) // soft=4, hard=8
+}
+
+// SetupSubTest - каждый подтест стартует с собственными моками и состоянием набора.
+func (s *OpenSessionSuite) SetupSubTest() {
+	s.SetupTest()
 }
 
 // authSuccessNotify - спай отложенного login-alert callback'а: считает фактические отправки
@@ -370,6 +375,124 @@ func (s *OpenSessionSuite) TestThresholdClampMinOne() {
 
 	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), scopes.UserID, testRealmID).Return(0, nil)
 	s.excessQueue.EXPECT().Enqueue(gomock.Any(), scopes.UserID, testRealmID, 1).Return(nil) // soft=1: 0+1>=1
+	s.expectOpenSession(scopes)
+
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
+	s.Require().NoError(err)
+}
+
+// Границы клампа отклонений soft/hard пришпилены к документированному эталону -4/16, который
+// дублируется в composition-root (wire/mrauth/config, парный тест TestSessionThresholdBounds_MirrorDomain).
+// Тесты ниже фиксируют обе границы поведенчески: односторонняя правка ломает одну из сторон.
+const (
+	expectedMinSessionThreshold = -4
+	expectedMaxSessionThreshold = 16
+)
+
+// отклонение hard сверх верхней границы зажимается: вход ещё проходит на N = limit+max-1.
+func (s *OpenSessionSuite) TestThresholdHardClampedToMaxAllows() {
+	s.buildUCThresholds(4, 0, 100)
+
+	scopes := okScopes()
+
+	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), scopes.UserID, testRealmID).Return(4+expectedMaxSessionThreshold-1, nil)
+	s.excessQueue.EXPECT().Enqueue(gomock.Any(), scopes.UserID, testRealmID, 4).Return(nil)
+	s.expectOpenSession(scopes)
+
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
+	s.Require().NoError(err)
+}
+
+// отклонение hard сверх верхней границы зажимается: вход отклоняется уже на N = limit+max,
+// а не на заданном отклонении.
+func (s *OpenSessionSuite) TestThresholdHardClampedToMaxRejects() {
+	s.buildUCThresholds(4, 0, 100)
+
+	scopes := okScopes()
+
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(scopes, s.authSuccessNotify(), nil)
+	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), scopes.UserID, testRealmID).Return(4+expectedMaxSessionThreshold, nil)
+	s.excessQueue.EXPECT().Enqueue(gomock.Any(), scopes.UserID, testRealmID, 4).Return(nil)
+
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
+	s.Require().ErrorIs(err, mrauth.ErrSessionLimitExceededTryLater)
+}
+
+// отклонение soft ниже нижней границы зажимается: сигнал на чистку ставится ровно с N+1 = limit+min.
+func (s *OpenSessionSuite) TestThresholdSoftClampedToMin() {
+	type testCase struct {
+		name        string
+		openCount   int
+		wantEnqueue bool
+	}
+
+	tests := []testCase{
+		{name: "below soft", openCount: 8 + expectedMinSessionThreshold - 2, wantEnqueue: false},
+		{name: "at soft", openCount: 8 + expectedMinSessionThreshold - 1, wantEnqueue: true},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			s.buildUCThresholds(8, -100, 0)
+
+			scopes := okScopes()
+
+			s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), scopes.UserID, testRealmID).Return(tt.openCount, nil)
+
+			if tt.wantEnqueue {
+				s.excessQueue.EXPECT().Enqueue(gomock.Any(), scopes.UserID, testRealmID, 8).Return(nil)
+			}
+
+			s.expectOpenSession(scopes)
+
+			_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
+			s.Require().NoError(err)
+		})
+	}
+}
+
+// отклонение soft сверх верхней границы зажимается: сигнал на чистку ставится ровно с N+1 = limit+max.
+func (s *OpenSessionSuite) TestThresholdSoftClampedToMax() {
+	type testCase struct {
+		name        string
+		openCount   int
+		wantEnqueue bool
+	}
+
+	tests := []testCase{
+		{name: "below soft", openCount: 4 + expectedMaxSessionThreshold - 2, wantEnqueue: false},
+		{name: "at soft", openCount: 4 + expectedMaxSessionThreshold - 1, wantEnqueue: true},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			s.buildUCThresholds(4, 100, 100)
+
+			scopes := okScopes()
+
+			s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), scopes.UserID, testRealmID).Return(tt.openCount, nil)
+
+			if tt.wantEnqueue {
+				s.excessQueue.EXPECT().Enqueue(gomock.Any(), scopes.UserID, testRealmID, 4).Return(nil)
+			}
+
+			s.expectOpenSession(scopes)
+
+			_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
+			s.Require().NoError(err)
+		})
+	}
+}
+
+// soft > hard меняются местами: при limit=4, soft=+2, hard=-2 hard-порог равен 6, а не 2,
+// поэтому вход с N=2 проходит (с сигналом на чистку по soft-порогу 2).
+func (s *OpenSessionSuite) TestThresholdSoftAboveHardSwapped() {
+	s.buildUCThresholds(4, 2, -2)
+
+	scopes := okScopes()
+
+	s.openCounter.EXPECT().FetchOpenSessionCount(gomock.Any(), scopes.UserID, testRealmID).Return(2, nil)
+	s.excessQueue.EXPECT().Enqueue(gomock.Any(), scopes.UserID, testRealmID, 4).Return(nil)
 	s.expectOpenSession(scopes)
 
 	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
@@ -1147,4 +1270,65 @@ func (s *ListSuite) TestCloseSecurityLogError() {
 	s.secLog.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(errors.New("insert failed"))
 
 	s.Require().Error(s.uc.Close(s.ctx, dto.ActorMeta{UserID: s.userID}, ids))
+}
+
+// сбой проверки членства в чужом realm (кроме отсутствия привязки) - внутренняя ошибка, а не 403.
+func (s *ListSuite) TestGetListForeignRealmFetchError() {
+	wantErr := errors.New("fetch user realm failed")
+
+	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").Return(dto.UserScopes{SessionID: 1, Realm: testRealm}, nil)
+	s.userRealm.EXPECT().FetchOne(gomock.Any(), s.userID, altRealmID).Return(entity.UserRealm{}, wantErr)
+
+	_, err := s.uc.GetList(s.ctx, s.userID, "acc", altRealm)
+	s.Require().ErrorIs(err, wantErr)
+	s.Require().NotErrorIs(err, errors.ErrAccessForbidden)
+}
+
+// сбой догрузки текущей сессии, выпавшей за пределы лимита, возвращается ошибкой.
+func (s *ListSuite) TestGetListCurrentSessionRefetchError() {
+	uc := session.NewList(
+		s.tx,
+		s.lister,
+		s.opener,
+		s.closer,
+		s.secLog,
+		s.resolver,
+		s.userRealm,
+		testRealmRegistry(),
+		nil,
+		nil,
+		[]session.LimitRealm{{
+			ID:         altRealmID,
+			KindLimits: []session.UserKindLimit{{Kind: "k", SessionMax: 2}},
+		}},
+	)
+
+	open := []uint32{1, 2, 3}
+	rows := []entity.Session{
+		{UserID: s.userID, SessionID: 1},
+		{UserID: s.userID, SessionID: 2},
+	}
+	wantErr := errors.New("refetch failed")
+
+	s.opener.EXPECT().FetchOpenSessions(gomock.Any(), s.userID, altRealmID).Return(testOpenSessions(open...), nil)
+	s.resolver.EXPECT().FetchOneByAccessToken(gomock.Any(), "acc").
+		Return(dto.UserScopes{SessionID: 3, Realm: "r", Kind: "k"}, nil)
+	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, open, 2).Return(rows, nil)
+	s.lister.EXPECT().FetchOrderedListByUserIDAndSessionIDs(gomock.Any(), s.userID, []uint32{3}, 0).Return(nil, wantErr)
+
+	_, err := uc.GetList(s.ctx, s.userID, "acc", "")
+	s.Require().ErrorIs(err, wantErr)
+}
+
+// realm из scopes пользователя не зарегистрирован в приложении - нарушение инварианта:
+// лимит сессий не проверяется, сессия не открывается.
+func (s *OpenSessionSuite) TestUnknownRealm() {
+	scopes := okScopes()
+	scopes.Realm = "unknown/realm"
+
+	s.authFlow.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Return(scopes, s.authSuccessNotify(), nil)
+
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, confirmedOp(operationtype.CreateUser))
+	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
+	s.Zero(s.notifyCount)
 }

@@ -104,3 +104,23 @@ func (s *GetTOTPSecretSuite) TestOperationNotFound() {
 	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
 	s.Require().NotErrorIs(err, errors.ErrRecordNotFound)
 }
+
+// TestInvalidInput - некорректный вход отклоняется до обращения к хранилищу.
+func (s *GetTOTPSecretSuite) TestInvalidInput() {
+	_, err := s.newUseCase().Execute(s.ctx, uuid.Nil, "op-token")
+	s.Require().ErrorIs(err, errors.ErrInternalIncorrectInputData)
+
+	_, err = s.newUseCase().Execute(s.ctx, uuid.New(), "")
+	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
+}
+
+// TestFetchError - сбой хранилища не выдаётся за недействительный токен.
+func (s *GetTOTPSecretSuite) TestFetchError() {
+	errFetch := errors.New("fetch failed")
+
+	s.fetcher.EXPECT().FetchOne(gomock.Any(), "op-token").Return(secureoperation.SecureOperation{}, errFetch)
+
+	_, err := s.newUseCase().Execute(s.ctx, uuid.New(), "op-token")
+	s.Require().ErrorIs(err, errFetch)
+	s.Require().NotErrorIs(err, mrauth.ErrOperationInvalid)
+}
