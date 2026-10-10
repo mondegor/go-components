@@ -707,3 +707,86 @@ func (s *RevokeOperationSuite) TestStatisticInsertError() {
 
 	s.Require().ErrorIs(operation.NewStatistic(s.logStorage).Execute(s.ctx, nil), wantErr)
 }
+
+// TestPrepareUnexpectedError - сбой подготовки, не являющийся отказом в подтверждении,
+// возвращается как есть: счётчик попыток не трогается, журнал не пишется.
+func (s *ConfirmOperationSuite) TestPrepareUnexpectedError() {
+	wantErr := errors.New("prepare failed")
+
+	op := openedEmailOp(s.T())
+	s.expectFetch(op, nil)
+	s.expectPrepare(op, nil, wantErr)
+	// UpdateFailedAttempt не вызывается
+
+	_, err := s.execute("code")
+	s.Require().ErrorIs(err, wantErr)
+	s.Empty(s.logEntries)
+}
+
+// TestUpdateFailedAttemptError - неверный код, но сбой учёта попытки: ошибка возвращается,
+// а не выдаётся за неверный код.
+func (s *ConfirmOperationSuite) TestUpdateFailedAttemptError() {
+	wantErr := errors.New("update failed")
+
+	op := openedEmailOp(s.T())
+	s.expectFetch(op, nil)
+	s.expectPrepare(op, nil, mrauth.ErrConfirmCodeIsIncorrect)
+	s.storage.EXPECT().UpdateFailedAttempt(gomock.Any(), "token").Return(int16(0), wantErr)
+
+	_, err := s.execute("bad")
+	s.Require().ErrorIs(err, wantErr)
+	s.Require().NotErrorIs(err, mrauth.ErrConfirmCodeIsIncorrect)
+	s.Empty(s.logEntries)
+}
+
+// TestUnknownTokenIsDomainError - операции по предъявленному токену нет: usecase обязан сам
+// перевести отсутствие записи в доменную ошибку, не полагаясь на перевод в контроллере.
+func (s *ResendCodeSuite) TestUnknownTokenIsDomainError() {
+	s.storage.EXPECT().
+		FetchOneForUpdate(gomock.Any(), "token").
+		Return(secureoperation.SecureOperation{}, sysmesserrors.ErrEventStorageNoRecordFound)
+
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "token")
+	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
+	s.Require().NotErrorIs(err, sysmesserrors.ErrRecordNotFound)
+	s.Empty(s.logEntries)
+}
+
+func (s *ResendCodeSuite) TestFetchError() {
+	wantErr := errors.New("fetch failed")
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), "token").Return(secureoperation.SecureOperation{}, wantErr)
+
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "token")
+	s.Require().ErrorIs(err, wantErr)
+	s.Require().NotErrorIs(err, mrauth.ErrOperationInvalid)
+	s.Empty(s.logEntries)
+}
+
+// TestReplaceError - операция с новым кодом не сохранилась: код не отправляется, журнал не пишется.
+func (s *ResendCodeSuite) TestReplaceError() {
+	wantErr := errors.New("replace failed")
+
+	op := openedEmailOp(s.T())
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), "token").Return(op, nil)
+	s.preparer.EXPECT().Prepare(gomock.Any()).Return(op, nil)
+	s.storage.EXPECT().Replace(gomock.Any(), "token", gomock.Any()).Return(wantErr)
+	s.notifierAPI.EXPECT().Send(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	_, err := s.uc.Execute(s.ctx, dto.ActorMeta{}, "en", "token")
+	s.Require().ErrorIs(err, wantErr)
+	s.Empty(s.logEntries)
+}
+
+// TestUnknownTokenIsDomainError - операции по предъявленному токену нет: usecase обязан сам
+// перевести отсутствие записи в доменную ошибку, не полагаясь на перевод в контроллере.
+func (s *RevokeOperationSuite) TestUnknownTokenIsDomainError() {
+	s.storage.EXPECT().
+		FetchOne(gomock.Any(), "token").
+		Return(secureoperation.SecureOperation{}, sysmesserrors.ErrEventStorageNoRecordFound)
+	s.storage.EXPECT().Delete(gomock.Any(), gomock.Any()).Times(0)
+
+	err := s.uc.Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, "token")
+	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
+	s.Require().NotErrorIs(err, sysmesserrors.ErrRecordNotFound)
+	s.Empty(s.logEntries)
+}

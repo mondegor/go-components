@@ -143,6 +143,11 @@ func (s *CreateSessionSuite) SetupTest() {
 		AnyTimes()
 }
 
+// SetupSubTest - каждый подтест стартует с собственными моками и состоянием набора.
+func (s *CreateSessionSuite) SetupSubTest() {
+	s.SetupTest()
+}
+
 func (s *CreateSessionSuite) newUseCase() *auth.CreateSession {
 	return auth.NewCreateSession(
 		s.opener,
@@ -354,6 +359,11 @@ func (s *CreateUserSuite) SetupTest() {
 			s.logEntries = append(s.logEntries, entry)
 		}).
 		AnyTimes()
+}
+
+// SetupSubTest - каждый подтест стартует с собственными моками и состоянием набора.
+func (s *CreateUserSuite) SetupSubTest() {
+	s.SetupTest()
 }
 
 // expectHappyDeps - дефолтные ответы блокировки, проверки логина и фабрики 2FA.
@@ -600,4 +610,126 @@ func (s *CreateUserSuite) TestExistingUser2FAForwarded() {
 	_, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Europe/Moscow"), "shop", "en", contactaddress.NewEmail("user@example.com"))
 	s.Require().NoError(err)
 	s.Equal(user2FA, s.gotUser2FA)
+}
+
+// TestDependencyError - ошибки зависимостей CreateSession возвращаются как есть, журнал не пишется.
+func (s *CreateSessionSuite) TestDependencyError() {
+	wantErr := errors.New("boom")
+
+	tests := []struct {
+		name  string
+		setup func()
+	}{
+		{
+			name: "user 2fa factory",
+			setup: func() {
+				// дефолт фабрики из SetupTest перекрыть нельзя (gomock берёт первое ожидание),
+				// поэтому фабрика заменяется целиком
+				s.factory2FA = mock.NewMockUser2FAConfirmActionCreator(s.ctrl)
+				s.factory2FA.EXPECT().CreateByUserLogin(gomock.Any(), gomock.Any()).Return(dto.User2FA{}, wantErr)
+			},
+		},
+		{
+			name: "operation factory",
+			setup: func() {
+				s.opFactory.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(secureoperation.SecureOperation{}, wantErr)
+			},
+		},
+		{
+			name: "open",
+			setup: func() {
+				s.opFactory.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(newOpenedEmailOp(s.T()), nil)
+				s.opener.EXPECT().Open(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(wantErr)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			s.expectCheckLogin(mrauth.ErrEmailAlreadyExists)
+			tt.setup()
+
+			op, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{}, "shop", "en", contactaddress.NewEmail("user@example.com"))
+			s.Require().ErrorIs(err, wantErr)
+			s.Equal(secureoperation.SecureOperation{}, op)
+			s.Empty(s.logEntries)
+		})
+	}
+}
+
+// expectLockTracked - блокировка емаила берётся успешно; возвращает признак того,
+// что usecase освободил её.
+func (s *CreateUserSuite) expectLockTracked() *bool {
+	unlocked := false
+
+	s.locker.EXPECT().
+		LockWithExpiry(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(func() { unlocked = true }, nil)
+
+	return &unlocked
+}
+
+// TestLockError - сбой блокировщика (кроме занятого ключа) - внутренняя ошибка, а не троттл.
+func (s *CreateUserSuite) TestLockError() {
+	wantErr := errors.New("lock failed")
+
+	s.expectLock(wantErr)
+
+	_, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Europe/Moscow"), "shop", "en", contactaddress.NewEmail("user@example.com"))
+	s.Require().ErrorIs(err, wantErr)
+	s.Require().NotErrorIs(err, mrauth.ErrSignupAlreadyInProgressTryLater)
+	s.Empty(s.logEntries)
+}
+
+// TestErrorAfterLockUnlocksEmail - ошибка после взятия блокировки освобождает емаил:
+// троттл держится только за успешно отправленный код.
+func (s *CreateUserSuite) TestErrorAfterLockUnlocksEmail() {
+	wantErr := errors.New("boom")
+
+	tests := []struct {
+		name  string
+		setup func()
+	}{
+		{
+			name: "operation factory",
+			setup: func() {
+				s.expectCreateOperation(secureoperation.SecureOperation{}, wantErr)
+			},
+		},
+		{
+			name: "open",
+			setup: func() {
+				s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
+				s.opener.EXPECT().Open(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(wantErr)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			unlocked := s.expectLockTracked()
+			s.expectCheckLogin(nil)
+			s.expect2FA(dto.User2FA{}, nil)
+			tt.setup()
+
+			op, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Europe/Moscow"), "shop", "en", contactaddress.NewEmail("user@example.com"))
+			s.Require().ErrorIs(err, wantErr)
+			s.Equal(secureoperation.SecureOperation{}, op)
+			s.True(*unlocked)
+		})
+	}
+}
+
+// TestSuccessKeepsLock - при успехе блокировка не освобождается: это анти-спам троттл
+// повторной отправки кода на тот же емаил.
+func (s *CreateUserSuite) TestSuccessKeepsLock() {
+	unlocked := s.expectLockTracked()
+	s.expectCheckLogin(nil)
+	s.expect2FA(dto.User2FA{}, nil)
+	s.expectCreateOperation(newOpenedEmailOp(s.T()), nil)
+	s.expectOpen()
+
+	_, err := s.newUseCase().Execute(s.ctx, testActor(s.T(), "Europe/Moscow"), "shop", "en", contactaddress.NewEmail("user@example.com"))
+	s.Require().NoError(err)
+	s.False(*unlocked)
 }

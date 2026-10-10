@@ -23,9 +23,10 @@ import (
 type ApplyOperationSuite struct {
 	baseSuite
 
-	storage *mock.MockoperationDeleter
-	handler *mock.MockOperationHandler
-	deleted string
+	storage   *mock.MockoperationDeleter
+	handler   *mock.MockOperationHandler
+	deleted   string
+	deleteErr error // ошибка, которую вернёт удаление операции
 }
 
 func TestApplyOperationSuite(t *testing.T) {
@@ -40,15 +41,25 @@ func (s *ApplyOperationSuite) SetupTest() {
 	s.storage = mock.NewMockoperationDeleter(s.ctrl)
 	s.handler = mock.NewMockOperationHandler(s.ctrl)
 	s.deleted = ""
+	s.deleteErr = nil
 
 	s.storage.EXPECT().
 		Delete(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, token string) error {
+			if s.deleteErr != nil {
+				return s.deleteErr
+			}
+
 			s.deleted = token
 
 			return nil
 		}).
 		AnyTimes()
+}
+
+// SetupSubTest - каждый подтест стартует с собственными моками и состоянием набора.
+func (s *ApplyOperationSuite) SetupSubTest() {
+	s.SetupTest()
 }
 
 func (s *ApplyOperationSuite) newUseCase(handlers map[operationtype.Enum]mrauth.OperationHandler) *security.ApplyOperation {
@@ -170,4 +181,37 @@ func (s *ApplyOperationSuite) TestOperationOfOtherMethod() {
 			s.Equal(logreason.AccessForbidden, s.logEntries[0].Reason)
 		})
 	}
+}
+
+// TestEmptyToken - пустой токен - недействительная операция, запрос в хранилище не идёт.
+func (s *ApplyOperationSuite) TestEmptyToken() {
+	err := s.newUseCase(nil).Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, "")
+	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
+	s.Empty(s.logEntries)
+}
+
+func (s *ApplyOperationSuite) TestFetchError() {
+	errFetch := errors.New("fetch failed")
+
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(secureoperation.SecureOperation{}, errFetch)
+
+	err := s.newUseCase(nil).Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, "op-token")
+	s.Require().ErrorIs(err, errFetch)
+	s.Require().NotErrorIs(err, mrauth.ErrOperationInvalid)
+	s.Empty(s.logEntries)
+}
+
+// TestDeleteError - операция не удалилась: обработчик не выполняется, в журнал ничего не пишется.
+func (s *ApplyOperationSuite) TestDeleteError() {
+	userID := uuid.New()
+	s.deleteErr = errors.New("delete failed")
+
+	s.storage.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(confirmedOp(userID, "{}"), nil)
+	s.handler.EXPECT().Execute(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
+	uc := s.newUseCase(map[operationtype.Enum]mrauth.OperationHandler{operationtype.ChangeTOTP: s.handler})
+
+	err := uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
+	s.Require().ErrorIs(err, s.deleteErr)
+	s.Empty(s.logEntries)
 }

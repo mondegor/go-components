@@ -466,7 +466,9 @@ identifier names its own sentinels the same way.
   the shared fixtures (mocks, controller, system-under-test) on the suite struct and build
   them in `SetupTest` (or `SetupSubTest`), so each test method starts from a clean,
   consistently-initialized state instead of duplicating setup. Run it via a single
-  `func TestXxxSuite(t *testing.T) { suite.Run(t, new(XxxSuite)) }` entry point. Keep using
+  `func TestXxxSuite(t *testing.T) { suite.Run(t, new(XxxSuite)) }` entry point (this
+  `XxxSuite` name is for unit suites on mocks; repository suites on `pgtest.Tester` use the
+  `PostgresTestSuite` suffix, see below). Keep using
   `gomock` for the mocks themselves. For simple tests without shared setup, prefer the
   plain table-driven form below.
 - For mocks use **only** `go.uber.org/mock/gomock`. Generate mocks with `mockgen`
@@ -501,7 +503,7 @@ identifier names its own sentinels the same way.
   nobody re-adds it to match the unit tests next door. `paralleltest` is not enabled, so
   nothing forces the call back in. Two corollaries: `-p 1` does **not** help (it bounds
   package parallelism, not top-level tests inside one package), and a suite that fails in a
-  full-package run but passes alone (`go test -run TestXxxSuite ./pkg/`) is resource
+  full-package run but passes alone (`go test -run TestFooPostgresTestSuite ./pkg/`) is resource
   contention, not a regression — check that before hunting for a bug.
 - **Repository suites on `pgtest.Tester` test only the SQL of the repo's methods.** Prepare state
   with fixtures (or plain constructors/struct literals), call the method, assert the result or
@@ -510,7 +512,8 @@ identifier names its own sentinels the same way.
   the **same** repo is fine; to check another table, query it directly, not via its repo.
   Names are tied to the repo:
   - `foo_postgres_test.go` ↔ `foo_postgres.go`; suite `FooPostgresTestSuite`, entry
-    `TestFooPostgresTestSuite`;
+    `TestFooPostgresTestSuite` (the `TestSuite` suffix, not `Suite`, sets Postgres
+    integration suites apart from unit suites on mocks);
   - test methods `Test_<Method>` and variants `Test_<Method>When<Cond>`, where `<Method>` is a
     real method of the repo (`Test_RevokeRefreshWhenExpired`);
   - fixtures in `testdata/<Entity>/<Method>/` (`<Entity>` = repo type without `Postgres`); a

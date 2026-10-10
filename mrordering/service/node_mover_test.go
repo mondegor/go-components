@@ -20,7 +20,7 @@ import (
 // orderIndexStep - шаг order_index между соседними элементами, который назначает NodeMover.
 const orderIndexStep mrentity.ZeronullUint64 = 1024 * 1024
 
-type NodeMoverTestSuite struct {
+type NodeMoverSuite struct {
 	suite.Suite
 
 	ctx     context.Context
@@ -28,20 +28,20 @@ type NodeMoverTestSuite struct {
 	mover   *service.NodeMover
 }
 
-func TestNodeMoverTestSuite(t *testing.T) {
+func TestNodeMoverSuite(t *testing.T) {
 	t.Parallel()
 
-	suite.Run(t, new(NodeMoverTestSuite))
+	suite.Run(t, new(NodeMoverSuite))
 }
 
-func (ts *NodeMoverTestSuite) SetupTest() {
+func (ts *NodeMoverSuite) SetupTest() {
 	ts.ctx = context.Background()
 	ts.storage = mock.NewMocknodeStorage(gomock.NewController(ts.T()))
 	ts.mover = service.New(ts.storage, mrevent.NewEmitter())
 }
 
 // Test_PrependWhenEmpty - в пустой список элемент вставляется первым без обращения к соседям.
-func (ts *NodeMoverTestSuite) Test_PrependWhenEmpty() {
+func (ts *NodeMoverSuite) Test_PrependWhenEmpty() {
 	ts.storage.EXPECT().FetchFirstNode(gomock.Any(), gomock.Any()).Return(entity.Node{}, nil)
 	ts.storage.EXPECT().UpdateNode(gomock.Any(), entity.Node{ID: 5, OrderIndex: orderIndexStep}, gomock.Any()).Return(nil)
 
@@ -49,7 +49,7 @@ func (ts *NodeMoverTestSuite) Test_PrependWhenEmpty() {
 }
 
 // Test_Prepend - элемент вставляется перед первым элементом списка, тот получает его соседом.
-func (ts *NodeMoverTestSuite) Test_Prepend() {
+func (ts *NodeMoverSuite) Test_Prepend() {
 	ts.storage.EXPECT().FetchFirstNode(gomock.Any(), gomock.Any()).Return(entity.Node{ID: 1, NextID: 2, OrderIndex: 2 * orderIndexStep}, nil)
 	ts.storage.EXPECT().UpdateNodePrevID(gomock.Any(), uint64(1), mrentity.ZeronullUint64(5), gomock.Any()).Return(nil)
 	ts.storage.EXPECT().UpdateNode(gomock.Any(), entity.Node{ID: 5, NextID: 1, OrderIndex: orderIndexStep}, gomock.Any()).Return(nil)
@@ -58,7 +58,7 @@ func (ts *NodeMoverTestSuite) Test_Prepend() {
 }
 
 // Test_AppendWhenEmpty - в пустой список элемент вставляется последним без обращения к соседям.
-func (ts *NodeMoverTestSuite) Test_AppendWhenEmpty() {
+func (ts *NodeMoverSuite) Test_AppendWhenEmpty() {
 	ts.storage.EXPECT().FetchLastNode(gomock.Any(), gomock.Any()).Return(entity.Node{}, nil)
 	ts.storage.EXPECT().UpdateNode(gomock.Any(), entity.Node{ID: 5, OrderIndex: orderIndexStep}, gomock.Any()).Return(nil)
 
@@ -66,7 +66,7 @@ func (ts *NodeMoverTestSuite) Test_AppendWhenEmpty() {
 }
 
 // Test_Append - элемент вставляется после последнего элемента списка, тот получает его соседом.
-func (ts *NodeMoverTestSuite) Test_Append() {
+func (ts *NodeMoverSuite) Test_Append() {
 	ts.storage.EXPECT().FetchLastNode(gomock.Any(), gomock.Any()).Return(entity.Node{ID: 3, PrevID: 2, OrderIndex: 3 * orderIndexStep}, nil)
 	ts.storage.EXPECT().UpdateNodeNextID(gomock.Any(), uint64(3), mrentity.ZeronullUint64(5), gomock.Any()).Return(nil)
 	ts.storage.EXPECT().UpdateNode(gomock.Any(), entity.Node{ID: 5, PrevID: 3, OrderIndex: 4 * orderIndexStep}, gomock.Any()).Return(nil)
@@ -75,7 +75,7 @@ func (ts *NodeMoverTestSuite) Test_Append() {
 }
 
 // Test_MoveToFirstWhenEmpty - элемент вне списка становится первым в пустом списке без обращения к соседям.
-func (ts *NodeMoverTestSuite) Test_MoveToFirstWhenEmpty() {
+func (ts *NodeMoverSuite) Test_MoveToFirstWhenEmpty() {
 	ts.storage.EXPECT().FetchFirstNode(gomock.Any(), gomock.Any()).Return(entity.Node{}, nil)
 	ts.storage.EXPECT().FetchNode(gomock.Any(), uint64(5), gomock.Any()).Return(entity.Node{ID: 5}, nil)
 	ts.storage.EXPECT().UpdateNode(gomock.Any(), entity.Node{ID: 5, OrderIndex: orderIndexStep}, gomock.Any()).Return(nil)
@@ -84,7 +84,7 @@ func (ts *NodeMoverTestSuite) Test_MoveToFirstWhenEmpty() {
 }
 
 // Test_MoveToFirstWhenAlreadyFirst - первый элемент остаётся на месте без изменений.
-func (ts *NodeMoverTestSuite) Test_MoveToFirstWhenAlreadyFirst() {
+func (ts *NodeMoverSuite) Test_MoveToFirstWhenAlreadyFirst() {
 	ts.storage.EXPECT().FetchFirstNode(gomock.Any(), gomock.Any()).Return(entity.Node{ID: 5, NextID: 6, OrderIndex: orderIndexStep}, nil)
 
 	ts.Require().NoError(ts.mover.MoveToFirst(ts.ctx, 5, nil))
@@ -92,7 +92,7 @@ func (ts *NodeMoverTestSuite) Test_MoveToFirstWhenAlreadyFirst() {
 
 // Test_MoveToFirst - элемент из середины списка переносится в начало: его прежние соседи связываются
 // друг с другом, бывший первый элемент получает его предыдущим.
-func (ts *NodeMoverTestSuite) Test_MoveToFirst() {
+func (ts *NodeMoverSuite) Test_MoveToFirst() {
 	ts.storage.EXPECT().FetchFirstNode(gomock.Any(), gomock.Any()).Return(entity.Node{ID: 1, NextID: 2, OrderIndex: orderIndexStep}, nil)
 	ts.storage.EXPECT().FetchNode(gomock.Any(), uint64(5), gomock.Any()).Return(entity.Node{ID: 5, PrevID: 2, NextID: 6, OrderIndex: 3 * orderIndexStep}, nil)
 	ts.storage.EXPECT().UpdateNodePrevID(gomock.Any(), uint64(1), mrentity.ZeronullUint64(5), gomock.Any()).Return(nil)
@@ -104,7 +104,7 @@ func (ts *NodeMoverTestSuite) Test_MoveToFirst() {
 }
 
 // Test_MoveToLastWhenEmpty - элемент вне списка становится последним в пустом списке без обращения к соседям.
-func (ts *NodeMoverTestSuite) Test_MoveToLastWhenEmpty() {
+func (ts *NodeMoverSuite) Test_MoveToLastWhenEmpty() {
 	ts.storage.EXPECT().FetchLastNode(gomock.Any(), gomock.Any()).Return(entity.Node{}, nil)
 	ts.storage.EXPECT().FetchNode(gomock.Any(), uint64(5), gomock.Any()).Return(entity.Node{ID: 5}, nil)
 	ts.storage.EXPECT().UpdateNode(gomock.Any(), entity.Node{ID: 5, OrderIndex: orderIndexStep}, gomock.Any()).Return(nil)
@@ -113,7 +113,7 @@ func (ts *NodeMoverTestSuite) Test_MoveToLastWhenEmpty() {
 }
 
 // Test_MoveToLastWhenAlreadyLast - последний элемент остаётся на месте без изменений.
-func (ts *NodeMoverTestSuite) Test_MoveToLastWhenAlreadyLast() {
+func (ts *NodeMoverSuite) Test_MoveToLastWhenAlreadyLast() {
 	ts.storage.EXPECT().FetchLastNode(gomock.Any(), gomock.Any()).Return(entity.Node{ID: 5, PrevID: 4, OrderIndex: orderIndexStep}, nil)
 
 	ts.Require().NoError(ts.mover.MoveToLast(ts.ctx, 5, nil))
@@ -121,7 +121,7 @@ func (ts *NodeMoverTestSuite) Test_MoveToLastWhenAlreadyLast() {
 
 // Test_MoveToLast - элемент из середины списка переносится в конец: его прежние соседи связываются
 // друг с другом, бывший последний элемент получает его следующим.
-func (ts *NodeMoverTestSuite) Test_MoveToLast() {
+func (ts *NodeMoverSuite) Test_MoveToLast() {
 	ts.storage.EXPECT().FetchLastNode(gomock.Any(), gomock.Any()).Return(entity.Node{ID: 9, PrevID: 6, OrderIndex: 4 * orderIndexStep}, nil)
 	ts.storage.EXPECT().FetchNode(gomock.Any(), uint64(5), gomock.Any()).Return(entity.Node{ID: 5, PrevID: 2, NextID: 6, OrderIndex: 2 * orderIndexStep}, nil)
 	ts.storage.EXPECT().UpdateNodeNextID(gomock.Any(), uint64(9), mrentity.ZeronullUint64(5), gomock.Any()).Return(nil)
@@ -134,7 +134,7 @@ func (ts *NodeMoverTestSuite) Test_MoveToLast() {
 
 // Test_MoveAfterIDWhenAfterZeroAndEmpty - перемещение «в начало» (afterNodeID = 0) работает и в пустом
 // списке: элемент вне списка становится первым.
-func (ts *NodeMoverTestSuite) Test_MoveAfterIDWhenAfterZeroAndEmpty() {
+func (ts *NodeMoverSuite) Test_MoveAfterIDWhenAfterZeroAndEmpty() {
 	ts.storage.EXPECT().FetchFirstNode(gomock.Any(), gomock.Any()).Return(entity.Node{}, nil)
 	ts.storage.EXPECT().FetchNode(gomock.Any(), uint64(5), gomock.Any()).Return(entity.Node{ID: 5}, nil)
 	ts.storage.EXPECT().UpdateNode(gomock.Any(), entity.Node{ID: 5, OrderIndex: orderIndexStep}, gomock.Any()).Return(nil)
@@ -144,7 +144,7 @@ func (ts *NodeMoverTestSuite) Test_MoveAfterIDWhenAfterZeroAndEmpty() {
 
 // Test_MoveAfterIDWhenAfterNodeNotInList - элемент вне списка (например, мягко удалённый хостом)
 // не может быть опорным: возвращается ErrAfterNodeNotFound, связи в списке не меняются.
-func (ts *NodeMoverTestSuite) Test_MoveAfterIDWhenAfterNodeNotInList() {
+func (ts *NodeMoverSuite) Test_MoveAfterIDWhenAfterNodeNotInList() {
 	ts.storage.EXPECT().FetchNode(gomock.Any(), uint64(5), gomock.Any()).Return(entity.Node{ID: 5, PrevID: 2, NextID: 6, OrderIndex: 2 * orderIndexStep}, nil)
 	ts.storage.EXPECT().FetchNode(gomock.Any(), uint64(7), gomock.Any()).Return(entity.Node{ID: 7}, nil)
 

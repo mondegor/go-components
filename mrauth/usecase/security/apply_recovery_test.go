@@ -41,6 +41,9 @@ type ApplyRecoverySuite struct {
 	verifier *mock.MockoperationDeleter
 	saved    []string
 	deleted  string
+
+	updateErr error // ошибка, которую вернёт замена аварийных кодов
+	deleteErr error // ошибка, которую вернёт удаление операции
 }
 
 func TestApplyRecoverySuite(t *testing.T) {
@@ -56,10 +59,16 @@ func (s *ApplyRecoverySuite) SetupTest() {
 	s.verifier = mock.NewMockoperationDeleter(s.ctrl)
 	s.saved = nil
 	s.deleted = ""
+	s.updateErr = nil
+	s.deleteErr = nil
 
 	s.updater.EXPECT().
 		UpdateRecoveryCodes(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, _ uuid.UUID, hashed []string) error {
+			if s.updateErr != nil {
+				return s.updateErr
+			}
+
 			s.saved = hashed
 
 			return nil
@@ -69,11 +78,20 @@ func (s *ApplyRecoverySuite) SetupTest() {
 	s.verifier.EXPECT().
 		Delete(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, token string) error {
+			if s.deleteErr != nil {
+				return s.deleteErr
+			}
+
 			s.deleted = token
 
 			return nil
 		}).
 		AnyTimes()
+}
+
+// SetupSubTest - каждый подтест стартует с собственными моками и состоянием набора.
+func (s *ApplyRecoverySuite) SetupSubTest() {
+	s.SetupTest()
 }
 
 func (s *ApplyRecoverySuite) newUseCase() *security.ApplyRecovery {
@@ -152,4 +170,152 @@ func (s *ApplyRecoverySuite) TestWrongOperationTypeNoUpdate() {
 	s.Require().Len(s.logEntries, 1)
 	s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
 	s.Equal(logreason.AccessForbidden, s.logEntries[0].Reason)
+}
+
+// TestInvalidInput - некорректный вход отклоняется до обращения к хранилищу.
+func (s *ApplyRecoverySuite) TestInvalidInput() {
+	tests := []struct {
+		name    string
+		userID  uuid.UUID
+		token   string
+		wantErr error
+	}{
+		{name: "nil user", token: "op-token", wantErr: errors.ErrInternalIncorrectInputData},
+		{name: "empty token", userID: uuid.New(), wantErr: mrauth.ErrOperationInvalid},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			// FetchOneForUpdate не вызывается
+			codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: tt.userID}, tt.token)
+			s.Require().ErrorIs(err, tt.wantErr)
+			s.Nil(codes)
+			s.Empty(s.logEntries)
+		})
+	}
+}
+
+// TestUnknownTokenIsDomainError - отсутствующая операция - это недействительный токен клиента.
+func (s *ApplyRecoverySuite) TestUnknownTokenIsDomainError() {
+	s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(
+		secureoperation.SecureOperation{}, errors.ErrEventStorageNoRecordFound,
+	)
+
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, "op-token")
+	s.Require().ErrorIs(err, mrauth.ErrOperationInvalid)
+	s.Nil(codes)
+	s.Empty(s.logEntries)
+}
+
+func (s *ApplyRecoverySuite) TestFetchError() {
+	errFetch := errors.New("fetch failed")
+
+	s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(secureoperation.SecureOperation{}, errFetch)
+
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: uuid.New()}, "op-token")
+	s.Require().ErrorIs(err, errFetch)
+	s.Require().NotErrorIs(err, mrauth.ErrOperationInvalid)
+	s.Nil(codes)
+	s.Empty(s.logEntries)
+}
+
+// TestUnsuitableOperationIsBlocked - чужая или неподтверждённая операция отклоняется
+// и фиксируется в журнале как блокировка.
+func (s *ApplyRecoverySuite) TestUnsuitableOperationIsBlocked() {
+	userID := uuid.New()
+
+	notConfirmedOp := confirmedRegenerateOp(userID)
+	notConfirmedOp.Status = operationstatus.Opened
+
+	tests := []struct {
+		name       string
+		op         secureoperation.SecureOperation
+		wantErr    error
+		wantReason logreason.Enum
+	}{
+		{name: "other user", op: confirmedRegenerateOp(uuid.New()), wantErr: errors.ErrAccessForbidden, wantReason: logreason.AccessForbidden},
+		{name: "not confirmed", op: notConfirmedOp, wantErr: mrauth.ErrOperationIsNotConfirmed, wantReason: logreason.NotConfirmed},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(tt.op, nil)
+
+			codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
+			s.Require().ErrorIs(err, tt.wantErr)
+			s.Nil(codes)
+			s.Nil(s.saved)
+			s.Require().Len(s.logEntries, 1)
+			s.Equal(logstatus.Blocked, s.logEntries[0].LogStatus)
+			s.Equal(tt.wantReason, s.logEntries[0].Reason)
+		})
+	}
+}
+
+func (s *ApplyRecoverySuite) TestBrokenPayload() {
+	userID := uuid.New()
+
+	op := confirmedRegenerateOp(userID)
+	op.Payload = []byte(`{`)
+
+	s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(op, nil)
+
+	codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
+	s.Require().Error(err)
+	s.Nil(codes)
+	s.Nil(s.saved)
+	s.Empty(s.logEntries)
+}
+
+func (s *ApplyRecoverySuite) TestRecoveryCodesGeneratorError() {
+	userID := uuid.New()
+	errGenerate := errors.New("generate failed")
+
+	generator := mock.NewMockrecoveryCodesGenerator(s.ctrl)
+	generator.EXPECT().GenerateRecoveryCodes(8, 10).Return(nil, nil, errGenerate)
+
+	s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(confirmedRegenerateOp(userID), nil)
+
+	uc := security.NewApplyRecovery(
+		s.txManager, s.updater, s.verifier,
+		generator, s.notifierAPI, s.actorProps, s.logOperation, s.securityLog, 8, 10,
+	)
+
+	codes, err := uc.Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
+	s.Require().ErrorIs(err, errGenerate)
+	s.Nil(codes)
+	s.Nil(s.saved)
+	s.Empty(s.logEntries)
+}
+
+// TestStepError - сбой любого шага замены кодов откатывает транзакцию целиком:
+// коды не возвращаются, уведомление не уходит, в журнал операций ничего не пишется.
+func (s *ApplyRecoverySuite) TestStepError() {
+	errStep := errors.New("step failed")
+
+	tests := []struct {
+		name  string
+		setup func()
+	}{
+		{name: "update codes", setup: func() { s.updateErr = errStep }},
+		{name: "delete operation", setup: func() { s.deleteErr = errStep }},
+		{name: "security log", setup: func() { s.securityLogErr = errStep }},
+		{name: "notify", setup: func() { s.notifyErr = errStep }},
+	}
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			userID := uuid.New()
+
+			tt.setup()
+			s.verifier.EXPECT().FetchOneForUpdate(gomock.Any(), "op-token").Return(confirmedRegenerateOp(userID), nil)
+
+			codes, err := s.newUseCase().Execute(s.ctx, dto.ActorMeta{UserID: userID}, "op-token")
+			s.Require().ErrorIs(err, errStep)
+			s.Require().NotErrorIs(err, mrauth.ErrAuth2FAIsDisabled)
+			s.Nil(codes)
+			s.False(s.notified)
+			s.Empty(s.logEntries)
+		})
+	}
 }
