@@ -1,8 +1,10 @@
 # GoComponents Changelog
 Все изменения библиотеки GoComponents будут документироваться на этой странице.
 
-## 2026-10-07
+## 2026-10-11
 ### Changed
+- **ВНИМАНИЕ**: из ответа `GET /v1/security/log` удалено поле `has_next`: `cursor` возвращается только
+  при наличии следующей страницы, его отсутствие означает последнюю страницу;
 - У журнала безопасности `GET /v1/security/log` свои размеры страницы (по умолчанию 10, максимум 100),
   независимые от общих списков приложения: контроллер `Security`, которому принадлежит журнал, получает
   общий парсер с курсором, подменённым через `validate.Parser.WithListCursor`;
@@ -21,6 +23,15 @@
 - Удалены диаграммы пакетов (`docs/packages`): их компоненты отражены на HLD;
 - На диаграммах `mrsettings` компоненты названы по типам и методам кода
   (`SettingsGetter`, `SettingsGetter.Reload`, `SettingsSetter`, `JobWrapper`);
+- Форматирование кода переведено на `golangci-lint fmt` (форматтеры и их настройки берутся
+  из раздела `formatters` в `.golangci.yaml`, сгенерированные файлы пропускаются):
+  `make lint` вызывает `mrcmd go-dev fmt` вместо `fmt`, `fmti`, `fmti2`;
+  для просмотра изменений без записи добавлена команда `mrcmd go-dev fmt-diff`;
+- Из `.env.dist` удалены переменные `GO_DEV_IMPORTS_LOCAL_PREFIXES` и
+  `GO_DEV_TOOLS_INSTALL_{GOFUMPT,GOIMPORTS,GCI}_VERSION`: утилиты `gofumpt`, `goimports`, `gci`
+  больше не нужны, локальный префикс imports задаётся только в `.golangci.yaml`;
+- В `.env.dist` закреплена версия `golangci-lint` v2.11.4 — та же, что в CI;
+  в уже созданном `.env` обновите `GO_DEV_TOOLS_INSTALL_GOLANGCI_LINT_VERSION` вручную;
 
 ## 2026-10-03
 ### Changed

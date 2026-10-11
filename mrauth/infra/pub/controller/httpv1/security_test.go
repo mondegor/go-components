@@ -2,6 +2,7 @@ package httpv1_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -278,8 +279,8 @@ func handlerName(fn any) string {
 	return strings.TrimSuffix(name, "-fm")
 }
 
-// TestSecurityGetSecurityLog - страница журнала отдаётся с курсором на последнюю запись и признаком
-// продолжения; время - в поясе клиента, подробности событий - только у тех, к которым они относятся.
+// TestSecurityGetSecurityLog - при наличии следующей страницы журнал отдаётся с курсором на последнюю
+// запись; время - в поясе клиента, подробности событий - только у тех, к которым они относятся.
 func TestSecurityGetSecurityLog(t *testing.T) {
 	t.Parallel()
 
@@ -364,15 +365,13 @@ func TestSecurityGetSecurityLog(t *testing.T) {
 					CreatedAt: "2026-10-04T12:00:00+03:00",
 				},
 			},
-			Cursor:  "97",
-			HasNext: true,
+			Cursor: "97",
 		},
 		got,
 	)
 }
 
-// TestSecurityGetSecurityLogEmpty - пустая страница: курсор пустой, продолжения нет,
-// список - пустой массив, а не null.
+// TestSecurityGetSecurityLogEmpty - пустая страница: курсора нет, список - пустой массив, а не null.
 func TestSecurityGetSecurityLogEmpty(t *testing.T) {
 	t.Parallel()
 
@@ -408,5 +407,47 @@ func TestSecurityGetSecurityLogEmpty(t *testing.T) {
 	assert.NotNil(t, got.Items)
 	assert.Empty(t, got.Items)
 	assert.Empty(t, got.Cursor)
-	assert.False(t, got.HasNext)
+}
+
+// TestSecurityGetSecurityLogLastPage - на непустой последней странице в ответе нет ключа cursor:
+// его отсутствие и означает конец списка.
+func TestSecurityGetSecurityLogLastPage(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	parser := mock.NewMockRequestParser(ctrl)
+	sender := mock.NewMockFileResponseSender(ctrl)
+	useCase := mock.NewMockgetSecurityLogUseCase(ctrl)
+
+	parser.EXPECT().UserID(gomock.Any()).Return(uuid.New())
+	parser.EXPECT().CursorParams(gomock.Any()).Return(mrtype.CursorParams{Limit: 20})
+	parser.EXPECT().Location(gomock.Any()).Return(time.UTC)
+	useCase.EXPECT().
+		Execute(gomock.Any(), gomock.Any(), mrstorage.IDCursor{Limit: 20}).
+		Return([]dto.SecurityLogItem{{RecordID: 5, EventType: securityevent.EmailChanged}}, false, nil)
+
+	var got model.SecurityLogResponse
+
+	sender.EXPECT().
+		Send(gomock.Any(), http.StatusOK, gomock.Any()).
+		DoAndReturn(func(_ http.ResponseWriter, _ int, structResponse any) error {
+			got = structResponse.(model.SecurityLogResponse)
+
+			return nil
+		})
+
+	controller := httpv1.NewSecurity(
+		parser, sender, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, useCase, nil,
+	)
+
+	require.NoError(
+		t,
+		controller.GetSecurityLog(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1/security/log", http.NoBody)),
+	)
+
+	assert.Len(t, got.Items, 1)
+
+	body, err := json.Marshal(got)
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), `"cursor"`)
 }

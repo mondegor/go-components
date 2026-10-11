@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  pull_request:
   push:
-    branches: ['**']
+    branches: [master]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -27,6 +28,7 @@ jobs:
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.11.4
+          verify: false
 
   test:
     runs-on: ubuntu-latest

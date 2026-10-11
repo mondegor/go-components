@@ -64,9 +64,8 @@ type (
 
 	// SecurityLogResponse - страница журнала безопасности пользователя, от свежих событий к старым.
 	SecurityLogResponse struct {
-		Items   []SecurityLogItem `json:"items"`
-		Cursor  string            `json:"cursor"`
-		HasNext bool              `json:"has_next"`
+		Items  []SecurityLogItem `json:"items"`
+		Cursor string            `json:"cursor,omitempty"`
 	}
 
 	// SecurityLogItem - событие журнала безопасности пользователя.
