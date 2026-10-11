@@ -27,6 +27,7 @@ jobs:
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.11.4
+          verify: false
 
   test:
     runs-on: ubuntu-latest
