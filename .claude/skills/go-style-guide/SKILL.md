@@ -510,7 +510,7 @@ identifier names its own sentinels the same way.
   contention, not a regression — check that before hunting for a bug.
 - **Repository suites on `pgtest.Tester` test only the SQL of the repo's methods.** Prepare state
   with fixtures (or plain constructors/struct literals), call the method, assert the result or
-  the rows. Domain-model behaviour (`ConfirmAction`, `ActivateResendCode`, …) and chains across
+  the rows. Domain-model behaviour (`Item.Activate`, `Item.Archive`, …) and chains across
   several repositories belong to service/usecase tests. Reading back through another method of
   the **same** repo is fine; to check another table, query it directly, not via its repo.
   Names are tied to the repo:
@@ -518,7 +518,7 @@ identifier names its own sentinels the same way.
     `TestFooPostgresTestSuite` (the `TestSuite` suffix, not `Suite`, sets Postgres
     integration suites apart from unit suites on mocks);
   - test methods `Test_<Method>` and variants `Test_<Method>When<Cond>`, where `<Method>` is a
-    real method of the repo (`Test_RevokeRefreshWhenExpired`);
+    real method of the repo (`Test_FetchOneWhenDeleted`);
   - fixtures in `testdata/<Entity>/<Method>/` (`<Entity>` = repo type without `Postgres`); a
     variant with its own data gets `testdata/<Entity>/<Method>When<Cond>/`, a variant reusing the
     base data loads the method's directory.
