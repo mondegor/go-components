@@ -161,7 +161,10 @@ by `.golangci.yaml` (`golangci-lint` runs strict — `make lint` must pass befor
   boundary gets its predicate appended conditionally via the SQL builder
   (`if cursor.Code != "" { conds = append(…) }`) — two SQL texts, each with its own plan.
   Custom cursor constructors normalize the page size with `mrstorage.PageLimit(params.Limit)`.
-  The repository fetches `Limit+1` rows: the extra one only signals `hasNext`.
+  The repository fetches `Limit+1` rows: the extra one only signals `hasNext`. `hasNext` stays
+  internal: the HTTP response has no `has_next` field, its `cursor` (`json:"cursor,omitempty"`,
+  not `required` in the contract) is set only when `hasNext` is true, and its absence means the
+  end of the list.
   ```go
   sql := `
       ... WHERE

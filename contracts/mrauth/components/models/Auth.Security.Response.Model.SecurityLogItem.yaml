@@ -19,7 +19,7 @@ properties:
     type: string
     example: "95.165.1.1"
   location:
-    description: Местоположение (только если было вычислено)
+    description: Местоположение (только если было вычислено); произвольная строка, от языка запроса не зависит
     type: string
     example: "Moscow, Russia"
   app_name:

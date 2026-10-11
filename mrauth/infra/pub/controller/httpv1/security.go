@@ -481,8 +481,7 @@ func (ht *Security) GetSecurityLog(w http.ResponseWriter, r *http.Request) error
 
 	loc := ht.parser.Location(r)
 	response := model.SecurityLogResponse{
-		Items:   make([]model.SecurityLogItem, 0, len(items)),
-		HasNext: hasNext,
+		Items: make([]model.SecurityLogItem, 0, len(items)),
 	}
 
 	for _, item := range items {
@@ -504,8 +503,8 @@ func (ht *Security) GetSecurityLog(w http.ResponseWriter, r *http.Request) error
 		)
 	}
 
-	// курсор следующей страницы - позиция последней отданной записи
-	if len(response.Items) > 0 {
+	// курсор отдаётся только при наличии следующей страницы - позиция последней отданной записи
+	if hasNext {
 		response.Cursor = response.Items[len(response.Items)-1].ID
 	}
 
